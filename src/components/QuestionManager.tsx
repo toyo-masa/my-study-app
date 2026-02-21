@@ -37,6 +37,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [csvText, setCsvText] = useState('');
     const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
     const [isAdding, setIsAdding] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const loadQuestions = async () => {
@@ -133,7 +134,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     };
 
     const handleSave = async () => {
-        if (!editing) return;
+        if (!editing || isSaving) return;
         const cleanOptions = editing.options.filter(o => o.trim() !== '');
 
         if (quizSet.type === 'memorization') {
@@ -152,27 +153,45 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             return;
         }
 
-        if (isNew) {
-            await addQuestion({
-                quizSetId: quizSet.id!,
-                category: editing.category,
-                text: editing.text,
-                options: cleanOptions,
-                correctAnswers: editing.correctAnswers,
-                explanation: editing.explanation,
-            });
-        } else if (editing.id !== undefined) {
-            await updateQuestion(editing.id, {
-                category: editing.category,
-                text: editing.text,
-                options: cleanOptions,
-                correctAnswers: editing.correctAnswers,
-                explanation: editing.explanation,
-            });
-        }
+        setIsSaving(true);
+        try {
+            if (isNew) {
+                await addQuestion({
+                    quizSetId: quizSet.id!,
+                    category: editing.category,
+                    text: editing.text,
+                    options: cleanOptions,
+                    correctAnswers: editing.correctAnswers,
+                    explanation: editing.explanation,
+                });
+            } else if (editing.id !== undefined) {
+                // Check if anything actually changed to prevent unnecessary DB calls
+                const original = questions.find(q => q.id === editing.id);
+                const hasChanges = !original ||
+                    original.category !== editing.category ||
+                    original.text !== editing.text ||
+                    original.explanation !== editing.explanation ||
+                    JSON.stringify(original.options) !== JSON.stringify(cleanOptions) ||
+                    JSON.stringify(original.correctAnswers) !== JSON.stringify(editing.correctAnswers);
 
-        setEditing(null);
-        await loadQuestions();
+                if (hasChanges) {
+                    await updateQuestion(editing.id, {
+                        category: editing.category,
+                        text: editing.text,
+                        options: cleanOptions,
+                        correctAnswers: editing.correctAnswers,
+                        explanation: editing.explanation,
+                    });
+                }
+            }
+
+            setEditing(null);
+            await loadQuestions();
+        } catch (err) {
+            alert('保存エラー: ' + (err as Error).message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleDeleteClick = (id: number) => {
@@ -284,11 +303,11 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
             {/* Edit Modal */}
             {editing && (
-                <div className="modal-overlay" onClick={() => setEditing(null)}>
+                <div className="modal-overlay" onClick={() => !isSaving && setEditing(null)}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3>{isNew ? '問題を追加' : '問題を編集'}</h3>
-                            <button className="icon-btn" onClick={() => setEditing(null)}><X size={20} /></button>
+                            <button className="icon-btn" onClick={() => setEditing(null)} disabled={isSaving}><X size={20} /></button>
                         </div>
 
                         <div className="modal-body">
@@ -347,9 +366,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         </div>
 
                         <div className="modal-footer">
-                            <button className="nav-btn" onClick={() => setEditing(null)}>キャンセル</button>
-                            <button className="nav-btn action-btn" onClick={handleSave}>
-                                <Save size={16} /> 保存
+                            <button className="nav-btn" onClick={() => setEditing(null)} disabled={isSaving}>キャンセル</button>
+                            <button className="nav-btn action-btn" onClick={handleSave} disabled={isSaving}>
+                                {isSaving ? (
+                                    <>保存中...</>
+                                ) : (
+                                    <><Save size={16} /> 保存</>
+                                )}
                             </button>
                         </div>
                     </div>
