@@ -31,8 +31,10 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question
     return (
         <main className="memorization-content">
             <div className="question-card">
-                <span className="category-badge">{question.category}</span>
-                <span className="progress-text-card">{index + 1} / {total}</span>
+                <div className="card-header">
+                    <span className="category-badge">{question.category}</span>
+                    <span className="progress-text-card">{index + 1} / {total}</span>
+                </div>
                 <h2 className="question-text">
                     <MarkdownText content={question.text} />
                 </h2>

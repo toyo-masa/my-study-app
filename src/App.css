@@ -3934,10 +3934,14 @@ input:checked+.slider svg {
   gap: 1.5rem;
 }
 
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
 .category-badge {
-  position: absolute;
-  top: 1.5rem;
-  left: 2rem;
   background: rgba(99, 102, 241, 0.1);
   color: var(--primary-color);
   padding: 0.25rem 0.75rem;
@@ -3947,15 +3951,11 @@ input:checked+.slider svg {
 }
 
 .progress-text-card {
-  position: absolute;
-  top: 1.5rem;
-  right: 2rem;
   font-size: 0.9rem;
   color: var(--text-secondary);
 }
 
 .question-text {
-  margin-top: 1.5rem;
   font-size: 1.35rem;
   font-weight: 600;
   line-height: 1.6;
