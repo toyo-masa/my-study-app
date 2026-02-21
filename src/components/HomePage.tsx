@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, CalendarClock, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive } from 'lucide-react';
+import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLauncher } from './AppLauncher';
 import type { QuizSet } from '../types';
@@ -25,7 +25,6 @@ interface HomePageProps {
     onPermanentDeleteQuizSet: (quizSetId: number) => void;
     onArchiveQuizSet: (quizSetId: number) => void;
     onUnarchiveQuizSet: (quizSetId: number) => void;
-    onOpenReview: (quizSet: QuizSetWithMeta) => void;
     deletedQuizSets: QuizSetWithMeta[];
     archivedQuizSets: QuizSetWithMeta[];
 }
@@ -45,7 +44,6 @@ export const HomePage: React.FC<HomePageProps> = ({
     onPermanentDeleteQuizSet,
     onArchiveQuizSet,
     onUnarchiveQuizSet,
-    onOpenReview,
     deletedQuizSets,
     archivedQuizSets
 }) => {
@@ -250,9 +248,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                                             </div>
                                             <div className="quiz-card-actions" style={{ position: 'relative', zIndex: 2 }}>
                                                 <button className="start-btn" onClick={(e) => { e.stopPropagation(); onSelectQuizSet(qs); }} data-tooltip="演習を開始">開始</button>
-                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onOpenReview(qs); }} data-tooltip="間隔反復で復習">
-                                                    <CalendarClock size={16} />
-                                                </button>
                                                 <button className="manage-btn" onClick={(e) => { e.stopPropagation(); onManageQuizSet(qs); }} title="問題管理" data-tooltip="問題を編集・管理">
                                                     <Settings size={16} />
                                                 </button>

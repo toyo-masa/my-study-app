@@ -8,9 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { QuestionView } from './components/QuestionView';
 import { TestResult } from './components/TestResult';
 import { SettingsModal } from './components/SettingsModal';
-import { ReviewDashboard } from './components/ReviewDashboard';
-import { ReviewSession } from './components/ReviewSession';
-import type { ReviewItem } from './components/ReviewSession';
+import { MemorizationQuestionView, MemorizationResultView, type MemorizationLog } from './components/MemorizationView';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory } from './types';
 import { parseQuestions, parseMemorizationQuestions } from './utils/csvParser';
 import { calculateNextInterval, calculateNextDue } from './utils/spacedRepetition';
@@ -33,9 +31,7 @@ import {
 import { Menu, ArrowLeft, Settings } from 'lucide-react';
 import './App.css';
 
-import { MemorizationQuestionView, MemorizationResultView, type MemorizationLog } from './components/MemorizationView';
-
-type AppView = 'home' | 'detail' | 'study' | 'manage' | 'review-dashboard' | 'review-session' | 'memorization-view';
+type AppView = 'home' | 'detail' | 'study' | 'manage' | 'memorization-view';
 
 // Define SuspendedSession type
 interface SuspendedSession {
@@ -58,9 +54,6 @@ function App() {
   const [archivedQuizSets, setArchivedQuizSets] = useState<QuizSetWithMeta[]>([]); // Added
   const [activeQuizSet, setActiveQuizSet] = useState<QuizSetWithMeta | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  // 復習スケジューラ用の状態
-  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
 
   // Study session state
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -627,36 +620,6 @@ function App() {
     // activeQuizSet remains set
   };
 
-  // === 復習スケジューラ用ハンドラー ===
-
-  // 復習ダッシュボードを開く（問題集を選択して）
-  const handleOpenReviewDashboard = (quizSet: QuizSetWithMeta) => {
-    setActiveQuizSet(quizSet);
-    setView('review-dashboard');
-  };
-
-  // 復習セッションを開始
-  const handleStartReview = (items: ReviewItem[]) => {
-    setReviewItems(items);
-    setView('review-session');
-  };
-
-  // 復習セッション完了
-  const handleReviewComplete = async () => {
-    if (activeQuizSet) {
-      setView('review-dashboard');
-    } else {
-      setView('home');
-    }
-  };
-
-  // 復習ダッシュボードから戻る
-  const handleBackFromReview = async () => {
-    setView('home');
-    setActiveQuizSet(null);
-    await loadQuizSets();
-  };
-
   const handleToggleOption = (optionIndex: number) => {
     const currentQuestion = questions[currentQuestionIndex];
     if (!currentQuestion) return;
@@ -925,7 +888,6 @@ function App() {
             onDeleteQuizSet={handleDeleteQuizSet} // Renamed from onDeleteQuizSet
             onRestoreQuizSet={handleRestoreQuizSet}
             onPermanentDeleteQuizSet={handlePermanentDeleteQuizSet}
-            onOpenReview={handleOpenReviewDashboard}
             onAddMemorizationSet={handleAddMemorizationSet}
             onAddEmptyQuizSet={handleAddEmptyQuizSet}
             onAddEmptyMemorizationSet={handleAddEmptyMemorizationSet}
@@ -998,28 +960,6 @@ function App() {
               </main>
             </div>
           </>
-        );
-      case 'review-dashboard':
-        return activeQuizSet && (
-          <main className="content-area" style={{ padding: '1.5rem' }}>
-            <ReviewDashboard
-              quizSetId={activeQuizSet.id!}
-              quizSetName={activeQuizSet.name}
-              onBack={handleBackFromReview}
-              onStartReview={handleStartReview}
-            />
-          </main>
-        );
-      case 'review-session':
-        return (
-          <main className="content-area" style={{ padding: '1.5rem' }}>
-            <ReviewSession
-              reviewItems={reviewItems}
-              quizSetName={activeQuizSet?.name || '復習'}
-              onBack={() => activeQuizSet ? setView('review-dashboard') : setView('home')}
-              onComplete={handleReviewComplete}
-            />
-          </main>
         );
       case 'detail':
         return activeQuizSet && activeQuizSet.id !== undefined && (
