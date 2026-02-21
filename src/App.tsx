@@ -499,14 +499,40 @@ function App() {
     await loadQuizSets();
   };
 
-  const handleArchiveQuizSet = async (id: number) => {
-    await archiveQuizSet(id);
-    await loadQuizSets();
+  const handleArchiveQuizSet = async (quizSetId: number) => {
+    // Optimistic UI update
+    const targetSet = quizSets.find(qs => qs.id === quizSetId);
+    if (targetSet) {
+      setQuizSets(prev => prev.filter(qs => qs.id !== quizSetId));
+      setArchivedQuizSets(prev => [...prev, targetSet]);
+    }
+
+    try {
+      await archiveQuizSet(quizSetId);
+      await loadQuizSets();
+    } catch (err) {
+      console.error('Failed to archive quiz set:', err);
+      alert('アーカイブに失敗しました');
+      await loadQuizSets();
+    }
   };
 
-  const handleUnarchiveQuizSet = async (id: number) => {
-    await unarchiveQuizSet(id);
-    await loadQuizSets();
+  const handleUnarchiveQuizSet = async (quizSetId: number) => {
+    // Optimistic UI update
+    const targetSet = archivedQuizSets.find(qs => qs.id === quizSetId);
+    if (targetSet) {
+      setArchivedQuizSets(prev => prev.filter(qs => qs.id !== quizSetId));
+      setQuizSets(prev => [...prev, targetSet]);
+    }
+
+    try {
+      await unarchiveQuizSet(quizSetId);
+      await loadQuizSets();
+    } catch (err) {
+      console.error('Failed to unarchive quiz set:', err);
+      alert('アーカイブ解除に失敗しました');
+      await loadQuizSets();
+    }
   };
 
   const handleUpdateQuizSet = async (quizSetId: number, changes: Partial<import('./types').QuizSet>) => {
