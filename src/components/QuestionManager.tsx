@@ -165,24 +165,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     explanation: editing.explanation,
                 });
             } else if (editing.id !== undefined) {
-                // Check if anything actually changed to prevent unnecessary DB calls
-                const original = questions.find(q => q.id === editing.id);
-                const hasChanges = !original ||
-                    original.category !== editing.category ||
-                    original.text !== editing.text ||
-                    original.explanation !== editing.explanation ||
-                    JSON.stringify(original.options) !== JSON.stringify(cleanOptions) ||
-                    JSON.stringify(original.correctAnswers) !== JSON.stringify(editing.correctAnswers);
-
-                if (hasChanges) {
-                    await updateQuestion(editing.id, {
-                        category: editing.category,
-                        text: editing.text,
-                        options: cleanOptions,
-                        correctAnswers: editing.correctAnswers,
-                        explanation: editing.explanation,
-                    });
-                }
+                await updateQuestion(editing.id, {
+                    category: editing.category,
+                    text: editing.text,
+                    options: cleanOptions,
+                    correctAnswers: editing.correctAnswers,
+                    explanation: editing.explanation,
+                });
             }
 
             setEditing(null);
@@ -260,6 +249,22 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             setNewName(quizSet.name);
         }
     };
+
+    // Calculate if the editing question has changes compared to the original
+    const isDirty = React.useMemo(() => {
+        if (!editing) return false;
+        if (isNew) return true; // Always dirty if it's new
+
+        const original = questions.find(q => q.id === editing.id);
+        if (!original) return true;
+
+        const cleanOptions = editing.options.filter(o => o.trim() !== '');
+        return original.category !== editing.category ||
+            original.text !== editing.text ||
+            original.explanation !== editing.explanation ||
+            JSON.stringify(original.options) !== JSON.stringify(cleanOptions) ||
+            JSON.stringify(original.correctAnswers) !== JSON.stringify(editing.correctAnswers);
+    }, [editing, isNew, questions]);
 
     return (
         <div className="manager-container">
@@ -367,7 +372,11 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
                         <div className="modal-footer">
                             <button className="nav-btn" onClick={() => setEditing(null)} disabled={isSaving}>キャンセル</button>
-                            <button className="nav-btn action-btn" onClick={handleSave} disabled={isSaving}>
+                            <button
+                                className="nav-btn action-btn"
+                                onClick={handleSave}
+                                disabled={isSaving || !isDirty}
+                            >
                                 {isSaving ? (
                                     <>保存中...</>
                                 ) : (
