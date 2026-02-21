@@ -121,10 +121,6 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
 }) => {
     const [filter, setFilter] = useState<MemorizationFilter>('all');
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-
-    const memorizedCount = logs.filter(l => l.isMemorized).length;
-    const percentage = Math.round((memorizedCount / questions.length) * 100);
-
     const toggleExpand = (id: number) => {
         setExpandedIds(prev => {
             const next = new Set(prev);
@@ -146,12 +142,16 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
     }, [logs, questions, filter]);
 
     const filterCounts = useMemo(() => {
-        const memorized = logs.filter(l => l.isMemorized).length;
+        const memorized = filteredLogs.filter(item => item.log.isMemorized).length;
         return {
             memorized,
-            not_memorized: logs.length - memorized
+            not_memorized: filteredLogs.length - memorized
         };
-    }, [logs]);
+    }, [filteredLogs]);
+
+    const memorizedCount = filteredLogs.filter(item => item.log.isMemorized).length;
+    const validTotalCount = filteredLogs.length;
+    const percentage = validTotalCount > 0 ? Math.round((memorizedCount / validTotalCount) * 100) : 0;
 
     return (
         <motion.div
@@ -164,7 +164,7 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                 {/* Simplified info section without chart */}
                 <div className="result-info-section" style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>
                     <p className="result-attempt">{isHistory ? '学習履歴' : '学習完了'}</p>
-                    <h1 className="result-percentage">{percentage}%<span className="result-sub">記憶 ({memorizedCount}/{questions.length})</span></h1>
+                    <h1 className="result-percentage">{percentage}%<span className="result-sub">記憶 ({memorizedCount}/{validTotalCount})</span></h1>
 
                     <div className="result-actions" style={{ justifyContent: 'center' }}>
                         {onBack && <button className="review-btn" onClick={onBack}>戻る</button>}
@@ -181,13 +181,21 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                 <h2>問題一覧</h2>
                 <div className="review-filter-bar">
                     <button className={`review-filter-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
-                        すべて ({questions.length})
+                        <span>すべて ({validTotalCount})</span>
                     </button>
-                    <button className={`review-filter-btn ${filter === 'memorized' ? 'active' : ''}`} onClick={() => setFilter('memorized')}>
-                        覚えた ({filterCounts.memorized})
+                    <button
+                        className={`review-filter-btn ${filter === 'memorized' ? 'active' : ''}`}
+                        onClick={() => setFilter('memorized')}
+                    >
+                        <Check size={14} style={{ marginRight: 4 }} />
+                        <span>覚えた ({filterCounts.memorized})</span>
                     </button>
-                    <button className={`review-filter-btn ${filter === 'not_memorized' ? 'active' : ''}`} onClick={() => setFilter('not_memorized')}>
-                        覚えていない ({filterCounts.not_memorized})
+                    <button
+                        className={`review-filter-btn ${filter === 'not_memorized' ? 'active' : ''}`}
+                        onClick={() => setFilter('not_memorized')}
+                    >
+                        <X size={14} style={{ marginRight: 4 }} />
+                        <span>覚えていない ({filterCounts.not_memorized})</span>
                     </button>
                 </div>
 

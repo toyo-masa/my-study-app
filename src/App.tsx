@@ -406,22 +406,39 @@ function App() {
     }
   };
 
-  const handleResumeStudy = () => {
+  const handleResumeStudy = async () => {
     if (!activeQuizSet || activeQuizSet.id === undefined) return;
     const suspendedSession = loadSessionFromStorage(activeQuizSet.id);
     if (!suspendedSession) return;
 
+    // 最新の問題一覧をDBから取得し、削除された問題を除外する
+    const validQuestionsFromDB = await getQuestionsForQuizSet(activeQuizSet.id);
+    const validOptionIds = new Set(validQuestionsFromDB.map(q => q.id));
+
+    // 中断セッションの問題リストをフィルタリング
+    const filteredQuestions = suspendedSession.questions.filter(q => q.id !== undefined && validOptionIds.has(q.id));
+
+    if (filteredQuestions.length === 0) {
+      alert('中断していた問題はすべて削除されました。');
+      clearSessionFromStorage(activeQuizSet.id);
+      return;
+    }
+
+    // 削除された問題文、現在のインデックスが範囲外にならないよう調整
+    // (元のインデックスが指していた問題のIDを追跡するのは難しいため、単純に範囲内に収める)
+    const nextIndex = Math.min(suspendedSession.currentQuestionIndex, filteredQuestions.length - 1);
+
     if (suspendedSession.type === 'memorization') {
-      setQuestions(suspendedSession.questions);
+      setQuestions(filteredQuestions);
       setMemorizationLogs(suspendedSession.memorizationLogs || []);
-      setCurrentQuestionIndex(suspendedSession.currentQuestionIndex);
+      setCurrentQuestionIndex(nextIndex);
       startTimeRef.current = suspendedSession.startTime;
       setIsTestCompleted(false);
       setActiveHistory(null);
       setView('memorization-view');
     } else {
-      setQuestions(suspendedSession.questions);
-      setCurrentQuestionIndex(suspendedSession.currentQuestionIndex);
+      setQuestions(filteredQuestions);
+      setCurrentQuestionIndex(nextIndex);
       setAnswers(suspendedSession.answers);
       setMemos(suspendedSession.memos);
       setShowAnswerMap(suspendedSession.showAnswerMap);
