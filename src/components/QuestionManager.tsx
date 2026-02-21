@@ -135,9 +135,17 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const handleSave = async () => {
         if (!editing) return;
         const cleanOptions = editing.options.filter(o => o.trim() !== '');
-        if (cleanOptions.length < 2) {
-            alert('選択肢は2つ以上必要です');
-            return;
+
+        if (quizSet.type === 'memorization') {
+            if (cleanOptions.length < 1) {
+                alert('暗記カードの裏面（解答）として、選択肢に最低1つはテキストを入力してください');
+                return;
+            }
+        } else {
+            if (cleanOptions.length < 2) {
+                alert('選択肢は2つ以上必要です');
+                return;
+            }
         }
         if (editing.text.trim() === '') {
             alert('問題文を入力してください');
