@@ -4546,6 +4546,58 @@ input:checked+.slider svg {
   font-weight: 500;
 }
 
+.dist-sim-formula-display {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 0.5rem 1.25rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.dist-sim-formula-display .markdown-body {
+  margin: 0;
+}
+
+.dist-sim-formula-display .katex-display {
+  margin: 0.3em 0;
+}
+
+.dist-sim-math-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.dist-sim-math-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-color);
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.dist-sim-math-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.dist-sim-math-row .markdown-body {
+  margin: 0;
+  flex: 1;
+}
+
+.dist-sim-math-row .markdown-body p {
+  margin: 0;
+}
+
 /* Dark mode adjustments for Distribution Simulator */
 .dark-mode .dist-sim-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
