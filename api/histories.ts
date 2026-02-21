@@ -1,6 +1,13 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
+    const secretToken = process.env.API_SECRET_TOKEN;
+    const clientToken = req.headers['x-sync-token'];
+
+    if (secretToken && clientToken !== secretToken) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+
     const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
     if (!databaseUrl) return res.status(500).json({ error: 'Database URL not found' });
     const sql = neon(databaseUrl);

@@ -2,7 +2,13 @@ import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSet
 
 // Helper to handle API responses
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(url, options);
+    const token = import.meta.env.VITE_API_TOKEN || '';
+    const headers = {
+        'x-sync-token': token,
+        ...(options?.headers || {})
+    };
+
+    const res = await fetch(url, { ...options, headers });
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
