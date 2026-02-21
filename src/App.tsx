@@ -30,6 +30,7 @@ import {
   hardDeleteQuizSet, // Added
 } from './db';
 import { Menu, ArrowLeft, Settings } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 
 type AppView = 'home' | 'detail' | 'study' | 'manage' | 'memorization-view' | 'distribution-sim';
@@ -926,6 +927,17 @@ function App() {
             </header>
 
             <div className="main-layout">
+              <AnimatePresence>
+                {sidebarOpen && !isTestCompleted && (
+                  <motion.div
+                    className="sidebar-overlay"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setSidebarOpen(false)}
+                  />
+                )}
+              </AnimatePresence>
               {!isTestCompleted && (
                 <aside className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
                   <Sidebar
@@ -1010,6 +1022,17 @@ function App() {
             </header>
 
             <div className="main-layout">
+              <AnimatePresence>
+                {sidebarOpen && !isTestCompleted && (
+                  <motion.div
+                    className="sidebar-overlay"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setSidebarOpen(false)}
+                  />
+                )}
+              </AnimatePresence>
               {!isTestCompleted && (
                 <aside className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
                   <Sidebar

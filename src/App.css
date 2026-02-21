@@ -4739,6 +4739,15 @@ input:checked+.slider svg {
     box-shadow: none;
   }
 
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 95;
+  }
+
   /* --- Content Area --- */
   .content-area {
     padding: 1rem;
