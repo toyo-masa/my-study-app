@@ -25,6 +25,7 @@ interface HomePageProps {
     onPermanentDeleteQuizSet: (quizSetId: number) => void;
     onArchiveQuizSet: (quizSetId: number) => void;
     onUnarchiveQuizSet: (quizSetId: number) => void;
+    onOpenApp?: (appId: string) => void;
     deletedQuizSets: QuizSetWithMeta[];
     archivedQuizSets: QuizSetWithMeta[];
 }
@@ -44,6 +45,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     onPermanentDeleteQuizSet,
     onArchiveQuizSet,
     onUnarchiveQuizSet,
+    onOpenApp,
     deletedQuizSets,
     archivedQuizSets
 }) => {
@@ -112,7 +114,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
     return (
         <div className="home-page">
-            <AppLauncher />
+            <AppLauncher onOpenApp={onOpenApp} />
             <header className="home-header">
                 <div className="home-brand">
                     <BookOpen size={32} />

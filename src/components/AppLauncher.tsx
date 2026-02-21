@@ -2,34 +2,25 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Grid3X3,
-    Mail,
-    Cloud,
-    FileText,
-    Table,
-    Presentation,
-    Book,
-    CheckSquare,
-    Calendar
+    BarChart3,
 } from 'lucide-react';
 
 interface AppItem {
+    id: string;
     name: string;
     icon: React.ReactNode;
     color: string;
 }
 
 const apps: AppItem[] = [
-    { name: 'Outlook', icon: <Mail size={24} />, color: '#0078d4' },
-    { name: 'OneDrive', icon: <Cloud size={24} />, color: '#0078d4' },
-    { name: 'Word', icon: <FileText size={24} />, color: '#2b579a' },
-    { name: 'Excel', icon: <Table size={24} />, color: '#217346' },
-    { name: 'PowerPoint', icon: <Presentation size={24} />, color: '#b7472a' },
-    { name: 'OneNote', icon: <Book size={24} />, color: '#7719aa' },
-    { name: 'To Do', icon: <CheckSquare size={24} />, color: '#3c6df0' },
-    { name: 'Calendar', icon: <Calendar size={24} />, color: '#0078d4' },
+    { id: 'distribution-sim', name: '分布シミュレーション', icon: <BarChart3 size={24} />, color: '#6366f1' },
 ];
 
-export const AppLauncher: React.FC = () => {
+interface AppLauncherProps {
+    onOpenApp?: (appId: string) => void;
+}
+
+export const AppLauncher: React.FC<AppLauncherProps> = ({ onOpenApp }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +38,11 @@ export const AppLauncher: React.FC = () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [isOpen]);
+
+    const handleAppClick = (appId: string) => {
+        setIsOpen(false);
+        onOpenApp?.(appId);
+    };
 
     return (
         <div className="app-launcher" ref={menuRef}>
@@ -71,15 +67,17 @@ export const AppLauncher: React.FC = () => {
                         transition={{ duration: 0.2, ease: 'easeOut' }}
                     >
                         <div className="launcher-header">
-                            <span className="launcher-title">My Application</span>
+                            <span className="launcher-title">アプリ一覧</span>
                         </div>
 
                         <div className="launcher-grid">
                             {apps.map((app) => (
                                 <motion.div
-                                    key={app.name}
+                                    key={app.id}
                                     className="launcher-item"
                                     whileHover={{ backgroundColor: 'rgba(0, 0, 0, 0.05)' }}
+                                    onClick={() => handleAppClick(app.id)}
+                                    style={{ cursor: 'pointer' }}
                                 >
                                     <div className="item-icon" style={{ color: app.color }}>
                                         {app.icon}
@@ -95,3 +93,4 @@ export const AppLauncher: React.FC = () => {
         </div>
     );
 };
+

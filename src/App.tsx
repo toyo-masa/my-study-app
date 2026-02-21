@@ -9,6 +9,7 @@ import { QuestionView } from './components/QuestionView';
 import { TestResult } from './components/TestResult';
 import { SettingsModal } from './components/SettingsModal';
 import { MemorizationQuestionView, MemorizationResultView, type MemorizationLog } from './components/MemorizationView';
+import { DistributionSimulator } from './components/DistributionSimulator';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory } from './types';
 import { parseQuestions, parseMemorizationQuestions } from './utils/csvParser';
 import { calculateNextInterval, calculateNextDue } from './utils/spacedRepetition';
@@ -31,7 +32,7 @@ import {
 import { Menu, ArrowLeft, Settings } from 'lucide-react';
 import './App.css';
 
-type AppView = 'home' | 'detail' | 'study' | 'manage' | 'memorization-view';
+type AppView = 'home' | 'detail' | 'study' | 'manage' | 'memorization-view' | 'distribution-sim';
 
 // Define SuspendedSession type
 interface SuspendedSession {
@@ -895,7 +896,14 @@ function App() {
             archivedQuizSets={archivedQuizSets} // Added
             onArchiveQuizSet={handleArchiveQuizSet} // Added
             onUnarchiveQuizSet={handleUnarchiveQuizSet} // Added
+            onOpenApp={(appId) => {
+              if (appId === 'distribution-sim') setView('distribution-sim');
+            }}
           />
+        );
+      case 'distribution-sim':
+        return (
+          <DistributionSimulator onBack={() => setView('home')} />
         );
       case 'memorization-view':
         const memStatus = memorizationLogs.reduce((acc, log) => {

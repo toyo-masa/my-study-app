@@ -4246,6 +4246,311 @@ input:checked+.slider svg {
   margin: 0;
 }
 
+/* ===== Distribution Simulator ===== */
+.dist-sim-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.dist-sim-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.dist-sim-header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+  color: var(--text-color);
+}
+
+.dist-sim-selector {
+  margin-bottom: 1.5rem;
+}
+
+.dist-sim-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dist-sim-select {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-color);
+  color: var(--text-color);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  transition: border-color 0.2s;
+}
+
+.dist-sim-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.dist-sim-chart-card {
+  background: var(--surface-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border-color);
+}
+
+.dist-sim-chart-container {
+  width: 100%;
+}
+
+.dist-sim-chart-container canvas {
+  display: block;
+  width: 100%;
+}
+
+.dist-sim-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.dist-sim-controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.dist-sim-param-card {
+  background: var(--surface-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.dist-sim-param-card h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dist-sim-slider-group {
+  margin-bottom: 1rem;
+}
+
+.dist-sim-slider-group:last-child {
+  margin-bottom: 0;
+}
+
+.dist-sim-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.dist-sim-slider-header label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.dist-sim-slider-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  font-variant-numeric: tabular-nums;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+
+.dist-sim-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-color);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+
+.dist-sim-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+  transition: transform 0.15s;
+}
+
+.dist-sim-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.dist-sim-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+}
+
+.dist-sim-slider.highlight-slider::-webkit-slider-thumb {
+  background: #818cf8;
+}
+
+.dist-sim-slider.highlight-slider::-moz-range-thumb {
+  background: #818cf8;
+}
+
+.dist-sim-slider-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 0.2rem;
+}
+
+.dist-sim-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.dist-sim-toggle-label input {
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+.dist-sim-probability {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(99, 102, 241, 0.06);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  margin-top: 0.75rem;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.dist-sim-probability span {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-family: 'Courier New', monospace;
+}
+
+.dist-sim-probability strong {
+  font-size: 1.1rem;
+  color: var(--primary-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.dist-sim-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.dist-sim-info-card {
+  background: var(--surface-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.dist-sim-info-card h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dist-sim-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.dist-sim-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  background: var(--bg-color);
+  border-radius: var(--radius-md);
+}
+
+.dist-sim-stat .stat-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.dist-sim-stat .stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.dist-sim-description {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
+}
+
+.dist-sim-formula {
+  background: var(--bg-color);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.dist-sim-formula code {
+  font-size: 0.85rem;
+  font-family: 'Courier New', monospace;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+/* Dark mode adjustments for Distribution Simulator */
+.dark-mode .dist-sim-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+
 /* ===============================================
    RESPONSIVE DESIGN — Tablet (≤768px)
    =============================================== */
@@ -4499,6 +4804,20 @@ input:checked+.slider svg {
   .confidence-buttons {
     flex-wrap: wrap;
     gap: 0.35rem;
+  }
+
+  /* --- Distribution Simulator --- */
+  .dist-sim-controls-grid,
+  .dist-sim-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dist-sim-container {
+    padding: 1rem;
+  }
+
+  .dist-sim-header h1 {
+    font-size: 1.25rem;
   }
 }
 
