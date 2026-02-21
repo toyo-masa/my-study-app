@@ -4245,3 +4245,444 @@ input:checked+.slider svg {
 .table-markdown p {
   margin: 0;
 }
+
+/* ===============================================
+   RESPONSIVE DESIGN — Tablet (≤768px)
+   =============================================== */
+@media (max-width: 768px) {
+
+  /* --- Home Page --- */
+  .home-page {
+    padding: 2rem 1rem;
+  }
+
+  .home-header {
+    margin-bottom: 2rem;
+  }
+
+  .home-brand h1 {
+    font-size: 2rem;
+  }
+
+  .home-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .quiz-sets-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .quiz-card {
+    padding: 1.25rem;
+  }
+
+  .quiz-card-actions {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .nav-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .nav-btn {
+    white-space: nowrap;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.8rem;
+    gap: 0.35rem;
+  }
+
+  /* --- App Header --- */
+  .app-header {
+    height: 50px;
+    padding: 0 0.75rem;
+  }
+
+  .header-left h1 {
+    font-size: 0.95rem;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* --- Sidebar --- */
+  .sidebar-container {
+    position: fixed;
+    top: 50px;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    width: 280px;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .sidebar-container.closed {
+    width: 0;
+    box-shadow: none;
+  }
+
+  /* --- Content Area --- */
+  .content-area {
+    padding: 1rem;
+  }
+
+  /* --- Question View --- */
+  .question-view {
+    padding: 1.25rem;
+  }
+
+  .option-item {
+    padding: 0.75rem;
+  }
+
+  .answer-row {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .answer-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .navigation-buttons {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* --- Question Manager (Table) --- */
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .question-table {
+    min-width: 600px;
+  }
+
+  .text-cell {
+    max-width: 250px;
+  }
+
+  .manager-actions {
+    flex-wrap: wrap;
+  }
+
+  /* --- Quiz Detail --- */
+  .quiz-detail-container {
+    max-width: 100%;
+  }
+
+  .detail-info-card {
+    padding: 1.5rem;
+  }
+
+  /* --- Test Result --- */
+  .test-result-container {
+    padding: 1.5rem;
+  }
+
+  .result-main {
+    flex-direction: column;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .result-info-section {
+    min-width: unset;
+    text-align: center;
+    width: 100%;
+  }
+
+  .result-percentage {
+    font-size: 3rem;
+  }
+
+  .results-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* --- Help Popover --- */
+  .help-popover {
+    width: calc(100vw - 2rem);
+    max-width: 420px;
+    left: auto;
+    right: -1rem;
+  }
+
+  /* --- App Launcher --- */
+  .app-launcher {
+    width: calc(100vw - 2rem);
+    max-width: 300px;
+  }
+
+  /* --- Settings Panel (already ok, but ensure full width on smaller tablets) --- */
+  .settings-panel {
+    max-width: 100%;
+  }
+
+  /* --- Memorization Results --- */
+  .q-answers {
+    grid-template-columns: 1fr;
+  }
+
+  .results-summary {
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* --- Confirmation Modal --- */
+  .confirmation-overlay .confirmation-dialog {
+    margin: 0 1rem;
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* --- Tooltips: hide on touch --- */
+  [data-tooltip]::before,
+  [data-tooltip]::after {
+    display: none;
+  }
+
+  /* --- Progress Section --- */
+  .progress-section {
+    padding: 0.35rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .progress-text {
+    font-size: 0.85rem;
+    min-width: 50px;
+  }
+
+  /* --- Confidence Buttons --- */
+  .confidence-buttons {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+}
+
+/* ===============================================
+   RESPONSIVE DESIGN — Mobile (≤480px)
+   =============================================== */
+@media (max-width: 480px) {
+
+  /* --- Home Page --- */
+  .home-page {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .home-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .home-brand h1 {
+    font-size: 1.6rem;
+  }
+
+  .home-subtitle {
+    font-size: 0.85rem;
+  }
+
+  .quiz-sets-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .quiz-card {
+    padding: 1rem;
+    gap: 0.5rem;
+  }
+
+  .quiz-card-title {
+    font-size: 0.95rem;
+  }
+
+  .quiz-card-actions {
+    gap: 0.25rem;
+  }
+
+  .start-btn {
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .nav-actions {
+    gap: 0.5rem;
+  }
+
+  .nav-btn {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.5rem;
+    gap: 0.2rem;
+    white-space: nowrap;
+  }
+
+  /* --- App Header --- */
+  .header-left h1 {
+    font-size: 0.85rem;
+    max-width: 150px;
+  }
+
+  .menu-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  /* --- Content Area --- */
+  .content-area {
+    padding: 0.75rem;
+  }
+
+  /* --- Question View --- */
+  .question-view {
+    padding: 1rem;
+    border-radius: var(--radius-md);
+  }
+
+  .question-text {
+    font-size: 0.95rem;
+  }
+
+  .option-item {
+    padding: 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .explanation-box {
+    padding: 1rem;
+  }
+
+  /* --- Question Manager --- */
+  .manager-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .question-table {
+    font-size: 0.8rem;
+    min-width: 500px;
+  }
+
+  .question-table th,
+  .question-table td {
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* --- Quiz Detail --- */
+  .detail-header h1 {
+    font-size: 1.2rem;
+  }
+
+  .detail-info-card {
+    padding: 1rem;
+  }
+
+  .info-value {
+    font-size: 1.25rem;
+  }
+
+  .quiz-settings-row {
+    gap: 0.4rem;
+  }
+
+  .quiz-setting-chip {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  /* --- Test Result --- */
+  .test-result-container {
+    padding: 1rem;
+  }
+
+  .result-percentage {
+    font-size: 2.5rem;
+  }
+
+  .result-sub {
+    font-size: 1rem;
+  }
+
+  .donut-chart-container svg {
+    width: 140px;
+    height: 140px;
+  }
+
+  .result-legend {
+    font-size: 0.75rem;
+  }
+
+  .results-actions {
+    gap: 0.5rem;
+  }
+
+  /* --- Memorization View --- */
+  .score-circle {
+    width: 130px;
+    height: 130px;
+    border-width: 6px;
+  }
+
+  .score-percentage {
+    font-size: 2.5rem;
+  }
+
+  .result-item {
+    padding: 1rem;
+  }
+
+  .q-text {
+    font-size: 1rem;
+  }
+
+  /* --- Help Popover --- */
+  .help-popover {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    overflow-y: auto;
+  }
+
+  /* --- App Launcher --- */
+  .app-launcher {
+    width: calc(100vw - 1rem);
+    max-width: 280px;
+  }
+
+  .launcher-grid {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  /* --- Tag Filters --- */
+  .tag-filter-container {
+    gap: 0.35rem !important;
+  }
+
+  .tag {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.5rem;
+  }
+
+  /* --- Global Settings Button --- */
+  .global-settings-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .theme-toggle {
+    padding: 0.35rem;
+  }
+}
