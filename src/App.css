@@ -584,8 +584,11 @@ input:checked+.slider svg {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
+  height: -webkit-fill-available;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
 }
 
 .app-header {
@@ -646,6 +649,7 @@ input:checked+.slider svg {
 
 .home-page {
   min-height: 100vh;
+  min-height: 100dvh;
   background: transparent;
   display: flex;
   flex-direction: column;
@@ -1264,6 +1268,7 @@ input:checked+.slider svg {
 /* Empty State */
 .empty-state {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
