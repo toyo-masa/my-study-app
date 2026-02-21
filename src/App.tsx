@@ -478,6 +478,13 @@ function App() {
   };
 
   const handleDeleteQuizSet = async (quizSetId: number) => { // Renamed from handleSoftDeleteQuizSet
+    // Optimistic UI update
+    const targetSet = quizSets.find(qs => qs.id === quizSetId);
+    if (targetSet) {
+      setQuizSets(prev => prev.filter(qs => qs.id !== quizSetId));
+      setDeletedQuizSets(prev => [...prev, targetSet]);
+    }
+
     try {
       await softDeleteQuizSet(quizSetId);
       // Also clear any suspended session
@@ -486,12 +493,26 @@ function App() {
     } catch (error) {
       console.error('Failed to delete quiz set:', error);
       alert('削除に失敗しました。');
+      await loadQuizSets(); // Revert
     }
   };
 
   const handleRestoreQuizSet = async (id: number) => {
-    await restoreQuizSet(id);
-    await loadQuizSets();
+    // Optimistic UI update
+    const targetSet = deletedQuizSets.find(qs => qs.id === id);
+    if (targetSet) {
+      setDeletedQuizSets(prev => prev.filter(qs => qs.id !== id));
+      setQuizSets(prev => [...prev, targetSet]);
+    }
+
+    try {
+      await restoreQuizSet(id);
+      await loadQuizSets();
+    } catch (error) {
+      console.error('Failed to restore quiz set:', error);
+      alert('復元に失敗しました。');
+      await loadQuizSets(); // Revert
+    }
   };
 
   const handlePermanentDeleteQuizSet = async (id: number) => {
