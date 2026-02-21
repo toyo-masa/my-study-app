@@ -372,7 +372,8 @@ export const DistributionSimulator: React.FC<DistributionSimulatorProps> = ({ on
         const dpr = window.devicePixelRatio || 1;
         const rect = container.getBoundingClientRect();
         const width = rect.width;
-        const height = Math.min(400, width * 0.6);
+        const isMobile = width < 500;
+        const height = Math.min(isMobile ? 350 : 400, width * (isMobile ? 0.8 : 0.6));
 
         canvas.width = width * dpr;
         canvas.height = height * dpr;
@@ -383,9 +384,13 @@ export const DistributionSimulator: React.FC<DistributionSimulatorProps> = ({ on
         if (!ctx) return;
         ctx.scale(dpr, dpr);
 
-        const margin = { top: 20, right: 30, bottom: 50, left: 60 };
+        const margin = isMobile
+            ? { top: 14, right: 10, bottom: 32, left: 38 }
+            : { top: 20, right: 30, bottom: 50, left: 60 };
         const chartWidth = width - margin.left - margin.right;
         const chartHeight = height - margin.top - margin.bottom;
+        const labelFont = isMobile ? '9px Inter, system-ui, sans-serif' : '11px Inter, system-ui, sans-serif';
+        const titleFont = isMobile ? '10px Inter, system-ui, sans-serif' : '12px Inter, system-ui, sans-serif';
 
         // Special handling for multinomial
         if (distributionType === 'multinomial') {
@@ -573,18 +578,18 @@ export const DistributionSimulator: React.FC<DistributionSimulatorProps> = ({ on
 
         // Labels
         ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
-        ctx.font = '11px Inter, system-ui, sans-serif';
+        ctx.font = labelFont;
 
         // X labels
         ctx.textAlign = 'center';
         if (isDiscrete) {
             const step = points.length > 30 ? Math.ceil(points.length / 15) : 1;
-            points.forEach((pt, i) => { if (i % step === 0) ctx.fillText(String(pt.x), toCanvasX(pt.x), margin.top + chartHeight + 18); });
+            points.forEach((pt, i) => { if (i % step === 0) ctx.fillText(String(pt.x), toCanvasX(pt.x), margin.top + chartHeight + (isMobile ? 14 : 18)); });
         } else {
             const xRange = xMax - xMin;
             const xStep = xRange <= 2 ? 0.2 : xRange <= 5 ? 0.5 : xRange <= 15 ? 1 : xRange <= 30 ? 5 : 10;
             for (let x = Math.ceil(xMin / xStep) * xStep; x <= xMax; x += xStep) {
-                ctx.fillText(x.toFixed(xStep < 1 ? 1 : 0), toCanvasX(x), margin.top + chartHeight + 18);
+                ctx.fillText(x.toFixed(xStep < 1 ? 1 : 0), toCanvasX(x), margin.top + chartHeight + (isMobile ? 14 : 18));
             }
         }
 
@@ -592,16 +597,16 @@ export const DistributionSimulator: React.FC<DistributionSimulatorProps> = ({ on
         ctx.textAlign = 'right';
         for (let i = 0; i <= yTicks; i++) {
             const yVal = (i / yTicks) * yMax;
-            ctx.fillText(yVal.toFixed(yVal >= 1 ? 1 : 3), margin.left - 8, toCanvasY(yVal) + 4);
+            ctx.fillText(yVal.toFixed(yVal >= 1 ? 1 : isMobile ? 2 : 3), margin.left - (isMobile ? 4 : 8), toCanvasY(yVal) + 4);
         }
 
         // Axis titles
         ctx.fillStyle = isDark ? '#cbd5e1' : '#475569';
-        ctx.font = '12px Inter, system-ui, sans-serif';
+        ctx.font = titleFont;
         ctx.textAlign = 'center';
-        ctx.fillText(isDiscrete ? 'k' : 'x', width / 2, height - 5);
+        ctx.fillText(isDiscrete ? 'k' : 'x', width / 2, height - (isMobile ? 2 : 5));
         ctx.save();
-        ctx.translate(14, height / 2);
+        ctx.translate(isMobile ? 9 : 14, height / 2);
         ctx.rotate(-Math.PI / 2);
         ctx.fillText(isDiscrete ? 'P(X=k)' : 'f(x)', 0, 0);
         ctx.restore();
@@ -619,9 +624,9 @@ export const DistributionSimulator: React.FC<DistributionSimulatorProps> = ({ on
             ctx.stroke();
             ctx.setLineDash([]);
             ctx.fillStyle = 'rgba(239, 68, 68, 0.8)';
-            ctx.font = '10px Inter, system-ui, sans-serif';
+            ctx.font = isMobile ? '9px Inter, system-ui, sans-serif' : '10px Inter, system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`μ=${stats.mean.toFixed(2)}`, meanCX, margin.top - 5);
+            ctx.fillText(`μ=${stats.mean.toFixed(2)}`, meanCX, margin.top - (isMobile ? 3 : 5));
         }
     }, [distributionType, mu, sigma, expLambda, poissonLambda, binN, binP, geoP, hypN, hypK, hypn, lnMu, lnSigma, gammaAlpha, gammaBeta, betaAlpha, betaBeta, showHighlight, highlightFrom, highlightTo, currentDist.discrete, getStats, multiN, multiP1, multiP2, multiP3]);
 
