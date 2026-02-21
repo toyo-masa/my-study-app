@@ -1276,7 +1276,7 @@ function App() {
               <form onSubmit={handleLoginSubmit}>
                 <input
                   type="password"
-                  className="modal-input"
+                  className="field-input"
                   placeholder="パスワード"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
