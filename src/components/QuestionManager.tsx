@@ -36,6 +36,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
     const [csvText, setCsvText] = useState('');
     const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+    const [isAdding, setIsAdding] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const loadQuestions = async () => {
@@ -103,6 +104,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             return;
         }
 
+        setIsAdding(true);
         try {
             const parsed = quizSet.type === 'memorization'
                 ? await parseMemorizationQuestionsFromText(csvText)
@@ -125,6 +127,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             await loadQuestions();
         } catch (err) {
             alert('CSVテキストの解析エラー: ' + (err as Error).message);
+        } finally {
+            setIsAdding(false);
         }
     };
 
@@ -363,12 +367,17 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 rows={10}
                                 placeholder="テキストをここにペーストしてください..."
                                 style={{ fontFamily: 'monospace' }}
+                                disabled={isAdding}
                             />
                         </div>
                         <div className="modal-footer">
-                            <button className="nav-btn" onClick={() => setIsPasteModalOpen(false)}>キャンセル</button>
-                            <button className="nav-btn action-btn" onClick={handleCSVTextImport}>
-                                <Save size={16} /> 追加する
+                            <button className="nav-btn" onClick={() => setIsPasteModalOpen(false)} disabled={isAdding}>キャンセル</button>
+                            <button className="nav-btn action-btn" onClick={handleCSVTextImport} disabled={isAdding}>
+                                {isAdding ? (
+                                    <>追加中...</>
+                                ) : (
+                                    <><Save size={16} /> 追加する</>
+                                )}
                             </button>
                         </div>
                     </div>
