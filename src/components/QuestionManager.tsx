@@ -8,7 +8,7 @@ import { MarkdownText } from './MarkdownText';
 interface QuestionManagerProps {
     quizSet: QuizSet & { questionCount: number; categories: string[] };
     onBack: () => void;
-    onCloudError: (err: any, fallbackMessage: string) => void;
+    onCloudError: (err: unknown, fallbackMessage: string) => void;
 }
 
 interface EditingQuestion {
@@ -41,16 +41,24 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isSaving, setIsSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    useEffect(() => {
+        let mounted = true;
+        const fetchQs = async () => {
+            if (quizSet.id !== undefined) {
+                const qs = await getQuestionsForQuizSet(quizSet.id);
+                if (mounted) setQuestions(qs);
+            }
+        };
+        fetchQs();
+        return () => { mounted = false; };
+    }, [quizSet.id]);
+
     const loadQuestions = async () => {
         if (quizSet.id !== undefined) {
             const qs = await getQuestionsForQuizSet(quizSet.id);
             setQuestions(qs);
         }
     };
-
-    useEffect(() => {
-        loadQuestions();
-    }, [quizSet.id]);
 
     const handleEdit = (q: Question) => {
         setEditing({

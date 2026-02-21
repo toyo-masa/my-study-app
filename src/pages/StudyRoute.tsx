@@ -8,7 +8,7 @@ import { QuestionView } from '../components/QuestionView';
 import { useAppContext } from '../contexts/AppContext';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk } from '../db';
 import { calculateNextInterval, calculateNextDue } from '../utils/spacedRepetition';
-import type { Question, ConfidenceLevel, HistoryMode, QuizHistory } from '../types';
+import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
 
 export const StudyRoute: React.FC = () => {
@@ -85,7 +85,7 @@ export const StudyRoute: React.FC = () => {
                 if (suspendedSession && suspendedSession.type !== 'memorization') {
                     // Resume logic
                     const validOptionIds = new Set(qs.map(q => q.id));
-                    const filteredQuestions = suspendedSession.questions.filter((q: any) => q.id !== undefined && validOptionIds.has(q.id));
+                    const filteredQuestions = suspendedSession.questions.filter((q: Question) => q.id !== undefined && validOptionIds.has(q.id));
 
                     if (filteredQuestions.length === 0) {
                         alert('中断していた問題はすべて削除されました。新規開始します。');
@@ -262,7 +262,7 @@ export const StudyRoute: React.FC = () => {
 
             await addHistory(historyData);
 
-            const schedulesToUpdate: any[] = [];
+            const schedulesToUpdate: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = [];
             for (const q of questions) {
                 const qKey = String(q.id);
                 const userAnswers = answers[qKey] || [];
