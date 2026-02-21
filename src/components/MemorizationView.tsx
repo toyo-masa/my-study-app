@@ -71,7 +71,6 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="explanation-box"
-                        style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', borderLeft: '4px solid var(--primary-color)' }}
                     >
                         <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>解説</h4>
                         <MarkdownText content={question.explanation} />
