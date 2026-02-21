@@ -259,71 +259,82 @@ function App() {
   // Initialize app
   useEffect(() => {
     const init = async () => {
-      // Seed DB if needed
-      const seeded = await isDBSeeded();
-      if (!seeded) {
-        try {
-          const response = await fetch('/sample_questions.csv');
-          const blob = await response.blob();
-          const file = new File([blob], 'sample_questions.csv', { type: 'text/csv' });
-          const parsed = await parseQuestions(file);
-          const questionsForDB = parsed.map(q => ({
-            category: q.category,
-            text: q.text,
-            options: q.options,
-            correctAnswers: q.correctAnswers,
-            explanation: q.explanation,
-          }));
-          await addQuizSetWithQuestions('sample_questions', questionsForDB);
-        } catch (err) {
-          console.error('Failed to seed DB:', err);
-        }
-      }
-
-      const sets = await loadQuizSets();
-
-      // Restore state from localStorage
-      const savedState = localStorage.getItem('appState');
-      if (savedState) {
-        try {
-          const parsedState = JSON.parse(savedState);
-          if (parsedState.view && parsedState.view !== 'home') {
-            const targetSet = sets.find(s => s.id === parsedState.activeQuizSetId);
-            if (targetSet) {
-              setActiveQuizSet(targetSet);
-              if (parsedState.view === 'memorization-view') {
-                const qs = await getQuestionsForQuizSet(targetSet.id!);
-                // For memorization, we use the raw questions (no shuffle usually, or maybe shuffle setting applies?)
-                // Assuming raw for now, similar to handleStartStudy memorization branch
-                setQuestions(qs);
-                setMemorizationLogs(parsedState.memorizationLogs || []);
-                setCurrentQuestionIndex(parsedState.currentQuestionIndex || 0);
-                setIsTestCompleted(parsedState.isTestCompleted || false);
-                if (parsedState.startTime) startTimeRef.current = new Date(parsedState.startTime);
-                if (parsedState.endTime) setEndTime(new Date(parsedState.endTime));
-              } else if (parsedState.view === 'study') {
-                // Restore study session
-                const qs = await getQuestionsForQuizSet(targetSet.id!);
-                const studyQuestions: Question[] = qs.map(q => ({ ...q, id: q.id! }));
-                setQuestions(studyQuestions);
-                setCurrentQuestionIndex(parsedState.currentQuestionIndex || 0);
-                setAnswers(parsedState.answers || {});
-                setMemos(parsedState.memos || {});
-                setShowAnswerMap(parsedState.showAnswerMap || {});
-                setMarkedQuestions(parsedState.markedQuestions || []);
-                setIsTestCompleted(parsedState.isTestCompleted || false);
-                if (parsedState.startTime) startTimeRef.current = new Date(parsedState.startTime);
-                if (parsedState.endTime) setEndTime(new Date(parsedState.endTime));
-              }
-              setView(parsedState.view);
-            }
+      try {
+        // Seed DB if needed
+        const seeded = await isDBSeeded();
+        if (!seeded) {
+          try {
+            const response = await fetch('/sample_questions.csv');
+            const blob = await response.blob();
+            const file = new File([blob], 'sample_questions.csv', { type: 'text/csv' });
+            const parsed = await parseQuestions(file);
+            const questionsForDB = parsed.map(q => ({
+              category: q.category,
+              text: q.text,
+              options: q.options,
+              correctAnswers: q.correctAnswers,
+              explanation: q.explanation,
+            }));
+            await addQuizSetWithQuestions('sample_questions', questionsForDB);
+          } catch (err) {
+            // Re-throw UNAUTHORIZED so outer catch handles it
+            if (err instanceof Error && err.message === 'UNAUTHORIZED') throw err;
+            console.error('Failed to seed DB:', err);
           }
-        } catch (e) {
-          console.error('Failed to restore state:', e);
-          localStorage.removeItem('appState');
         }
+
+        const sets = await loadQuizSets();
+
+        // Restore state from localStorage
+        const savedState = localStorage.getItem('appState');
+        if (savedState) {
+          try {
+            const parsedState = JSON.parse(savedState);
+            if (parsedState.view && parsedState.view !== 'home') {
+              const targetSet = sets.find(s => s.id === parsedState.activeQuizSetId);
+              if (targetSet) {
+                setActiveQuizSet(targetSet);
+                if (parsedState.view === 'memorization-view') {
+                  const qs = await getQuestionsForQuizSet(targetSet.id!);
+                  setQuestions(qs);
+                  setMemorizationLogs(parsedState.memorizationLogs || []);
+                  setCurrentQuestionIndex(parsedState.currentQuestionIndex || 0);
+                  setIsTestCompleted(parsedState.isTestCompleted || false);
+                  if (parsedState.startTime) startTimeRef.current = new Date(parsedState.startTime);
+                  if (parsedState.endTime) setEndTime(new Date(parsedState.endTime));
+                } else if (parsedState.view === 'study') {
+                  const qs = await getQuestionsForQuizSet(targetSet.id!);
+                  const studyQuestions: Question[] = qs.map(q => ({ ...q, id: q.id! }));
+                  setQuestions(studyQuestions);
+                  setCurrentQuestionIndex(parsedState.currentQuestionIndex || 0);
+                  setAnswers(parsedState.answers || {});
+                  setMemos(parsedState.memos || {});
+                  setShowAnswerMap(parsedState.showAnswerMap || {});
+                  setMarkedQuestions(parsedState.markedQuestions || []);
+                  setIsTestCompleted(parsedState.isTestCompleted || false);
+                  if (parsedState.startTime) startTimeRef.current = new Date(parsedState.startTime);
+                  if (parsedState.endTime) setEndTime(new Date(parsedState.endTime));
+                }
+                setView(parsedState.view);
+              }
+            }
+          } catch (e) {
+            // Re-throw UNAUTHORIZED so outer catch handles it
+            if (e instanceof Error && e.message === 'UNAUTHORIZED') throw e;
+            console.error('Failed to restore state:', e);
+            localStorage.removeItem('appState');
+          }
+        }
+        isRestoredRef.current = true;
+      } catch (err) {
+        // If any cloud API call returns 401, show the login modal
+        if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+          setIsLoginModalOpen(true);
+        } else {
+          console.error('Failed to initialize app:', err);
+        }
+        isRestoredRef.current = true;
       }
-      isRestoredRef.current = true;
     };
     init();
   }, []); // Run only once on mount
