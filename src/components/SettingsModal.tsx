@@ -9,6 +9,8 @@ interface SettingsModalProps {
     onToggleDarkMode: () => void;
     accentColor: string;
     onAccentColorChange: (color: string) => void;
+    useCloudSync: boolean;
+    onToggleCloudSync: () => void;
 }
 
 const PRESET_COLORS = [
@@ -26,7 +28,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     isDarkMode,
     onToggleDarkMode,
     accentColor,
-    onAccentColorChange
+    onAccentColorChange,
+    useCloudSync,
+    onToggleCloudSync
 }) => {
     return (
         <AnimatePresence>
@@ -46,6 +50,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
 
                         <div className="settings-body">
+                            <section className="settings-section">
+                                <div className="section-title">
+                                    <Globe size={18} />
+                                    <span>データ同期</span>
+                                </div>
+                                <div className="setting-control">
+                                    <span>Cloud Sync (Neon DB)</span>
+                                    <label className="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={useCloudSync}
+                                            onChange={onToggleCloudSync}
+                                        />
+                                        <span className="slider"></span>
+                                    </label>
+                                </div>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '0' }}>
+                                    ※ 変更後、アプリが再読み込みされます。
+                                </p>
+                            </section>
+
                             <section className="settings-section">
                                 <div className="section-title">
                                     <Globe size={18} />

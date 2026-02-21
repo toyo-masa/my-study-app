@@ -34,3 +34,5 @@ _agents/
 _agent/
 brain/
 logs/
+.vercel
+.env*.local

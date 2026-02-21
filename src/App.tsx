@@ -80,6 +80,9 @@ function App() {
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('accentColor') || '#6366f1';
   });
+  const [useCloudSync, setUseCloudSync] = useState(() => {
+    return localStorage.getItem('useCloudSync') === 'true';
+  });
   const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
   // suspendedSession state is removed in favor of localStorage + load on demand/render
 
@@ -175,10 +178,21 @@ function App() {
 
   const toggleDarkMode = () => {
     document.body.classList.add('theme-transitioning');
-    setIsDarkMode(prev => !prev);
+    setIsDarkMode(prev => {
+      const newMode = !prev;
+      localStorage.setItem('darkMode', newMode.toString());
+      return newMode;
+    });
     setTimeout(() => {
       document.body.classList.remove('theme-transitioning');
     }, 500);
+  };
+
+  const toggleCloudSync = () => {
+    const newMode = !useCloudSync;
+    setUseCloudSync(newMode);
+    localStorage.setItem('useCloudSync', newMode.toString());
+    window.location.reload();
   };
 
   // Load quiz sets from DB
@@ -1143,6 +1157,8 @@ function App() {
         onToggleDarkMode={toggleDarkMode}
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
+        useCloudSync={useCloudSync}
+        onToggleCloudSync={toggleCloudSync}
       />
 
       {renderContent()}
