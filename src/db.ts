@@ -33,6 +33,17 @@ export const db = new StudyAppDB();
 
 // === Helper Wrappers for Cloud & Local Storage ===
 
+export async function getAllQuizSets(): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
+    if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ all: true });
+    const sets = await db.quizSets.toArray();
+    const result = [];
+    for (const qs of sets) {
+        const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
+        result.push({ ...qs, questionCount: questions.length, categories: qs.tags || [] });
+    }
+    return result;
+}
+
 export async function getQuizSetsWithCounts(includeDeleted: boolean = false): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
     if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ includeDeleted });
     let sets = includeDeleted ? await db.quizSets.toArray() : await db.quizSets.filter(qs => !qs.isDeleted && !qs.isArchived).toArray();
@@ -134,6 +145,11 @@ export async function addQuestion(question: Omit<Question, 'id'>): Promise<numbe
     return await db.questions.add(question as Question) as number;
 }
 
+export async function addQuestionsBulk(questions: Omit<Question, 'id'>[]): Promise<number[]> {
+    if (isCloudSyncEnabled()) return cloudApi.addQuestionsBulk(questions);
+    return await Promise.all(questions.map(q => db.questions.add(q as Question))) as number[];
+}
+
 export async function deleteQuestion(id: number): Promise<void> {
     if (isCloudSyncEnabled()) return cloudApi.deleteQuestion(id);
     await db.questions.delete(id);
@@ -151,7 +167,7 @@ export async function getHistories(quizSetId: number): Promise<QuizHistory[]> {
 
 export async function isDBSeeded(): Promise<boolean> {
     if (isCloudSyncEnabled()) {
-        const sets = await cloudApi.getQuizSets();
+        const sets = await getAllQuizSets();
         return sets.length > 0;
     }
     const count = await db.quizSets.count();
@@ -236,6 +252,28 @@ export async function upsertReviewSchedule(schedule: Omit<ReviewSchedule, 'id'> 
     } else {
         return await db.reviewSchedules.add(schedule as ReviewSchedule) as number;
     }
+}
+
+export async function upsertReviewSchedulesBulk(schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[]): Promise<{ updated: number, inserted: number }> {
+    if (isCloudSyncEnabled()) return cloudApi.upsertReviewSchedulesBulk(schedules);
+    let updated = 0;
+    let inserted = 0;
+    for (const s of schedules) {
+        const existing = await db.reviewSchedules.where('questionId').equals(s.questionId).first();
+        if (existing) {
+            await db.reviewSchedules.update(existing.id!, {
+                intervalDays: s.intervalDays,
+                nextDue: s.nextDue,
+                lastReviewedAt: s.lastReviewedAt,
+                consecutiveCorrect: s.consecutiveCorrect,
+            });
+            updated++;
+        } else {
+            await db.reviewSchedules.add(s as ReviewSchedule);
+            inserted++;
+        }
+    }
+    return { updated, inserted };
 }
 
 export async function addReviewLog(log: Omit<ReviewLog, 'id'>): Promise<number> {

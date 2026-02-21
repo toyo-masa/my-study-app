@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
 
 export default async function handler(req: any, res: any) {
+    const t0 = performance.now();
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -16,35 +17,66 @@ export default async function handler(req: any, res: any) {
 
     try {
         if (method === 'GET') {
+            let result;
+
             if (id) {
+                const t1 = performance.now();
                 const rows = await sql`SELECT * FROM quiz_sets WHERE id = ${id} AND user_id = ${userId}`;
+                const t2 = performance.now();
                 if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
-                return res.status(200).json(rows[0]);
+                result = rows[0];
+                const t3 = performance.now();
+                console.log(`[GET /api/quizSets?id=${id}] Timing:`, {
+                    ms_total: t3 - t0,
+                    ms_before_db: t1 - t0,
+                    ms_db: t2 - t1,
+                    ms_after_db: t3 - t2,
+                });
+                return res.status(200).json(result);
             } else {
                 let rows;
+                const t1 = performance.now();
                 if (includeDeleted === 'true') {
-                    rows = await sql`SELECT * FROM quiz_sets WHERE user_id = ${userId}`;
+                    rows = await sql`
+                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        FROM quiz_sets q WHERE q.is_deleted = true AND q.user_id = ${userId}
+                    `;
                 } else if (archivedOnly === 'true') {
-                    rows = await sql`SELECT * FROM quiz_sets WHERE is_deleted = false AND is_archived = true AND user_id = ${userId}`;
+                    rows = await sql`
+                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        FROM quiz_sets q WHERE q.is_deleted = false AND q.is_archived = true AND q.user_id = ${userId}
+                    `;
+                } else if (req.query.all === 'true') {
+                    rows = await sql`
+                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        FROM quiz_sets q WHERE q.user_id = ${userId}
+                    `;
                 } else {
-                    rows = await sql`SELECT * FROM quiz_sets WHERE is_deleted = false AND is_archived = false AND user_id = ${userId}`;
+                    rows = await sql`
+                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        FROM quiz_sets q WHERE q.is_deleted = false AND q.is_archived = false AND q.user_id = ${userId}
+                    `;
                 }
+                const t2 = performance.now();
 
-                const result = await Promise.all(rows.map(async (row) => {
-                    const countRes = await sql`SELECT COUNT(*) as count FROM questions WHERE quiz_set_id = ${row.id}`;
-                    return {
-                        id: row.id,
-                        name: row.name,
-                        createdAt: row.created_at,
-                        type: row.type,
-                        isDeleted: row.is_deleted,
-                        isArchived: row.is_archived,
-                        tags: row.tags,
-                        questionCount: Number(countRes[0].count),
-                        categories: row.tags || []
-                    };
+                result = rows.map((row) => ({
+                    id: row.id,
+                    name: row.name,
+                    createdAt: row.created_at,
+                    type: row.type,
+                    isDeleted: row.is_deleted,
+                    isArchived: row.is_archived,
+                    tags: row.tags,
+                    questionCount: Number(row.q_count),
+                    categories: row.tags || []
                 }));
-
+                const t3 = performance.now();
+                console.log('[GET /api/quizSets] Timing:', {
+                    ms_total: t3 - t0,
+                    ms_before_db: t1 - t0,
+                    ms_db: t2 - t1,
+                    ms_after_db: t3 - t2,
+                });
                 return res.status(200).json(result);
             }
         } else if (method === 'POST') {

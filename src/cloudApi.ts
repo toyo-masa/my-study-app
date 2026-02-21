@@ -58,10 +58,11 @@ export const cloudApi = {
     },
 
     // === Quiz Sets ===
-    async getQuizSets(options?: { includeDeleted?: boolean; archivedOnly?: boolean }): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
+    async getQuizSets(options?: { includeDeleted?: boolean; archivedOnly?: boolean; all?: boolean }): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
         const params = new URLSearchParams();
         if (options?.includeDeleted) params.append('includeDeleted', 'true');
         if (options?.archivedOnly) params.append('archivedOnly', 'true');
+        if (options?.all) params.append('all', 'true');
         return fetchApi(`/api/quizSets?${params.toString()}`);
     },
 
@@ -98,6 +99,15 @@ export const cloudApi = {
             body: JSON.stringify(question)
         });
         return res.id;
+    },
+
+    async addQuestionsBulk(questions: Omit<Question, 'id' | 'quizSetId'>[] & { quizSetId?: number }[]): Promise<number[]> {
+        const res = await fetchApi<{ ids: number[] }>('/api/questionsBulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ questions })
+        });
+        return res.ids;
     },
 
     async updateQuestion(id: number, changes: Partial<Question>): Promise<void> {
@@ -148,6 +158,15 @@ export const cloudApi = {
             body: JSON.stringify(schedule)
         });
         return res.id;
+    },
+
+    async upsertReviewSchedulesBulk(schedules: (Partial<ReviewSchedule> & { questionId: number, quizSetId: number })[]): Promise<{ updated: number, inserted: number }> {
+        const res = await fetchApi<{ success: boolean, updated: number, inserted: number }>('/api/reviewSchedulesBulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ schedules })
+        });
+        return { updated: res.updated, inserted: res.inserted };
     },
 
     async resetReviewSchedules(quizSetId: number): Promise<void> {

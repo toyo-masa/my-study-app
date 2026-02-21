@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
 
 export default async function handler(req: any, res: any) {
+    const t0 = performance.now();
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -17,15 +18,17 @@ export default async function handler(req: any, res: any) {
     try {
         if (method === 'GET') {
             if (id) {
+                const t1 = performance.now();
                 // Verify the question belongs to user's quiz set
                 const rows = await sql`
                     SELECT q.* FROM questions q
                     JOIN quiz_sets qs ON q.quiz_set_id = qs.id
                     WHERE q.id = ${id} AND qs.user_id = ${userId}
                 `;
+                const t2 = performance.now();
                 if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
                 const q = rows[0];
-                return res.status(200).json({
+                const result = {
                     id: q.id,
                     quizSetId: q.quiz_set_id,
                     category: q.category,
@@ -33,13 +36,23 @@ export default async function handler(req: any, res: any) {
                     options: q.options,
                     correctAnswers: q.correct_answers,
                     explanation: q.explanation
+                };
+                const t3 = performance.now();
+                console.log(`[GET /api/questions?id=${id}] Timing:`, {
+                    ms_total: t3 - t0,
+                    ms_before_db: t1 - t0,
+                    ms_db: t2 - t1,
+                    ms_after_db: t3 - t2,
                 });
+                return res.status(200).json(result);
             } else if (quizSetId) {
+                const t1 = performance.now();
                 // Verify quiz set belongs to user
                 const setCheck = await sql`SELECT id FROM quiz_sets WHERE id = ${quizSetId} AND user_id = ${userId}`;
                 if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found' });
 
                 const rows = await sql`SELECT * FROM questions WHERE quiz_set_id = ${quizSetId}`;
+                const t2 = performance.now();
                 const questions = rows.map(q => ({
                     id: q.id,
                     quizSetId: q.quiz_set_id,
@@ -49,6 +62,13 @@ export default async function handler(req: any, res: any) {
                     correctAnswers: q.correct_answers,
                     explanation: q.explanation
                 }));
+                const t3 = performance.now();
+                console.log(`[GET /api/questions?quizSetId=${quizSetId}] Timing:`, {
+                    ms_total: t3 - t0,
+                    ms_before_db: t1 - t0,
+                    ms_db: t2 - t1,
+                    ms_after_db: t3 - t2,
+                });
                 return res.status(200).json(questions);
             } else {
                 return res.status(400).json({ error: 'Missing id or quizSetId' });

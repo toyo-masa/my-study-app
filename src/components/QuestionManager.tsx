@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Question, QuizSet } from '../types';
-import { getQuestionsForQuizSet, updateQuestion, addQuestion, deleteQuestion, updateQuizSet } from '../db';
+import { getQuestionsForQuizSet, updateQuestion, addQuestion, addQuestionsBulk, deleteQuestion, updateQuizSet } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
 import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
@@ -78,15 +78,16 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 ? await parseMemorizationQuestions(file)
                 : await parseQuestions(file);
 
-            for (const q of parsed) {
-                await addQuestion({
+            if (parsed.length > 0) {
+                const bulkData = parsed.map(q => ({
                     quizSetId: quizSet.id!,
                     category: q.category,
                     text: q.text,
                     options: q.options,
                     correctAnswers: q.correctAnswers,
                     explanation: q.explanation,
-                });
+                }));
+                await addQuestionsBulk(bulkData);
             }
 
             alert(`${parsed.length}問を追加しました`);
@@ -112,16 +113,21 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 ? await parseMemorizationQuestionsFromText(csvText)
                 : await parseQuestionsFromText(csvText);
 
-            for (const q of parsed) {
-                await addQuestion({
-                    quizSetId: quizSet.id!,
-                    category: q.category,
-                    text: q.text,
-                    options: q.options,
-                    correctAnswers: q.correctAnswers,
-                    explanation: q.explanation,
-                });
+            if (parsed.length === 0) {
+                alert('追加できる問題が見つかりませんでした。CSVの形式（ヘッダー行が含まれているか等）を確認してください。');
+                setIsAdding(false);
+                return;
             }
+
+            const bulkData = parsed.map(q => ({
+                quizSetId: quizSet.id!,
+                category: q.category,
+                text: q.text,
+                options: q.options,
+                correctAnswers: q.correctAnswers,
+                explanation: q.explanation,
+            }));
+            await addQuestionsBulk(bulkData);
 
             alert(`${parsed.length}問を追加しました`);
             setCsvText('');
@@ -407,7 +413,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         </div>
                         <div className="modal-body">
                             <p className="modal-desc" style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-                                エクセル等からコピーした内容（カンマ区切りテキスト）を貼り付けてインポートできます。
+                                エクセルやCSVファイルからコピーした内容を貼り付けて一括追加できます。
+                                <br />
+                                <strong>※ 1行目には必ず以下のヘッダー（列名）が必要です。</strong>
+                                <br />
+                                通常モード: <code>category,text,options,correct_answers,explanation</code>
+                                <br />
+                                暗記モード: <code>category,question,answer,explanation</code>
                             </p>
                             <textarea
                                 className="field-textarea"
