@@ -12,6 +12,7 @@ import { MemorizationQuestionView, MemorizationResultView, type MemorizationLog 
 import { DistributionSimulator } from './components/DistributionSimulator';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory } from './types';
 import { parseQuestions, parseMemorizationQuestions } from './utils/csvParser';
+import { cloudApi, type AuthUser } from './cloudApi';
 import { calculateNextInterval, calculateNextDue } from './utils/spacedRepetition';
 import {
   getQuizSetsWithCounts,
@@ -57,13 +58,22 @@ function App() {
   const [activeQuizSet, setActiveQuizSet] = useState<QuizSetWithMeta | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [registerUsername, setRegisterUsername] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState('');
+  const [registerError, setRegisterError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   // Helper to handle 401 Unauthorized globally
   const handleCloudError = useCallback((err: any, fallbackMessage: string) => {
     if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+      setCurrentUser(null);
       setIsLoginModalOpen(true);
     } else {
       console.error(fallbackMessage, err);
@@ -71,31 +81,68 @@ function App() {
     }
   }, []);
 
-  // Submit Password to /api/login
+  // Submit username + password to /api/login
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     setLoginError('');
     try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: loginPassword })
-      });
-      if (res.ok) {
-        setIsLoginModalOpen(false);
-        setLoginPassword('');
-        // Retry loading data
-        await loadQuizSets();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setLoginError(data.error || 'パスワードが間違っています');
-      }
-    } catch (err) {
-      setLoginError('ログイン通信エラーが発生しました');
+      const result = await cloudApi.login(loginUsername, loginPassword);
+      setCurrentUser(result.user);
+      setIsLoginModalOpen(false);
+      setLoginUsername('');
+      setLoginPassword('');
+      // Enable cloud sync and reload to switch data source
+      localStorage.setItem('useCloudSync', 'true');
+      window.location.reload();
+    } catch (err: any) {
+      setLoginError(err.message || 'ログインに失敗しました');
     } finally {
       setIsLoggingIn(false);
     }
+  };
+
+  // Register new account
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegisterError('');
+    if (registerPassword !== registerPasswordConfirm) {
+      setRegisterError('パスワードが一致しません');
+      return;
+    }
+    setIsRegistering(true);
+    try {
+      const result = await cloudApi.register(registerUsername, registerPassword);
+      setCurrentUser(result.user);
+      setIsRegisterModalOpen(false);
+      setRegisterUsername('');
+      setRegisterPassword('');
+      setRegisterPasswordConfirm('');
+      // Enable cloud sync and reload
+      localStorage.setItem('useCloudSync', 'true');
+      window.location.reload();
+    } catch (err: any) {
+      setRegisterError(err.message || '登録に失敗しました');
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  // Logout
+  const handleLogout = async () => {
+    try {
+      await cloudApi.logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+    // Disable cloud sync and reload to switch to local mode
+    localStorage.setItem('useCloudSync', 'false');
+    window.location.reload();
+  };
+
+  // Open login modal from settings
+  const handleLoginRequest = () => {
+    setIsLoginModalOpen(true);
   };
 
   // Study session state
@@ -121,7 +168,7 @@ function App() {
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('accentColor') || '#6366f1';
   });
-  const [useCloudSync, setUseCloudSync] = useState(() => {
+  const [useCloudSync] = useState(() => {
     return localStorage.getItem('useCloudSync') === 'true';
   });
   const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
@@ -229,12 +276,7 @@ function App() {
     }, 500);
   };
 
-  const toggleCloudSync = () => {
-    const newMode = !useCloudSync;
-    setUseCloudSync(newMode);
-    localStorage.setItem('useCloudSync', newMode.toString());
-    window.location.reload();
-  };
+
 
   // Load quiz sets from DB
   const loadQuizSets = useCallback(async () => {
@@ -248,6 +290,7 @@ function App() {
       return sets;
     } catch (err) {
       if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+        setCurrentUser(null);
         setIsLoginModalOpen(true);
       } else {
         console.error('Failed to load quiz sets:', err);
@@ -260,6 +303,18 @@ function App() {
   useEffect(() => {
     const init = async () => {
       try {
+        // Check authentication when cloud sync is enabled
+        if (useCloudSync) {
+          const user = await cloudApi.getCurrentUser();
+          if (user) {
+            setCurrentUser(user);
+          } else {
+            setIsLoginModalOpen(true);
+            isRestoredRef.current = true;
+            return; // Don't continue initialization until logged in
+          }
+        }
+
         // Seed DB if needed
         const seeded = await isDBSeeded();
         if (!seeded) {
@@ -1260,36 +1315,126 @@ function App() {
         onToggleDarkMode={toggleDarkMode}
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
-        useCloudSync={useCloudSync}
-        onToggleCloudSync={toggleCloudSync}
+        currentUsername={currentUser?.username}
+        onLogout={handleLogout}
+        onLoginRequest={handleLoginRequest}
       />
 
-      {/* Login Prompt Modal for 401 Unauthorized */}
+      {/* Login Modal */}
       {isLoginModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content login-modal">
             <div className="modal-header">
-              <h3>ロック解除</h3>
+              <h3>ログイン</h3>
             </div>
             <div className="modal-body">
-              <p style={{ marginBottom: '1rem' }}>クラウド同期を利用するためには、パスワードを入力してください。</p>
+              <p style={{ marginBottom: '1rem' }}>アカウントにログインしてください。</p>
               <form onSubmit={handleLoginSubmit}>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="ユーザー名"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  autoFocus
+                  style={{ marginBottom: '0.75rem' }}
+                />
                 <input
                   type="password"
                   className="field-input"
                   placeholder="パスワード"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  autoFocus
                 />
                 {loginError && <p style={{ color: 'var(--danger-color)', fontSize: '0.85rem', marginTop: '0.5rem' }}>{loginError}</p>}
                 <div className="modal-footer" style={{ marginTop: '1.5rem' }}>
-                  <button type="button" className="nav-btn" onClick={() => setIsLoginModalOpen(false)} disabled={isLoggingIn}>キャンセル</button>
+                  {currentUser && <button type="button" className="nav-btn" onClick={() => setIsLoginModalOpen(false)} disabled={isLoggingIn}>キャンセル</button>}
                   <button type="submit" className="nav-btn action-btn" disabled={isLoggingIn}>
                     {isLoggingIn ? '認証中...' : 'ログイン'}
                   </button>
                 </div>
               </form>
+              <div style={{ textAlign: 'center', marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>アカウントをお持ちでない方は </span>
+                <button
+                  type="button"
+                  style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'underline' }}
+                  onClick={() => { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); setLoginError(''); }}
+                >新規登録</button>
+              </div>
+              {!currentUser && (
+                <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
+                    onClick={() => { setIsLoginModalOpen(false); }}
+                  >オフラインで続ける</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Register Modal */}
+      {isRegisterModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content login-modal">
+            <div className="modal-header">
+              <h3>新規登録</h3>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '1rem' }}>アカウントを作成してください。</p>
+              <form onSubmit={handleRegisterSubmit}>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="ユーザー名（3文字以上）"
+                  value={registerUsername}
+                  onChange={(e) => setRegisterUsername(e.target.value)}
+                  autoFocus
+                  style={{ marginBottom: '0.75rem' }}
+                />
+                <input
+                  type="password"
+                  className="field-input"
+                  placeholder="パスワード（6文字以上）"
+                  value={registerPassword}
+                  onChange={(e) => setRegisterPassword(e.target.value)}
+                  style={{ marginBottom: '0.75rem' }}
+                />
+                <input
+                  type="password"
+                  className="field-input"
+                  placeholder="パスワード（確認）"
+                  value={registerPasswordConfirm}
+                  onChange={(e) => setRegisterPasswordConfirm(e.target.value)}
+                />
+                {registerError && <p style={{ color: 'var(--danger-color)', fontSize: '0.85rem', marginTop: '0.5rem' }}>{registerError}</p>}
+                <div className="modal-footer" style={{ marginTop: '1.5rem' }}>
+                  {currentUser && <button type="button" className="nav-btn" onClick={() => setIsRegisterModalOpen(false)} disabled={isRegistering}>キャンセル</button>}
+                  <button type="submit" className="nav-btn action-btn" disabled={isRegistering}>
+                    {isRegistering ? '登録中...' : '登録する'}
+                  </button>
+                </div>
+              </form>
+              <div style={{ textAlign: 'center', marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>既にアカウントをお持ちの方は </span>
+                <button
+                  type="button"
+                  style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'underline' }}
+                  onClick={() => { setIsRegisterModalOpen(false); setIsLoginModalOpen(true); setRegisterError(''); }}
+                >ログイン</button>
+              </div>
+              {!currentUser && (
+                <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
+                    onClick={() => { setIsRegisterModalOpen(false); }}
+                  >オフラインで続ける</button>
+                </div>
+              )}
             </div>
           </div>
         </div>

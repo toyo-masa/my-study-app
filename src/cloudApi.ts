@@ -21,8 +21,43 @@ async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
     return res.json() as Promise<T>;
 }
 
+// Auth types
+export interface AuthUser {
+    id: number;
+    username: string;
+}
+
 export const cloudApi = {
-    // Quiz Sets
+    // === Auth ===
+    async login(username: string, password: string): Promise<{ success: boolean; user: AuthUser }> {
+        return fetchApi('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+    },
+
+    async register(username: string, password: string): Promise<{ success: boolean; user: AuthUser }> {
+        return fetchApi('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+    },
+
+    async logout(): Promise<void> {
+        await fetchApi('/api/logout', { method: 'POST' });
+    },
+
+    async getCurrentUser(): Promise<AuthUser | null> {
+        try {
+            return await fetchApi<AuthUser>('/api/me');
+        } catch {
+            return null;
+        }
+    },
+
+    // === Quiz Sets ===
     async getQuizSets(options?: { includeDeleted?: boolean; archivedOnly?: boolean }): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
         const params = new URLSearchParams();
         if (options?.includeDeleted) params.append('includeDeleted', 'true');

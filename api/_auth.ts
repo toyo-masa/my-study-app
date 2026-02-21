@@ -1,13 +1,30 @@
 import { parse } from 'cookie';
+import { neon } from '@neondatabase/serverless';
 
-export function isAuthorized(req: any): boolean {
-    const secretToken = process.env.API_SECRET_TOKEN;
-    if (!secretToken) return true; // If no secret is set, it's open (dev mode scenario)
+/**
+ * Extracts the authenticated user ID from the request's session cookie.
+ * Returns the user_id if valid, or null if not authenticated.
+ */
+export async function getAuthenticatedUserId(req: any): Promise<number | null> {
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!databaseUrl) return null;
 
-    // Parse cookies from the request headers
     const cookies = parse(req.headers.cookie || '');
     const sessionToken = cookies['auth_session'];
+    if (!sessionToken) return null;
 
-    // Validate the token
-    return sessionToken === secretToken;
+    try {
+        const sql = neon(databaseUrl);
+        const rows = await sql`
+            SELECT user_id FROM sessions 
+            WHERE token = ${sessionToken} 
+              AND expires_at > NOW()
+            LIMIT 1
+        `;
+        if (rows.length === 0) return null;
+        return rows[0].user_id as number;
+    } catch (err) {
+        console.error('Auth check failed:', err);
+        return null;
+    }
 }

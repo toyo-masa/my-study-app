@@ -9,8 +9,16 @@ export default async function handler(req: any, res: any) {
     }
 
     const { username, password } = req.body || {};
+
+    // Validation
     if (!username || !password) {
         return res.status(400).json({ error: 'ユーザー名とパスワードを入力してください' });
+    }
+    if (username.length < 3 || username.length > 50) {
+        return res.status(400).json({ error: 'ユーザー名は3〜50文字で入力してください' });
+    }
+    if (password.length < 6) {
+        return res.status(400).json({ error: 'パスワードは6文字以上で入力してください' });
     }
 
     const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -19,27 +27,30 @@ export default async function handler(req: any, res: any) {
     try {
         const sql = neon(databaseUrl);
 
-        // Find user
-        const users = await sql`SELECT * FROM users WHERE username = ${username}`;
-        if (users.length === 0) {
-            return res.status(401).json({ error: 'ユーザー名またはパスワードが正しくありません' });
+        // Check if username already exists
+        const existing = await sql`SELECT id FROM users WHERE username = ${username}`;
+        if (existing.length > 0) {
+            return res.status(409).json({ error: 'このユーザー名は既に使用されています' });
         }
 
-        const user = users[0];
+        // Hash password
+        const passwordHash = await bcrypt.hash(password, 10);
 
-        // Verify password
-        const isValid = await bcrypt.compare(password, user.password_hash);
-        if (!isValid) {
-            return res.status(401).json({ error: 'ユーザー名またはパスワードが正しくありません' });
-        }
+        // Create user
+        const result = await sql`
+            INSERT INTO users (username, password_hash) 
+            VALUES (${username}, ${passwordHash}) 
+            RETURNING id
+        `;
+        const userId = result[0].id;
 
-        // Create session
+        // Auto-login: create session
         const token = crypto.randomUUID();
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
         await sql`
             INSERT INTO sessions (user_id, token, expires_at) 
-            VALUES (${user.id}, ${token}, ${expiresAt.toISOString()})
+            VALUES (${userId}, ${token}, ${expiresAt.toISOString()})
         `;
 
         // Set cookie
@@ -48,16 +59,16 @@ export default async function handler(req: any, res: any) {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict' as const,
             path: '/',
-            maxAge: 60 * 60 * 24 * 30, // 30 days
+            maxAge: 60 * 60 * 24 * 30,
         };
 
         res.setHeader('Set-Cookie', serialize('auth_session', token, cookieOptions));
-        return res.status(200).json({
+        return res.status(201).json({
             success: true,
-            user: { id: user.id, username: user.username }
+            user: { id: userId, username }
         });
     } catch (err: any) {
-        console.error('Login error:', err);
-        return res.status(500).json({ error: 'ログイン処理中にエラーが発生しました' });
+        console.error('Register error:', err);
+        return res.status(500).json({ error: '登録処理中にエラーが発生しました' });
     }
 }

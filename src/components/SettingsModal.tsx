@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Moon, Sun, Globe, Monitor, Type } from 'lucide-react';
+import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SettingsModalProps {
@@ -9,8 +9,9 @@ interface SettingsModalProps {
     onToggleDarkMode: () => void;
     accentColor: string;
     onAccentColorChange: (color: string) => void;
-    useCloudSync: boolean;
-    onToggleCloudSync: () => void;
+    currentUsername?: string | null;
+    onLogout?: () => void;
+    onLoginRequest?: () => void;
 }
 
 const PRESET_COLORS = [
@@ -29,8 +30,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onToggleDarkMode,
     accentColor,
     onAccentColorChange,
-    useCloudSync,
-    onToggleCloudSync
+    currentUsername,
+    onLogout,
+    onLoginRequest
 }) => {
     return (
         <AnimatePresence>
@@ -50,25 +52,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
 
                         <div className="settings-body">
+                            {/* Account section */}
                             <section className="settings-section">
                                 <div className="section-title">
-                                    <Globe size={18} />
-                                    <span>データ同期</span>
+                                    <User size={18} />
+                                    <span>アカウント</span>
                                 </div>
-                                <div className="setting-control">
-                                    <span>Cloud Sync (Neon DB)</span>
-                                    <label className="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={useCloudSync}
-                                            onChange={onToggleCloudSync}
-                                        />
-                                        <span className="slider"></span>
-                                    </label>
-                                </div>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '0' }}>
-                                    ※ 変更後、アプリが再読み込みされます。
-                                </p>
+                                {currentUsername ? (
+                                    <>
+                                        <div className="setting-control">
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                    width: 28, height: 28, borderRadius: '50%',
+                                                    background: 'var(--primary-color)', color: '#fff',
+                                                    fontSize: '0.8rem', fontWeight: 600
+                                                }}>
+                                                    {currentUsername.charAt(0).toUpperCase()}
+                                                </span>
+                                                {currentUsername}
+                                            </span>
+                                            {onLogout && (
+                                                <button
+                                                    className="nav-btn"
+                                                    onClick={onLogout}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', padding: '0.3rem 0.7rem' }}
+                                                >
+                                                    <LogOut size={14} />
+                                                    ログアウト
+                                                </button>
+                                            )}
+                                        </div>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '0' }}>
+                                            クラウド同期が有効です
+                                        </p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="setting-control">
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>ローカルモード（オフライン）</span>
+                                            {onLoginRequest && (
+                                                <button
+                                                    className="nav-btn action-btn"
+                                                    onClick={() => { onLoginRequest(); onClose(); }}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', padding: '0.3rem 0.7rem' }}
+                                                >
+                                                    <LogIn size={14} />
+                                                    ログイン
+                                                </button>
+                                            )}
+                                        </div>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '0' }}>
+                                            ログインするとクラウド同期が有効になります
+                                        </p>
+                                    </>
+                                )}
                             </section>
 
                             <section className="settings-section">

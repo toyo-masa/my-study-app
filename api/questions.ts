@@ -1,9 +1,10 @@
 import { neon } from '@neondatabase/serverless';
-import { isAuthorized } from './_auth';
+import { getAuthenticatedUserId } from './_auth.js';
 
 export default async function handler(req: any, res: any) {
-    if (!isAuthorized(req)) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -16,7 +17,12 @@ export default async function handler(req: any, res: any) {
     try {
         if (method === 'GET') {
             if (id) {
-                const rows = await sql`SELECT * FROM questions WHERE id = ${id}`;
+                // Verify the question belongs to user's quiz set
+                const rows = await sql`
+                    SELECT q.* FROM questions q
+                    JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+                    WHERE q.id = ${id} AND qs.user_id = ${userId}
+                `;
                 if (rows.length === 0) return res.status(404).json({ error: 'Not found' });
                 const q = rows[0];
                 return res.status(200).json({
@@ -29,6 +35,10 @@ export default async function handler(req: any, res: any) {
                     explanation: q.explanation
                 });
             } else if (quizSetId) {
+                // Verify quiz set belongs to user
+                const setCheck = await sql`SELECT id FROM quiz_sets WHERE id = ${quizSetId} AND user_id = ${userId}`;
+                if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found' });
+
                 const rows = await sql`SELECT * FROM questions WHERE quiz_set_id = ${quizSetId}`;
                 const questions = rows.map(q => ({
                     id: q.id,
@@ -45,29 +55,35 @@ export default async function handler(req: any, res: any) {
             }
         } else if (method === 'POST') {
             const q = req.body;
+            // Verify quiz set belongs to user
+            const setCheck = await sql`SELECT id FROM quiz_sets WHERE id = ${q.quizSetId} AND user_id = ${userId}`;
+            if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found' });
+
             const result = await sql`
-        INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation)
-        VALUES (
-          ${q.quizSetId}, 
-          ${q.category}, 
-          ${q.text}, 
-          ${JSON.stringify(q.options)}::jsonb, 
-          ${JSON.stringify(q.correctAnswers)}::jsonb, 
-          ${q.explanation || ''}
-        )
-        RETURNING id
-      `;
+                INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation)
+                VALUES (
+                    ${q.quizSetId}, 
+                    ${q.category}, 
+                    ${q.text}, 
+                    ${JSON.stringify(q.options)}::jsonb, 
+                    ${JSON.stringify(q.correctAnswers)}::jsonb, 
+                    ${q.explanation || ''}
+                )
+                RETURNING id
+            `;
             return res.status(201).json({ id: result[0].id });
         } else if (method === 'PUT') {
             if (!id) return res.status(400).json({ error: 'Missing id' });
             const q = req.body;
-            let updateFields = [];
-            let queryValIdx = 1;
 
-            const current = await sql`SELECT * FROM questions WHERE id = ${id}`;
+            // Verify question belongs to user's quiz set
+            const current = await sql`
+                SELECT q.* FROM questions q
+                JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+                WHERE q.id = ${id} AND qs.user_id = ${userId}
+            `;
             if (current.length === 0) return res.status(404).json({ error: 'Not found' });
 
-            // Build updates safely
             if (q.category !== undefined) await sql`UPDATE questions SET category = ${q.category} WHERE id = ${id}`;
             if (q.text !== undefined) await sql`UPDATE questions SET text = ${q.text} WHERE id = ${id}`;
             if (q.options !== undefined) await sql`UPDATE questions SET options = ${JSON.stringify(q.options)}::jsonb WHERE id = ${id}`;
@@ -77,6 +93,14 @@ export default async function handler(req: any, res: any) {
             return res.status(200).json({ success: true });
         } else if (method === 'DELETE') {
             if (!id) return res.status(400).json({ error: 'Missing id' });
+            // Verify question belongs to user's quiz set
+            const check = await sql`
+                SELECT q.id FROM questions q
+                JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+                WHERE q.id = ${id} AND qs.user_id = ${userId}
+            `;
+            if (check.length === 0) return res.status(404).json({ error: 'Not found' });
+
             await sql`DELETE FROM questions WHERE id = ${id}`;
             return res.status(200).json({ success: true });
         }

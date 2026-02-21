@@ -269,7 +269,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                             </div>
                         ) : (
                             <div className="empty-hint">
-                                <p>{quizSets.length > 0 ? "条件に一致する問題集がありません" : "問題集を読み込んでいます..."}</p>
+                                <p>{quizSets.length > 0 ? "条件に一致する問題集がありません" : "まだ問題集がありません"}</p>
+                                {quizSets.length === 0 && (
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>上のボタンから問題集や暗記カードを追加しましょう</p>
+                                )}
                             </div>
                         )}
                     </div>

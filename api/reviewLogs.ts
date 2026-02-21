@@ -1,9 +1,10 @@
 import { neon } from '@neondatabase/serverless';
-import { isAuthorized } from './_auth';
+import { getAuthenticatedUserId } from './_auth.js';
 
 export default async function handler(req: any, res: any) {
-    if (!isAuthorized(req)) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    const userId = await getAuthenticatedUserId(req);
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -17,10 +18,10 @@ export default async function handler(req: any, res: any) {
         if (method === 'GET') {
             if (questionId) {
                 const rows = await sql`
-          SELECT * FROM review_logs 
-          WHERE question_id = ${questionId} 
-          ORDER BY reviewed_at DESC
-        `;
+                    SELECT * FROM review_logs 
+                    WHERE question_id = ${questionId} AND user_id = ${userId}
+                    ORDER BY reviewed_at DESC
+                `;
                 return res.status(200).json(rows.map(r => ({
                     id: r.id,
                     questionId: r.question_id,
@@ -41,20 +42,20 @@ export default async function handler(req: any, res: any) {
             const l = req.body;
             const reviewedAt = l.reviewedAt || new Date().toISOString();
             const result = await sql`
-        INSERT INTO review_logs (
-          question_id, quiz_set_id, reviewed_at, is_correct, confidence,
-          interval_days, next_due, memo, duration_seconds, session_id
-        ) VALUES (
-          ${l.questionId}, ${l.quizSetId}, ${reviewedAt}, ${l.isCorrect}, ${l.confidence},
-          ${l.intervalDays}, ${l.nextDue}, ${l.memo || null}, ${l.durationSeconds || null}, ${l.sessionId || null}
-        )
-        RETURNING id
-      `;
+                INSERT INTO review_logs (
+                    question_id, quiz_set_id, reviewed_at, is_correct, confidence,
+                    interval_days, next_due, memo, duration_seconds, session_id, user_id
+                ) VALUES (
+                    ${l.questionId}, ${l.quizSetId}, ${reviewedAt}, ${l.isCorrect}, ${l.confidence},
+                    ${l.intervalDays}, ${l.nextDue}, ${l.memo || null}, ${l.durationSeconds || null}, ${l.sessionId || null}, ${userId}
+                )
+                RETURNING id
+            `;
             return res.status(201).json({ id: result[0].id });
 
         } else if (method === 'DELETE') {
             if (quizSetId) {
-                await sql`DELETE FROM review_logs WHERE quiz_set_id = ${quizSetId}`;
+                await sql`DELETE FROM review_logs WHERE quiz_set_id = ${quizSetId} AND user_id = ${userId}`;
                 return res.status(200).json({ success: true });
             }
             return res.status(400).json({ error: 'Missing quizSetId' });

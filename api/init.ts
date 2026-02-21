@@ -1,16 +1,10 @@
 import { neon } from '@neondatabase/serverless';
-import { isAuthorized } from './_auth';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!isAuthorized(req)) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
-  }
-
-  // Expects DATABASE_URL locally or in Vercel environment
   const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   if (!databaseUrl) {
     return res.status(500).json({ error: 'Database URL not found in environment' });
@@ -18,6 +12,27 @@ export default async function handler(req: any, res: any) {
 
   try {
     const sql = neon(databaseUrl);
+
+    // Create users table
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    // Create sessions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
 
     // Create quiz_sets table
     await sql`
@@ -28,7 +43,8 @@ export default async function handler(req: any, res: any) {
         type VARCHAR(50) DEFAULT 'quiz',
         is_deleted BOOLEAN DEFAULT FALSE,
         is_archived BOOLEAN DEFAULT FALSE,
-        tags JSONB DEFAULT '[]'::jsonb
+        tags JSONB DEFAULT '[]'::jsonb,
+        user_id INTEGER REFERENCES users(id)
       );
     `;
 
@@ -60,7 +76,8 @@ export default async function handler(req: any, res: any) {
         confidences JSONB,
         question_ids JSONB,
         mode VARCHAR(50),
-        memorization_detail JSONB
+        memorization_detail JSONB,
+        user_id INTEGER REFERENCES users(id)
       );
     `;
 
@@ -73,7 +90,8 @@ export default async function handler(req: any, res: any) {
         interval_days INTEGER,
         next_due DATE,
         last_reviewed_at TIMESTAMP WITH TIME ZONE,
-        consecutive_correct INTEGER
+        consecutive_correct INTEGER,
+        user_id INTEGER REFERENCES users(id)
       );
     `;
 
@@ -90,13 +108,20 @@ export default async function handler(req: any, res: any) {
         next_due DATE,
         memo TEXT,
         duration_seconds INTEGER,
-        session_id VARCHAR(255)
+        session_id VARCHAR(255),
+        user_id INTEGER REFERENCES users(id)
       );
     `;
 
-    return res.status(200).json({ message: 'Neon database tables initialized successfully' });
+    // Add user_id columns to existing tables if they don't exist
+    await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+    await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+    await sql`ALTER TABLE review_schedules ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+    await sql`ALTER TABLE review_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+
+    return res.status(200).json({ message: 'Database tables initialized successfully' });
   } catch (error) {
-    console.error('Failed to initialize Neon DB:', error);
+    console.error('Failed to initialize DB:', error);
     return res.status(500).json({ error: 'Failed to initialize database', details: (error as Error).message });
   }
 }
