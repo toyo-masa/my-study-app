@@ -350,11 +350,11 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
             {/* Paste CSV Modal */}
             {isPasteModalOpen && (
-                <div className="modal-overlay" onClick={() => setIsPasteModalOpen(false)}>
+                <div className="modal-overlay" onClick={() => !isAdding && setIsPasteModalOpen(false)}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3>CSVテキストで追加</h3>
-                            <button className="icon-btn" onClick={() => setIsPasteModalOpen(false)}><X size={20} /></button>
+                            <button className="icon-btn" onClick={() => setIsPasteModalOpen(false)} disabled={isAdding}><X size={20} /></button>
                         </div>
                         <div className="modal-body">
                             <p className="modal-desc" style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
