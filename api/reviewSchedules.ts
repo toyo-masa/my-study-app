@@ -1,10 +1,8 @@
 import { neon } from '@neondatabase/serverless';
+import { isAuthorized } from './_auth';
 
 export default async function handler(req: any, res: any) {
-  const secretToken = process.env.API_SECRET_TOKEN;
-  const clientToken = req.headers['x-sync-token'];
-
-  if (secretToken && clientToken !== secretToken) {
+  if (!isAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 

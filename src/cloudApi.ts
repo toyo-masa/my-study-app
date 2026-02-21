@@ -2,15 +2,20 @@ import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSet
 
 // Helper to handle API responses
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-    const token = import.meta.env.VITE_API_TOKEN || '';
-    const headers = {
-        'x-sync-token': token,
-        ...(options?.headers || {})
+    const fetchOptions: RequestInit = {
+        ...options,
+        credentials: 'same-origin' // Send the HttpOnly cookie
     };
 
-    const res = await fetch(url, { ...options, headers });
+    const res = await fetch(url, fetchOptions);
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+
+        // Let the caller know it was specifically an auth error (401)
+        if (res.status === 401) {
+            throw new Error('UNAUTHORIZED');
+        }
+
         throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
     }
     return res.json() as Promise<T>;

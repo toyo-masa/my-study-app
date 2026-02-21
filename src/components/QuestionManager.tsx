@@ -8,6 +8,7 @@ import { MarkdownText } from './MarkdownText';
 interface QuestionManagerProps {
     quizSet: QuizSet & { questionCount: number; categories: string[] };
     onBack: () => void;
+    onCloudError: (err: any, fallbackMessage: string) => void;
 }
 
 interface EditingQuestion {
@@ -27,7 +28,7 @@ const emptyQuestion: EditingQuestion = {
     explanation: '',
 };
 
-export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBack }) => {
+export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBack, onCloudError }) => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [editing, setEditing] = useState<EditingQuestion | null>(null);
     const [isNew, setIsNew] = useState(false);
@@ -91,7 +92,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             alert(`${parsed.length}問を追加しました`);
             await loadQuestions();
         } catch (err) {
-            alert('CSVの解析エラー: ' + (err as Error).message);
+            onCloudError(err, 'CSVの解析エラー: ' + (err as Error).message);
         }
 
         if (fileInputRef.current) {
@@ -127,7 +128,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             setIsPasteModalOpen(false);
             await loadQuestions();
         } catch (err) {
-            alert('CSVテキストの解析エラー: ' + (err as Error).message);
+            onCloudError(err, 'インポートエラー: ' + (err as Error).message);
         } finally {
             setIsAdding(false);
         }
@@ -177,7 +178,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             setEditing(null);
             await loadQuestions();
         } catch (err) {
-            alert('保存エラー: ' + (err as Error).message);
+            onCloudError(err, '保存エラー: ' + (err as Error).message);
         } finally {
             setIsSaving(false);
         }
@@ -189,9 +190,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const confirmDelete = async () => {
         if (deleteConfirmId !== null) {
-            await deleteQuestion(deleteConfirmId);
-            setDeleteConfirmId(null);
-            await loadQuestions();
+            try {
+                await deleteQuestion(deleteConfirmId);
+                setDeleteConfirmId(null);
+                await loadQuestions();
+            } catch (err) {
+                onCloudError(err, '削除エラー: ' + (err as Error).message);
+            }
         }
     };
 
@@ -236,9 +241,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             setNewName(quizSet.name);
             return;
         }
-        await updateQuizSet(quizSet.id!, { name: newName });
-        quizSet.name = newName; // UI表示を即時更新するための簡易的な反映
-        setIsEditingName(false);
+        try {
+            await updateQuizSet(quizSet.id!, { name: newName });
+            quizSet.name = newName; // UI表示を即時更新するための簡易的な反映
+            setIsEditingName(false);
+        } catch (err) {
+            onCloudError(err, '名前の保存に失敗しました');
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

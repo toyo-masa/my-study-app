@@ -56,6 +56,47 @@ function App() {
   const [archivedQuizSets, setArchivedQuizSets] = useState<QuizSetWithMeta[]>([]); // Added
   const [activeQuizSet, setActiveQuizSet] = useState<QuizSetWithMeta | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Helper to handle 401 Unauthorized globally
+  const handleCloudError = useCallback((err: any, fallbackMessage: string) => {
+    if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+      setIsLoginModalOpen(true);
+    } else {
+      console.error(fallbackMessage, err);
+      alert(fallbackMessage);
+    }
+  }, []);
+
+  // Submit Password to /api/login
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPassword })
+      });
+      if (res.ok) {
+        setIsLoginModalOpen(false);
+        setLoginPassword('');
+        // Retry loading data
+        await loadQuizSets();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setLoginError(data.error || 'パスワードが間違っています');
+      }
+    } catch (err) {
+      setLoginError('ログイン通信エラーが発生しました');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   // Study session state
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -491,8 +532,7 @@ function App() {
       clearSessionFromStorage(quizSetId);
       await loadQuizSets();
     } catch (error) {
-      console.error('Failed to delete quiz set:', error);
-      alert('削除に失敗しました。');
+      handleCloudError(error, '削除に失敗しました。');
       await loadQuizSets(); // Revert
     }
   };
@@ -509,8 +549,7 @@ function App() {
       await restoreQuizSet(id);
       await loadQuizSets();
     } catch (error) {
-      console.error('Failed to restore quiz set:', error);
-      alert('復元に失敗しました。');
+      handleCloudError(error, '復元に失敗しました。');
       await loadQuizSets(); // Revert
     }
   };
@@ -532,8 +571,7 @@ function App() {
       await archiveQuizSet(quizSetId);
       await loadQuizSets();
     } catch (err) {
-      console.error('Failed to archive quiz set:', err);
-      alert('アーカイブに失敗しました');
+      handleCloudError(err, 'アーカイブに失敗しました。');
       await loadQuizSets();
     }
   };
@@ -550,8 +588,7 @@ function App() {
       await unarchiveQuizSet(quizSetId);
       await loadQuizSets();
     } catch (err) {
-      console.error('Failed to unarchive quiz set:', err);
-      alert('アーカイブ解除に失敗しました');
+      handleCloudError(err, 'アーカイブ解除に失敗しました。');
       await loadQuizSets();
     }
   };
@@ -565,8 +602,7 @@ function App() {
         setActiveQuizSet(updatedSet);
       }
     } catch (error) {
-      console.error('Failed to update quiz set:', error);
-      alert('問題集の更新に失敗しました。');
+      handleCloudError(error, '問題集の更新に失敗しました。');
     }
   };
 
@@ -1078,7 +1114,7 @@ function App() {
       case 'manage':
         return activeQuizSet && (
           <main className="content-area" style={{ padding: '1.5rem' }}>
-            <QuestionManager quizSet={activeQuizSet} onBack={handleBackToHome} />
+            <QuestionManager quizSet={activeQuizSet} onBack={handleBackToHome} onCloudError={handleCloudError} />
           </main>
         );
       case 'study':
@@ -1207,6 +1243,37 @@ function App() {
         useCloudSync={useCloudSync}
         onToggleCloudSync={toggleCloudSync}
       />
+
+      {/* Login Prompt Modal for 401 Unauthorized */}
+      {isLoginModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content login-modal">
+            <div className="modal-header">
+              <h3>ロック解除</h3>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '1rem' }}>クラウド同期を利用するためには、パスワードを入力してください。</p>
+              <form onSubmit={handleLoginSubmit}>
+                <input
+                  type="password"
+                  className="modal-input"
+                  placeholder="パスワード"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  autoFocus
+                />
+                {loginError && <p style={{ color: 'var(--danger-color)', fontSize: '0.85rem', marginTop: '0.5rem' }}>{loginError}</p>}
+                <div className="modal-footer" style={{ marginTop: '1.5rem' }}>
+                  <button type="button" className="nav-btn" onClick={() => setIsLoginModalOpen(false)} disabled={isLoggingIn}>キャンセル</button>
+                  <button type="submit" className="nav-btn action-btn" disabled={isLoggingIn}>
+                    {isLoggingIn ? '認証中...' : 'ログイン'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {renderContent()}
     </div>
