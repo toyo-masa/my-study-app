@@ -39,19 +39,24 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question
 
                 <div className="answer-inputs">
                     {question.options.map((ans, idx) => (
-                        <div key={idx} className="input-group">
-                            <span className="input-index">{idx + 1}.</span>
-                            <textarea
-                                className="memorization-input"
-                                placeholder="回答を入力..."
-                                value={userInputs[idx] || ''}
-                                onChange={(e) => handleInputChange(idx, e.target.value)}
-                                disabled={showAnswer}
-                                rows={2}
-                            />
+                        <div key={idx} className="input-wrapper">
+                            <div className="input-group">
+                                <span className="input-index">{idx + 1}.</span>
+                                <textarea
+                                    className="memorization-input"
+                                    placeholder="回答を入力..."
+                                    value={userInputs[idx] || ''}
+                                    onChange={(e) => handleInputChange(idx, e.target.value)}
+                                    disabled={showAnswer}
+                                    rows={2}
+                                />
+                            </div>
                             {showAnswer && (
-                                <div className="correct-answer-display">
-                                    <p className="answer-label">正解:</p>
+                                <div className="correct-answer-card">
+                                    <div className="answer-header">
+                                        <Check size={14} className="check-icon" />
+                                        <span className="answer-label">正解</span>
+                                    </div>
                                     <div className="answer-text">
                                         <MarkdownText content={ans} />
                                     </div>
