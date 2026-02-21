@@ -238,13 +238,22 @@ function App() {
 
   // Load quiz sets from DB
   const loadQuizSets = useCallback(async () => {
-    const sets = await getQuizSetsWithCounts(false); // Active
-    const deletedSets = await getDeletedQuizSets(); // Deleted
-    const archivedSets = await getArchivedQuizSets(); // Archived
-    setQuizSets(sets);
-    setDeletedQuizSets(deletedSets);
-    setArchivedQuizSets(archivedSets);
-    return sets;
+    try {
+      const sets = await getQuizSetsWithCounts(false); // Active
+      const deletedSets = await getDeletedQuizSets(); // Deleted
+      const archivedSets = await getArchivedQuizSets(); // Archived
+      setQuizSets(sets);
+      setDeletedQuizSets(deletedSets);
+      setArchivedQuizSets(archivedSets);
+      return sets;
+    } catch (err) {
+      if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+        setIsLoginModalOpen(true);
+      } else {
+        console.error('Failed to load quiz sets:', err);
+      }
+      return [];
+    }
   }, []);
 
   // Initialize app
