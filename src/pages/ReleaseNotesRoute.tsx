@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.3',
+        date: '2026年2月22日',
+        improvements: [
+            '中断データ保存のタイミングを調整し、学習画面から戻る操作時の再開判定を安定化しました。',
+        ],
+        fixes: [
+            '回答途中で戻った直後に「中断から再開」が表示されない問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.2',
         date: '2026年2月22日',
         improvements: [

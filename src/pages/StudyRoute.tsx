@@ -170,21 +170,25 @@ export const StudyRoute: React.FC = () => {
         initStudy();
     }, [sessionKey, quizSetId, historyFromState, startNewFromState]);
 
-    const handleBackToDetail = () => {
+    const handleBackToDetail = async () => {
         if (!isTestCompleted && !activeHistory && activeQuizSet?.id !== undefined && questions.length > 0) {
             const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
-            saveSessionToStorage(activeQuizSet.id, {
-                questions,
-                currentQuestionIndex,
-                answers,
-                memos,
-                showAnswerMap,
-                markedQuestions,
-                startTime: startTimeRef.current,
-                elapsedSeconds,
-                historyMode,
-                type: 'study',
-            }).catch(err => console.error('Failed to save suspended session', err));
+            try {
+                await saveSessionToStorage(activeQuizSet.id, {
+                    questions,
+                    currentQuestionIndex,
+                    answers,
+                    memos,
+                    showAnswerMap,
+                    markedQuestions,
+                    startTime: startTimeRef.current,
+                    elapsedSeconds,
+                    historyMode,
+                    type: 'study',
+                });
+            } catch (err) {
+                console.error('Failed to save suspended session', err);
+            }
         }
         navigate(`/quiz/${quizSetId}`);
     };
