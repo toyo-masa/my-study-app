@@ -46,7 +46,7 @@ export async function getAllQuizSets(): Promise<(QuizSet & { questionCount: numb
 
 export async function getQuizSetsWithCounts(includeDeleted: boolean = false): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
     if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ includeDeleted });
-    let sets = includeDeleted ? await db.quizSets.toArray() : await db.quizSets.filter(qs => !qs.isDeleted && !qs.isArchived).toArray();
+    const sets = includeDeleted ? await db.quizSets.toArray() : await db.quizSets.filter(qs => !qs.isDeleted && !qs.isArchived).toArray();
     const result = [];
     for (const qs of sets) {
         const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
@@ -235,7 +235,9 @@ export async function getDueReviews(
         if (questionIds.length > 0) {
             if (cloud) {
                 const quizSetIds = [...new Set(schedules.map(s => s.quizSetId))];
-                const logsBySet = await Promise.all(quizSetIds.map(setId => cloudApi.getReviewLogsByQuizSet(setId)));
+                const logsBySet = await Promise.all(
+                    quizSetIds.map(setId => cloudApi.getReviewLogsByQuizSet(setId, { latestByQuestion: true }))
+                );
                 for (const logs of logsBySet) {
                     for (const log of logs) {
                         if (!latestConfidenceByQuestion.has(log.questionId)) {

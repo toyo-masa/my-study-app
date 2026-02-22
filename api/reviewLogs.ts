@@ -1,6 +1,20 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
 
+type ApiBody = Record<string, string | number | boolean | null | undefined>;
+type ApiRequest = {
+    method?: string;
+    query: Record<string, string | string[] | undefined>;
+    body?: ApiBody;
+};
+
+type ApiResponse = {
+    status: (statusCode: number) => ApiResponse;
+    json: (payload: unknown) => ApiResponse;
+    setHeader: (name: string, value: string[]) => void;
+    end: (payload?: string) => ApiResponse;
+};
+
 async function hasOwnedQuestion(
     sql: ReturnType<typeof neon>,
     userId: number,
@@ -17,7 +31,7 @@ async function hasOwnedQuestion(
     return rows.length > 0;
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -28,7 +42,7 @@ export default async function handler(req: any, res: any) {
     const sql = neon(databaseUrl);
 
     const { method } = req;
-    const { quizSetId, questionId } = req.query;
+    const { quizSetId, questionId, latest } = req.query;
 
     try {
         if (method === 'GET') {
@@ -57,19 +71,35 @@ export default async function handler(req: any, res: any) {
                 })));
             }
             if (quizSetId) {
-                const quizSetIdNum = Number(quizSetId);
+                const quizSetIdValue = Array.isArray(quizSetId) ? quizSetId[0] : quizSetId;
+                const latestValue = Array.isArray(latest) ? latest[0] : latest;
+                const quizSetIdNum = Number(quizSetIdValue);
                 if (!Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
                     return res.status(400).json({ error: 'Invalid quizSetId parameter' });
                 }
-                const rows = await sql`
-                    WITH valid_session AS (
-                        SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
-                    )
-                    SELECT rl.* FROM review_logs rl
-                    JOIN valid_session vs ON rl.user_id = vs.user_id
-                    WHERE rl.quiz_set_id = ${quizSetIdNum}
-                    ORDER BY rl.reviewed_at DESC
-                `;
+                const rows = latestValue === 'true'
+                    ? await sql`
+                        WITH valid_session AS (
+                            SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
+                        )
+                        SELECT * FROM (
+                            SELECT DISTINCT ON (rl.question_id) rl.*
+                            FROM review_logs rl
+                            JOIN valid_session vs ON rl.user_id = vs.user_id
+                            WHERE rl.quiz_set_id = ${quizSetIdNum}
+                            ORDER BY rl.question_id, rl.reviewed_at DESC
+                        ) latest_logs
+                        ORDER BY latest_logs.reviewed_at DESC
+                    `
+                    : await sql`
+                        WITH valid_session AS (
+                            SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
+                        )
+                        SELECT rl.* FROM review_logs rl
+                        JOIN valid_session vs ON rl.user_id = vs.user_id
+                        WHERE rl.quiz_set_id = ${quizSetIdNum}
+                        ORDER BY rl.reviewed_at DESC
+                    `;
                 return res.status(200).json(rows.map(r => ({
                     id: r.id,
                     questionId: r.question_id,
@@ -91,7 +121,7 @@ export default async function handler(req: any, res: any) {
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
             if (method === 'POST') {
-                const l = req.body;
+                const l: ApiBody = req.body || {};
                 const questionIdNum = Number(l?.questionId);
                 const quizSetIdNum = Number(l?.quizSetId);
                 if (!Number.isInteger(questionIdNum) || questionIdNum <= 0 || !Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
@@ -103,7 +133,7 @@ export default async function handler(req: any, res: any) {
                     return res.status(404).json({ error: 'Question not found' });
                 }
 
-                const reviewedAt = l.reviewedAt || new Date().toISOString();
+                const reviewedAt = typeof l.reviewedAt === 'string' ? l.reviewedAt : new Date().toISOString();
                 const result = await sql`
                 INSERT INTO review_logs (
                     question_id, quiz_set_id, reviewed_at, is_correct, confidence,
@@ -127,8 +157,9 @@ export default async function handler(req: any, res: any) {
 
         res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
         return res.status(405).end(`Method ${method} Not Allowed`);
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('reviewLogs API error:', err);
-        return res.status(500).json({ error: err.message });
+        const message = err instanceof Error ? err.message : 'Internal server error';
+        return res.status(500).json({ error: message });
     }
 }

@@ -33,14 +33,14 @@ export const LoadingView: React.FC<LoadingViewProps> = ({
                 transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
                 style={{ display: 'flex' }}
             >
-                <Loader2 size={40} className="text-blue-500" />
+                <Loader2 size={40} color="var(--primary-color)" />
             </motion.div>
             <motion.div
                 animate={{ opacity: [0.5, 1, 0.5] }}
                 transition={{ repeat: Infinity, duration: 2 }}
                 className="loading-text"
                 style={{
-                    color: '#666',
+                    color: 'var(--text-secondary)',
                     fontSize: '0.9rem',
                     fontWeight: 500
                 }}
@@ -58,7 +58,7 @@ export const LoadingView: React.FC<LoadingViewProps> = ({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                background: 'rgba(255, 255, 255, 0.8)',
+                background: 'var(--bg-color)',
                 backdropFilter: 'blur(4px)',
                 zIndex: 9999,
                 display: 'flex',

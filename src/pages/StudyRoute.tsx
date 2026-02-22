@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,11 +44,8 @@ export const StudyRoute: React.FC = () => {
     // Unique key for the current session to detect changes
     const sessionKey = `${quizSetId}-${startNewFromState}-${historyFromState?.id || 'new'}-${location.key}`;
 
-    // Synchronous state reset when quiz set or session intent changes
-    // This happens DURING render to prevent flickering previous data
-    const [renderedSessionKey, setRenderedSessionKey] = useState<string | null>(null);
-    if (renderedSessionKey !== sessionKey) {
-        setRenderedSessionKey(sessionKey);
+    // Reset session state before paint when navigation/session key changes.
+    useLayoutEffect(() => {
         setIsLoading(true);
         setQuestions([]);
         setCurrentQuestionIndex(0);
@@ -60,7 +57,7 @@ export const StudyRoute: React.FC = () => {
         setIsTestCompleted(false);
         setActiveHistory(null);
         setHistoryMode('normal');
-    }
+    }, [sessionKey]);
 
     useEffect(() => {
         const initStudy = async () => {
@@ -176,7 +173,7 @@ export const StudyRoute: React.FC = () => {
         };
 
         initStudy();
-    }, [sessionKey]);
+    }, [sessionKey, quizSetId, historyFromState, startNewFromState]);
 
     const handleBackToDetail = () => {
         if (!isTestCompleted && !activeHistory && activeQuizSet?.id !== undefined && questions.length > 0) {

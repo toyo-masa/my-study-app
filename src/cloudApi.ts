@@ -124,7 +124,8 @@ export const cloudApi = {
 
     // Histories
     async getHistories(quizSetId: number): Promise<QuizHistory[]> {
-        const data = await fetchApi<any[]>(`/api/histories?quizSetId=${quizSetId}`);
+        type QuizHistoryResponse = Omit<QuizHistory, 'date'> & { date: string };
+        const data = await fetchApi<QuizHistoryResponse[]>(`/api/histories?quizSetId=${quizSetId}`);
         return data.map(h => ({
             ...h,
             date: new Date(h.date) // Convert string back to Date
@@ -179,8 +180,12 @@ export const cloudApi = {
         return fetchApi(`/api/reviewLogs?questionId=${questionId}`);
     },
 
-    async getReviewLogsByQuizSet(quizSetId: number): Promise<ReviewLog[]> {
-        return fetchApi(`/api/reviewLogs?quizSetId=${quizSetId}`);
+    async getReviewLogsByQuizSet(quizSetId: number, options?: { latestByQuestion?: boolean }): Promise<ReviewLog[]> {
+        const params = new URLSearchParams({ quizSetId: quizSetId.toString() });
+        if (options?.latestByQuestion) {
+            params.append('latest', 'true');
+        }
+        return fetchApi(`/api/reviewLogs?${params.toString()}`);
     },
 
     async addReviewLog(log: Omit<ReviewLog, 'id'>): Promise<number> {
