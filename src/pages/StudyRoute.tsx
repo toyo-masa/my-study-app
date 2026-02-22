@@ -7,8 +7,8 @@ import { Sidebar } from '../components/Sidebar';
 import { TestResult } from '../components/TestResult';
 import { QuestionView } from '../components/QuestionView';
 import { useAppContext } from '../contexts/AppContext';
-import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk } from '../db';
-import { calculateNextInterval, calculateNextDue } from '../utils/spacedRepetition';
+import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
+import { calculateNextInterval, calculateNextDue, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
 
@@ -302,6 +302,10 @@ export const StudyRoute: React.FC = () => {
 
             await addHistory(historyData);
 
+            const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
+            const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
+            const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
+
             const schedulesToUpdate: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = [];
             for (const q of questions) {
                 const qKey = String(q.id);
@@ -309,8 +313,11 @@ export const StudyRoute: React.FC = () => {
                 const isCorrect = userAnswers.length === q.correctAnswers.length &&
                     userAnswers.every(a => q.correctAnswers.includes(a));
                 const confidence: ConfidenceLevel = confidences[qKey] || 'high';
-                const intervalDays = calculateNextInterval(isCorrect, confidence, 1);
+                const currentInterval = intervalByQuestionId.get(q.id!) ?? 1;
+                const currentConsecutive = consecutiveByQuestionId.get(q.id!) ?? 0;
+                const intervalDays = calculateNextInterval(isCorrect, confidence, currentInterval);
                 const nextDue = calculateNextDue(intervalDays);
+                const consecutiveCorrect = updateConsecutiveCorrect(isCorrect, currentConsecutive);
 
                 schedulesToUpdate.push({
                     questionId: q.id!,
@@ -318,7 +325,7 @@ export const StudyRoute: React.FC = () => {
                     intervalDays,
                     nextDue,
                     lastReviewedAt: new Date().toISOString(),
-                    consecutiveCorrect: isCorrect ? 1 : 0,
+                    consecutiveCorrect,
                 });
             }
 

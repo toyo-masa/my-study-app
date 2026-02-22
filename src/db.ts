@@ -190,9 +190,10 @@ export async function getDueReviews(
     filters?: { overdueOnly?: boolean; lowConfidenceOnly?: boolean; categories?: string[]; }
 ): Promise<(ReviewSchedule & { question?: Question })[]> {
     const today = getTodayString();
+    const cloud = isCloudSyncEnabled();
     let schedules: ReviewSchedule[];
 
-    if (isCloudSyncEnabled()) {
+    if (cloud) {
         schedules = await cloudApi.getDueReviews(quizSetId);
         schedules = schedules.filter(s => s.nextDue <= today);
     } else {
@@ -203,15 +204,60 @@ export async function getDueReviews(
         }
     }
 
+    const questionIds = [...new Set(schedules.map(s => s.questionId))];
+    const questionMap = new Map<number, Question>();
+
+    if (questionIds.length > 0) {
+        if (cloud) {
+            const quizSetIds = [...new Set(schedules.map(s => s.quizSetId))];
+            const questionsBySet = await Promise.all(quizSetIds.map(setId => cloudApi.getQuestions(setId)));
+            for (const questions of questionsBySet) {
+                for (const question of questions) {
+                    if (question.id !== undefined) {
+                        questionMap.set(question.id, question);
+                    }
+                }
+            }
+        } else {
+            const questions = await db.questions.where('id').anyOf(questionIds).toArray();
+            for (const question of questions) {
+                if (question.id !== undefined) {
+                    questionMap.set(question.id, question);
+                }
+            }
+        }
+    }
+
+    let latestConfidenceByQuestion: Map<number, ReviewLog['confidence']> | null = null;
+    if (filters?.lowConfidenceOnly) {
+        latestConfidenceByQuestion = new Map<number, ReviewLog['confidence']>();
+
+        if (questionIds.length > 0) {
+            if (cloud) {
+                const quizSetIds = [...new Set(schedules.map(s => s.quizSetId))];
+                const logsBySet = await Promise.all(quizSetIds.map(setId => cloudApi.getReviewLogsByQuizSet(setId)));
+                for (const logs of logsBySet) {
+                    for (const log of logs) {
+                        if (!latestConfidenceByQuestion.has(log.questionId)) {
+                            latestConfidenceByQuestion.set(log.questionId, log.confidence);
+                        }
+                    }
+                }
+            } else {
+                const logs = await db.reviewLogs.where('questionId').anyOf(questionIds).toArray();
+                logs.sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt));
+                for (const log of logs) {
+                    if (!latestConfidenceByQuestion.has(log.questionId)) {
+                        latestConfidenceByQuestion.set(log.questionId, log.confidence);
+                    }
+                }
+            }
+        }
+    }
+
     const results: (ReviewSchedule & { question?: Question })[] = [];
     for (const schedule of schedules) {
-        let question: Question | undefined;
-        if (isCloudSyncEnabled()) {
-            const qs = await cloudApi.getQuestions(schedule.quizSetId);
-            question = qs.find(q => q.id === schedule.questionId);
-        } else {
-            question = await db.questions.get(schedule.questionId);
-        }
+        const question = questionMap.get(schedule.questionId);
         if (!question) continue;
 
         if (filters?.categories && filters.categories.length > 0) {
@@ -220,15 +266,8 @@ export async function getDueReviews(
         if (filters?.overdueOnly && schedule.nextDue >= today) continue;
 
         if (filters?.lowConfidenceOnly) {
-            let lastLog;
-            if (isCloudSyncEnabled()) {
-                const logs = await cloudApi.getReviewLogs(schedule.questionId);
-                lastLog = logs.length > 0 ? logs[0] : null; // APIs return desc order
-            } else {
-                const logs = await db.reviewLogs.where('questionId').equals(schedule.questionId).reverse().sortBy('reviewedAt');
-                lastLog = logs.length > 0 ? logs[0] : null;
-            }
-            if (!lastLog || lastLog.confidence !== 'low') continue;
+            const latestConfidence = latestConfidenceByQuestion?.get(schedule.questionId);
+            if (latestConfidence !== 'low') continue;
         }
 
         results.push({ ...schedule, question });
@@ -241,6 +280,11 @@ export async function getDueReviews(
     });
 
     return results;
+}
+
+export async function getReviewSchedulesForQuizSet(quizSetId: number): Promise<ReviewSchedule[]> {
+    if (isCloudSyncEnabled()) return cloudApi.getDueReviews(quizSetId);
+    return db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
 }
 
 export async function upsertReviewSchedule(schedule: Omit<ReviewSchedule, 'id'> & { id?: number }): Promise<number> {
@@ -374,8 +418,9 @@ export async function postponeReviews(quizSetId: number, maxPercent: number = 20
 }
 
 export async function getWeakestQuestions(quizSetId: number, limit: number = 10): Promise<(ReviewSchedule & { question?: Question })[]> {
+    const cloud = isCloudSyncEnabled();
     let schedules: ReviewSchedule[];
-    if (isCloudSyncEnabled()) {
+    if (cloud) {
         schedules = await cloudApi.getDueReviews(quizSetId);
     } else {
         schedules = await db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
@@ -389,16 +434,30 @@ export async function getWeakestQuestions(quizSetId: number, limit: number = 10)
         return aDate.localeCompare(bDate);
     });
 
+    const questionMap = new Map<number, Question>();
+    if (cloud) {
+        const questions = await cloudApi.getQuestions(quizSetId);
+        for (const question of questions) {
+            if (question.id !== undefined) {
+                questionMap.set(question.id, question);
+            }
+        }
+    } else {
+        const questionIds = [...new Set(schedules.map(s => s.questionId))];
+        if (questionIds.length > 0) {
+            const questions = await db.questions.where('id').anyOf(questionIds).toArray();
+            for (const question of questions) {
+                if (question.id !== undefined) {
+                    questionMap.set(question.id, question);
+                }
+            }
+        }
+    }
+
     const results: (ReviewSchedule & { question?: Question })[] = [];
     for (const schedule of schedules) {
         if (results.length >= limit) break;
-        let question;
-        if (isCloudSyncEnabled()) {
-            const qs = await cloudApi.getQuestions(quizSetId);
-            question = qs.find(q => q.id === schedule.questionId);
-        } else {
-            question = await db.questions.get(schedule.questionId);
-        }
+        const question = questionMap.get(schedule.questionId);
         if (question) {
             results.push({ ...schedule, question });
         }

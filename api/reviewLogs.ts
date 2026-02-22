@@ -56,7 +56,35 @@ export default async function handler(req: any, res: any) {
                     sessionId: r.session_id
                 })));
             }
-            return res.status(400).json({ error: 'Missing questionId parameter' });
+            if (quizSetId) {
+                const quizSetIdNum = Number(quizSetId);
+                if (!Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
+                    return res.status(400).json({ error: 'Invalid quizSetId parameter' });
+                }
+                const rows = await sql`
+                    WITH valid_session AS (
+                        SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
+                    )
+                    SELECT rl.* FROM review_logs rl
+                    JOIN valid_session vs ON rl.user_id = vs.user_id
+                    WHERE rl.quiz_set_id = ${quizSetIdNum}
+                    ORDER BY rl.reviewed_at DESC
+                `;
+                return res.status(200).json(rows.map(r => ({
+                    id: r.id,
+                    questionId: r.question_id,
+                    quizSetId: r.quiz_set_id,
+                    reviewedAt: new Date(r.reviewed_at).toISOString(),
+                    isCorrect: r.is_correct,
+                    confidence: r.confidence,
+                    intervalDays: r.interval_days,
+                    nextDue: r.next_due ? new Date(r.next_due).toISOString().split('T')[0] : '',
+                    memo: r.memo,
+                    durationSeconds: r.duration_seconds,
+                    sessionId: r.session_id
+                })));
+            }
+            return res.status(400).json({ error: 'Missing questionId or quizSetId parameter' });
 
         } else {
             const userId = await getAuthenticatedUserId(req);

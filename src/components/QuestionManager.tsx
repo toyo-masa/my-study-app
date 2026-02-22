@@ -401,6 +401,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.nativeEvent.isComposing) return;
         if (e.key === 'Enter') {
             handleNameSave();
         } else if (e.key === 'Escape') {
@@ -524,7 +525,12 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         type="text"
                         value={newTagInput}
                         onChange={(e) => setNewTagInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                e.preventDefault();
+                                handleAddTag();
+                            }
+                        }}
                         placeholder="新しいタグを入力..."
                         style={{
                             padding: '0.4rem 0.75rem',

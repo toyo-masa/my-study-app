@@ -179,6 +179,10 @@ export const cloudApi = {
         return fetchApi(`/api/reviewLogs?questionId=${questionId}`);
     },
 
+    async getReviewLogsByQuizSet(quizSetId: number): Promise<ReviewLog[]> {
+        return fetchApi(`/api/reviewLogs?quizSetId=${quizSetId}`);
+    },
+
     async addReviewLog(log: Omit<ReviewLog, 'id'>): Promise<number> {
         const res = await fetchApi<{ id: number }>('/api/reviewLogs', {
             method: 'POST',
