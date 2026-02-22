@@ -8,6 +8,6 @@ export type ApiHandlerRequest<TBody = unknown> = {
 export type ApiHandlerResponse = {
     status: (statusCode: number) => ApiHandlerResponse;
     json: (payload: unknown) => ApiHandlerResponse;
-    setHeader: (name: string, value: string[]) => void;
+    setHeader: (name: string, value: string | string[]) => void;
     end: (payload?: string) => ApiHandlerResponse;
 };

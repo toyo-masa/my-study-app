@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.6',
+        date: '2026年2月22日',
+        improvements: [
+            'サーバーAPIのヘッダー型定義を見直し、デプロイ時の型チェックをより安定して通過できるようにしました。',
+        ],
+        fixes: [
+            '中断セッションAPIで `Cache-Control` ヘッダー設定時にTypeScriptビルドが失敗する問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.5',
         date: '2026年2月22日',
         improvements: [
