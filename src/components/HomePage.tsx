@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive } from 'lucide-react';
+import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLauncher } from './AppLauncher';
 import type { QuizSet } from '../types';
@@ -28,6 +28,7 @@ interface HomePageProps {
     onOpenApp?: (appId: string) => void;
     deletedQuizSets: QuizSetWithMeta[];
     archivedQuizSets: QuizSetWithMeta[];
+    onRefresh: () => void;
 }
 
 
@@ -47,7 +48,8 @@ export const HomePage: React.FC<HomePageProps> = ({
     onUnarchiveQuizSet,
     onOpenApp,
     deletedQuizSets,
-    archivedQuizSets
+    archivedQuizSets,
+    onRefresh
 }) => {
     const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'active' | 'trash' | 'archive'>('active');
@@ -183,6 +185,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                     </div>
 
                     <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+                        <button className="nav-btn" onClick={onRefresh} title="更新">
+                            <RefreshCw size={16} /> 更新
+                        </button>
                         <button
                             className={`nav-btn ${viewMode === 'archive' ? 'active' : ''}`}
                             onClick={() => setViewMode(viewMode === 'archive' ? 'active' : 'archive')}

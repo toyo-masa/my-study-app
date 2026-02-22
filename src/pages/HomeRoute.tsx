@@ -151,6 +151,7 @@ export const HomeRoute: React.FC = () => {
             onArchiveQuizSet={handleArchiveQuizSet}
             onUnarchiveQuizSet={handleUnarchiveQuizSet}
             onOpenApp={(appId) => navigate(`/${appId}`)}
+            onRefresh={() => loadQuizSets()}
         />
     );
 };
