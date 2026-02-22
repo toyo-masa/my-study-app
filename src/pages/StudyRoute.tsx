@@ -18,7 +18,7 @@ export const StudyRoute: React.FC = () => {
     const historyFromState = location.state?.history as QuizHistory | undefined;
     const startNewFromState = location.state?.startNew as boolean | undefined;
 
-    const { quizSets, loadQuizSets } = useAppContext();
+    const { quizSets } = useAppContext();
 
     const quizSetId = id ? parseInt(id, 10) : undefined;
     const activeQuizSet = quizSets.find(s => s.id === quizSetId);
@@ -38,10 +38,36 @@ export const StudyRoute: React.FC = () => {
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
 
     const startTimeRef = useRef<Date>(new Date());
+    const lastSessionKeyRef = useRef<string | null>(null);
+
+    // Unique key for the current session to detect changes
+    const sessionKey = `${quizSetId}-${startNewFromState}-${historyFromState?.id || 'new'}-${location.key}`;
+
+    // Synchronous state reset when quiz set or session intent changes
+    // This happens DURING render to prevent flickering previous data
+    const [renderedSessionKey, setRenderedSessionKey] = useState<string | null>(null);
+    if (renderedSessionKey !== sessionKey) {
+        setRenderedSessionKey(sessionKey);
+        setIsLoading(true);
+        setQuestions([]);
+        setCurrentQuestionIndex(0);
+        setAnswers({});
+        setMemos({});
+        setShowAnswerMap({});
+        setMarkedQuestions([]);
+        setConfidences({});
+        setIsTestCompleted(false);
+        setActiveHistory(null);
+        setHistoryMode('normal');
+    }
 
     useEffect(() => {
         const initStudy = async () => {
             if (!quizSetId) return;
+
+            // Atomic Guard: Ensure we only initialize ONCE per unique session/navigation
+            if (lastSessionKeyRef.current === sessionKey) return;
+            lastSessionKeyRef.current = sessionKey;
 
             try {
                 const qs = await getQuestionsForQuizSet(quizSetId);
@@ -62,6 +88,7 @@ export const StudyRoute: React.FC = () => {
                         }
                     }
 
+                    // Batch state updates
                     setQuestions(studyQuestions);
                     setActiveHistory(historyFromState);
                     setAnswers(historyFromState.answers || {});
@@ -77,6 +104,7 @@ export const StudyRoute: React.FC = () => {
                     const restoredStartTime = new Date(new Date(historyFromState.date).getTime() - historyFromState.durationSeconds * 1000);
                     startTimeRef.current = restoredStartTime;
                     setIsTestCompleted(true);
+                    setIsLoading(false);
                     return;
                 }
 
@@ -104,8 +132,7 @@ export const StudyRoute: React.FC = () => {
                         setHistoryMode(suspendedSession.historyMode || 'normal');
                         setIsTestCompleted(false);
                         setActiveHistory(null);
-                        // React StrictMode double-invocation prevents us from safely removing the session here.
-                        // We rely on `startNew` or `handleCompleteTest` or `handleBackToDetail` to overwrite/clear it instead.
+                        setIsLoading(false);
                     }
                 } else {
                     // Start new logic
@@ -113,8 +140,9 @@ export const StudyRoute: React.FC = () => {
                 }
             } catch (err) {
                 console.error('Failed to load study questions:', err);
+                // On error, we reset the ref to allow retry
+                lastSessionKeyRef.current = null;
                 alert('問題の読み込みに失敗しました');
-            } finally {
                 setIsLoading(false);
             }
         };
@@ -126,6 +154,7 @@ export const StudyRoute: React.FC = () => {
                 studyQuestions = applyShuffleSettings(studyQuestions, settings);
                 clearSessionFromStorage(quizSetId);
             }
+            // All state updates together
             setQuestions(studyQuestions);
             setCurrentQuestionIndex(0);
             setAnswers({});
@@ -137,10 +166,11 @@ export const StudyRoute: React.FC = () => {
             setActiveHistory(null);
             setHistoryMode('normal');
             startTimeRef.current = new Date();
+            setIsLoading(false);
         };
 
         initStudy();
-    }, [quizSetId, quizSets.length, loadQuizSets, historyFromState]);
+    }, [sessionKey]);
 
     const handleBackToDetail = () => {
         if (!isTestCompleted && !activeHistory && activeQuizSet?.id !== undefined && questions.length > 0) {
@@ -352,8 +382,9 @@ export const StudyRoute: React.FC = () => {
         startReviewSession(targetQuestions, 'review_weak');
     };
 
-    if (isLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>読み込み中...</div>;
-    if (!activeQuizSet) return <div style={{ padding: '2rem', textAlign: 'center' }}>問題集が見つかりませんでした。</div>;
+    if (!activeQuizSet) {
+        return <div style={{ padding: '2rem', textAlign: 'center' }}>問題集が見つかりませんでした。</div>;
+    }
 
     const currentQuestion = questions[currentQuestionIndex];
     const qId = currentQuestion ? String(currentQuestion.id) : '';
@@ -373,89 +404,97 @@ export const StudyRoute: React.FC = () => {
             </header>
 
             <div className="main-layout">
-                <AnimatePresence>
-                    {sidebarOpen && !isTestCompleted && (
-                        <motion.div
-                            className="sidebar-overlay"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setSidebarOpen(false)}
-                        />
-                    )}
-                </AnimatePresence>
-                {!isTestCompleted && (
-                    <aside className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
-                        <Sidebar
-                            questions={questions}
-                            currentQuestionIndex={currentQuestionIndex}
-                            onSelectQuestion={setCurrentQuestionIndex}
-                            answers={answers}
-                            showAnswerMap={showAnswerMap}
-                            markedQuestionIds={markedQuestions}
-                            onToggleMark={handleToggleMark}
-                        />
-                    </aside>
-                )}
+                {isLoading ? (
+                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                        <div className="loading-text">読み込み中...</div>
+                    </div>
+                ) : (
+                    <>
+                        <AnimatePresence>
+                            {sidebarOpen && !isTestCompleted && (
+                                <motion.div
+                                    className="sidebar-overlay"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    onClick={() => setSidebarOpen(false)}
+                                />
+                            )}
+                        </AnimatePresence>
+                        {!isTestCompleted && (
+                            <aside className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
+                                <Sidebar
+                                    questions={questions}
+                                    currentQuestionIndex={currentQuestionIndex}
+                                    onSelectQuestion={setCurrentQuestionIndex}
+                                    answers={answers}
+                                    showAnswerMap={showAnswerMap}
+                                    markedQuestionIds={markedQuestions}
+                                    onToggleMark={handleToggleMark}
+                                />
+                            </aside>
+                        )}
 
-                <main className="content-area">
-                    {isTestCompleted ? (
-                        <TestResult
-                            questions={questions}
-                            answers={answers}
-                            confidences={confidences}
-                            startTime={startTimeRef.current}
-                            endTime={endTime}
-                            onReview={handleReview}
-                            onRetestWrong={handleRetestWrong}
-                            onRetestWeak={handleRetestWeak}
-                            historyOverrides={activeHistory ? {
-                                correctCount: activeHistory.correctCount,
-                                totalCount: activeHistory.totalCount
-                            } : undefined}
-                        />
-                    ) : currentQuestion ? (
-                        <>
-                            <div className="progress-section">
-                                <span className="progress-text">
-                                    {Object.values(showAnswerMap).filter(Boolean).length}/{questions.length}
-                                </span>
-                                <div className="progress-bar-track">
-                                    <div
-                                        className="progress-bar-fill"
-                                        style={{ width: `${(Object.values(showAnswerMap).filter(Boolean).length / questions.length) * 100}%` }}
+                        <main className="content-area">
+                            {isTestCompleted ? (
+                                <TestResult
+                                    questions={questions}
+                                    answers={answers}
+                                    confidences={confidences}
+                                    startTime={startTimeRef.current}
+                                    endTime={endTime}
+                                    onReview={handleReview}
+                                    onRetestWrong={handleRetestWrong}
+                                    onRetestWeak={handleRetestWeak}
+                                    historyOverrides={activeHistory ? {
+                                        correctCount: activeHistory.correctCount,
+                                        totalCount: activeHistory.totalCount
+                                    } : undefined}
+                                />
+                            ) : currentQuestion ? (
+                                <>
+                                    <div className="progress-section">
+                                        <span className="progress-text">
+                                            {Object.values(showAnswerMap).filter(Boolean).length}/{questions.length}
+                                        </span>
+                                        <div className="progress-bar-track">
+                                            <div
+                                                className="progress-bar-fill"
+                                                style={{ width: `${(Object.values(showAnswerMap).filter(Boolean).length / questions.length) * 100}%` }}
+                                            />
+                                        </div>
+                                        <button className="finish-test-btn" onClick={handleCompleteTest}>
+                                            テストを完了する
+                                        </button>
+                                    </div>
+
+                                    <QuestionView
+                                        question={currentQuestion}
+                                        questionIndex={currentQuestionIndex}
+                                        totalQuestions={questions.length}
+                                        selectedOptions={answers[qId] || []}
+                                        onToggleOption={handleToggleOption}
+                                        showAnswer={showAnswerMap[qId] || false}
+                                        isMarked={markedQuestions.includes(currentQuestion.id!)}
+                                        onToggleMark={handleToggleMark}
+                                        onShowAnswer={handleShowAnswer}
+                                        onNext={handleNext}
+                                        onPrev={handlePrev}
+                                        onCompleteTest={handleCompleteTest}
+                                        isLast={currentQuestionIndex === questions.length - 1}
+                                        isFirst={currentQuestionIndex === 0}
+                                        memo={memos[qId] || ''}
+                                        onMemoChange={(val) => handleMemoChange(currentQuestion.id!, val)}
+                                        confidence={confidences[qId] || null}
+                                        onConfidenceChange={(level) => handleConfidenceChange(currentQuestion.id!, level)}
                                     />
-                                </div>
-                                <button className="finish-test-btn" onClick={handleCompleteTest}>
-                                    テストを完了する
-                                </button>
-                            </div>
-
-                            <QuestionView
-                                question={currentQuestion}
-                                questionIndex={currentQuestionIndex}
-                                totalQuestions={questions.length}
-                                selectedOptions={answers[qId] || []}
-                                onToggleOption={handleToggleOption}
-                                showAnswer={showAnswerMap[qId] || false}
-                                isMarked={markedQuestions.includes(currentQuestion.id!)}
-                                onToggleMark={handleToggleMark}
-                                onShowAnswer={handleShowAnswer}
-                                onNext={handleNext}
-                                onPrev={handlePrev}
-                                onCompleteTest={handleCompleteTest}
-                                isLast={currentQuestionIndex === questions.length - 1}
-                                isFirst={currentQuestionIndex === 0}
-                                memo={memos[qId] || ''}
-                                onMemoChange={(val) => handleMemoChange(currentQuestion.id!, val)}
-                                confidence={confidences[qId] || null}
-                                onConfidenceChange={(level) => handleConfidenceChange(currentQuestion.id!, level)}
-                            />
-                        </>
-                    ) : (
-                        <div className="loading-text">Loading questions...</div>
-                    )}
-                </main>
+                                </>
+                            ) : (
+                                <div className="loading-text">Loading questions...</div>
+                            )}
+                        </main>
+                    </>
+                )}
             </div>
         </>
     );
