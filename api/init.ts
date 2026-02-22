@@ -168,6 +168,18 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
       WHERE user_id IS NOT NULL AND question_id IS NOT NULL
     `;
     await sql`
+      CREATE INDEX IF NOT EXISTS questions_quiz_set_id_idx
+      ON questions (quiz_set_id)
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS quiz_sets_user_archive_delete_idx
+      ON quiz_sets (user_id, is_deleted, is_archived)
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS histories_user_quiz_date_idx
+      ON histories (user_id, quiz_set_id, date DESC)
+    `;
+    await sql`
       CREATE INDEX IF NOT EXISTS review_schedules_user_quiz_due_idx
       ON review_schedules (user_id, quiz_set_id, next_due)
     `;

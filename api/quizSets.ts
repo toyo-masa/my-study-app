@@ -75,39 +75,47 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                         WITH valid_session AS (
                             SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
                         )
-                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        SELECT q.*, COUNT(qq.id) AS q_count
                         FROM quiz_sets q 
                         JOIN valid_session vs ON q.user_id = vs.user_id
+                        LEFT JOIN questions qq ON qq.quiz_set_id = q.id
                         WHERE q.is_deleted = true
+                        GROUP BY q.id
                     `;
                 } else if (archivedOnly === 'true') {
                     rows = await sql`
                         WITH valid_session AS (
                             SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
                         )
-                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        SELECT q.*, COUNT(qq.id) AS q_count
                         FROM quiz_sets q 
                         JOIN valid_session vs ON q.user_id = vs.user_id
+                        LEFT JOIN questions qq ON qq.quiz_set_id = q.id
                         WHERE q.is_deleted = false AND q.is_archived = true
+                        GROUP BY q.id
                     `;
                 } else if (req.query.all === 'true') {
                     rows = await sql`
                         WITH valid_session AS (
                             SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
                         )
-                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        SELECT q.*, COUNT(qq.id) AS q_count
                         FROM quiz_sets q 
                         JOIN valid_session vs ON q.user_id = vs.user_id
+                        LEFT JOIN questions qq ON qq.quiz_set_id = q.id
+                        GROUP BY q.id
                     `;
                 } else {
                     rows = await sql`
                         WITH valid_session AS (
                             SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
                         )
-                        SELECT q.*, (SELECT COUNT(*) FROM questions WHERE quiz_set_id = q.id) as q_count 
+                        SELECT q.*, COUNT(qq.id) AS q_count
                         FROM quiz_sets q 
                         JOIN valid_session vs ON q.user_id = vs.user_id
+                        LEFT JOIN questions qq ON qq.quiz_set_id = q.id
                         WHERE q.is_deleted = false AND q.is_archived = false
+                        GROUP BY q.id
                     `;
                 }
                 const t2 = performance.now();

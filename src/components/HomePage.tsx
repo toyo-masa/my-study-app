@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLauncher } from './AppLauncher';
@@ -61,22 +61,26 @@ export const HomePage: React.FC<HomePageProps> = ({
 
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-    const allTags = Array.from(new Set(quizSets.flatMap(qs => qs.tags || []))).sort();
+    const allTags = useMemo(
+        () => Array.from(new Set(quizSets.flatMap(qs => qs.tags || []))).sort(),
+        [quizSets]
+    );
 
-    const filteredQuizSets = selectedTags.length > 0
-        ? quizSets.filter(qs => {
+    const filteredQuizSets = useMemo(() => {
+        if (selectedTags.length === 0) return quizSets;
+        return quizSets.filter(qs => {
             const qsTags = qs.tags || [];
             return selectedTags.every(t => qsTags.includes(t));
-        })
-        : quizSets;
+        });
+    }, [quizSets, selectedTags]);
 
-    const handleToggleTagFilter = (tag: string) => {
-        if (selectedTags.includes(tag)) {
-            setSelectedTags(selectedTags.filter(t => t !== tag));
-        } else {
-            setSelectedTags([...selectedTags, tag]);
-        }
-    };
+    const handleToggleTagFilter = useCallback((tag: string) => {
+        setSelectedTags(prev => (
+            prev.includes(tag)
+                ? prev.filter(t => t !== tag)
+                : [...prev, tag]
+        ));
+    }, []);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];

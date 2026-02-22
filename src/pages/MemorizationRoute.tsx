@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { MemorizationResultView, MemorizationQuestionView, type MemorizationLog } from '../components/MemorizationView';
@@ -181,7 +181,7 @@ export const MemorizationRoute: React.FC = () => {
         setMemorizationLogs(newLogs);
 
         if (currentQuestionIndex < questions.length - 1) {
-            setCurrentQuestionIndex(currentQuestionIndex + 1);
+            setCurrentQuestionIndex(prev => prev + 1);
         } else {
             handleCompleteMemorization(newLogs);
         }
@@ -225,14 +225,16 @@ export const MemorizationRoute: React.FC = () => {
         });
     };
 
+    const memStatus = useMemo(() => {
+        return memorizationLogs.reduce((acc, log) => {
+            acc[log.questionId] = log.isMemorized ? 'memorized' : 'not_memorized';
+            return acc;
+        }, {} as Record<number, 'memorized' | 'not_memorized' | 'unanswered'>);
+    }, [memorizationLogs]);
+
     if (!activeQuizSet) {
         return <NotFoundView />;
     }
-
-    const memStatus = memorizationLogs.reduce((acc, log) => {
-        acc[log.questionId] = log.isMemorized ? 'memorized' : 'not_memorized';
-        return acc;
-    }, {} as Record<number, 'memorized' | 'not_memorized' | 'unanswered'>);
 
     return (
         <QuizSessionLayout

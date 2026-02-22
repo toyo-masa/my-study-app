@@ -9,15 +9,18 @@ interface MarkdownTextProps {
     className?: string;
 }
 
-export const MarkdownText: React.FC<MarkdownTextProps> = ({ content, className = '' }) => {
+const remarkPlugins = [remarkMath];
+const rehypePlugins = [rehypeKatex];
+
+export const MarkdownText: React.FC<MarkdownTextProps> = React.memo(({ content, className = '' }) => {
     return (
         <div className={`markdown-body ${className}`}>
             <ReactMarkdown
-                remarkPlugins={[remarkMath]}
-                rehypePlugins={[rehypeKatex]}
+                remarkPlugins={remarkPlugins}
+                rehypePlugins={rehypePlugins}
             >
                 {content}
             </ReactMarkdown>
         </div>
     );
-};
+});

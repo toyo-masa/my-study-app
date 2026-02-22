@@ -33,26 +33,39 @@ export const db = new StudyAppDB();
 
 // === Helper Wrappers for Cloud & Local Storage ===
 
+async function buildQuizSetMetasLocal(sets: QuizSet[]): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
+    if (sets.length === 0) return [];
+
+    const setIds = sets
+        .map(qs => qs.id)
+        .filter((id): id is number => typeof id === 'number');
+
+    const countBySetId = new Map<number, number>();
+    if (setIds.length > 0) {
+        const questions = await db.questions.where('quizSetId').anyOf(setIds).toArray();
+        for (const question of questions) {
+            const current = countBySetId.get(question.quizSetId) || 0;
+            countBySetId.set(question.quizSetId, current + 1);
+        }
+    }
+
+    return sets.map(qs => ({
+        ...qs,
+        questionCount: qs.id !== undefined ? (countBySetId.get(qs.id) || 0) : 0,
+        categories: qs.tags || []
+    }));
+}
+
 export async function getAllQuizSets(): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
     if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ all: true });
     const sets = await db.quizSets.toArray();
-    const result = [];
-    for (const qs of sets) {
-        const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
-        result.push({ ...qs, questionCount: questions.length, categories: qs.tags || [] });
-    }
-    return result;
+    return buildQuizSetMetasLocal(sets);
 }
 
 export async function getQuizSetsWithCounts(includeDeleted: boolean = false): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
     if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ includeDeleted });
     const sets = includeDeleted ? await db.quizSets.toArray() : await db.quizSets.filter(qs => !qs.isDeleted && !qs.isArchived).toArray();
-    const result = [];
-    for (const qs of sets) {
-        const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
-        result.push({ ...qs, questionCount: questions.length, categories: qs.tags || [] });
-    }
-    return result;
+    return buildQuizSetMetasLocal(sets);
 }
 
 export async function getDeletedQuizSets(): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
@@ -61,23 +74,13 @@ export async function getDeletedQuizSets(): Promise<(QuizSet & { questionCount: 
         return sets.filter(s => !!s.isDeleted);
     }
     const sets = await db.quizSets.filter(qs => !!qs.isDeleted).toArray();
-    const result = [];
-    for (const qs of sets) {
-        const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
-        result.push({ ...qs, questionCount: questions.length, categories: qs.tags || [] });
-    }
-    return result;
+    return buildQuizSetMetasLocal(sets);
 }
 
 export async function getArchivedQuizSets(): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
     if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ archivedOnly: true });
     const sets = await db.quizSets.filter(qs => !qs.isDeleted && !!qs.isArchived).toArray();
-    const result = [];
-    for (const qs of sets) {
-        const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
-        result.push({ ...qs, questionCount: questions.length, categories: qs.tags || [] });
-    }
-    return result;
+    return buildQuizSetMetasLocal(sets);
 }
 
 export async function getQuestionsForQuizSet(quizSetId: number): Promise<Question[]> {
