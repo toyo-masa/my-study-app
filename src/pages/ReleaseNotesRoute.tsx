@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,6 +10,16 @@ type ReleaseNote = {
 };
 
 const releaseNotes: ReleaseNote[] = [
+    {
+        version: '1.6.11',
+        date: '2026年2月22日',
+        improvements: [
+            'リリースノートは直近10件を先に表示し、過去分は「さらに表示」操作で段階的に確認できるようにしました。',
+        ],
+        fixes: [
+            'リリースノート表示時に「アプリケーションを起動中...」の待機表示が不要に出る場合がある問題を修正しました。',
+        ],
+    },
     {
         version: '1.6.10',
         date: '2026年2月22日',
@@ -226,8 +236,24 @@ const sectionTitleStyle: React.CSSProperties = {
     marginBottom: '0.5rem',
 };
 
+const INITIAL_VISIBLE_RELEASE_COUNT = 10;
+const RELEASE_BATCH_SIZE = 10;
+
 export const ReleaseNotesRoute: React.FC = () => {
     const navigate = useNavigate();
+    const [visibleReleaseCount, setVisibleReleaseCount] = useState(INITIAL_VISIBLE_RELEASE_COUNT);
+
+    const visibleReleaseNotes = releaseNotes.slice(0, visibleReleaseCount);
+    const hasHiddenReleaseNotes = visibleReleaseCount < releaseNotes.length;
+    const isExpanded = visibleReleaseCount > INITIAL_VISIBLE_RELEASE_COUNT;
+
+    const showMoreReleaseNotes = () => {
+        setVisibleReleaseCount((prev) => Math.min(prev + RELEASE_BATCH_SIZE, releaseNotes.length));
+    };
+
+    const collapseReleaseNotes = () => {
+        setVisibleReleaseCount(INITIAL_VISIBLE_RELEASE_COUNT);
+    };
 
     return (
         <div
@@ -259,8 +285,8 @@ export const ReleaseNotesRoute: React.FC = () => {
                 <Clock size={28} /> リリースノート
             </h1>
 
-            {releaseNotes.map((note, index) => (
-                <div key={note.version} className="release-card" style={{ ...cardStyle, marginBottom: index === releaseNotes.length - 1 ? 0 : cardStyle.marginBottom }}>
+            {visibleReleaseNotes.map((note, index) => (
+                <div key={note.version} className="release-card" style={{ ...cardStyle, marginBottom: index === visibleReleaseNotes.length - 1 ? 0 : cardStyle.marginBottom }}>
                     <div
                         style={{
                             display: 'flex',
@@ -300,6 +326,28 @@ export const ReleaseNotesRoute: React.FC = () => {
                     </div>
                 </div>
             ))}
+
+            {releaseNotes.length > INITIAL_VISIBLE_RELEASE_COUNT && (
+                <div style={{ width: '100%', textAlign: 'center', marginTop: '1rem', marginBottom: '1rem' }}>
+                    {hasHiddenReleaseNotes && (
+                        <button className="nav-btn" onClick={showMoreReleaseNotes}>
+                            過去のリリースをさらに{Math.min(RELEASE_BATCH_SIZE, releaseNotes.length - visibleReleaseCount)}件表示
+                        </button>
+                    )}
+                    {isExpanded && (
+                        <button
+                            className="nav-btn"
+                            onClick={collapseReleaseNotes}
+                            style={{ marginLeft: hasHiddenReleaseNotes ? '0.75rem' : 0 }}
+                        >
+                            直近{INITIAL_VISIBLE_RELEASE_COUNT}件に戻す
+                        </button>
+                    )}
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        表示中: {visibleReleaseNotes.length} / {releaseNotes.length} 件
+                    </div>
+                </div>
+            )}
 
             <div
                 style={{

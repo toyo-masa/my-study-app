@@ -26,6 +26,7 @@ function App() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const location = useLocation();
+  const isReleaseNotesRoute = location.pathname.startsWith('/release-notes');
 
   // Dark mode and Accent color
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -76,8 +77,8 @@ function App() {
       setLoginPassword('');
       localStorage.setItem('useCloudSync', 'true');
       window.location.reload();
-    } catch (err: any) {
-      setLoginError(err.message || 'ログインに失敗しました');
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : 'ログインに失敗しました');
     } finally {
       setIsLoggingIn(false);
     }
@@ -101,8 +102,8 @@ function App() {
       setRegisterPasswordConfirm('');
       localStorage.setItem('useCloudSync', 'true');
       window.location.reload();
-    } catch (err: any) {
-      setRegisterError(err.message || '登録に失敗しました');
+    } catch (err: unknown) {
+      setRegisterError(err instanceof Error ? err.message : '登録に失敗しました');
     } finally {
       setIsRegistering(false);
     }
@@ -119,8 +120,8 @@ function App() {
     window.location.reload();
   };
 
-  if (!isInitialized) {
-    return <LoadingView fullPage message="アプリケーションを起動中..." />;
+  if (!isInitialized && !isReleaseNotesRoute) {
+    return <LoadingView fullPage message="データを読み込み中..." />;
   }
 
   // Study/Mem route hides the sidebar / margins if needed, but styling is handled by CSS mostly 
