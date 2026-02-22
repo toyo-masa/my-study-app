@@ -35,6 +35,7 @@ export const ManageRoute: React.FC = () => {
                 quizSet={activeQuizSet}
                 onBack={() => navigate('/')}
                 onCloudError={handleCloudError}
+                onQuizSetUpdated={loadQuizSets}
             />
         </main>
     );

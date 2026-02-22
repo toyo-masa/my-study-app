@@ -1,33 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QuizDetail } from '../components/QuizDetail';
 import { useAppContext } from '../contexts/AppContext';
-import { updateQuizSet } from '../db';
 import { loadSessionFromStorage, loadQuizSetSettings, saveQuizSetSettings } from '../utils/quizSettings';
 import type { QuizHistory } from '../types';
 
 export const QuizDetailRoute: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { quizSets, handleCloudError, loadQuizSets } = useAppContext();
-    const [hasSuspendedSession, setHasSuspendedSession] = useState(false);
-
+    const { quizSets } = useAppContext();
     const quizSetId = id ? parseInt(id, 10) : undefined;
     const activeQuizSet = quizSets.find(s => s.id === quizSetId);
 
-    useEffect(() => {
-        if (!quizSetId) return;
-        setHasSuspendedSession(!!loadSessionFromStorage(quizSetId));
-    }, [quizSetId]);
+    // Derived state instead of useEffect to avoid cascading renders
+    const hasSuspendedSession = quizSetId ? !!loadSessionFromStorage(quizSetId) : false;
 
-    const handleUpdateQuizSet = async (quizSetId: number, changes: Partial<import('../types').QuizSet>) => {
-        try {
-            await updateQuizSet(quizSetId, changes);
-            await loadQuizSets();
-        } catch (error) {
-            handleCloudError(error, '問題集の更新に失敗しました。');
-        }
-    };
 
     const handleStartStudy = () => {
         if (!activeQuizSet) return;
@@ -72,7 +59,6 @@ export const QuizDetailRoute: React.FC = () => {
                 onResume={handleResumeStudy}
                 settings={loadQuizSetSettings(activeQuizSet.id!)}
                 onSettingsChange={(s) => saveQuizSetSettings(activeQuizSet.id!, s)}
-                onUpdateQuizSet={handleUpdateQuizSet}
             />
         </main>
     );

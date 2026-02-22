@@ -9,7 +9,9 @@ interface QuestionManagerProps {
     quizSet: QuizSet & { questionCount: number; categories: string[] };
     onBack: () => void;
     onCloudError: (err: unknown, fallbackMessage: string) => void;
+    onQuizSetUpdated?: () => void;
 }
+
 
 interface EditingQuestion {
     id?: number;
@@ -28,7 +30,7 @@ const emptyQuestion: EditingQuestion = {
     explanation: '',
 };
 
-export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBack, onCloudError }) => {
+export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBack, onCloudError, onQuizSetUpdated }) => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [editing, setEditing] = useState<EditingQuestion | null>(null);
     const [isNew, setIsNew] = useState(false);
@@ -39,6 +41,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
     const [isAdding, setIsAdding] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [newTagInput, setNewTagInput] = useState('');
+    const [currentTags, setCurrentTags] = useState<string[]>(quizSet.tags || []);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -50,8 +54,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             }
         };
         fetchQs();
+        setCurrentTags(quizSet.tags || []);
         return () => { mounted = false; };
-    }, [quizSet.id]);
+    }, [quizSet.id, quizSet.tags]);
 
     const loadQuestions = async () => {
         if (quizSet.id !== undefined) {
@@ -75,6 +80,36 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const handleNew = () => {
         setEditing({ ...emptyQuestion, options: ['', '', '', ''] });
         setIsNew(true);
+    };
+
+    const handleAddTag = async () => {
+        const trimmed = newTagInput.trim();
+        if (trimmed && !currentTags.includes(trimmed)) {
+            const finalTags = [...currentTags, trimmed];
+            try {
+                if (quizSet.id !== undefined) {
+                    await updateQuizSet(quizSet.id, { tags: finalTags });
+                    setCurrentTags(finalTags);
+                    setNewTagInput('');
+                    if (onQuizSetUpdated) onQuizSetUpdated();
+                }
+            } catch (err) {
+                onCloudError(err, 'タグの追加に失敗しました');
+            }
+        }
+    };
+
+    const handleRemoveTag = async (tagToRemove: string) => {
+        const finalTags = currentTags.filter(t => t !== tagToRemove);
+        try {
+            if (quizSet.id !== undefined) {
+                await updateQuizSet(quizSet.id, { tags: finalTags });
+                setCurrentTags(finalTags);
+                if (onQuizSetUpdated) onQuizSetUpdated();
+            }
+        } catch (err) {
+            onCloudError(err, 'タグの削除に失敗しました');
+        }
     };
 
     const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,6 +294,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             await updateQuizSet(quizSet.id!, { name: newName });
             quizSet.name = newName; // UI表示を即時更新するための簡易的な反映
             setIsEditingName(false);
+            if (onQuizSetUpdated) onQuizSetUpdated();
         } catch (err) {
             onCloudError(err, '名前の保存に失敗しました');
         }
@@ -325,6 +361,48 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     </label>
                     <button className="nav-btn action-btn" onClick={handleNew}>
                         <Plus size={16} /> 問題を追加
+                    </button>
+                </div>
+            </div>
+
+            <div className="tags-management-section" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Plus size={14} /> タグ管理
+                </h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    {currentTags.map(tag => (
+                        <span key={tag} className="tag edit-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0.6rem' }}>
+                            {tag}
+                            <button
+                                onClick={() => handleRemoveTag(tag)}
+                                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                title="削除"
+                            >
+                                <X size={14} />
+                            </button>
+                        </span>
+                    ))}
+                    {currentTags.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>タグが設定されていません</span>}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '400px' }}>
+                    <input
+                        type="text"
+                        value={newTagInput}
+                        onChange={(e) => setNewTagInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                        placeholder="新しいタグを入力..."
+                        style={{
+                            padding: '0.4rem 0.75rem',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            background: 'var(--bg-primary)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.9rem',
+                            flex: 1
+                        }}
+                    />
+                    <button onClick={handleAddTag} className="nav-btn primary" style={{ padding: '0.4rem 0.75rem', background: 'var(--primary-color)', color: 'white' }}>
+                        追加
                     </button>
                 </div>
             </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { QuizSet, QuizHistory } from '../types';
 import { getHistories } from '../db';
-import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle, X, Plus } from 'lucide-react';
+import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export interface QuizSetSettings {
@@ -18,7 +18,6 @@ interface QuizDetailProps {
     onResume: () => void;
     settings: QuizSetSettings;
     onSettingsChange: (settings: QuizSetSettings) => void;
-    onUpdateQuizSet: (quizSetId: number, changes: Partial<QuizSet>) => Promise<void>;
 }
 
 export const QuizDetail: React.FC<QuizDetailProps> = ({
@@ -30,33 +29,12 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
     onResume,
     settings,
     onSettingsChange,
-    onUpdateQuizSet,
 }) => {
     const [histories, setHistories] = useState<QuizHistory[]>([]);
     const [loading, setLoading] = useState(true);
     const [localSettings, setLocalSettings] = useState<QuizSetSettings>(settings);
 
-    const [newTagInput, setNewTagInput] = useState('');
-
     const currentTags = quizSet.tags || [];
-
-    const handleAddTag = async () => {
-        const trimmed = newTagInput.trim();
-        if (trimmed && !currentTags.includes(trimmed)) {
-            const finalTags = [...currentTags, trimmed];
-            if (quizSet.id !== undefined) {
-                await onUpdateQuizSet(quizSet.id, { tags: finalTags });
-            }
-            setNewTagInput('');
-        }
-    };
-
-    const handleRemoveTag = async (tagToRemove: string) => {
-        const finalTags = currentTags.filter(t => t !== tagToRemove);
-        if (quizSet.id !== undefined) {
-            await onUpdateQuizSet(quizSet.id, { tags: finalTags });
-        }
-    };
 
     const handleSettingsChange = (newSettings: QuizSetSettings) => {
         setLocalSettings(newSettings);
@@ -95,32 +73,19 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                         <span className="info-label">問題数</span>
                         <span className="info-value">{quizSet.questionCount}問</span>
                     </div>
-                    <div className="info-row" style={{ alignItems: 'flex-start' }}>
-                        <span className="info-label" style={{ marginTop: '0.5rem' }}>タグ</span>
-                        <div style={{ flex: 1 }}>
-                            <div className="tags-edit-container">
-                                <div className="info-tags" style={{ flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                    {currentTags.length > 0 && (
+                        <div className="info-row" style={{ alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1, paddingTop: '0.5rem' }}>
+                                <div className="info-tags" style={{ flexWrap: 'wrap' }}>
                                     {currentTags.map(tag => (
-                                        <span key={tag} className="tag edit-tag" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                        <span key={tag} className="tag">
                                             {tag}
-                                            <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }} title="削除"><X size={12} /></button>
                                         </span>
                                     ))}
                                 </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                    <input
-                                        type="text"
-                                        value={newTagInput}
-                                        onChange={(e) => setNewTagInput(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                                        placeholder="新しいタグを入力して追加"
-                                        style={{ padding: '0.25rem 0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.9rem', flex: 1 }}
-                                    />
-                                    <button onClick={handleAddTag} className="nav-btn primary" style={{ padding: '0.25rem 0.5rem', background: 'var(--primary-color)', color: 'white' }}><Plus size={16} /> 追加</button>
-                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* 出題設定 */}
                     <div className="quiz-settings-row">
