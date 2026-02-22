@@ -30,34 +30,21 @@ export const parseQuestions = (file: File): Promise<ParsedQuestion[]> => {
         Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
+            encoding: 'UTF-8',
             transformHeader: (h) => h.trim().toLowerCase(),
             complete: (results) => {
-                try {
-                    const parsedQuestions: ParsedQuestion[] = results.data.map((row: any) => {
-                        const raw = row as RawQuestion;
-                        let options: string[] = [];
-                        try {
-                            options = JSON.parse(raw.options);
-                        } catch {
-                            options = raw.options ? raw.options.split('|').map(o => o.trim()) : [];
-                        }
-
-                        const correctAnswers = raw.correct_answers
-                            ? raw.correct_answers.split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n))
-                            : [];
-
-                        return {
-                            category: raw.category || 'General',
-                            text: raw.text || '',
-                            options,
-                            correctAnswers,
-                            explanation: raw.explanation || ''
-                        };
-                    }).filter(q => q.text && q.options.length > 0);
-
-                    resolve(parsedQuestions);
-                } catch (error) {
-                    reject(error);
+                const data = results.data as any[];
+                if (data.length > 0 && Object.keys(data[0] || {}).length <= 1) {
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        encoding: 'Shift-JIS',
+                        transformHeader: (h) => h.trim().toLowerCase(),
+                        complete: (res) => resolve(processRows(res.data as any[])),
+                        error: (err) => reject(err)
+                    });
+                } else {
+                    resolve(processRows(data));
                 }
             },
             error: (error: any) => {
@@ -65,6 +52,37 @@ export const parseQuestions = (file: File): Promise<ParsedQuestion[]> => {
             }
         });
     });
+};
+
+const processRows = (data: any[]): ParsedQuestion[] => {
+    try {
+        return data.map((row: any) => {
+            const raw = row as RawQuestion;
+            let options: string[] = [];
+            if (raw.options) {
+                try {
+                    options = JSON.parse(raw.options);
+                } catch {
+                    options = raw.options.split('|').map(o => o.trim());
+                }
+            }
+
+            const correctAnswers = raw.correct_answers
+                ? String(raw.correct_answers).split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n))
+                : [];
+
+            return {
+                category: raw.category || 'General',
+                text: raw.text || '',
+                options,
+                correctAnswers,
+                explanation: raw.explanation || ''
+            };
+        }).filter(q => q.text && q.options.length > 0);
+    } catch (error) {
+        console.error('Error processing rows:', error);
+        return [];
+    }
 };
 
 export const parseQuestionsFromText = (text: string): Promise<ParsedQuestion[]> => {
@@ -75,33 +93,7 @@ export const parseQuestionsFromText = (text: string): Promise<ParsedQuestion[]> 
             skipEmptyLines: true,
             transformHeader: (h) => h.trim().toLowerCase(),
             complete: (results) => {
-                try {
-                    const parsedQuestions: ParsedQuestion[] = results.data.map((row: any) => {
-                        const raw = row as RawQuestion;
-                        let options: string[] = [];
-                        try {
-                            options = JSON.parse(raw.options);
-                        } catch {
-                            options = raw.options ? raw.options.split('|').map(o => o.trim()) : [];
-                        }
-
-                        const correctAnswers = raw.correct_answers
-                            ? raw.correct_answers.split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n))
-                            : [];
-
-                        return {
-                            category: raw.category || 'General',
-                            text: raw.text || '',
-                            options,
-                            correctAnswers,
-                            explanation: raw.explanation || ''
-                        };
-                    }).filter(q => q.text && q.options.length > 0);
-
-                    resolve(parsedQuestions);
-                } catch (error) {
-                    reject(error);
-                }
+                resolve(processRows(results.data as any[]));
             },
             error: (error: any) => {
                 reject(error);
@@ -112,37 +104,50 @@ export const parseQuestionsFromText = (text: string): Promise<ParsedQuestion[]> 
 
 interface RawMemorizationQuestion {
     question: string;
-    answer: string; // pipe separated
+    answer: string;
     category: string;
     explanation?: string;
 }
+
+const processMemorizationRows = (data: any[]): ParsedQuestion[] => {
+    return data.map((row: any) => {
+        const raw = row as RawMemorizationQuestion;
+        const answers = raw.answer ? restoreMathCommas(raw.answer).split('|').map(a => a.trim()).filter(a => a) : [];
+
+        return {
+            category: restoreMathCommas(raw.category) || 'General',
+            text: restoreMathCommas(raw.question) || '',
+            options: answers,
+            correctAnswers: [],
+            explanation: restoreMathCommas(raw.explanation) || ''
+        };
+    }).filter(q => q.text && q.options.length > 0);
+};
 
 export const parseMemorizationQuestions = (file: File): Promise<ParsedQuestion[]> => {
     return new Promise((resolve, reject) => {
         Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
+            encoding: 'UTF-8',
             transformHeader: (h) => h.trim().toLowerCase(),
             complete: (results) => {
-                try {
-                    const parsedQuestions: ParsedQuestion[] = results.data.map((row: any) => {
-                        const raw = row as RawMemorizationQuestion;
-                        // answer needs to be split by pipe
-                        const answers = raw.answer ? restoreMathCommas(raw.answer).split('|').map(a => a.trim()).filter(a => a) : [];
-
-                        return {
-                            category: restoreMathCommas(raw.category) || 'General',
-                            text: restoreMathCommas(raw.question) || '',
-                            options: answers, // storage for correct answers
-                            correctAnswers: [], // unused in memorization mode
-                            explanation: restoreMathCommas(raw.explanation) || ''
-                        };
-                    }).filter(q => q.text && q.options.length > 0);
-
-                    resolve(parsedQuestions);
-                } catch (error) {
-                    reject(error);
+                const data = results.data as any[];
+                if (data.length > 0) {
+                    const firstRow = data[0] as RawMemorizationQuestion;
+                    if (!firstRow.question && !firstRow.answer) {
+                        Papa.parse(file, {
+                            header: true,
+                            skipEmptyLines: true,
+                            encoding: 'Shift-JIS',
+                            transformHeader: (h) => h.trim().toLowerCase(),
+                            complete: (res) => resolve(processMemorizationRows(res.data as any[])),
+                            error: (err) => reject(err)
+                        });
+                        return;
+                    }
                 }
+                resolve(processMemorizationRows(data));
             },
             error: (error: any) => {
                 reject(error);
@@ -159,24 +164,7 @@ export const parseMemorizationQuestionsFromText = (text: string): Promise<Parsed
             skipEmptyLines: true,
             transformHeader: (h) => h.trim().toLowerCase(),
             complete: (results) => {
-                try {
-                    const parsedQuestions: ParsedQuestion[] = results.data.map((row: any) => {
-                        const raw = row as RawMemorizationQuestion;
-                        const answers = raw.answer ? restoreMathCommas(raw.answer).split('|').map(a => a.trim()).filter(a => a) : [];
-
-                        return {
-                            category: restoreMathCommas(raw.category) || 'General',
-                            text: restoreMathCommas(raw.question) || '',
-                            options: answers,
-                            correctAnswers: [],
-                            explanation: restoreMathCommas(raw.explanation) || ''
-                        };
-                    }).filter(q => q.text && q.options.length > 0);
-
-                    resolve(parsedQuestions);
-                } catch (error) {
-                    reject(error);
-                }
+                resolve(processMemorizationRows(results.data as any[]));
             },
             error: (error: any) => {
                 reject(error);

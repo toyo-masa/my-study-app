@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Question, QuizSet } from '../types';
 import { getQuestionsForQuizSet, updateQuestion, addQuestion, addQuestionsBulk, deleteQuestion, updateQuizSet } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
-import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2 } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
+import { useAppContext } from '../contexts/AppContext';
 
 interface QuestionManagerProps {
     quizSet: QuizSet & { questionCount: number; categories: string[] };
@@ -43,7 +44,23 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isSaving, setIsSaving] = useState(false);
     const [newTagInput, setNewTagInput] = useState('');
     const [currentTags, setCurrentTags] = useState<string[]>(quizSet.tags || []);
+    const [modalError, setModalError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const [isImporting, setIsImporting] = useState(false);
+    const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+    const { setQuizSets } = useAppContext();
+
+    useEffect(() => {
+        if (statusMessage) {
+            const timer = setTimeout(() => setStatusMessage(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
+
+    const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
+        setStatusMessage({ text, type });
+    };
 
     useEffect(() => {
         let mounted = true;
@@ -65,49 +82,71 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         }
     };
 
-    const handleEdit = (q: Question) => {
+    const updateGlobalQuestionCount = (delta: number) => {
+        setQuizSets((prev: any[]) => prev.map(qs =>
+            qs.id === quizSet.id
+                ? { ...qs, questionCount: (qs.questionCount || 0) + delta }
+                : qs
+        ));
+    };
+
+    const handleEdit = (question: Question) => {
         setEditing({
-            id: q.id,
-            category: q.category,
-            text: q.text,
-            options: [...q.options],
-            correctAnswers: [...q.correctAnswers],
-            explanation: q.explanation,
+            id: question.id,
+            category: question.category || '',
+            text: question.text,
+            options: [...question.options],
+            correctAnswers: [...question.correctAnswers],
+            explanation: question.explanation || '',
         });
         setIsNew(false);
     };
 
     const handleNew = () => {
-        setEditing({ ...emptyQuestion, options: ['', '', '', ''] });
+        setEditing({ ...emptyQuestion });
         setIsNew(true);
     };
 
     const handleAddTag = async () => {
         const trimmed = newTagInput.trim();
         if (trimmed && !currentTags.includes(trimmed)) {
+            const previousTags = [...currentTags];
             const finalTags = [...currentTags, trimmed];
+
+            // Optimistic UI update
+            setCurrentTags(finalTags);
+            setNewTagInput('');
+
             try {
                 if (quizSet.id !== undefined) {
                     await updateQuizSet(quizSet.id, { tags: finalTags });
-                    setCurrentTags(finalTags);
-                    setNewTagInput('');
+                    showStatus(`タグ「${trimmed}」を追加しました`, 'success');
                     if (onQuizSetUpdated) onQuizSetUpdated();
                 }
             } catch (err) {
+                // Rollback
+                setCurrentTags(previousTags);
                 onCloudError(err, 'タグの追加に失敗しました');
             }
         }
     };
 
     const handleRemoveTag = async (tagToRemove: string) => {
+        const previousTags = [...currentTags];
         const finalTags = currentTags.filter(t => t !== tagToRemove);
+
+        // Optimistic UI update
+        setCurrentTags(finalTags);
+
         try {
             if (quizSet.id !== undefined) {
                 await updateQuizSet(quizSet.id, { tags: finalTags });
-                setCurrentTags(finalTags);
+                showStatus(`タグ「${tagToRemove}」を削除しました`, 'success');
                 if (onQuizSetUpdated) onQuizSetUpdated();
             }
         } catch (err) {
+            // Rollback
+            setCurrentTags(previousTags);
             onCloudError(err, 'タグの削除に失敗しました');
         }
     };
@@ -116,12 +155,24 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         const file = event.target.files?.[0];
         if (!file) return;
 
+        setIsImporting(true);
         try {
             const parsed = quizSet.type === 'memorization'
                 ? await parseMemorizationQuestions(file)
                 : await parseQuestions(file);
 
             if (parsed.length > 0) {
+                // Optimistic UI: Update local list and global count immediately
+                const nextId = (questions.length > 0 ? Math.max(...questions.filter(q => q.id).map(q => q.id!)) : 0) + 1;
+                const tempQuestions = parsed.map((p, idx) => ({
+                    ...p,
+                    id: nextId + idx, // temporary ID
+                    quizSetId: quizSet.id!
+                }));
+
+                setQuestions(prev => [...prev, ...tempQuestions]);
+                updateGlobalQuestionCount(parsed.length);
+
                 const bulkData = parsed.map(q => ({
                     quizSetId: quizSet.id!,
                     category: q.category,
@@ -130,37 +181,60 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     correctAnswers: q.correctAnswers,
                     explanation: q.explanation,
                 }));
+
                 await addQuestionsBulk(bulkData);
+
+                showStatus(`${parsed.length}問を追加しました`, 'success');
+                // Final sync with real IDs from DB
+                await loadQuestions();
+                if (onQuizSetUpdated) onQuizSetUpdated();
+            } else {
+                showStatus('追加できる問題が見つかりませんでした。形式を確認してください。', 'error');
             }
-
-            alert(`${parsed.length}問を追加しました`);
-            await loadQuestions();
         } catch (err) {
-            onCloudError(err, 'CSVの解析エラー: ' + (err as Error).message);
-        }
-
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
+            onCloudError(err, 'CSVの解析・インポートエラー: ' + (err as Error).message);
+            // Rollback optimistic update if possible, or just refresh
+            await loadQuestions();
+            if (onQuizSetUpdated) onQuizSetUpdated();
+        } finally {
+            setIsImporting(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
     };
 
     const handleCSVTextImport = async () => {
         if (!csvText.trim()) {
-            alert('CSVテキストを入力してください');
+            setModalError('CSVテキストを入力してください');
             return;
         }
+        setModalError(null);
 
         setIsAdding(true);
+        setIsImporting(true);
         try {
             const parsed = quizSet.type === 'memorization'
                 ? await parseMemorizationQuestionsFromText(csvText)
                 : await parseQuestionsFromText(csvText);
 
             if (parsed.length === 0) {
-                alert('追加できる問題が見つかりませんでした。CSVの形式（ヘッダー行が含まれているか等）を確認してください。');
-                setIsAdding(false);
+                setModalError('追加できる問題が見つかりませんでした。CSVの形式を確認してください。');
                 return;
             }
+
+            // Optimistic UI
+            const nextId = (questions.length > 0 ? Math.max(...questions.filter(q => q.id).map(q => q.id!)) : 0) + 1;
+            const tempQuestions = parsed.map((p, idx) => ({
+                ...p,
+                id: nextId + idx,
+                quizSetId: quizSet.id!
+            }));
+
+            setQuestions(prev => [...prev, ...tempQuestions]);
+            updateGlobalQuestionCount(parsed.length);
+            setIsPasteModalOpen(false);
+            setCsvText('');
 
             const bulkData = parsed.map(q => ({
                 quizSetId: quizSet.id!,
@@ -172,40 +246,46 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             }));
             await addQuestionsBulk(bulkData);
 
-            alert(`${parsed.length}問を追加しました`);
-            setCsvText('');
-            setIsPasteModalOpen(false);
+            showStatus(`${parsed.length}問を追加しました`, 'success');
             await loadQuestions();
+            if (onQuizSetUpdated) onQuizSetUpdated();
         } catch (err) {
             onCloudError(err, 'インポートエラー: ' + (err as Error).message);
+            await loadQuestions();
+            if (onQuizSetUpdated) onQuizSetUpdated();
         } finally {
             setIsAdding(false);
+            setIsImporting(false);
         }
     };
 
     const handleSave = async () => {
         if (!editing || isSaving) return;
+
+        if (!editing.text.trim()) {
+            showStatus('問題文を入力してください', 'error');
+            return;
+        }
+
         const cleanOptions = editing.options.filter(o => o.trim() !== '');
 
         if (quizSet.type === 'memorization') {
-            if (cleanOptions.length < 1) {
-                alert('暗記カードの裏面（解答）として、選択肢に最低1つはテキストを入力してください');
+            if (cleanOptions.length === 0) {
+                showStatus('暗記カードの裏面（解答）として、選択肢に最低1つはテキストを入力してください', 'error');
                 return;
             }
         } else {
             if (cleanOptions.length < 2) {
-                alert('選択肢は2つ以上必要です');
+                showStatus('選択肢は2つ以上必要です', 'error');
                 return;
             }
-        }
-        if (editing.text.trim() === '') {
-            alert('問題文を入力してください');
-            return;
         }
 
         setIsSaving(true);
         try {
             if (isNew) {
+                // Optimistic UI for new question
+                updateGlobalQuestionCount(1);
                 await addQuestion({
                     quizSetId: quizSet.id!,
                     category: editing.category,
@@ -214,6 +294,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     correctAnswers: editing.correctAnswers,
                     explanation: editing.explanation,
                 });
+                showStatus('問題を追加しました', 'success');
             } else if (editing.id !== undefined) {
                 await updateQuestion(editing.id, {
                     category: editing.category,
@@ -222,12 +303,16 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     correctAnswers: editing.correctAnswers,
                     explanation: editing.explanation,
                 });
+                showStatus('問題を更新しました', 'success');
             }
 
             setEditing(null);
             await loadQuestions();
+            if (onQuizSetUpdated) onQuizSetUpdated();
         } catch (err) {
             onCloudError(err, '保存エラー: ' + (err as Error).message);
+            await loadQuestions();
+            if (onQuizSetUpdated) onQuizSetUpdated();
         } finally {
             setIsSaving(false);
         }
@@ -239,12 +324,25 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const confirmDelete = async () => {
         if (deleteConfirmId !== null) {
+            const targetId = deleteConfirmId;
+            const index = questions.findIndex(q => q.id === targetId);
+            const questionNum = index !== -1 ? index + 1 : '';
+
             try {
-                await deleteQuestion(deleteConfirmId);
+                // Optimistic UI for delete
+                updateGlobalQuestionCount(-1);
+                setQuestions(prev => prev.filter(q => q.id !== targetId));
                 setDeleteConfirmId(null);
+
+                showStatus(`問題 ${questionNum} を削除しました`, 'success');
+
+                await deleteQuestion(targetId);
                 await loadQuestions();
+                if (onQuizSetUpdated) onQuizSetUpdated();
             } catch (err) {
                 onCloudError(err, '削除エラー: ' + (err as Error).message);
+                await loadQuestions();
+                if (onQuizSetUpdated) onQuizSetUpdated();
             }
         }
     };
@@ -346,24 +444,42 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     </h2>
                 )}
                 <div className="manager-actions">
-                    <button className="nav-btn" onClick={() => setIsPasteModalOpen(true)}>
-                        <ClipboardPaste size={16} /> テキストで追加
+                    <button className="nav-btn" onClick={() => setIsPasteModalOpen(true)} disabled={isImporting}>
+                        {isImporting ? <Loader2 className="animate-spin" size={16} /> : <ClipboardPaste size={16} />} テキストで追加
                     </button>
-                    <label className="nav-btn">
-                        <Upload size={16} /> CSVで追加
+                    <label className={`nav-btn ${isImporting ? 'disabled' : ''}`}>
+                        {isImporting ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />} CSVで追加
                         <input
                             ref={fileInputRef}
                             type="file"
                             accept=".csv"
                             onChange={handleCSVImport}
                             hidden
+                            disabled={isImporting}
                         />
                     </label>
-                    <button className="nav-btn action-btn" onClick={handleNew}>
+                    <button className="nav-btn action-btn" onClick={handleNew} disabled={isImporting}>
                         <Plus size={16} /> 問題を追加
                     </button>
                 </div>
             </div>
+
+            {statusMessage && (
+                <div className={`status-message-banner ${statusMessage.type}`} style={{
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    backgroundColor: statusMessage.type === 'success' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    color: statusMessage.type === 'success' ? '#22c55e' : '#ef4444',
+                    border: `1px solid ${statusMessage.type === 'success' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                }}>
+                    {statusMessage.text}
+                </div>
+            )}
 
             <div className="tags-management-section" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                 <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -491,13 +607,18 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
             {/* Paste CSV Modal */}
             {isPasteModalOpen && (
-                <div className="modal-overlay" onClick={() => !isAdding && setIsPasteModalOpen(false)}>
+                <div className="modal-overlay" onClick={() => !isAdding && (setIsPasteModalOpen(false), setModalError(null))}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3>CSVテキストで追加</h3>
-                            <button className="icon-btn" onClick={() => setIsPasteModalOpen(false)} disabled={isAdding}><X size={20} /></button>
+                            <button className="icon-btn" onClick={() => { setIsPasteModalOpen(false); setModalError(null); }} disabled={isAdding}><X size={20} /></button>
                         </div>
                         <div className="modal-body">
+                            {modalError && (
+                                <div style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '0.5rem', borderRadius: '4px', marginBottom: '1rem', fontSize: '0.85rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                    {modalError}
+                                </div>
+                            )}
                             <p className="modal-desc" style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
                                 エクセルやCSVファイルからコピーした内容を貼り付けて一括追加できます。
                                 <br />
@@ -510,7 +631,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             <textarea
                                 className="field-textarea"
                                 value={csvText}
-                                onChange={e => setCsvText(e.target.value)}
+                                onChange={e => { setCsvText(e.target.value); if (modalError) setModalError(null); }}
                                 rows={10}
                                 placeholder="テキストをここにペーストしてください..."
                                 style={{ fontFamily: 'monospace' }}
@@ -518,7 +639,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             />
                         </div>
                         <div className="modal-footer">
-                            <button className="nav-btn" onClick={() => setIsPasteModalOpen(false)} disabled={isAdding}>キャンセル</button>
+                            <button className="nav-btn" onClick={() => { setIsPasteModalOpen(false); setModalError(null); }} disabled={isAdding}>キャンセル</button>
                             <button className="nav-btn action-btn" onClick={handleCSVTextImport} disabled={isAdding}>
                                 {isAdding ? (
                                     <>追加中...</>
