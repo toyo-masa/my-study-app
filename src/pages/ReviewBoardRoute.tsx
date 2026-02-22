@@ -5,16 +5,20 @@ import {
     BookOpen,
     Brain,
     CalendarCheck2,
+    CircleHelp,
     PlayCircle,
     RefreshCw,
 } from 'lucide-react';
 import type { Question, QuizSetType, ReviewSchedule } from '../types';
 import { getDueReviews, getQuizSetsWithCounts, getTodayString } from '../db';
 import { LoadingView } from '../components/LoadingView';
+import { useAppContext } from '../contexts/AppContext';
+import { loadReviewIntervalSettings } from '../utils/spacedRepetition';
 import '../App.css';
 
 type DueReviewItem = ReviewSchedule & { question?: Question };
 type ReviewSetTypeFilter = 'all' | QuizSetType;
+type ReviewBoardErrorType = 'none' | 'auth' | 'network' | 'unknown';
 
 interface QuizSetMeta {
     name: string;
@@ -33,16 +37,22 @@ interface ReviewSetSummary {
 
 export const ReviewBoardRoute: React.FC = () => {
     const navigate = useNavigate();
+    const { handleCloudError, setIsLoginModalOpen } = useAppContext();
     const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
     const [quizSetMetaById, setQuizSetMetaById] = useState<Record<number, QuizSetMeta>>({});
     const [typeFilter, setTypeFilter] = useState<ReviewSetTypeFilter>('all');
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
+    const [errorType, setErrorType] = useState<ReviewBoardErrorType>('none');
     const today = getTodayString();
+    const reviewIntervalSettings = loadReviewIntervalSettings();
+    const exampleBaseDays = 4;
+    const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
 
     const loadData = useCallback(async () => {
         setLoading(true);
         setErrorMessage('');
+        setErrorType('none');
 
         try {
             const [reviews, quizSets] = await Promise.all([
@@ -64,11 +74,22 @@ export const ReviewBoardRoute: React.FC = () => {
             setQuizSetMetaById(nextMetaById);
         } catch (error) {
             console.error('復習ボードの読み込みに失敗しました:', error);
-            setErrorMessage('復習データの取得に失敗しました。時間をおいて再試行してください。');
+            const message = error instanceof Error ? error.message : '';
+            if (message === 'UNAUTHORIZED') {
+                setErrorType('auth');
+                setErrorMessage('ログイン状態の有効期限が切れました。再ログインしてください。');
+                handleCloudError(error, '認証エラーが発生しました。');
+            } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+                setErrorType('network');
+                setErrorMessage('復習データの取得に失敗しました。ネットワーク接続を確認して再試行してください。');
+            } else {
+                setErrorType('unknown');
+                setErrorMessage('復習データの取得に失敗しました。時間をおいて再試行してください。');
+            }
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [handleCloudError]);
 
     useEffect(() => {
         void loadData();
@@ -142,9 +163,9 @@ export const ReviewBoardRoute: React.FC = () => {
         [buildSetSummaries, dueReviews, today]
     );
 
-    const overdueSetSummaries = useMemo(
-        () => buildSetSummaries(dueReviews.filter(review => review.nextDue < today)),
-        [buildSetSummaries, dueReviews, today]
+    const pendingSetSummaries = useMemo(
+        () => buildSetSummaries(dueReviews),
+        [buildSetSummaries, dueReviews]
     );
 
     const totalTodayQuestions = useMemo(
@@ -152,12 +173,10 @@ export const ReviewBoardRoute: React.FC = () => {
         [todaySetSummaries]
     );
 
-    const totalOverdueQuestions = useMemo(
-        () => overdueSetSummaries.reduce((sum, summary) => sum + summary.dueCount, 0),
-        [overdueSetSummaries]
+    const totalPendingQuestions = useMemo(
+        () => pendingSetSummaries.reduce((sum, summary) => sum + summary.dueCount, 0),
+        [pendingSetSummaries]
     );
-
-    const totalPendingQuestions = totalTodayQuestions + totalOverdueQuestions;
 
     const openReviewSession = (summary: ReviewSetSummary) => {
         if (summary.reviewQuestionIds.length === 0) {
@@ -177,9 +196,9 @@ export const ReviewBoardRoute: React.FC = () => {
         navigate(`/quiz/${summary.quizSetId}/study`, { state: navigationState });
     };
 
-    const renderSetCard = (summary: ReviewSetSummary, kind: 'today' | 'overdue') => (
+    const renderSetCard = (summary: ReviewSetSummary) => (
         <button
-            key={`${kind}-${summary.quizSetId}`}
+            key={`today-${summary.quizSetId}`}
             type="button"
             className="review-board-set-card"
             onClick={() => openReviewSession(summary)}
@@ -197,19 +216,13 @@ export const ReviewBoardRoute: React.FC = () => {
             </div>
 
             <div className="review-board-set-meta">
-                {kind === 'today' ? (
-                    <span className="review-board-pill">今日分 {summary.dueCount}問</span>
-                ) : (
-                    <span className="review-board-pill danger">未復習 {summary.dueCount}問</span>
-                )}
-                <span className="review-board-pill">
-                    {kind === 'today' ? '期限 今日' : `最古の期限 ${summary.earliestDue}`}
-                </span>
+                <span className="review-board-pill">今日分 {summary.dueCount}問</span>
+                <span className="review-board-pill">予定日 今日</span>
             </div>
 
             <div className="review-board-set-categories">
                 {summary.categories.map(category => (
-                    <span key={`${kind}-${summary.quizSetId}-${category}`} className="review-board-set-category">
+                    <span key={`today-${summary.quizSetId}-${category}`} className="review-board-set-category">
                         {category}
                     </span>
                 ))}
@@ -217,7 +230,7 @@ export const ReviewBoardRoute: React.FC = () => {
 
             <div className="review-board-set-action">
                 <PlayCircle size={17} />
-                {kind === 'today' ? '今日分を復習' : '未復習を復習'}
+                今日分を復習
             </div>
         </button>
     );
@@ -234,15 +247,18 @@ export const ReviewBoardRoute: React.FC = () => {
                 </h1>
             </div>
 
-            <p className="review-board-subtitle">
-                復習ボードを「今日復習すべきもの」と「まだ復習していないもの（昨日以前）」に分けて表示します。Webでは横並びで比較できます。
-            </p>
+            <p className="review-board-subtitle">今日、復習予定になっている問題集・暗記カードを表示します。</p>
 
             {loading ? (
                 <LoadingView message="復習データを読み込み中..." />
             ) : errorMessage ? (
                 <div className="review-board-empty">
                     <p>{errorMessage}</p>
+                    {errorType === 'auth' && (
+                        <button className="nav-btn" onClick={() => setIsLoginModalOpen(true)}>
+                            ログインする
+                        </button>
+                    )}
                     <button className="nav-btn" onClick={() => void loadData()}>
                         <RefreshCw size={16} /> 再読み込み
                     </button>
@@ -251,15 +267,15 @@ export const ReviewBoardRoute: React.FC = () => {
                 <>
                     <div className="review-board-stats">
                         <div className="review-board-stat-card">
-                            <span className="review-board-stat-label">今日の復習問題</span>
+                            <span className="review-board-stat-label">今日に復習する問題数</span>
                             <strong className="review-board-stat-value">{totalTodayQuestions}</strong>
                         </div>
                         <div className="review-board-stat-card">
-                            <span className="review-board-stat-label">未復習問題（昨日以前）</span>
-                            <strong className="review-board-stat-value error">{totalOverdueQuestions}</strong>
+                            <span className="review-board-stat-label">今日の対象セット数</span>
+                            <strong className="review-board-stat-value">{todaySetSummaries.length}</strong>
                         </div>
                         <div className="review-board-stat-card">
-                            <span className="review-board-stat-label">未消化 合計</span>
+                            <span className="review-board-stat-label">復習対象合計</span>
                             <strong className="review-board-stat-value">{totalPendingQuestions}</strong>
                         </div>
                     </div>
@@ -295,7 +311,30 @@ export const ReviewBoardRoute: React.FC = () => {
                     <section className="review-board-columns">
                         <div className="review-board-column">
                             <div className="review-board-column-head">
-                                <h2 className="review-board-column-title">今日復習すべきもの</h2>
+                                <div className="review-board-column-title-wrap">
+                                    <h2 className="review-board-column-title">今日復習すべきもの</h2>
+                                    <details className="review-board-help">
+                                        <summary className="help-icon-btn review-board-help-btn" aria-label="今日復習すべきものの選定ルール">
+                                            <CircleHelp size={13} />
+                                        </summary>
+                                        <div className="help-popover review-board-help-popover">
+                                            <div className="help-popover-header">
+                                                <h4>選定ルール</h4>
+                                            </div>
+                                            <div className="help-popover-body">
+                                                <ul className="review-board-help-list">
+                                                    <li>各問題には「次に復習する予定日」があり、その予定日が今日のものを表示します。</li>
+                                                    <li>この予定日は問題を解くたびに更新され、初回は基準日数1日から始まります。</li>
+                                                    <li>正解したとき: 基準日数に {reviewIntervalSettings.correctMultiplier} を掛けて四捨五入します。</li>
+                                                    <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
+                                                    <li>採用された日数が、次に解いたときの基準日数になります。</li>
+                                                    <li>例: 基準日数が {exampleBaseDays} 日なら、正解時は {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
+                                                    <li>画面上部の種別フィルタ（すべて/問題集/暗記カード）が適用されます。</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </details>
+                                </div>
                                 <span className="review-board-column-count">{todaySetSummaries.length}セット / {totalTodayQuestions}問</span>
                             </div>
                             {todaySetSummaries.length === 0 ? (
@@ -304,23 +343,7 @@ export const ReviewBoardRoute: React.FC = () => {
                                 </div>
                             ) : (
                                 <div className="review-board-column-grid">
-                                    {todaySetSummaries.map((summary) => renderSetCard(summary, 'today'))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="review-board-column">
-                            <div className="review-board-column-head">
-                                <h2 className="review-board-column-title">まだ復習していないもの</h2>
-                                <span className="review-board-column-count">{overdueSetSummaries.length}セット / {totalOverdueQuestions}問</span>
-                            </div>
-                            {overdueSetSummaries.length === 0 ? (
-                                <div className="review-board-empty review-board-column-empty">
-                                    <p>まだ復習していないものはありません。</p>
-                                </div>
-                            ) : (
-                                <div className="review-board-column-grid">
-                                    {overdueSetSummaries.map((summary) => renderSetCard(summary, 'overdue'))}
+                                    {todaySetSummaries.map((summary) => renderSetCard(summary))}
                                 </div>
                             )}
                         </div>

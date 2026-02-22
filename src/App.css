@@ -21,9 +21,11 @@
 
 /* ===== Review Board Prototype ===== */
 .review-board-page {
-  max-width: 1040px;
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 2.5rem;
+  padding: 1.5rem clamp(1rem, 2.6vw, 2.6rem) 2.5rem;
   min-height: 100vh;
   color: var(--text-color);
 }
@@ -141,7 +143,7 @@
 
 .review-board-columns {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 1rem;
   align-items: start;
 }
@@ -163,6 +165,13 @@
   gap: 0.6rem;
 }
 
+.review-board-column-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .review-board-column-title {
   margin: 0;
   font-size: 1rem;
@@ -179,6 +188,46 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.8rem;
+}
+
+.review-board-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.review-board-help summary {
+  list-style: none;
+}
+
+.review-board-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-board-help .review-board-help-btn {
+  margin-left: 0;
+}
+
+.review-board-help[open] .review-board-help-btn {
+  color: var(--primary-color);
+  background-color: rgba(99, 102, 241, 0.1);
+}
+
+.review-board-help-popover {
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 420px;
+  max-width: min(420px, 84vw);
+}
+
+.review-board-help-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-color);
 }
 
 .review-board-set-card {
@@ -330,12 +379,6 @@
 
 .review-board-column-empty {
   margin: 0;
-}
-
-@media (max-width: 900px) {
-  .review-board-columns {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 640px) {
@@ -768,6 +811,70 @@ body {
 
 .setting-control.disabled {
   opacity: 0.5;
+}
+
+.review-settings-note {
+  margin: 0 0 0.9rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.review-settings-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.review-setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.review-setting-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.review-setting-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.review-setting-input {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.review-setting-unit {
+  min-width: 1.6rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.review-settings-formula {
+  margin: 0.85rem 0 0.95rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-color) 88%, var(--primary-color) 12%);
+}
+
+.review-settings-formula-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.review-settings-formula-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.79rem;
+  line-height: 1.5;
 }
 
 /* Toggle Switch */

@@ -6,6 +6,13 @@ import { cloudApi } from './cloudApi';
 import { useAppContext } from './contexts/AppContext';
 import { LoadingView } from './components/LoadingView';
 import { AnimatePresence } from 'framer-motion';
+import {
+  DEFAULT_REVIEW_INTERVAL_SETTINGS,
+  loadReviewIntervalSettings,
+  normalizeReviewIntervalSettings,
+  saveReviewIntervalSettings,
+  type ReviewIntervalSettings,
+} from './utils/spacedRepetition';
 
 // Routes
 import { HomeRoute } from './pages/HomeRoute';
@@ -35,6 +42,9 @@ function App() {
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('accentColor') || '#3b82f6';
   });
+  const [reviewIntervalSettings, setReviewIntervalSettings] = useState<ReviewIntervalSettings>(() => {
+    return loadReviewIntervalSettings();
+  });
 
   useEffect(() => {
     if (isDarkMode) {
@@ -50,7 +60,17 @@ function App() {
     localStorage.setItem('accentColor', accentColor);
   }, [accentColor]);
 
+  useEffect(() => {
+    saveReviewIntervalSettings(reviewIntervalSettings);
+  }, [reviewIntervalSettings]);
+
   const toggleDarkMode = () => setIsDarkMode(prev => !prev);
+  const handleReviewIntervalSettingsChange = (settings: ReviewIntervalSettings) => {
+    setReviewIntervalSettings(normalizeReviewIntervalSettings(settings));
+  };
+  const handleResetReviewIntervalSettings = () => {
+    setReviewIntervalSettings({ ...DEFAULT_REVIEW_INTERVAL_SETTINGS });
+  };
 
   // Auth Modal States
   const [loginUsername, setLoginUsername] = useState('');
@@ -145,6 +165,9 @@ function App() {
         onToggleDarkMode={toggleDarkMode}
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
+        reviewIntervalSettings={reviewIntervalSettings}
+        onReviewIntervalSettingsChange={handleReviewIntervalSettingsChange}
+        onResetReviewIntervalSettings={handleResetReviewIntervalSettings}
         currentUsername={currentUser?.username}
         onLogout={handleLogout}
         onLoginRequest={() => { setIsSettingsOpen(false); setIsLoginModalOpen(true); }}

@@ -7,7 +7,7 @@ import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
-import { calculateNextInterval, calculateNextDue, updateConsecutiveCorrect } from '../utils/spacedRepetition';
+import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
 
@@ -343,6 +343,7 @@ export const StudyRoute: React.FC = () => {
             const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
             const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
             const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
+            const reviewIntervalSettings = loadReviewIntervalSettings();
 
             const schedulesToUpdate: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = [];
             for (const q of questions) {
@@ -353,7 +354,7 @@ export const StudyRoute: React.FC = () => {
                 const confidence: ConfidenceLevel = confidences[qKey] || 'high';
                 const currentInterval = intervalByQuestionId.get(q.id!) ?? 1;
                 const currentConsecutive = consecutiveByQuestionId.get(q.id!) ?? 0;
-                const intervalDays = calculateNextInterval(isCorrect, confidence, currentInterval);
+                const intervalDays = calculateNextInterval(isCorrect, confidence, currentInterval, reviewIntervalSettings);
                 const nextDue = calculateNextDue(intervalDays);
                 const consecutiveCorrect = updateConsecutiveCorrect(isCorrect, currentConsecutive);
 

@@ -1,7 +1,7 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useId } from 'react';
 import type { Question, ReviewSchedule, ConfidenceLevel } from '../types';
 import { upsertReviewSchedule, addReviewLog } from '../db';
-import { calculateNextInterval, calculateNextDue, updateConsecutiveCorrect } from '../utils/spacedRepetition';
+import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ChevronRight, Bookmark } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
@@ -29,7 +29,7 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({
     const [memo, setMemo] = useState('');
     const [completedCount, setCompletedCount] = useState(0);
     const questionStartTimeRef = useRef<Date>(new Date());
-    const sessionIdRef = useRef<string>(`session-${Date.now()}`);
+    const sessionId = useId();
 
     const currentItem = reviewItems[currentIndex];
     const question = currentItem?.question;
@@ -67,7 +67,8 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({
             selectedOptions.every(a => question.correctAnswers.includes(a));
 
         // 間隔計算
-        const newInterval = calculateNextInterval(isCorrect, finalConfidence, currentItem.intervalDays);
+        const reviewIntervalSettings = loadReviewIntervalSettings();
+        const newInterval = calculateNextInterval(isCorrect, finalConfidence, currentItem.intervalDays, reviewIntervalSettings);
         const newNextDue = calculateNextDue(newInterval);
         const newConsecutive = updateConsecutiveCorrect(isCorrect, currentItem.consecutiveCorrect);
 
@@ -97,11 +98,11 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({
             nextDue: newNextDue,
             memo: memo || undefined,
             durationSeconds,
-            sessionId: sessionIdRef.current,
+            sessionId,
         });
 
         setCompletedCount(prev => prev + 1);
-    }, [question, currentItem, selectedOptions, confidence, memo]);
+    }, [question, currentItem, selectedOptions, confidence, memo, sessionId]);
 
     // 次の問題へ
     const handleNext = useCallback(() => {

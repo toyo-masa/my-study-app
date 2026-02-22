@@ -1,6 +1,8 @@
 import React from 'react';
-import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info } from 'lucide-react';
+import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info, SlidersHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
+import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -9,6 +11,9 @@ interface SettingsModalProps {
     onToggleDarkMode: () => void;
     accentColor: string;
     onAccentColorChange: (color: string) => void;
+    reviewIntervalSettings: ReviewIntervalSettings;
+    onReviewIntervalSettingsChange: (settings: ReviewIntervalSettings) => void;
+    onResetReviewIntervalSettings: () => void;
     currentUsername?: string | null;
     onLogout?: () => void;
     onLoginRequest?: () => void;
@@ -30,10 +35,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onToggleDarkMode,
     accentColor,
     onAccentColorChange,
+    reviewIntervalSettings,
+    onReviewIntervalSettingsChange,
+    onResetReviewIntervalSettings,
     currentUsername,
     onLogout,
     onLoginRequest
 }) => {
+    const exampleBaseDays = 4;
+    const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
+
+    const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, rawValue: string) => {
+        const parsedValue = Number(rawValue);
+        if (!Number.isFinite(parsedValue)) {
+            return;
+        }
+
+        const nextSettings = normalizeReviewIntervalSettings({
+            ...reviewIntervalSettings,
+            [field]: parsedValue,
+        });
+        onReviewIntervalSettingsChange(nextSettings);
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -191,6 +215,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         />
                                     </div>
                                 </div>
+                            </section>
+
+                            <section className="settings-section">
+                                <div className="section-title">
+                                    <SlidersHorizontal size={18} />
+                                    <span>復習設定</span>
+                                </div>
+                                <p className="review-settings-note">
+                                    復習間隔の計算に使う値を調整できます。変更内容は次回の復習判定から反映されます。
+                                </p>
+                                <div className="review-settings-grid">
+                                    <label className="review-setting-item">
+                                        <span className="review-setting-label">不正解・自信なし時の次回間隔</span>
+                                        <div className="review-setting-input-wrap">
+                                            <input
+                                                type="number"
+                                                className="field-input review-setting-input"
+                                                min={1}
+                                                max={365}
+                                                step={1}
+                                                value={reviewIntervalSettings.retryIntervalDays}
+                                                onChange={(e) => handleReviewSettingChange('retryIntervalDays', e.target.value)}
+                                            />
+                                            <span className="review-setting-unit">日</span>
+                                        </div>
+                                    </label>
+                                    <label className="review-setting-item">
+                                        <span className="review-setting-label">正解時の倍率</span>
+                                        <div className="review-setting-input-wrap">
+                                            <input
+                                                type="number"
+                                                className="field-input review-setting-input"
+                                                min={0.2}
+                                                max={10}
+                                                step={0.1}
+                                                value={reviewIntervalSettings.correctMultiplier}
+                                                onChange={(e) => handleReviewSettingChange('correctMultiplier', e.target.value)}
+                                            />
+                                            <span className="review-setting-unit">倍</span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div className="review-settings-formula">
+                                    <p className="review-settings-formula-title">次回日数の決まり方</p>
+                                    <ul className="review-settings-formula-list">
+                                        <li>この問題を初めて解くときは、基準日数を1日として開始します。</li>
+                                        <li>正解したとき: 基準日数に {reviewIntervalSettings.correctMultiplier} を掛けて四捨五入します。</li>
+                                        <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
+                                        <li>採用された日数が、次に解いたときの基準日数になります。</li>
+                                        <li>例: 基準日数が {exampleBaseDays} 日なら、正解時は {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
+                                    </ul>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className="nav-btn"
+                                    onClick={onResetReviewIntervalSettings}
+                                >
+                                    初期値に戻す
+                                </button>
                             </section>
 
                             <section className="settings-section">
