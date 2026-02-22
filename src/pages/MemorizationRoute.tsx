@@ -1,25 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { MemorizationResultView, MemorizationQuestionView, type MemorizationLog } from '../components/MemorizationView';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
-import { useAppContext } from '../contexts/AppContext';
+import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { getQuestionsForQuizSet, addHistory } from '../db';
 import type { Question, QuizHistory } from '../types';
 import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
 
 export const MemorizationRoute: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
     const startNewFromState = location.state?.startNew as boolean | undefined;
 
-    const { quizSets } = useAppContext();
-
-    const quizSetId = id ? parseInt(id, 10) : undefined;
-    const activeQuizSet = quizSets.find(s => s.id === quizSetId);
+    const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
 
     const [isLoading, setIsLoading] = useState(true);
     const [questions, setQuestions] = useState<Question[]>([]);

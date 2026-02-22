@@ -1,27 +1,23 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { TestResult } from '../components/TestResult';
 import { QuestionView } from '../components/QuestionView';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
-import { useAppContext } from '../contexts/AppContext';
+import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
 
 export const StudyRoute: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
     const startNewFromState = location.state?.startNew as boolean | undefined;
 
-    const { quizSets } = useAppContext();
-
-    const quizSetId = id ? parseInt(id, 10) : undefined;
-    const activeQuizSet = quizSets.find(s => s.id === quizSetId);
+    const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
 
     const [isLoading, setIsLoading] = useState(true);
     const [questions, setQuestions] = useState<Question[]>([]);

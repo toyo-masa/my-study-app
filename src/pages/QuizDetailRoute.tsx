@@ -1,17 +1,14 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { QuizDetail } from '../components/QuizDetail';
 import { NotFoundView } from '../components/NotFoundView';
-import { useAppContext } from '../contexts/AppContext';
+import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { loadSessionFromStorage, loadQuizSetSettings, saveQuizSetSettings } from '../utils/quizSettings';
 import type { QuizHistory } from '../types';
 
 export const QuizDetailRoute: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { quizSets } = useAppContext();
-    const quizSetId = id ? parseInt(id, 10) : undefined;
-    const activeQuizSet = quizSets.find(s => s.id === quizSetId);
+    const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
 
     // Derived state instead of useEffect to avoid cascading renders
     const hasSuspendedSession = quizSetId ? !!loadSessionFromStorage(quizSetId) : false;

@@ -1,24 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { QuestionManager } from '../components/QuestionManager';
 import { useAppContext } from '../contexts/AppContext';
 import { LoadingView } from '../components/LoadingView';
 import { NotFoundView } from '../components/NotFoundView';
+import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { AnimatePresence } from 'framer-motion';
 
 export const ManageRoute: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { quizSets, loadQuizSets, handleCloudError } = useAppContext();
-    const [isLoading, setIsLoading] = useState(() => quizSets.length === 0);
-
-    const quizSetId = id ? parseInt(id, 10) : undefined;
-    const activeQuizSet = quizSets.find(s => s.id === quizSetId);
+    const { loadQuizSets, handleCloudError } = useAppContext();
+    const { activeQuizSet, quizSetsCount } = useActiveQuizSetFromRoute();
+    const [isLoading, setIsLoading] = useState(() => quizSetsCount === 0);
 
     useEffect(() => {
         if (!isLoading) return;
+        if (quizSetsCount > 0) return;
         loadQuizSets().finally(() => setIsLoading(false));
-    }, [isLoading, loadQuizSets]);
+    }, [isLoading, quizSetsCount, loadQuizSets]);
 
     return (
         <AnimatePresence mode="wait">
