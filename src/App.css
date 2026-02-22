@@ -5718,3 +5718,21 @@ input:checked+.slider svg {
     padding: 0.35rem;
   }
 }
+
+/* Sidebar Markdown Preview */
+.sidebar-preview .markdown-body {
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-preview .markdown-body p,
+.sidebar-preview .markdown-body div,
+.sidebar-preview .markdown-body span.katex-display {
+  display: inline;
+  margin: 0;
+  padding: 0;
+}

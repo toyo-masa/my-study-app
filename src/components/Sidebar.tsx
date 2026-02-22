@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Question } from '../types';
 import { CheckCircle, Circle, Bookmark, XCircle } from 'lucide-react';
-// import clsx from 'clsx'; 
+import { MarkdownText } from './MarkdownText';
 // Wait, I didn't install clsx. I'll just use standard string concat or template literals.
 
 interface SidebarProps {
@@ -79,7 +79,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             </div>
                             <div className="question-item-content">
                                 <span className="question-id">問題 {index + 1}</span>
-                                <p className="question-preview">{q.text.substring(0, 40)}...</p>
+                                <div className="question-preview sidebar-preview">
+                                    <MarkdownText content={q.text} />
+                                </div>
                             </div>
                             <button
                                 className={`sidebar-bookmark-btn ${markedQuestionIds.includes(q.id!) ? 'marked' : ''}`}
