@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LoadingView } from '../components/LoadingView';
 import { Sidebar } from '../components/Sidebar';
 import { MemorizationResultView, MemorizationQuestionView, type MemorizationLog } from '../components/MemorizationView';
 import { useAppContext } from '../contexts/AppContext';
@@ -243,66 +244,71 @@ export const MemorizationRoute: React.FC = () => {
             </header>
 
             <div className="main-layout">
-                {isLoading ? (
-                    <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                        <div className="loading-text">読み込み中...</div>
-                    </div>
-                ) : (
-                    <>
-                        <AnimatePresence>
-                            {sidebarOpen && !isTestCompleted && (
-                                <motion.div
-                                    className="sidebar-overlay"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    onClick={() => setSidebarOpen(false)}
-                                />
-                            )}
-                        </AnimatePresence>
-                        {!isTestCompleted && (
-                            <aside className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
-                                <Sidebar
-                                    questions={questions}
-                                    currentQuestionIndex={currentQuestionIndex}
-                                    onSelectQuestion={setCurrentQuestionIndex}
-                                    mode="memorization"
-                                    memorizationStatus={memStatus}
-                                    answers={{}}
-                                    showAnswerMap={{}}
-                                    markedQuestionIds={markedQuestions}
-                                    onToggleMark={handleToggleMark}
-                                />
-                            </aside>
-                        )}
-                        <main className="content-area">
-                            {isTestCompleted ? (
-                                <MemorizationResultView
-                                    logs={memorizationLogs}
-                                    questions={questions}
-                                    onBack={() => {
-                                        setActiveHistory(null);
-                                        navigate(`/quiz/${quizSetId}`);
-                                    }}
-                                    onRetry={!activeHistory ? handleRetryMemorization : undefined}
-                                    isHistory={!!activeHistory}
-                                />
-                            ) : (
-                                questions[currentQuestionIndex] && (
-                                    <MemorizationQuestionView
-                                        key={questions[currentQuestionIndex].id}
-                                        question={questions[currentQuestionIndex]}
-                                        index={currentQuestionIndex}
-                                        total={questions.length}
-                                        onJudge={handleMemorizationJudge}
-                                        isMarked={markedQuestions.includes(questions[currentQuestionIndex].id!)}
+                <AnimatePresence mode="wait">
+                    {isLoading ? (
+                        <LoadingView key="loader" />
+                    ) : (
+                        <motion.div
+                            key="content"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            style={{ flex: 1, display: 'flex', minHeight: 0 }}
+                        >
+                            <AnimatePresence>
+                                {sidebarOpen && !isTestCompleted && (
+                                    <motion.div
+                                        className="sidebar-overlay"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        onClick={() => setSidebarOpen(false)}
+                                    />
+                                )}
+                            </AnimatePresence>
+                            {!isTestCompleted && (
+                                <aside className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
+                                    <Sidebar
+                                        questions={questions}
+                                        currentQuestionIndex={currentQuestionIndex}
+                                        onSelectQuestion={setCurrentQuestionIndex}
+                                        mode="memorization"
+                                        memorizationStatus={memStatus}
+                                        answers={{}}
+                                        showAnswerMap={{}}
+                                        markedQuestionIds={markedQuestions}
                                         onToggleMark={handleToggleMark}
                                     />
-                                )
+                                </aside>
                             )}
-                        </main>
-                    </>
-                )}
+                            <main className="content-area">
+                                {isTestCompleted ? (
+                                    <MemorizationResultView
+                                        logs={memorizationLogs}
+                                        questions={questions}
+                                        onBack={() => {
+                                            setActiveHistory(null);
+                                            navigate(`/quiz/${quizSetId}`);
+                                        }}
+                                        onRetry={!activeHistory ? handleRetryMemorization : undefined}
+                                        isHistory={!!activeHistory}
+                                    />
+                                ) : (
+                                    questions[currentQuestionIndex] && (
+                                        <MemorizationQuestionView
+                                            key={questions[currentQuestionIndex].id}
+                                            question={questions[currentQuestionIndex]}
+                                            index={currentQuestionIndex}
+                                            total={questions.length}
+                                            onJudge={handleMemorizationJudge}
+                                            isMarked={markedQuestions.includes(questions[currentQuestionIndex].id!)}
+                                            onToggleMark={handleToggleMark}
+                                        />
+                                    )
+                                )}
+                            </main>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </>
     );

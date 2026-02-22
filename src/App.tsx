@@ -4,6 +4,8 @@ import { Settings } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
 import { cloudApi } from './cloudApi';
 import { useAppContext } from './contexts/AppContext';
+import { LoadingView } from './components/LoadingView';
+import { AnimatePresence } from 'framer-motion';
 
 // Routes
 import { HomeRoute } from './pages/HomeRoute';
@@ -117,7 +119,7 @@ function App() {
   };
 
   if (!isInitialized) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw' }}>読み込み中...</div>;
+    return <LoadingView fullPage message="アプリケーションを起動中..." />;
   }
 
   // Study/Mem route hides the sidebar / margins if needed, but styling is handled by CSS mostly 
@@ -267,14 +269,16 @@ function App() {
       )}
 
       {/* Main Routes */}
-      <Routes>
-        <Route path="/" element={<HomeRoute />} />
-        <Route path="/distribution-sim" element={<DistributionRoute />} />
-        <Route path="/quiz/:id/manage" element={<ManageRoute />} />
-        <Route path="/quiz/:id/study" element={<StudyRoute />} />
-        <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />
-        <Route path="/quiz/:id" element={<QuizDetailRoute />} />
-      </Routes>
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+          <Route path="/" element={<HomeRoute />} />
+          <Route path="/distribution-sim" element={<DistributionRoute />} />
+          <Route path="/quiz/:id/manage" element={<ManageRoute />} />
+          <Route path="/quiz/:id/study" element={<StudyRoute />} />
+          <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />
+          <Route path="/quiz/:id" element={<QuizDetailRoute />} />
+        </Routes>
+      </AnimatePresence>
     </div>
   );
 }

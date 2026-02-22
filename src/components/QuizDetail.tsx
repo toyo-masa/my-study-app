@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import type { QuizSet, QuizHistory } from '../types';
 import { getHistories } from '../db';
 import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LoadingView } from './LoadingView';
 
 export interface QuizSetSettings {
     shuffleQuestions: boolean;
@@ -123,50 +124,62 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
 
                 <div className="history-section">
                     <h2>解答履歴</h2>
-                    {loading ? (
-                        <p className="loading-text">読み込み中...</p>
-                    ) : histories.length > 0 ? (
-                        <div className="history-list">
-                            {histories.map((history) => (
-                                <motion.div
-                                    key={history.id}
-                                    className="history-item clickable"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    onClick={() => onSelectHistory(history)}
-                                >
-                                    <div className="history-header">
-                                        <span className="history-date">
-                                            {new Date(history.date).toLocaleString('ja-JP', {
-                                                year: 'numeric',
-                                                month: '2-digit',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </span>
-                                        {history.mode === 'review_wrong' && <span className="mode-badge wrong">復習（誤りのみ）</span>}
-                                        {history.mode === 'review_weak' && <span className="mode-badge weak">復習(苦手)</span>}
-                                    </div>
-                                    <div className="history-stats">
-                                        <div className="stat-pill score">
-                                            <CheckCircle size={14} />
-                                            {Math.round((history.correctCount / history.totalCount) * 100)}% 正解
-                                            <span className="stat-sub">({history.correctCount}/{history.totalCount})</span>
+                    <AnimatePresence mode="wait">
+                        {loading ? (
+                            <LoadingView key="loading" message="履歴を読み込み中..." />
+                        ) : histories.length > 0 ? (
+                            <motion.div
+                                key="history-list"
+                                className="history-list"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                            >
+                                {histories.map((history) => (
+                                    <motion.div
+                                        key={history.id}
+                                        className="history-item clickable"
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        onClick={() => onSelectHistory(history)}
+                                    >
+                                        <div className="history-header">
+                                            <span className="history-date">
+                                                {new Date(history.date).toLocaleString('ja-JP', {
+                                                    year: 'numeric',
+                                                    month: '2-digit',
+                                                    day: '2-digit',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </span>
+                                            {history.mode === 'review_wrong' && <span className="mode-badge wrong">復習（誤りのみ）</span>}
+                                            {history.mode === 'review_weak' && <span className="mode-badge weak">復習(苦手)</span>}
                                         </div>
-                                        <div className="stat-pill time">
-                                            <Clock size={14} />
-                                            {formatTime(history.durationSeconds)}
+                                        <div className="history-stats">
+                                            <div className="stat-pill score">
+                                                <CheckCircle size={14} />
+                                                {Math.round((history.correctCount / history.totalCount) * 100)}% 正解
+                                                <span className="stat-sub">({history.correctCount}/{history.totalCount})</span>
+                                            </div>
+                                            <div className="stat-pill time">
+                                                <Clock size={14} />
+                                                {formatTime(history.durationSeconds)}
+                                            </div>
                                         </div>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="empty-history">
-                            <p>まだ履歴がありません</p>
-                        </div>
-                    )}
+                                    </motion.div>
+                                ))}
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="empty-history"
+                                className="empty-history"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                            >
+                                <p>まだ履歴がありません</p>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>

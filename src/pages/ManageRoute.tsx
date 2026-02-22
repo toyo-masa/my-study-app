@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QuestionManager } from '../components/QuestionManager';
 import { useAppContext } from '../contexts/AppContext';
+import { LoadingView } from '../components/LoadingView';
+import { AnimatePresence } from 'framer-motion';
 
 export const ManageRoute: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -21,22 +23,22 @@ export const ManageRoute: React.FC = () => {
         }
     }, [quizSets.length, loadQuizSets]);
 
-    if (isLoading) {
-        return <div style={{ padding: '2rem', textAlign: 'center' }}>読み込み中...</div>;
-    }
-
-    if (!activeQuizSet) {
-        return <div style={{ padding: '2rem', textAlign: 'center' }}>問題集が見つかりませんでした。</div>;
-    }
-
     return (
-        <main className="content-area" style={{ padding: '1.5rem' }}>
-            <QuestionManager
-                quizSet={activeQuizSet}
-                onBack={() => navigate('/')}
-                onCloudError={handleCloudError}
-                onQuizSetUpdated={loadQuizSets}
-            />
-        </main>
+        <AnimatePresence mode="wait">
+            {isLoading ? (
+                <LoadingView key="loading" />
+            ) : !activeQuizSet ? (
+                <div key="not-found" style={{ padding: '2rem', textAlign: 'center' }}>問題集が見つかりませんでした。</div>
+            ) : (
+                <main key="content" className="content-area" style={{ padding: '1.5rem' }}>
+                    <QuestionManager
+                        quizSet={activeQuizSet}
+                        onBack={() => navigate('/')}
+                        onCloudError={handleCloudError}
+                        onQuizSetUpdated={loadQuizSets}
+                    />
+                </main>
+            )}
+        </AnimatePresence>
     );
 };

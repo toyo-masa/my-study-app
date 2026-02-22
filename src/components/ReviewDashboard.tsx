@@ -9,7 +9,8 @@ import {
 } from '../db';
 import { estimateDuration, formatEstimatedTime } from '../utils/spacedRepetition';
 import { ArrowLeft, Clock, AlertTriangle, RotateCcw, Play, Filter, Target } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LoadingView } from './LoadingView';
 
 interface ReviewDashboardProps {
     quizSetId: number;
@@ -104,176 +105,178 @@ export const ReviewDashboard: React.FC<ReviewDashboardProps> = ({
                 <h1>📅 今日の復習 - {quizSetName}</h1>
             </div>
 
-            {loading ? (
-                <div className="loading-text">読み込み中...</div>
-            ) : (
-                <div className="review-dashboard-content">
-                    {/* 統計カード */}
-                    <div className="review-stats-grid">
-                        <motion.div
-                            className="review-stat-card due"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 }}
-                        >
-                            <div className="stat-icon">
-                                <AlertTriangle size={24} />
-                            </div>
-                            <div className="stat-info">
-                                <span className="stat-number">{dueReviews.length}</span>
-                                <span className="stat-label">今日の復習件数</span>
-                            </div>
-                        </motion.div>
-
-                        <motion.div
-                            className="review-stat-card time"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                        >
-                            <div className="stat-icon">
-                                <Clock size={24} />
-                            </div>
-                            <div className="stat-info">
-                                <span className="stat-number">{estimatedTime}</span>
-                                <span className="stat-label">目安時間</span>
-                            </div>
-                        </motion.div>
-
-                        <motion.div
-                            className="review-stat-card total"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                        >
-                            <div className="stat-info">
-                                <span className="stat-number">{counts.total}</span>
-                                <span className="stat-label">スケジュール済み</span>
-                            </div>
-                        </motion.div>
-                    </div>
-
-                    {/* アクションボタン */}
-                    <div className="review-actions">
-                        <button
-                            className="review-action-btn primary"
-                            onClick={() => onStartReview(dueReviews)}
-                            disabled={dueReviews.length === 0}
-                        >
-                            <Play size={18} fill="currentColor" />
-                            復習を開始する
-                        </button>
-                        <button
-                            className="review-action-btn weak-mode"
-                            onClick={handleStartWeakMode}
-                            disabled={counts.total === 0}
-                        >
-                            <Target size={18} />
-                            苦手問題を特訓 (10問)
-                        </button>
-                        <button
-                            className="review-action-btn danger"
-                            onClick={handleReset}
-                            disabled={counts.total === 0}
-                        >
-                            <RotateCcw size={18} />
-                            スケジュールをリセット
-                        </button>
-                    </div>
-
-                    {/* フィルタ */}
-                    <div className="review-filter-section">
-                        <button
-                            className={`review-filter-toggle ${showFilters ? 'active' : ''}`}
-                            onClick={() => setShowFilters(!showFilters)}
-                        >
-                            <Filter size={16} />
-                            フィルタ
-                        </button>
-
-                        {showFilters && (
+            <AnimatePresence mode="wait">
+                {loading ? (
+                    <LoadingView key="loading" />
+                ) : (
+                    <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="review-dashboard-content">
+                        {/* 統計カード */}
+                        <div className="review-stats-grid">
                             <motion.div
-                                className="review-filters"
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
+                                className="review-stat-card due"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1 }}
                             >
-                                <div className="filter-group">
-                                    <label className="filter-label">カテゴリ</label>
-                                    <div className="filter-tags">
-                                        {categories.map(cat => (
-                                            <button
-                                                key={cat}
-                                                className={`filter-tag ${selectedCategories.includes(cat) ? 'active' : ''}`}
-                                                onClick={() => toggleCategory(cat)}
-                                            >
-                                                {cat}
-                                            </button>
-                                        ))}
-                                    </div>
+                                <div className="stat-icon">
+                                    <AlertTriangle size={24} />
                                 </div>
-                                <div className="filter-group">
-                                    <label className="filter-checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            checked={overdueOnly}
-                                            onChange={(e) => setOverdueOnly(e.target.checked)}
-                                        />
-                                        期限超過のみ
-                                    </label>
-                                    <label className="filter-checkbox-label">
-                                        <input
-                                            type="checkbox"
-                                            checked={lowConfidenceOnly}
-                                            onChange={(e) => setLowConfidenceOnly(e.target.checked)}
-                                        />
-                                        自信なしのみ
-                                    </label>
+                                <div className="stat-info">
+                                    <span className="stat-number">{dueReviews.length}</span>
+                                    <span className="stat-label">今日の復習件数</span>
                                 </div>
                             </motion.div>
-                        )}
-                    </div>
 
-                    {/* Due 一覧 */}
-                    {dueReviews.length > 0 ? (
-                        <div className="review-queue-list">
-                            <h3>復習キュー</h3>
-                            {dueReviews.map((item, index) => (
+                            <motion.div
+                                className="review-stat-card time"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                            >
+                                <div className="stat-icon">
+                                    <Clock size={24} />
+                                </div>
+                                <div className="stat-info">
+                                    <span className="stat-number">{estimatedTime}</span>
+                                    <span className="stat-label">目安時間</span>
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                className="review-stat-card total"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3 }}
+                            >
+                                <div className="stat-info">
+                                    <span className="stat-number">{counts.total}</span>
+                                    <span className="stat-label">スケジュール済み</span>
+                                </div>
+                            </motion.div>
+                        </div>
+
+                        {/* アクションボタン */}
+                        <div className="review-actions">
+                            <button
+                                className="review-action-btn primary"
+                                onClick={() => onStartReview(dueReviews)}
+                                disabled={dueReviews.length === 0}
+                            >
+                                <Play size={18} fill="currentColor" />
+                                復習を開始する
+                            </button>
+                            <button
+                                className="review-action-btn weak-mode"
+                                onClick={handleStartWeakMode}
+                                disabled={counts.total === 0}
+                            >
+                                <Target size={18} />
+                                苦手問題を特訓 (10問)
+                            </button>
+                            <button
+                                className="review-action-btn danger"
+                                onClick={handleReset}
+                                disabled={counts.total === 0}
+                            >
+                                <RotateCcw size={18} />
+                                スケジュールをリセット
+                            </button>
+                        </div>
+
+                        {/* フィルタ */}
+                        <div className="review-filter-section">
+                            <button
+                                className={`review-filter-toggle ${showFilters ? 'active' : ''}`}
+                                onClick={() => setShowFilters(!showFilters)}
+                            >
+                                <Filter size={16} />
+                                フィルタ
+                            </button>
+
+                            {showFilters && (
                                 <motion.div
-                                    key={item.id}
-                                    className="review-queue-item"
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.03 }}
+                                    className="review-filters"
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
                                 >
-                                    <div className="queue-item-number">{index + 1}</div>
-                                    <div className="queue-item-content">
-                                        <span className="queue-item-text">
-                                            {item.question?.text?.substring(0, 60) || '問題が見つかりません'}
-                                            {(item.question?.text?.length || 0) > 60 ? '...' : ''}
-                                        </span>
-                                        <div className="queue-item-meta">
-                                            <span className="tag">{item.question?.category || 'General'}</span>
-                                            <span className="queue-item-due">
-                                                期限: {item.nextDue}
-                                            </span>
-                                            <span className="queue-item-interval">
-                                                間隔: {item.intervalDays}日
-                                            </span>
+                                    <div className="filter-group">
+                                        <label className="filter-label">カテゴリ</label>
+                                        <div className="filter-tags">
+                                            {categories.map(cat => (
+                                                <button
+                                                    key={cat}
+                                                    className={`filter-tag ${selectedCategories.includes(cat) ? 'active' : ''}`}
+                                                    onClick={() => toggleCategory(cat)}
+                                                >
+                                                    {cat}
+                                                </button>
+                                            ))}
                                         </div>
                                     </div>
+                                    <div className="filter-group">
+                                        <label className="filter-checkbox-label">
+                                            <input
+                                                type="checkbox"
+                                                checked={overdueOnly}
+                                                onChange={(e) => setOverdueOnly(e.target.checked)}
+                                            />
+                                            期限超過のみ
+                                        </label>
+                                        <label className="filter-checkbox-label">
+                                            <input
+                                                type="checkbox"
+                                                checked={lowConfidenceOnly}
+                                                onChange={(e) => setLowConfidenceOnly(e.target.checked)}
+                                            />
+                                            自信なしのみ
+                                        </label>
+                                    </div>
                                 </motion.div>
-                            ))}
+                            )}
                         </div>
-                    ) : (
-                        <div className="review-empty">
-                            <p>🎉 今日の復習はすべて完了です！</p>
-                            <p className="review-empty-sub">
-                                テストで間違えた問題や自信のなかった問題が自動的にスケジュールされます。
-                            </p>
-                        </div>
-                    )}
-                </div>
-            )}
+
+                        {/* Due 一覧 */}
+                        {dueReviews.length > 0 ? (
+                            <div className="review-queue-list">
+                                <h3>復習キュー</h3>
+                                {dueReviews.map((item, index) => (
+                                    <motion.div
+                                        key={item.id}
+                                        className="review-queue-item"
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: index * 0.03 }}
+                                    >
+                                        <div className="queue-item-number">{index + 1}</div>
+                                        <div className="queue-item-content">
+                                            <span className="queue-item-text">
+                                                {item.question?.text?.substring(0, 60) || '問題が見つかりません'}
+                                                {(item.question?.text?.length || 0) > 60 ? '...' : ''}
+                                            </span>
+                                            <div className="queue-item-meta">
+                                                <span className="tag">{item.question?.category || 'General'}</span>
+                                                <span className="queue-item-due">
+                                                    期限: {item.nextDue}
+                                                </span>
+                                                <span className="queue-item-interval">
+                                                    間隔: {item.intervalDays}日
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="review-empty">
+                                <p>🎉 今日の復習はすべて完了です！</p>
+                                <p className="review-empty-sub">
+                                    テストで間違えた問題や自信のなかった問題が自動的にスケジュールされます。
+                                </p>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
