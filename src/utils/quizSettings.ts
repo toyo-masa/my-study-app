@@ -14,6 +14,7 @@ export interface SuspendedSession {
     showAnswerMap: Record<string, boolean>;
     markedQuestions: number[];
     startTime: Date;
+    elapsedSeconds: number; // The amount of time already spent in the session before this suspension
     historyMode: HistoryMode;
     type: 'study' | 'memorization';
     memorizationLogs?: MemorizationLog[];

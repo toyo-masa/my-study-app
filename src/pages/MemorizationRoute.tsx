@@ -107,7 +107,11 @@ export const MemorizationRoute: React.FC = () => {
                         setMemorizationLogs(suspendedSession.memorizationLogs || []);
                         setCurrentQuestionIndex(nextIndex);
                         setMarkedQuestions(suspendedSession.markedQuestions || []);
-                        startTimeRef.current = new Date(suspendedSession.startTime);
+
+                        // Restore startTimeRef by subtracting previously spent time from NOW
+                        const resumedStartTime = new Date(Date.now() - (suspendedSession.elapsedSeconds || 0) * 1000);
+                        startTimeRef.current = resumedStartTime;
+
                         setIsTestCompleted(false);
                         setActiveHistory(null);
                         setIsLoading(false);
@@ -128,6 +132,7 @@ export const MemorizationRoute: React.FC = () => {
 
     const handleBackToDetail = () => {
         if (!isTestCompleted && !activeHistory && activeQuizSet?.id !== undefined && questions.length > 0) {
+            const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
             saveSessionToStorage(activeQuizSet.id, {
                 questions,
                 currentQuestionIndex,
@@ -136,6 +141,7 @@ export const MemorizationRoute: React.FC = () => {
                 showAnswerMap: {},
                 markedQuestions,
                 startTime: startTimeRef.current,
+                elapsedSeconds,
                 historyMode: 'normal',
                 type: 'memorization',
                 memorizationLogs,

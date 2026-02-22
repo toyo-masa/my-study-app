@@ -123,13 +123,18 @@ export const StudyRoute: React.FC = () => {
                         startNew(qs);
                     } else {
                         const nextIndex = Math.min(suspendedSession.currentQuestionIndex, filteredQuestions.length - 1);
+                        setIsLoading(false);
                         setQuestions(filteredQuestions);
                         setCurrentQuestionIndex(nextIndex);
                         setAnswers(suspendedSession.answers || {});
                         setMemos(suspendedSession.memos || {});
                         setShowAnswerMap(suspendedSession.showAnswerMap || {});
                         setMarkedQuestions(suspendedSession.markedQuestions || []);
-                        startTimeRef.current = new Date(suspendedSession.startTime);
+
+                        // Restore startTimeRef by subtracting previously spent time from NOW
+                        const resumedStartTime = new Date(Date.now() - (suspendedSession.elapsedSeconds || 0) * 1000);
+                        startTimeRef.current = resumedStartTime;
+
                         setHistoryMode(suspendedSession.historyMode || 'normal');
                         setIsTestCompleted(false);
                         setActiveHistory(null);
@@ -175,6 +180,7 @@ export const StudyRoute: React.FC = () => {
 
     const handleBackToDetail = () => {
         if (!isTestCompleted && !activeHistory && activeQuizSet?.id !== undefined && questions.length > 0) {
+            const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
             saveSessionToStorage(activeQuizSet.id, {
                 questions,
                 currentQuestionIndex,
@@ -183,6 +189,7 @@ export const StudyRoute: React.FC = () => {
                 showAnswerMap,
                 markedQuestions,
                 startTime: startTimeRef.current,
+                elapsedSeconds,
                 historyMode,
                 type: 'study',
             });
