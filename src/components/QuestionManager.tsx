@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Question, QuizSet } from '../types';
 import { getQuestionsForQuizSet, updateQuestion, addQuestion, addQuestionsBulk, deleteQuestion, updateQuizSet } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
-import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 import { useAppContext } from '../contexts/AppContext';
 
@@ -49,6 +49,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const [isImporting, setIsImporting] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string>(''); // Category filter state
     const { setQuizSets } = useAppContext();
 
     useEffect(() => {
@@ -423,6 +424,21 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             JSON.stringify(original.correctAnswers) !== JSON.stringify(editing.correctAnswers);
     }, [editing, isNew, questions]);
 
+    // Dynamic category extraction and filtering
+    const categoriesWithCounts = React.useMemo(() => {
+        const counts: Record<string, number> = {};
+        questions.forEach(q => {
+            const cat = q.category || 'General';
+            counts[cat] = (counts[cat] || 0) + 1;
+        });
+        return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
+    }, [questions]);
+
+    const filteredQuestions = React.useMemo(() => {
+        if (!selectedCategory) return questions;
+        return questions.filter(q => (q.category || 'General') === selectedCategory);
+    }, [questions, selectedCategory]);
+
     return (
         <div className="manager-container">
             <div className="manager-header">
@@ -481,26 +497,28 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 </div>
             )}
 
-            <div className="tags-management-section" style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Plus size={14} /> タグ管理
-                </h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                    {currentTags.map(tag => (
-                        <span key={tag} className="tag edit-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0.6rem' }}>
-                            {tag}
-                            <button
-                                onClick={() => handleRemoveTag(tag)}
-                                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                                title="削除"
-                            >
-                                <X size={14} />
-                            </button>
-                        </span>
-                    ))}
-                    {currentTags.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>タグが設定されていません</span>}
+            <div className="tags-management-section" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                        <Tag size={14} /> タグ
+                    </h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {currentTags.map(tag => (
+                            <span key={tag} className="tag edit-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.2rem 0.6rem', fontSize: '0.70rem' }}>
+                                {tag}
+                                <button
+                                    onClick={() => handleRemoveTag(tag)}
+                                    style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                    title="削除"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </span>
+                        ))}
+                        {currentTags.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>未設定</span>}
+                    </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '400px' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '400px', marginTop: '0.75rem' }}>
                     <input
                         type="text"
                         value={newTagInput}
@@ -520,6 +538,56 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     <button onClick={handleAddTag} className="nav-btn primary" style={{ padding: '0.4rem 0.75rem', background: 'var(--primary-color)', color: 'white' }}>
                         追加
                     </button>
+                </div>
+            </div>
+
+            {/* Category Filter Section */}
+            <div className="category-filter-section" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.25rem 1rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                    <Filter size={14} /> フィルタ
+                </h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    <button
+                        className={`filter-chip ${selectedCategory === '' ? 'active' : ''}`}
+                        onClick={() => setSelectedCategory('')}
+                        style={{
+                            padding: '0.2rem 0.7rem',
+                            borderRadius: '20px',
+                            border: '1px solid var(--border-color)',
+                            background: selectedCategory === '' ? 'var(--primary-color)' : 'var(--bg-secondary)',
+                            color: selectedCategory === '' ? 'white' : 'var(--text-primary)',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        すべて <span style={{ opacity: 0.7, fontSize: '0.75rem' }}>({questions.length})</span>
+                    </button>
+                    {categoriesWithCounts.map(([cat, count]) => (
+                        <button
+                            key={cat}
+                            className={`filter-chip ${selectedCategory === cat ? 'active' : ''}`}
+                            onClick={() => setSelectedCategory(cat)}
+                            style={{
+                                padding: '0.2rem 0.7rem',
+                                borderRadius: '20px',
+                                border: '1px solid var(--border-color)',
+                                background: selectedCategory === cat ? 'var(--primary-color)' : 'var(--bg-secondary)',
+                                color: selectedCategory === cat ? 'white' : 'var(--text-primary)',
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {cat} <span style={{ opacity: 0.7, fontSize: '0.75rem' }}>({count})</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -690,27 +758,31 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         </tr>
                     </thead>
                     <tbody>
-                        {questions.map((q, idx) => (
-                            <tr key={q.id} className="table-row" onClick={() => handleEdit(q)}>
-                                <td>{idx + 1}</td>
-                                <td><span className="tag">{q.category || 'General'}</span></td>
-                                <td className="text-cell">
-                                    <MarkdownText content={q.text} className="table-markdown" />
-                                </td>
-                                <td>{q.options.length}</td>
-                                <td>{q.correctAnswers.map(i => i + 1).join(', ')}</td>
-                                <td>
-                                    <button
-                                        className="icon-btn danger"
-                                        onClick={e => { e.stopPropagation(); handleDeleteClick(q.id!); }}
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                        {questions.length === 0 && (
-                            <tr><td colSpan={6} className="empty-table">問題がありません</td></tr>
+                        {filteredQuestions.map((q, idx) => {
+                            // Find original index for the # column
+                            const originalIdx = questions.findIndex(orig => orig.id === q.id);
+                            return (
+                                <tr key={q.id} className="table-row" onClick={() => handleEdit(q)}>
+                                    <td>{originalIdx + 1}</td>
+                                    <td><span className="tag">{q.category || 'General'}</span></td>
+                                    <td className="text-cell">
+                                        <MarkdownText content={q.text} className="table-markdown" />
+                                    </td>
+                                    <td>{q.options.length}</td>
+                                    <td>{q.correctAnswers.map(i => i + 1).join(', ')}</td>
+                                    <td>
+                                        <button
+                                            className="icon-btn danger"
+                                            onClick={e => { e.stopPropagation(); handleDeleteClick(q.id!); }}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {filteredQuestions.length === 0 && (
+                            <tr><td colSpan={6} className="empty-table">{selectedCategory ? '選択したカテゴリの問題はありません' : '問題がありません'}</td></tr>
                         )}
                     </tbody>
                 </table>
