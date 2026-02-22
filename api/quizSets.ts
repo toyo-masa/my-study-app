@@ -1,6 +1,15 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
 
+type BulkQuestionRow = {
+    quiz_set_id: number;
+    category: string;
+    text: string;
+    options: string;
+    correct_answers: string;
+    explanation: string;
+};
+
 export default async function handler(req: any, res: any) {
     const t0 = performance.now();
     const sessionToken = getSessionToken(req);
@@ -122,20 +131,38 @@ export default async function handler(req: any, res: any) {
             `;
                 const setId = insertSet[0].id;
 
-                if (questions && questions.length > 0) {
-                    for (const q of questions) {
-                        await sql`
+                if (Array.isArray(questions) && questions.length > 0) {
+                    const bulkRows: BulkQuestionRow[] = [];
+                    for (const raw of questions as Array<Record<string, unknown>>) {
+                        const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+                        const category = typeof raw.category === 'string' ? raw.category : '';
+                        const explanation = typeof raw.explanation === 'string' ? raw.explanation : '';
+                        if (!text || !Array.isArray(raw.options) || !Array.isArray(raw.correctAnswers)) {
+                            return res.status(400).json({ error: 'Invalid question payload' });
+                        }
+
+                        bulkRows.push({
+                            quiz_set_id: setId,
+                            category,
+                            text,
+                            options: JSON.stringify(raw.options),
+                            correct_answers: JSON.stringify(raw.correctAnswers),
+                            explanation,
+                        });
+                    }
+
+                    await sql`
                         INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation)
-                        VALUES (
-                            ${setId}, 
-                            ${q.category}, 
-                            ${q.text}, 
-                            ${JSON.stringify(q.options)}::jsonb, 
-                            ${JSON.stringify(q.correctAnswers)}::jsonb, 
-                            ${q.explanation || ''}
+                        SELECT quiz_set_id, category, text, options::jsonb, correct_answers::jsonb, explanation
+                        FROM jsonb_to_recordset(${JSON.stringify(bulkRows)}::jsonb) AS x(
+                            quiz_set_id int,
+                            category text,
+                            text text,
+                            options text,
+                            correct_answers text,
+                            explanation text
                         )
                     `;
-                    }
                 }
                 return res.status(201).json({ id: setId });
             } else if (method === 'PUT') {
@@ -160,8 +187,8 @@ export default async function handler(req: any, res: any) {
 
         res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
         return res.status(405).end(`Method ${method} Not Allowed`);
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('quizSets API error:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

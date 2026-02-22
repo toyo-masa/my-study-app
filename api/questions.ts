@@ -148,8 +148,8 @@ export default async function handler(req: any, res: any) {
 
         res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
         return res.status(405).end(`Method ${method} Not Allowed`);
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('questions API error:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

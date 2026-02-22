@@ -159,7 +159,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.status(405).end(`Method ${method} Not Allowed`);
     } catch (err: unknown) {
         console.error('reviewLogs API error:', err);
-        const message = err instanceof Error ? err.message : 'Internal server error';
-        return res.status(500).json({ error: message });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

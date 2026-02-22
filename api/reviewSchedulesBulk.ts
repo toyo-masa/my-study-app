@@ -1,7 +1,79 @@
 import { neon } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
 
-export default async function handler(req: any, res: any) {
+type ApiRequest = {
+    method?: string;
+    body?: {
+        schedules?: unknown;
+    };
+};
+
+type ApiResponse = {
+    status: (statusCode: number) => ApiResponse;
+    json: (payload: unknown) => ApiResponse;
+    setHeader: (name: string, value: string[]) => void;
+    end: (payload?: string) => ApiResponse;
+};
+
+type ParsedSchedule = {
+    questionId: number;
+    quizSetId: number;
+    intervalDays: number;
+    nextDue: string;
+    lastReviewedAt: string | null;
+    consecutiveCorrect: number;
+};
+
+type UpdateRow = {
+    id: number;
+    interval_days: number;
+    next_due: string;
+    last_reviewed_at: string | null;
+    consecutive_correct: number;
+};
+
+type InsertRow = {
+    question_id: number;
+    quiz_set_id: number;
+    interval_days: number;
+    next_due: string;
+    last_reviewed_at: string | null;
+    consecutive_correct: number;
+    user_id: number;
+};
+
+function isValidDate(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function parseSchedule(raw: unknown): ParsedSchedule | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const data = raw as Record<string, unknown>;
+
+    const questionId = Number(data.questionId);
+    const quizSetId = Number(data.quizSetId);
+    const intervalDays = Number(data.intervalDays);
+    const consecutiveCorrect = Number(data.consecutiveCorrect ?? 0);
+    const nextDue = typeof data.nextDue === 'string' ? data.nextDue : '';
+    const lastReviewedAt = typeof data.lastReviewedAt === 'string' ? data.lastReviewedAt : null;
+
+    if (!Number.isInteger(questionId) || questionId <= 0) return null;
+    if (!Number.isInteger(quizSetId) || quizSetId <= 0) return null;
+    if (!Number.isInteger(intervalDays) || intervalDays <= 0) return null;
+    if (!Number.isInteger(consecutiveCorrect) || consecutiveCorrect < 0) return null;
+    if (!isValidDate(nextDue)) return null;
+
+    return {
+        questionId,
+        quizSetId,
+        intervalDays,
+        nextDue,
+        lastReviewedAt,
+        consecutiveCorrect,
+    };
+}
+
+export default async function handler(req: ApiRequest, res: ApiResponse) {
     const t0 = performance.now();
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {
@@ -16,12 +88,45 @@ export default async function handler(req: any, res: any) {
 
     try {
         if (method === 'POST') { // We use POST for bulk upsert action
-            const schedules = req.body.schedules;
-            if (!Array.isArray(schedules) || schedules.length === 0) {
+            const rawSchedules = req.body?.schedules;
+            if (!Array.isArray(rawSchedules) || rawSchedules.length === 0) {
                 return res.status(400).json({ error: 'Invalid or empty schedules array' });
             }
 
+            const schedules: ParsedSchedule[] = [];
+            for (const raw of rawSchedules) {
+                const parsed = parseSchedule(raw);
+                if (!parsed) {
+                    return res.status(400).json({ error: 'Invalid schedule payload' });
+                }
+                schedules.push(parsed);
+            }
+
             const questionIds = schedules.map(s => s.questionId);
+            const uniqueQuestionIds = [...new Set(questionIds)];
+            if (uniqueQuestionIds.length !== questionIds.length) {
+                return res.status(400).json({ error: 'Duplicate questionId in schedules array' });
+            }
+
+            const ownedQuestions = await sql`
+                SELECT q.id AS question_id, q.quiz_set_id
+                FROM questions q
+                JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+                WHERE qs.user_id = ${userId}
+                  AND q.id = ANY(${questionIds})
+            `;
+            if (ownedQuestions.length !== uniqueQuestionIds.length) {
+                return res.status(404).json({ error: 'Question not found' });
+            }
+            const ownedQuizSetByQuestionId = new Map(
+                ownedQuestions.map(r => [Number(r.question_id), Number(r.quiz_set_id)])
+            );
+            for (const schedule of schedules) {
+                const ownerQuizSetId = ownedQuizSetByQuestionId.get(schedule.questionId);
+                if (ownerQuizSetId !== schedule.quizSetId) {
+                    return res.status(400).json({ error: 'questionId and quizSetId mismatch' });
+                }
+            }
 
             // 1. Fetch existing schedules to decide insert vs update
             const existingRows = await sql`
@@ -29,10 +134,10 @@ export default async function handler(req: any, res: any) {
                 WHERE user_id = ${userId} AND question_id = ANY(${questionIds})
             `;
 
-            const existingMap = new Map(existingRows.map(r => [r.question_id, r.id]));
+            const existingMap = new Map(existingRows.map(r => [Number(r.question_id), Number(r.id)]));
 
-            const inserts: any[] = [];
-            const updates: any[] = [];
+            const inserts: InsertRow[] = [];
+            const updates: UpdateRow[] = [];
 
             for (const s of schedules) {
                 const existingId = existingMap.get(s.questionId);
@@ -102,8 +207,8 @@ export default async function handler(req: any, res: any) {
 
         res.setHeader('Allow', ['POST']);
         return res.status(405).end(`Method ${method} Not Allowed`);
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('reviewSchedulesBulk API error:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

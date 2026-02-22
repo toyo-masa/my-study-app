@@ -134,6 +134,40 @@ export default async function handler(req: any, res: any) {
     await sql`ALTER TABLE review_schedules ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE review_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
 
+    // Remove duplicated schedules before applying the unique index.
+    await sql`
+      WITH ranked AS (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY user_id, question_id
+                 ORDER BY COALESCE(last_reviewed_at, to_timestamp(0)) DESC, id DESC
+               ) AS rn
+        FROM review_schedules
+        WHERE user_id IS NOT NULL AND question_id IS NOT NULL
+      )
+      DELETE FROM review_schedules
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+    `;
+
+    // Ensure one schedule per user/question and speed up hot query paths.
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS review_schedules_user_question_unique_idx
+      ON review_schedules (user_id, question_id)
+      WHERE user_id IS NOT NULL AND question_id IS NOT NULL
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS review_schedules_user_quiz_due_idx
+      ON review_schedules (user_id, quiz_set_id, next_due)
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS review_logs_user_question_reviewed_idx
+      ON review_logs (user_id, question_id, reviewed_at DESC)
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS review_logs_user_quiz_reviewed_idx
+      ON review_logs (user_id, quiz_set_id, reviewed_at DESC)
+    `;
+
     return res.status(200).json({ message: 'Database tables initialized successfully' });
   } catch (error) {
     console.error('Failed to initialize DB:', error);
