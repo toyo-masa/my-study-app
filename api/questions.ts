@@ -63,6 +63,7 @@ export default async function handler(req: any, res: any) {
                     JOIN quiz_sets qs ON q.quiz_set_id = qs.id
                     JOIN valid_session vs ON qs.user_id = vs.user_id
                     WHERE q.quiz_set_id = ${quizSetId}
+                    ORDER BY q.id ASC
                 `;
                 const t2 = performance.now();
                 const questions = rows.map(q => ({

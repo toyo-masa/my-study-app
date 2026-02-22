@@ -758,7 +758,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredQuestions.map((q, idx) => {
+                        {filteredQuestions.map((q) => {
                             // Find original index for the # column
                             const originalIdx = questions.findIndex(orig => orig.id === q.id);
                             return (
