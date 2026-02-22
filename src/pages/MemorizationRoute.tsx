@@ -25,6 +25,7 @@ export const MemorizationRoute: React.FC = () => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [memorizationLogs, setMemorizationLogs] = useState<MemorizationLog[]>([]);
+    const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
@@ -41,6 +42,7 @@ export const MemorizationRoute: React.FC = () => {
                     setQuestions(qs);
                     setActiveHistory(historyFromState);
                     setMemorizationLogs(historyFromState.memorizationDetail);
+                    setMarkedQuestions(historyFromState.markedQuestionIds || []);
                     setIsTestCompleted(true);
                     return;
                 }
@@ -60,6 +62,7 @@ export const MemorizationRoute: React.FC = () => {
                         setQuestions(filteredQuestions);
                         setMemorizationLogs(suspendedSession.memorizationLogs || []);
                         setCurrentQuestionIndex(nextIndex);
+                        setMarkedQuestions(suspendedSession.markedQuestions || []);
                         startTimeRef.current = new Date(suspendedSession.startTime);
                         setIsTestCompleted(false);
                         setActiveHistory(null);
@@ -80,6 +83,7 @@ export const MemorizationRoute: React.FC = () => {
             setQuestions(qs);
             setMemorizationLogs([]);
             setCurrentQuestionIndex(0);
+            setMarkedQuestions([]);
             setIsTestCompleted(false);
             setActiveHistory(null);
             startTimeRef.current = new Date();
@@ -97,7 +101,7 @@ export const MemorizationRoute: React.FC = () => {
                 answers: {},
                 memos: {},
                 showAnswerMap: {},
-                markedQuestions: [],
+                markedQuestions,
                 startTime: startTimeRef.current,
                 historyMode: 'normal',
                 type: 'memorization',
@@ -105,6 +109,23 @@ export const MemorizationRoute: React.FC = () => {
             });
         }
         navigate(`/quiz/${quizSetId}`);
+    };
+
+    const handleToggleMark = (questionId?: number) => {
+        let qId = typeof questionId === 'number' ? questionId : undefined;
+        if (qId === undefined) {
+            const currentQuestion = questions[currentQuestionIndex];
+            if (!currentQuestion || !currentQuestion.id) return;
+            qId = currentQuestion.id;
+        }
+
+        setMarkedQuestions(prev => {
+            if (prev.includes(qId!)) {
+                return prev.filter(id => id !== qId);
+            } else {
+                return [...prev, qId!];
+            }
+        });
     };
 
     const handleMemorizationJudge = (inputs: string[], isMemorized: boolean) => {
@@ -210,8 +231,8 @@ export const MemorizationRoute: React.FC = () => {
                             memorizationStatus={memStatus}
                             answers={{}}
                             showAnswerMap={{}}
-                            markedQuestionIds={[]}
-                            onToggleMark={() => { }}
+                            markedQuestionIds={markedQuestions}
+                            onToggleMark={handleToggleMark}
                         />
                     </aside>
                 )}
@@ -235,6 +256,8 @@ export const MemorizationRoute: React.FC = () => {
                                 index={currentQuestionIndex}
                                 total={questions.length}
                                 onJudge={handleMemorizationJudge}
+                                isMarked={markedQuestions.includes(questions[currentQuestionIndex].id!)}
+                                onToggleMark={handleToggleMark}
                             />
                         )
                     )}

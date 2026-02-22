@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Check, X, RotateCcw, ChevronDown } from 'lucide-react';
+import { Bookmark, Check, X, RotateCcw, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Question } from '../types';
 import { MarkdownText } from './MarkdownText';
@@ -15,9 +15,11 @@ interface QuestionViewProps {
     index: number;
     total: number;
     onJudge: (inputs: string[], isMemorized: boolean) => void;
+    isMarked?: boolean;
+    onToggleMark?: (questionId?: number) => void;
 }
 
-export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question, index, total, onJudge }) => {
+export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question, index, total, onJudge, isMarked, onToggleMark }) => {
     // State local to the specific question instance
     const [userInputs, setUserInputs] = useState<string[]>(new Array(question.options.length).fill(''));
     const [showAnswer, setShowAnswer] = useState(false);
@@ -31,9 +33,19 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question
     return (
         <main className="memorization-content">
             <div className="question-card">
-                <div className="card-header">
+                <div className="card-header" style={{ display: 'flex', alignItems: 'center' }}>
+                    {onToggleMark && (
+                        <button
+                            className={`bookmark-btn ${isMarked ? 'marked' : ''}`}
+                            onClick={() => onToggleMark()}
+                            title={isMarked ? "見直しマークを外す" : "見直しマークを付ける"}
+                            style={{ marginRight: '0.5rem', marginTop: 0 }}
+                        >
+                            <Bookmark size={20} fill={isMarked ? "#f59e0b" : "none"} color={isMarked ? "#f59e0b" : "currentColor"} />
+                        </button>
+                    )}
                     <span className="category-badge">{question.category}</span>
-                    <span className="progress-text-card">{index + 1} / {total}</span>
+                    <span className="progress-text-card" style={{ marginLeft: 'auto' }}>{index + 1} / {total}</span>
                 </div>
                 <h2 className="question-text">
                     <MarkdownText content={question.text} />
