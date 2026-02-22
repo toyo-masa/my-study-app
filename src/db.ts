@@ -29,7 +29,7 @@ class StudyAppDB extends Dexie {
     }
 }
 
-export const db = new StudyAppDB();
+const db = new StudyAppDB();
 
 // === Helper Wrappers for Cloud & Local Storage ===
 
@@ -47,31 +47,6 @@ export async function getAllQuizSets(): Promise<(QuizSet & { questionCount: numb
 export async function getQuizSetsWithCounts(includeDeleted: boolean = false): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
     if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ includeDeleted });
     const sets = includeDeleted ? await db.quizSets.toArray() : await db.quizSets.filter(qs => !qs.isDeleted && !qs.isArchived).toArray();
-    const result = [];
-    for (const qs of sets) {
-        const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
-        result.push({ ...qs, questionCount: questions.length, categories: qs.tags || [] });
-    }
-    return result;
-}
-
-export async function getDeletedQuizSets(): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
-    if (isCloudSyncEnabled()) {
-        const sets = await cloudApi.getQuizSets({ includeDeleted: true });
-        return sets.filter(s => !!s.isDeleted);
-    }
-    const sets = await db.quizSets.filter(qs => !!qs.isDeleted).toArray();
-    const result = [];
-    for (const qs of sets) {
-        const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
-        result.push({ ...qs, questionCount: questions.length, categories: qs.tags || [] });
-    }
-    return result;
-}
-
-export async function getArchivedQuizSets(): Promise<(QuizSet & { questionCount: number; categories: string[] })[]> {
-    if (isCloudSyncEnabled()) return cloudApi.getQuizSets({ archivedOnly: true });
-    const sets = await db.quizSets.filter(qs => !qs.isDeleted && !!qs.isArchived).toArray();
     const result = [];
     for (const qs of sets) {
         const questions = await db.questions.where('quizSetId').equals(qs.id!).toArray();
@@ -121,14 +96,6 @@ export async function hardDeleteQuizSet(quizSetId: number): Promise<void> {
     await db.reviewLogs.where('quizSetId').equals(quizSetId).delete();
     await db.quizSets.delete(quizSetId);
 }
-export const deleteQuizSet = hardDeleteQuizSet;
-
-export async function resetReviewSchedules(quizSetId: number): Promise<number> {
-    if (isCloudSyncEnabled()) { await cloudApi.resetReviewSchedules(quizSetId); return 1; }
-    const deleted = await db.reviewSchedules.where('quizSetId').equals(quizSetId).delete();
-    await db.reviewLogs.where('quizSetId').equals(quizSetId).delete();
-    return deleted;
-}
 
 export async function updateQuestion(id: number, changes: Partial<Question>): Promise<void> {
     if (isCloudSyncEnabled()) return cloudApi.updateQuestion(id, changes);
@@ -163,15 +130,6 @@ export async function addHistory(history: Omit<QuizHistory, 'id'>): Promise<numb
 export async function getHistories(quizSetId: number): Promise<QuizHistory[]> {
     if (isCloudSyncEnabled()) return cloudApi.getHistories(quizSetId);
     return db.histories.where('quizSetId').equals(quizSetId).reverse().sortBy('date');
-}
-
-export async function isDBSeeded(): Promise<boolean> {
-    if (isCloudSyncEnabled()) {
-        const sets = await getAllQuizSets();
-        return sets.length > 0;
-    }
-    const count = await db.quizSets.count();
-    return count > 0;
 }
 
 function toLocalDateString(date: Date): string {
@@ -289,24 +247,6 @@ export async function getReviewSchedulesForQuizSet(quizSetId: number): Promise<R
     return db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
 }
 
-export async function upsertReviewSchedule(schedule: Omit<ReviewSchedule, 'id'> & { id?: number }): Promise<number> {
-    if (isCloudSyncEnabled()) {
-        return cloudApi.upsertReviewSchedule(schedule);
-    }
-    const existing = await db.reviewSchedules.where('questionId').equals(schedule.questionId).first();
-    if (existing) {
-        await db.reviewSchedules.update(existing.id!, {
-            intervalDays: schedule.intervalDays,
-            nextDue: schedule.nextDue,
-            lastReviewedAt: schedule.lastReviewedAt,
-            consecutiveCorrect: schedule.consecutiveCorrect,
-        });
-        return existing.id!;
-    } else {
-        return await db.reviewSchedules.add(schedule as ReviewSchedule) as number;
-    }
-}
-
 export async function upsertReviewSchedulesBulk(schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[]): Promise<{ updated: number, inserted: number }> {
     if (isCloudSyncEnabled()) return cloudApi.upsertReviewSchedulesBulk(schedules);
     let updated = 0;
@@ -327,142 +267,4 @@ export async function upsertReviewSchedulesBulk(schedules: (Omit<ReviewSchedule,
         }
     }
     return { updated, inserted };
-}
-
-export async function addReviewLog(log: Omit<ReviewLog, 'id'>): Promise<number> {
-    if (isCloudSyncEnabled()) return cloudApi.addReviewLog(log);
-    return await db.reviewLogs.add(log as ReviewLog) as number;
-}
-
-export async function initializeReviewSchedules(quizSetId: number): Promise<number> {
-    const questions = isCloudSyncEnabled() ? await cloudApi.getQuestions(quizSetId) : await db.questions.where('quizSetId').equals(quizSetId).toArray();
-    const today = getTodayString();
-    let addedCount = 0;
-
-    for (const q of questions) {
-        if (!q.id) continue;
-        let existing;
-        if (isCloudSyncEnabled()) {
-            existing = await cloudApi.getReviewSchedule(q.id);
-        } else {
-            existing = await db.reviewSchedules.where('questionId').equals(q.id).first();
-        }
-
-        if (!existing) {
-            if (isCloudSyncEnabled()) {
-                await cloudApi.upsertReviewSchedule({
-                    questionId: q.id,
-                    quizSetId,
-                    intervalDays: 1,
-                    nextDue: today,
-                    consecutiveCorrect: 0,
-                });
-            } else {
-                await db.reviewSchedules.add({
-                    questionId: q.id,
-                    quizSetId,
-                    intervalDays: 1,
-                    nextDue: today,
-                    consecutiveCorrect: 0,
-                });
-            }
-            addedCount++;
-        }
-    }
-    return addedCount;
-}
-
-export async function getReviewCounts(quizSetId?: number): Promise<{ total: number; due: number }> {
-    const today = getTodayString();
-    let allSchedules: ReviewSchedule[] = [];
-
-    if (isCloudSyncEnabled()) {
-        allSchedules = await cloudApi.getDueReviews(quizSetId);
-    } else {
-        if (quizSetId !== undefined) {
-            allSchedules = await db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
-        } else {
-            const activeSetIds = (await db.quizSets.filter(qs => !qs.isDeleted).keys());
-            allSchedules = await db.reviewSchedules.where('quizSetId').anyOf(activeSetIds as number[]).toArray();
-        }
-    }
-
-    const due = allSchedules.filter(s => s.nextDue <= today).length;
-    return { total: allSchedules.length, due };
-}
-
-export async function getCategoriesForQuizSet(quizSetId: number): Promise<string[]> {
-    const questions = isCloudSyncEnabled() ? await cloudApi.getQuestions(quizSetId) : await db.questions.where('quizSetId').equals(quizSetId).toArray();
-    return [...new Set(questions.map(q => q.category || 'General'))];
-}
-
-export async function postponeReviews(quizSetId: number, maxPercent: number = 20): Promise<number> {
-    const dueReviews = await getDueReviews(quizSetId);
-    const maxPostpone = Math.max(1, Math.floor(dueReviews.length * maxPercent / 100));
-
-    const sorted = [...dueReviews].sort((a, b) => b.consecutiveCorrect - a.consecutiveCorrect);
-    const toPostpone = sorted.slice(0, maxPostpone);
-
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = toLocalDateString(tomorrow);
-
-    for (const schedule of toPostpone) {
-        if (schedule.id) {
-            if (isCloudSyncEnabled()) {
-                await cloudApi.upsertReviewSchedule({ id: schedule.id, questionId: schedule.questionId, quizSetId: schedule.quizSetId, nextDue: tomorrowStr });
-            } else {
-                await db.reviewSchedules.update(schedule.id, { nextDue: tomorrowStr });
-            }
-        }
-    }
-    return toPostpone.length;
-}
-
-export async function getWeakestQuestions(quizSetId: number, limit: number = 10): Promise<(ReviewSchedule & { question?: Question })[]> {
-    const cloud = isCloudSyncEnabled();
-    let schedules: ReviewSchedule[];
-    if (cloud) {
-        schedules = await cloudApi.getDueReviews(quizSetId);
-    } else {
-        schedules = await db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
-    }
-
-    schedules.sort((a, b) => {
-        if (a.consecutiveCorrect !== b.consecutiveCorrect) return a.consecutiveCorrect - b.consecutiveCorrect;
-        if (a.intervalDays !== b.intervalDays) return a.intervalDays - b.intervalDays;
-        const aDate = a.lastReviewedAt || '';
-        const bDate = b.lastReviewedAt || '';
-        return aDate.localeCompare(bDate);
-    });
-
-    const questionMap = new Map<number, Question>();
-    if (cloud) {
-        const questions = await cloudApi.getQuestions(quizSetId);
-        for (const question of questions) {
-            if (question.id !== undefined) {
-                questionMap.set(question.id, question);
-            }
-        }
-    } else {
-        const questionIds = [...new Set(schedules.map(s => s.questionId))];
-        if (questionIds.length > 0) {
-            const questions = await db.questions.where('id').anyOf(questionIds).toArray();
-            for (const question of questions) {
-                if (question.id !== undefined) {
-                    questionMap.set(question.id, question);
-                }
-            }
-        }
-    }
-
-    const results: (ReviewSchedule & { question?: Question })[] = [];
-    for (const schedule of schedules) {
-        if (results.length >= limit) break;
-        const question = questionMap.get(schedule.questionId);
-        if (question) {
-            results.push({ ...schedule, question });
-        }
-    }
-    return results;
 }
