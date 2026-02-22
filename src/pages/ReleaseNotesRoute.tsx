@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.2',
+        date: '2026年2月22日',
+        improvements: [
+            'デプロイ環境のルーティング設定を見直し、リリースノートページを直接URLで開けるようにしました。',
+        ],
+        fixes: [
+            'Vercel上で `/release-notes` を直接開くと404になる問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.1',
         date: '2026年2月22日',
         improvements: [

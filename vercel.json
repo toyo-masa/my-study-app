@@ -17,6 +17,10 @@
             "destination": "/index.html"
         },
         {
+            "source": "/release-notes",
+            "destination": "/index.html"
+        },
+        {
             "source": "/quiz/(.*)",
             "destination": "/index.html"
         }
