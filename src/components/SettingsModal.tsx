@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User } from 'lucide-react';
+import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SettingsModalProps {
@@ -190,6 +190,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             title="カスタムカラーを選択"
                                         />
                                     </div>
+                                </div>
+                            </section>
+
+                            <section className="settings-section">
+                                <div className="section-title">
+                                    <Info size={18} />
+                                    <span>アプリ情報</span>
+                                </div>
+                                <div className="setting-control">
+                                    <span>バージョン</span>
+                                    <span style={{ fontSize: '0.9rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>v{__APP_VERSION__}</span>
+                                </div>
+                                <div className="setting-control">
+                                    <a href="/release-notes" onClick={() => onClose()} style={{ color: 'var(--primary-color)', textDecoration: 'none', fontSize: '0.9rem' }}>更新履歴（リリースノート）を見る</a>
                                 </div>
                             </section>
                         </div>

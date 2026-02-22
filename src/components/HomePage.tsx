@@ -385,6 +385,16 @@ export const HomePage: React.FC<HomePageProps> = ({
                 />
 
             </div>
+
+            {/* Version Footer */}
+            <footer style={{ marginTop: 'auto', paddingTop: '4rem', paddingBottom: '2rem', textAlign: 'center', opacity: 0.6 }}>
+                <button
+                    onClick={() => window.location.href = '/release-notes'}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                    v{__APP_VERSION__} - リリースノート
+                </button>
+            </footer>
         </div>
     );
 };

@@ -14,6 +14,7 @@ import { StudyRoute } from './pages/StudyRoute';
 import { MemorizationRoute } from './pages/MemorizationRoute';
 import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
+import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 
 function App() {
   const {
@@ -277,6 +278,7 @@ function App() {
           <Route path="/quiz/:id/study" element={<StudyRoute />} />
           <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />
           <Route path="/quiz/:id" element={<QuizDetailRoute />} />
+          <Route path="/release-notes" element={<ReleaseNotesRoute />} />
         </Routes>
       </AnimatePresence>
     </div>
