@@ -149,19 +149,6 @@ export const cloudApi = {
         return fetchApi(`/api/reviewSchedules?${params.toString()}`);
     },
 
-    async getReviewSchedule(questionId: number): Promise<ReviewSchedule | null> {
-        return fetchApi(`/api/reviewSchedules?questionId=${questionId}`);
-    },
-
-    async upsertReviewSchedule(schedule: Partial<ReviewSchedule> & { questionId: number, quizSetId: number }): Promise<number> {
-        const res = await fetchApi<{ id: number }>('/api/reviewSchedules', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(schedule)
-        });
-        return res.id;
-    },
-
     async upsertReviewSchedulesBulk(schedules: (Partial<ReviewSchedule> & { questionId: number, quizSetId: number })[]): Promise<{ updated: number, inserted: number }> {
         const res = await fetchApi<{ success: boolean, updated: number, inserted: number }>('/api/reviewSchedulesBulk', {
             method: 'POST',
@@ -171,31 +158,12 @@ export const cloudApi = {
         return { updated: res.updated, inserted: res.inserted };
     },
 
-    async resetReviewSchedules(quizSetId: number): Promise<void> {
-        await fetchApi(`/api/reviewSchedules?quizSetId=${quizSetId}`, { method: 'DELETE' });
-        await fetchApi(`/api/reviewLogs?quizSetId=${quizSetId}`, { method: 'DELETE' });
-    },
-
-    // Review Logs
-    async getReviewLogs(questionId: number): Promise<ReviewLog[]> {
-        return fetchApi(`/api/reviewLogs?questionId=${questionId}`);
-    },
-
     async getReviewLogsByQuizSet(quizSetId: number, options?: { latestByQuestion?: boolean }): Promise<ReviewLog[]> {
         const params = new URLSearchParams({ quizSetId: quizSetId.toString() });
         if (options?.latestByQuestion) {
             params.append('latest', 'true');
         }
         return fetchApi(`/api/reviewLogs?${params.toString()}`);
-    },
-
-    async addReviewLog(log: Omit<ReviewLog, 'id'>): Promise<number> {
-        const res = await fetchApi<{ id: number }>('/api/reviewLogs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(log)
-        });
-        return res.id;
     },
 
     // Suspended Sessions

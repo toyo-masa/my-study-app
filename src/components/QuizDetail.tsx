@@ -5,7 +5,7 @@ import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle } from 'lucide-r
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingView } from './LoadingView';
 
-export interface QuizSetSettings {
+interface QuizSetSettings {
     shuffleQuestions: boolean;
     shuffleOptions: boolean;
 }
@@ -153,7 +153,8 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                                                 })}
                                             </span>
                                             {history.mode === 'review_wrong' && <span className="mode-badge wrong">復習（誤りのみ）</span>}
-                                            {history.mode === 'review_weak' && <span className="mode-badge weak">復習(苦手)</span>}
+                                            {(history.mode === 'review_weak' || history.mode === 'review_weak_strict') && <span className="mode-badge weak">復習(苦手)</span>}
+                                            {history.mode === 'review_due' && <span className="mode-badge weak">復習</span>}
                                         </div>
                                         <div className="history-stats">
                                             <div className="stat-pill score">

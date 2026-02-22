@@ -41,9 +41,7 @@ export interface QuizHistory {
     }[];
 }
 
-export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict';
-
-export type StudyMode = 'practice' | 'test' | 'review';
+export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict' | 'review_due';
 
 // === 復習スケジューラ（間隔反復）用の型 ===
 

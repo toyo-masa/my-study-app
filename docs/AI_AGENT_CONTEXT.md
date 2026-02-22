@@ -267,7 +267,7 @@ Dexie DB:
   - `build`
   - `lint`
   - `preview`
-- Vite開発時は `/api` を `http://localhost:3001` にプロキシ。
+- Vite開発時は `/api` を `http://127.0.0.1:3001` にプロキシ（`VITE_API_PROXY_TARGET` で上書き可能）。
 - APIはDB接続文字列として `DATABASE_URL` または `POSTGRES_URL` を参照。
 - `package.json` 上、テスト実行用スクリプトは未定義。
 
