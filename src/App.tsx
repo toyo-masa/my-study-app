@@ -15,6 +15,7 @@ import { MemorizationRoute } from './pages/MemorizationRoute';
 import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
+import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 
 function App() {
   const {
@@ -76,8 +77,8 @@ function App() {
       setLoginPassword('');
       localStorage.setItem('useCloudSync', 'true');
       window.location.reload();
-    } catch (err: any) {
-      setLoginError(err.message || 'ログインに失敗しました');
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : 'ログインに失敗しました');
     } finally {
       setIsLoggingIn(false);
     }
@@ -101,8 +102,8 @@ function App() {
       setRegisterPasswordConfirm('');
       localStorage.setItem('useCloudSync', 'true');
       window.location.reload();
-    } catch (err: any) {
-      setRegisterError(err.message || '登録に失敗しました');
+    } catch (err: unknown) {
+      setRegisterError(err instanceof Error ? err.message : '登録に失敗しました');
     } finally {
       setIsRegistering(false);
     }
@@ -274,6 +275,7 @@ function App() {
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<HomeRoute />} />
           <Route path="/distribution-sim" element={<DistributionRoute />} />
+          <Route path="/review-board" element={<ReviewBoardRoute />} />
           <Route path="/quiz/:id/manage" element={<ManageRoute />} />
           <Route path="/quiz/:id/study" element={<StudyRoute />} />
           <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />

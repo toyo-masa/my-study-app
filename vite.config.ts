@@ -9,6 +9,8 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(packageJson.version),
   },
   server: {
+    // Prefer IPv4 binding to avoid environments where ::1 listen fails.
+    host: '0.0.0.0',
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

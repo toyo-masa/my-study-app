@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { QuizDetail } from '../components/QuizDetail';
 import { NotFoundView } from '../components/NotFoundView';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
@@ -8,28 +8,50 @@ import type { QuizHistory } from '../types';
 
 export const QuizDetailRoute: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const expectSuspendedSession = location.state?.expectSuspendedSession === true;
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
-    const [hasSuspendedSession, setHasSuspendedSession] = useState(false);
+    const [hasSuspendedSession, setHasSuspendedSession] = useState(expectSuspendedSession);
 
     useEffect(() => {
         let active = true;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const maxAttempts = expectSuspendedSession ? 8 : 1;
 
-        const checkSuspendedSession = async () => {
+        const checkSuspendedSession = async (attempt: number) => {
             if (!quizSetId) {
                 if (active) setHasSuspendedSession(false);
                 return;
             }
             const session = await loadSessionFromStorage(quizSetId);
-            if (active) {
-                setHasSuspendedSession(!!session);
+            if (!active) {
+                return;
             }
+
+            if (session) {
+                setHasSuspendedSession(true);
+                return;
+            }
+
+            if (expectSuspendedSession && attempt < maxAttempts) {
+                timer = setTimeout(() => {
+                    void checkSuspendedSession(attempt + 1);
+                }, 250);
+                return;
+            }
+
+            setHasSuspendedSession(false);
         };
 
-        checkSuspendedSession();
+        void checkSuspendedSession(1);
+
         return () => {
             active = false;
+            if (timer) {
+                clearTimeout(timer);
+            }
         };
-    }, [quizSetId]);
+    }, [expectSuspendedSession, quizSetId]);
 
     const handleStartStudy = () => {
         if (!activeQuizSet) return;
