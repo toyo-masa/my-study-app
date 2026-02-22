@@ -5,7 +5,7 @@ import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle } from 'lucide-r
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingView } from './LoadingView';
 
-export interface QuizSetSettings {
+interface QuizSetSettings {
     shuffleQuestions: boolean;
     shuffleOptions: boolean;
 }

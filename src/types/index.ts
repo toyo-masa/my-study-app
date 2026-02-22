@@ -43,8 +43,6 @@ export interface QuizHistory {
 
 export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict' | 'review_due';
 
-export type StudyMode = 'practice' | 'test' | 'review';
-
 // === 復習スケジューラ（間隔反復）用の型 ===
 
 /** 自信度レベル */

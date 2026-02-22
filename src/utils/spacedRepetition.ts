@@ -132,26 +132,3 @@ export function updateConsecutiveCorrect(
 ): number {
     return isCorrect ? currentConsecutive + 1 : 0;
 }
-
-/**
- * 目安時間（秒）を計算する
- * 1問あたり約30秒として計算
- */
-export function estimateDuration(questionCount: number, secondsPerQuestion: number = 30): number {
-    return questionCount * secondsPerQuestion;
-}
-
-/**
- * 目安時間を人間が読める形式にフォーマットする
- */
-export function formatEstimatedTime(totalSeconds: number): string {
-    if (totalSeconds < 60) {
-        return `${totalSeconds}秒`;
-    }
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    if (seconds === 0) {
-        return `約${minutes}分`;
-    }
-    return `約${minutes}分${seconds}秒`;
-}

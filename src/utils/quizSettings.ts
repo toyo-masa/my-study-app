@@ -80,7 +80,7 @@ export const saveQuizSetSettings = (quizSetId: number, settings: QuizSetSettings
 };
 
 // Fisher-Yates shuffle (immutable)
-export const shuffleArray = <T,>(arr: T[]): T[] => {
+const shuffleArray = <T,>(arr: T[]): T[] => {
     const shuffled = [...arr];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -89,7 +89,7 @@ export const shuffleArray = <T,>(arr: T[]): T[] => {
     return shuffled;
 };
 
-export const shuffleQuestionOptions = (q: Question): Question => {
+const shuffleQuestionOptions = (q: Question): Question => {
     // We need to shuffle options and correctly map correctAnswers to new indices
     const optionsWithIndices = q.options.map((opt, index) => ({ opt, index }));
     const shuffledOptionsObjs = shuffleArray(optionsWithIndices);
