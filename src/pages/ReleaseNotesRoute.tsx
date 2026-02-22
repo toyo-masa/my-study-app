@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.8.17',
+        date: '2026年2月22日 20:28',
+        improvements: [
+            'リリースノートの公開日時を「日付 + 時刻」で確認できるようにしました。',
+        ],
+        fixes: [
+            '時刻情報のない過去リリースでも、表示形式がそろうように調整しました。',
+        ],
+    },
+    {
         version: '1.8.16',
         date: '2026年2月22日',
         improvements: [
@@ -534,6 +544,12 @@ const sectionTitleStyle: React.CSSProperties = {
 
 const INITIAL_VISIBLE_RELEASE_COUNT = 10;
 const RELEASE_BATCH_SIZE = 10;
+const ensureReleaseDateTime = (value: string): string => {
+    if (/\d{1,2}:\d{2}/.test(value)) {
+        return value;
+    }
+    return `${value} 00:00`;
+};
 
 export const ReleaseNotesRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -602,7 +618,7 @@ export const ReleaseNotesRoute: React.FC = () => {
                         >
                             v{note.version}
                         </h2>
-                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{note.date}</span>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{ensureReleaseDateTime(note.date)}</span>
                     </div>
 
                     <div style={{ color: 'var(--text-color)', lineHeight: 1.6 }}>
