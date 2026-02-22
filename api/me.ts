@@ -1,4 +1,4 @@
-import { getAuthenticatedUserId } from './_auth.js';
+import { getSessionToken } from './_auth.js';
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
@@ -6,8 +6,8 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const userId = await getAuthenticatedUserId(req);
-    if (!userId) {
+    const sessionToken = getSessionToken(req);
+    if (!sessionToken) {
         return res.status(401).json({ error: 'Not authenticated' });
     }
 
@@ -16,9 +16,15 @@ export default async function handler(req: any, res: any) {
 
     try {
         const sql = neon(databaseUrl);
-        const rows = await sql`SELECT id, username, created_at FROM users WHERE id = ${userId}`;
+        const rows = await sql`
+            WITH valid_session AS (
+                SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
+            )
+            SELECT u.id, u.username, u.created_at FROM users u
+            JOIN valid_session vs ON u.id = vs.user_id
+        `;
         if (rows.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(401).json({ error: 'User not found or session invalid' });
         }
 
         return res.status(200).json({

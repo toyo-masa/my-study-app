@@ -1,9 +1,9 @@
 import { neon } from '@neondatabase/serverless';
-import { getAuthenticatedUserId } from './_auth.js';
+import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
 
 export default async function handler(req: any, res: any) {
-    const userId = await getAuthenticatedUserId(req);
-    if (!userId) {
+    const sessionToken = getSessionToken(req);
+    if (!sessionToken) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -18,9 +18,13 @@ export default async function handler(req: any, res: any) {
         if (method === 'GET') {
             if (questionId) {
                 const rows = await sql`
-                    SELECT * FROM review_logs 
-                    WHERE question_id = ${questionId} AND user_id = ${userId}
-                    ORDER BY reviewed_at DESC
+                    WITH valid_session AS (
+                        SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
+                    )
+                    SELECT rl.* FROM review_logs rl
+                    JOIN valid_session vs ON rl.user_id = vs.user_id
+                    WHERE rl.question_id = ${questionId}
+                    ORDER BY rl.reviewed_at DESC
                 `;
                 return res.status(200).json(rows.map(r => ({
                     id: r.id,
@@ -38,10 +42,14 @@ export default async function handler(req: any, res: any) {
             }
             return res.status(400).json({ error: 'Missing questionId parameter' });
 
-        } else if (method === 'POST') {
-            const l = req.body;
-            const reviewedAt = l.reviewedAt || new Date().toISOString();
-            const result = await sql`
+        } else {
+            const userId = await getAuthenticatedUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            if (method === 'POST') {
+                const l = req.body;
+                const reviewedAt = l.reviewedAt || new Date().toISOString();
+                const result = await sql`
                 INSERT INTO review_logs (
                     question_id, quiz_set_id, reviewed_at, is_correct, confidence,
                     interval_days, next_due, memo, duration_seconds, session_id, user_id
@@ -51,15 +59,16 @@ export default async function handler(req: any, res: any) {
                 )
                 RETURNING id
             `;
-            return res.status(201).json({ id: result[0].id });
+                return res.status(201).json({ id: result[0].id });
 
-        } else if (method === 'DELETE') {
-            if (quizSetId) {
-                await sql`DELETE FROM review_logs WHERE quiz_set_id = ${quizSetId} AND user_id = ${userId}`;
-                return res.status(200).json({ success: true });
+            } else if (method === 'DELETE') {
+                if (quizSetId) {
+                    await sql`DELETE FROM review_logs WHERE quiz_set_id = ${quizSetId} AND user_id = ${userId}`;
+                    return res.status(200).json({ success: true });
+                }
+                return res.status(400).json({ error: 'Missing quizSetId' });
             }
-            return res.status(400).json({ error: 'Missing quizSetId' });
-        }
+        } // Close else block
 
         res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
         return res.status(405).end(`Method ${method} Not Allowed`);

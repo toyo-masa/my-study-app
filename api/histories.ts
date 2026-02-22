@@ -1,9 +1,9 @@
 import { neon } from '@neondatabase/serverless';
-import { getAuthenticatedUserId } from './_auth.js';
+import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
 
 export default async function handler(req: any, res: any) {
-    const userId = await getAuthenticatedUserId(req);
-    if (!userId) {
+    const sessionToken = getSessionToken(req);
+    if (!sessionToken) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -18,14 +18,15 @@ export default async function handler(req: any, res: any) {
         if (method === 'GET') {
             if (!quizSetId) return res.status(400).json({ error: 'Missing quizSetId' });
 
-            // Verify quiz set belongs to user
-            const setCheck = await sql`SELECT id FROM quiz_sets WHERE id = ${quizSetId} AND user_id = ${userId}`;
-            if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found' });
-
+            // 1 query to fetch histories belonging to this valid session
             const rows = await sql`
-                SELECT * FROM histories 
-                WHERE quiz_set_id = ${quizSetId} AND user_id = ${userId}
-                ORDER BY date DESC
+                WITH valid_session AS (
+                    SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
+                )
+                SELECT h.* FROM histories h
+                JOIN valid_session vs ON h.user_id = vs.user_id
+                WHERE h.quiz_set_id = ${quizSetId}
+                ORDER BY h.date DESC
             `;
             const histories = rows.map(h => ({
                 id: h.id,
@@ -43,10 +44,14 @@ export default async function handler(req: any, res: any) {
                 memorizationDetail: h.memorization_detail
             }));
             return res.status(200).json(histories);
-        } else if (method === 'POST') {
-            const h = req.body;
-            const dateStr = h.date ? new Date(h.date).toISOString() : new Date().toISOString();
-            const result = await sql`
+        } else {
+            const userId = await getAuthenticatedUserId(req);
+            if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+            if (method === 'POST') {
+                const h = req.body;
+                const dateStr = h.date ? new Date(h.date).toISOString() : new Date().toISOString();
+                const result = await sql`
                 INSERT INTO histories (
                     quiz_set_id, date, correct_count, total_count, duration_seconds,
                     answers, marked_question_ids, memos, confidences, question_ids, mode, memorization_detail, user_id
@@ -67,8 +72,9 @@ export default async function handler(req: any, res: any) {
                 )
                 RETURNING id
             `;
-            return res.status(201).json({ id: result[0].id });
-        }
+                return res.status(201).json({ id: result[0].id });
+            }
+        } // Close else block
 
         res.setHeader('Allow', ['GET', 'POST']);
         return res.status(405).end(`Method ${method} Not Allowed`);
