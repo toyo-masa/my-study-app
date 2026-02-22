@@ -149,12 +149,13 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
             const isCorrect = userAnswers.length > 0 &&
                 userAnswers.length === q.correctAnswers.length &&
                 userAnswers.every((a: number) => q.correctAnswers.includes(a));
+            const isAnswered = userAnswers.length > 0;
             const isLowConfidence = confidences[qKey] === 'low';
 
             switch (filter) {
-                case 'wrong': return !isCorrect;
+                case 'wrong': return isAnswered && !isCorrect;
                 case 'low': return isLowConfidence;
-                case 'wrong-low': return !isCorrect || isLowConfidence;
+                case 'wrong-low': return (isAnswered && !isCorrect) || isLowConfidence;
                 default: return true;
             }
         });
@@ -171,10 +172,11 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
             const isCorrect = userAnswers.length > 0 &&
                 userAnswers.length === q.correctAnswers.length &&
                 userAnswers.every((a: number) => q.correctAnswers.includes(a));
+            const isAnswered = userAnswers.length > 0;
             const isLow = confidences[qKey] === 'low';
-            if (!isCorrect) wrong++;
+            if (isAnswered && !isCorrect) wrong++;
             if (isLow) low++;
-            if (!isCorrect || isLow) wrongOrLow++;
+            if ((isAnswered && !isCorrect) || isLow) wrongOrLow++;
         });
         return { wrong, low, wrongOrLow };
     }, [questions, answers, confidences]);

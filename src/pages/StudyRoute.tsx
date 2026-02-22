@@ -320,9 +320,10 @@ export const StudyRoute: React.FC = () => {
         const wrongQuestions = questions.filter(q => {
             const qKey = String(q.id);
             const userAnswers = answers[qKey] || [];
-            const isCorrect = userAnswers.length === q.correctAnswers.length &&
+            const isCorrect = userAnswers.length > 0 && userAnswers.length === q.correctAnswers.length &&
                 userAnswers.every(a => q.correctAnswers.includes(a));
-            return !isCorrect;
+            const isAnswered = userAnswers.length > 0;
+            return isAnswered && !isCorrect;
         });
 
         if (wrongQuestions.length === 0) {
@@ -336,11 +337,12 @@ export const StudyRoute: React.FC = () => {
         const targetQuestions = questions.filter(q => {
             const qKey = String(q.id);
             const userAnswers = answers[qKey] || [];
-            const isCorrect = userAnswers.length === q.correctAnswers.length &&
+            const isCorrect = userAnswers.length > 0 && userAnswers.length === q.correctAnswers.length &&
                 userAnswers.every(a => q.correctAnswers.includes(a));
+            const isAnswered = userAnswers.length > 0;
             const confidence = confidences[qKey];
             const isLowConfidence = confidence === 'low';
-            return !isCorrect || (isCorrect && isLowConfidence);
+            return (isAnswered && !isCorrect) || (isAnswered && isCorrect && isLowConfidence);
         });
 
         if (targetQuestions.length === 0) {
