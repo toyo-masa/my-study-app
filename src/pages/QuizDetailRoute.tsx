@@ -31,10 +31,9 @@ export const QuizDetailRoute: React.FC = () => {
         };
     }, [quizSetId]);
 
-    const handleStartStudy = async () => {
+    const handleStartStudy = () => {
         if (!activeQuizSet) return;
-        const suspendedSession = await loadSessionFromStorage(activeQuizSet.id!);
-        if (suspendedSession) {
+        if (hasSuspendedSession) {
             const shouldStartNew = window.confirm('中断中の解答があります。新しく始めると中断データは削除されます。新しく始めますか？');
             if (!shouldStartNew) return;
         }

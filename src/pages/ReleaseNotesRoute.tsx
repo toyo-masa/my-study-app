@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.9',
+        date: '2026年2月22日',
+        improvements: [
+            '中断データがある問題集で新規開始する際の確認表示を見直し、操作中に安定して選択できるようにしました。',
+        ],
+        fixes: [
+            '「新しく始める」で確認ダイアログが一瞬だけ表示され、選択できないことがある問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.8',
         date: '2026年2月22日',
         improvements: [
