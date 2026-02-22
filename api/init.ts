@@ -1,8 +1,22 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'GET' && req.method !== 'POST') {
+  if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const initTokenHeader = req.headers['x-init-token'];
+  const providedToken = Array.isArray(initTokenHeader) ? initTokenHeader[0] : initTokenHeader;
+  const configuredToken = process.env.INIT_API_TOKEN;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Protect schema initialization in production, and optionally in other envs when token is set.
+  if (isProduction && !configuredToken) {
+    console.error('INIT_API_TOKEN is not configured in production. /api/init is disabled.');
+    return res.status(503).json({ error: 'Initialization endpoint is disabled' });
+  }
+  if (configuredToken && providedToken !== configuredToken) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -123,6 +137,6 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ message: 'Database tables initialized successfully' });
   } catch (error) {
     console.error('Failed to initialize DB:', error);
-    return res.status(500).json({ error: 'Failed to initialize database', details: (error as Error).message });
+    return res.status(500).json({ error: 'Failed to initialize database' });
   }
 }

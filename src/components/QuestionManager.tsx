@@ -393,7 +393,6 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         }
         try {
             await updateQuizSet(quizSet.id!, { name: newName });
-            quizSet.name = newName; // UI表示を即時更新するための簡易的な反映
             setIsEditingName(false);
             if (onQuizSetUpdated) onQuizSetUpdated();
         } catch (err) {

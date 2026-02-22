@@ -1,6 +1,30 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
 
+async function hasOwnedQuestion(
+  sql: ReturnType<typeof neon>,
+  userId: number,
+  questionId: number,
+  quizSetId?: number
+): Promise<boolean> {
+  const rows = quizSetId === undefined
+    ? await sql`
+        SELECT q.id
+        FROM questions q
+        JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+        WHERE q.id = ${questionId} AND qs.user_id = ${userId}
+        LIMIT 1
+      `
+    : await sql`
+        SELECT q.id
+        FROM questions q
+        JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+        WHERE q.id = ${questionId} AND qs.id = ${quizSetId} AND qs.user_id = ${userId}
+        LIMIT 1
+      `;
+  return rows.length > 0;
+}
+
 export default async function handler(req: any, res: any) {
   const sessionToken = getSessionToken(req);
   if (!sessionToken) {
@@ -78,11 +102,21 @@ export default async function handler(req: any, res: any) {
 
       if (method === 'POST') {
         const s = req.body;
+        const questionIdNum = Number(s?.questionId);
+        const quizSetIdNum = Number(s?.quizSetId);
+        if (!Number.isInteger(questionIdNum) || questionIdNum <= 0 || !Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
+          return res.status(400).json({ error: 'Missing or invalid questionId/quizSetId' });
+        }
+        const ownedQuestion = await hasOwnedQuestion(sql, userId, questionIdNum, quizSetIdNum);
+        if (!ownedQuestion) {
+          return res.status(404).json({ error: 'Question not found' });
+        }
+
         const result = await sql`
                 INSERT INTO review_schedules (
                     question_id, quiz_set_id, interval_days, next_due, last_reviewed_at, consecutive_correct, user_id
                 ) VALUES (
-                    ${s.questionId}, ${s.quizSetId}, ${s.intervalDays}, ${s.nextDue}, ${s.lastReviewedAt || null}, ${s.consecutiveCorrect}, ${userId}
+                    ${questionIdNum}, ${quizSetIdNum}, ${s.intervalDays}, ${s.nextDue}, ${s.lastReviewedAt || null}, ${s.consecutiveCorrect}, ${userId}
                 )
                 RETURNING id
             `;
@@ -103,7 +137,22 @@ export default async function handler(req: any, res: any) {
                 `;
           return res.status(200).json({ success: true });
         } else {
-          const existing = await sql`SELECT id FROM review_schedules WHERE question_id = ${s.questionId} AND user_id = ${userId}`;
+          const questionIdNum = Number(s.questionId);
+          if (!Number.isInteger(questionIdNum) || questionIdNum <= 0) {
+            return res.status(400).json({ error: 'Missing or invalid questionId' });
+          }
+
+          const quizSetIdNum = s.quizSetId !== undefined ? Number(s.quizSetId) : undefined;
+          if (quizSetIdNum !== undefined && (!Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0)) {
+            return res.status(400).json({ error: 'Invalid quizSetId' });
+          }
+
+          const ownedQuestion = await hasOwnedQuestion(sql, userId, questionIdNum, quizSetIdNum);
+          if (!ownedQuestion) {
+            return res.status(404).json({ error: 'Question not found' });
+          }
+
+          const existing = await sql`SELECT id FROM review_schedules WHERE question_id = ${questionIdNum} AND user_id = ${userId}`;
           if (existing.length > 0) {
             await sql`
                         UPDATE review_schedules SET 
@@ -115,11 +164,14 @@ export default async function handler(req: any, res: any) {
                     `;
             return res.status(200).json({ id: existing[0].id });
           } else {
+            if (quizSetIdNum === undefined) {
+              return res.status(400).json({ error: 'Missing quizSetId for insert' });
+            }
             const result = await sql`
                         INSERT INTO review_schedules (
                             question_id, quiz_set_id, interval_days, next_due, last_reviewed_at, consecutive_correct, user_id
                         ) VALUES (
-                            ${s.questionId}, ${s.quizSetId}, ${s.intervalDays}, ${s.nextDue}, ${s.lastReviewedAt || null}, ${s.consecutiveCorrect}, ${userId}
+                            ${questionIdNum}, ${quizSetIdNum}, ${s.intervalDays}, ${s.nextDue}, ${s.lastReviewedAt || null}, ${s.consecutiveCorrect}, ${userId}
                         )
                         RETURNING id
                     `;

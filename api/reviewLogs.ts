@@ -1,6 +1,22 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
 
+async function hasOwnedQuestion(
+    sql: ReturnType<typeof neon>,
+    userId: number,
+    questionId: number,
+    quizSetId: number
+): Promise<boolean> {
+    const rows = await sql`
+        SELECT q.id
+        FROM questions q
+        JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+        WHERE q.id = ${questionId} AND qs.id = ${quizSetId} AND qs.user_id = ${userId}
+        LIMIT 1
+    `;
+    return rows.length > 0;
+}
+
 export default async function handler(req: any, res: any) {
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
@@ -48,13 +64,24 @@ export default async function handler(req: any, res: any) {
 
             if (method === 'POST') {
                 const l = req.body;
+                const questionIdNum = Number(l?.questionId);
+                const quizSetIdNum = Number(l?.quizSetId);
+                if (!Number.isInteger(questionIdNum) || questionIdNum <= 0 || !Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
+                    return res.status(400).json({ error: 'Missing or invalid questionId/quizSetId' });
+                }
+
+                const ownedQuestion = await hasOwnedQuestion(sql, userId, questionIdNum, quizSetIdNum);
+                if (!ownedQuestion) {
+                    return res.status(404).json({ error: 'Question not found' });
+                }
+
                 const reviewedAt = l.reviewedAt || new Date().toISOString();
                 const result = await sql`
                 INSERT INTO review_logs (
                     question_id, quiz_set_id, reviewed_at, is_correct, confidence,
                     interval_days, next_due, memo, duration_seconds, session_id, user_id
                 ) VALUES (
-                    ${l.questionId}, ${l.quizSetId}, ${reviewedAt}, ${l.isCorrect}, ${l.confidence},
+                    ${questionIdNum}, ${quizSetIdNum}, ${reviewedAt}, ${l.isCorrect}, ${l.confidence},
                     ${l.intervalDays}, ${l.nextDue}, ${l.memo || null}, ${l.durationSeconds || null}, ${l.sessionId || null}, ${userId}
                 )
                 RETURNING id

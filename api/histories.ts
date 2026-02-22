@@ -50,13 +50,27 @@ export default async function handler(req: any, res: any) {
 
             if (method === 'POST') {
                 const h = req.body;
+                const targetQuizSetId = Number(h?.quizSetId);
+                if (!Number.isInteger(targetQuizSetId) || targetQuizSetId <= 0) {
+                    return res.status(400).json({ error: 'Missing or invalid quizSetId' });
+                }
+
+                const ownedSet = await sql`
+                    SELECT id FROM quiz_sets
+                    WHERE id = ${targetQuizSetId} AND user_id = ${userId}
+                    LIMIT 1
+                `;
+                if (ownedSet.length === 0) {
+                    return res.status(404).json({ error: 'Quiz set not found' });
+                }
+
                 const dateStr = h.date ? new Date(h.date).toISOString() : new Date().toISOString();
                 const result = await sql`
                 INSERT INTO histories (
                     quiz_set_id, date, correct_count, total_count, duration_seconds,
                     answers, marked_question_ids, memos, confidences, question_ids, mode, memorization_detail, user_id
                 ) VALUES (
-                    ${h.quizSetId},
+                    ${targetQuizSetId},
                     ${dateStr},
                     ${h.correctCount},
                     ${h.totalCount},
