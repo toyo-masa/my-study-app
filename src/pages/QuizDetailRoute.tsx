@@ -19,9 +19,9 @@ export const QuizDetailRoute: React.FC = () => {
     const handleStartStudy = () => {
         if (!activeQuizSet) return;
         if (activeQuizSet.type === 'memorization') {
-            navigate(`/quiz/${activeQuizSet.id}/memorization`);
+            navigate(`/quiz/${activeQuizSet.id}/memorization`, { state: { startNew: true } });
         } else {
-            navigate(`/quiz/${activeQuizSet.id}/study`);
+            navigate(`/quiz/${activeQuizSet.id}/study`, { state: { startNew: true } });
         }
     };
 

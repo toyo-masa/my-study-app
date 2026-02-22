@@ -16,6 +16,7 @@ export const StudyRoute: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
+    const startNewFromState = location.state?.startNew as boolean | undefined;
 
     const { quizSets, loadQuizSets } = useAppContext();
 
@@ -80,7 +81,7 @@ export const StudyRoute: React.FC = () => {
                 }
 
                 // Check if resuming session
-                const suspendedSession = loadSessionFromStorage(quizSetId);
+                const suspendedSession = !startNewFromState ? loadSessionFromStorage(quizSetId) : null;
 
                 if (suspendedSession && suspendedSession.type !== 'memorization') {
                     // Resume logic
@@ -103,7 +104,8 @@ export const StudyRoute: React.FC = () => {
                         setHistoryMode(suspendedSession.historyMode || 'normal');
                         setIsTestCompleted(false);
                         setActiveHistory(null);
-                        clearSessionFromStorage(quizSetId);
+                        // React StrictMode double-invocation prevents us from safely removing the session here.
+                        // We rely on `startNew` or `handleCompleteTest` or `handleBackToDetail` to overwrite/clear it instead.
                     }
                 } else {
                     // Start new logic

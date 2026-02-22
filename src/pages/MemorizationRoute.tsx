@@ -14,6 +14,7 @@ export const MemorizationRoute: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
+    const startNewFromState = location.state?.startNew as boolean | undefined;
 
     const { quizSets, loadQuizSets } = useAppContext();
 
@@ -44,7 +45,7 @@ export const MemorizationRoute: React.FC = () => {
                     return;
                 }
 
-                const suspendedSession = loadSessionFromStorage(quizSetId);
+                const suspendedSession = !startNewFromState ? loadSessionFromStorage(quizSetId) : null;
 
                 if (suspendedSession && suspendedSession.type === 'memorization') {
                     const validOptionIds = new Set(qs.map(q => q.id));
@@ -62,7 +63,7 @@ export const MemorizationRoute: React.FC = () => {
                         startTimeRef.current = new Date(suspendedSession.startTime);
                         setIsTestCompleted(false);
                         setActiveHistory(null);
-                        clearSessionFromStorage(quizSetId);
+                        // React StrictMode double-invocation prevents us from safely removing the session here.
                     }
                 } else {
                     startNew(qs);
