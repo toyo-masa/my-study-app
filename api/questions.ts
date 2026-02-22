@@ -1,7 +1,17 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
-export default async function handler(req: any, res: any) {
+type QuestionBody = {
+    quizSetId?: number | string;
+    category?: string;
+    text?: string;
+    options?: unknown;
+    correctAnswers?: unknown;
+    explanation?: string;
+};
+
+export default async function handler(req: ApiHandlerRequest<QuestionBody>, res: ApiHandlerResponse) {
     const t0 = performance.now();
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
@@ -94,7 +104,7 @@ export default async function handler(req: any, res: any) {
             }
 
             if (method === 'POST') {
-                const q = req.body;
+                const q = req.body || {};
                 // Verify quiz set belongs to user
                 const setCheck = await sql`SELECT id FROM quiz_sets WHERE id = ${q.quizSetId} AND user_id = ${userId}`;
                 if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found' });
@@ -114,7 +124,7 @@ export default async function handler(req: any, res: any) {
                 return res.status(201).json({ id: result[0].id });
             } else if (method === 'PUT') {
                 if (!id) return res.status(400).json({ error: 'Missing id' });
-                const q = req.body;
+                const q = req.body || {};
 
                 // Verify question belongs to user's quiz set
                 const current = await sql`

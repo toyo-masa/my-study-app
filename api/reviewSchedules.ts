@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
 async function hasOwnedQuestion(
   sql: ReturnType<typeof neon>,
@@ -25,7 +26,17 @@ async function hasOwnedQuestion(
   return rows.length > 0;
 }
 
-export default async function handler(req: any, res: any) {
+type ReviewScheduleBody = {
+  id?: number | string;
+  questionId?: number | string;
+  quizSetId?: number | string;
+  intervalDays?: number;
+  nextDue?: string;
+  lastReviewedAt?: string;
+  consecutiveCorrect?: number;
+};
+
+export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>, res: ApiHandlerResponse) {
   const sessionToken = getSessionToken(req);
   if (!sessionToken) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -101,7 +112,7 @@ export default async function handler(req: any, res: any) {
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
       if (method === 'POST') {
-        const s = req.body;
+        const s = req.body || {};
         const questionIdNum = Number(s?.questionId);
         const quizSetIdNum = Number(s?.quizSetId);
         if (!Number.isInteger(questionIdNum) || questionIdNum <= 0 || !Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
@@ -123,7 +134,7 @@ export default async function handler(req: any, res: any) {
         return res.status(201).json({ id: result[0].id });
 
       } else if (method === 'PUT') {
-        const s = req.body;
+        const s = req.body || {};
         if (!s.id && !s.questionId) return res.status(400).json({ error: 'Missing id or questionId' });
 
         if (s.id) {

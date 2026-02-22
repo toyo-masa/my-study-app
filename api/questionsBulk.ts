@@ -1,7 +1,21 @@
 import { neon } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
-export default async function handler(req: any, res: any) {
+type QuestionInput = {
+    quizSetId?: number | string;
+    category?: string;
+    text?: string;
+    options?: unknown;
+    correctAnswers?: unknown;
+    explanation?: string;
+};
+
+type QuestionsBulkBody = {
+    questions?: QuestionInput[];
+};
+
+export default async function handler(req: ApiHandlerRequest<QuestionsBulkBody>, res: ApiHandlerResponse) {
     const t0 = performance.now();
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {
@@ -16,7 +30,7 @@ export default async function handler(req: any, res: any) {
 
     try {
         if (method === 'POST') {
-            const questions = req.body.questions;
+            const questions = req.body?.questions;
             if (!Array.isArray(questions) || questions.length === 0) {
                 return res.status(400).json({ error: 'Invalid or empty questions array' });
             }

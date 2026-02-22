@@ -1,7 +1,23 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
-export default async function handler(req: any, res: any) {
+type HistoryBody = {
+    quizSetId?: number | string;
+    date?: string;
+    correctCount?: number;
+    totalCount?: number;
+    durationSeconds?: number;
+    answers?: unknown;
+    markedQuestionIds?: unknown;
+    memos?: unknown;
+    confidences?: unknown;
+    questionIds?: unknown;
+    mode?: string;
+    memorizationDetail?: unknown;
+};
+
+export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: ApiHandlerResponse) {
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -49,7 +65,7 @@ export default async function handler(req: any, res: any) {
             if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
             if (method === 'POST') {
-                const h = req.body;
+                const h = req.body || {};
                 const targetQuizSetId = Number(h?.quizSetId);
                 if (!Number.isInteger(targetQuizSetId) || targetQuizSetId <= 0) {
                     return res.status(400).json({ error: 'Missing or invalid quizSetId' });

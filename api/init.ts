@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiHandlerRequest, res: ApiHandlerResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

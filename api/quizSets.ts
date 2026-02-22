@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
 type BulkQuestionRow = {
     quiz_set_id: number;
@@ -10,7 +11,24 @@ type BulkQuestionRow = {
     explanation: string;
 };
 
-export default async function handler(req: any, res: any) {
+type QuizSetQuestionInput = {
+    category?: string;
+    text?: string;
+    options?: unknown;
+    correctAnswers?: unknown;
+    explanation?: string;
+};
+
+type QuizSetMutationBody = {
+    name?: string;
+    type?: string;
+    questions?: QuizSetQuestionInput[];
+    isDeleted?: boolean;
+    isArchived?: boolean;
+    tags?: unknown;
+};
+
+export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody>, res: ApiHandlerResponse) {
     const t0 = performance.now();
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
@@ -122,7 +140,7 @@ export default async function handler(req: any, res: any) {
             }
 
             if (method === 'POST') {
-                const { name, type, questions } = req.body;
+                const { name, type, questions } = req.body || {};
                 const createdAt = new Date().toISOString();
                 const insertSet = await sql`
                 INSERT INTO quiz_sets (name, type, created_at, is_deleted, is_archived, tags, user_id) 
@@ -167,7 +185,7 @@ export default async function handler(req: any, res: any) {
                 return res.status(201).json({ id: setId });
             } else if (method === 'PUT') {
                 if (!id) return res.status(400).json({ error: 'Missing id' });
-                const { name, isDeleted, isArchived, tags } = req.body;
+                const { name, isDeleted, isArchived, tags } = req.body || {};
 
                 const current = await sql`SELECT * FROM quiz_sets WHERE id = ${id} AND user_id = ${userId}`;
                 if (current.length === 0) return res.status(404).json({ error: 'Not found' });
