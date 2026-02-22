@@ -370,22 +370,7 @@ export const MemorizationRoute: React.FC = () => {
             <ConfirmationModal
                 isOpen={showEmptyCardsModal}
                 title="暗記カードがまだありません"
-                message={
-                    <>
-                        この問題集には暗記カードが0件です。問題/暗記カードを追加してから開始してください。<br />
-                        <a
-                            href={managePath}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                setShowEmptyCardsModal(false);
-                                navigate(managePath);
-                            }}
-                            style={{ color: 'var(--primary-color)', textDecoration: 'underline', fontWeight: 600 }}
-                        >
-                            管理画面を開く
-                        </a>
-                    </>
-                }
+                message="この問題集には暗記カードが0件です。問題/暗記カードを追加してから開始してください。"
                 confirmLabel="管理画面へ"
                 cancelLabel="戻る"
                 onConfirm={() => {

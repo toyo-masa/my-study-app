@@ -38,7 +38,7 @@ function App() {
 
   // Dark mode and Accent color
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem('theme') === 'dark';
+    return localStorage.getItem('theme') !== 'light';
   });
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('accentColor') || '#3b82f6';
@@ -141,6 +141,13 @@ function App() {
     window.location.reload();
   };
 
+  const continueOfflineMode = () => {
+    localStorage.setItem('useCloudSync', 'false');
+    setIsLoginModalOpen(false);
+    setIsRegisterModalOpen(false);
+    window.location.reload();
+  };
+
   if (!isInitialized && !isReleaseNotesRoute) {
     return <LoadingView fullPage message="データを読み込み中..." />;
   }
@@ -221,7 +228,7 @@ function App() {
                   <button
                     type="button"
                     style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
-                    onClick={() => setIsLoginModalOpen(false)}
+                    onClick={continueOfflineMode}
                   >オフラインで続ける</button>
                 </div>
               )}
@@ -285,7 +292,7 @@ function App() {
                   <button
                     type="button"
                     style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem' }}
-                    onClick={() => setIsRegisterModalOpen(false)}
+                    onClick={continueOfflineMode}
                   >オフラインで続ける</button>
                 </div>
               )}

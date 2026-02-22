@@ -546,22 +546,7 @@ export const StudyRoute: React.FC = () => {
             <ConfirmationModal
                 isOpen={showEmptyQuestionsModal}
                 title="問題がまだありません"
-                message={
-                    <>
-                        この問題集には問題が0件です。問題/暗記カードを追加してから開始してください。<br />
-                        <a
-                            href={managePath}
-                            onClick={(e) => {
-                                e.preventDefault();
-                                setShowEmptyQuestionsModal(false);
-                                navigate(managePath);
-                            }}
-                            style={{ color: 'var(--primary-color)', textDecoration: 'underline', fontWeight: 600 }}
-                        >
-                            管理画面を開く
-                        </a>
-                    </>
-                }
+                message="この問題集には問題が0件です。問題/暗記カードを追加してから開始してください。"
                 confirmLabel="管理画面へ"
                 cancelLabel="戻る"
                 onConfirm={() => {

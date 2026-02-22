@@ -7,6 +7,14 @@ import './index.css'
 import App from './App.tsx'
 import { AppProvider } from './contexts/AppContext'
 
+if (localStorage.getItem('theme') === null) {
+  localStorage.setItem('theme', 'dark')
+}
+
+if (localStorage.getItem('useCloudSync') === null) {
+  localStorage.setItem('useCloudSync', 'true')
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
