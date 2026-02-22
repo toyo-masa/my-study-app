@@ -15,11 +15,24 @@ interface QuestionViewProps {
     index: number;
     total: number;
     onJudge: (inputs: string[], isMemorized: boolean) => void;
+    isCurrentQuestionJudged?: boolean;
+    showResultButton?: boolean;
+    onShowResult?: () => void;
     isMarked?: boolean;
     onToggleMark?: (questionId?: number) => void;
 }
 
-export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question, index, total, onJudge, isMarked, onToggleMark }) => {
+export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
+    question,
+    index,
+    total,
+    onJudge,
+    isCurrentQuestionJudged = false,
+    showResultButton = false,
+    onShowResult,
+    isMarked,
+    onToggleMark
+}) => {
     // State local to the specific question instance
     const [userInputs, setUserInputs] = useState<string[]>(new Array(question.options.length).fill(''));
     const [showAnswer, setShowAnswer] = useState(false);
@@ -98,15 +111,22 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({ question
                         回答を確認
                     </button>
                 ) : (
-                    <div className="judgement-buttons">
-                        <button className="judge-btn bad" onClick={() => onJudge(userInputs, false)}>
-                            <X size={20} />
-                            <span>覚えられていない</span>
-                        </button>
-                        <button className="judge-btn good" onClick={() => onJudge(userInputs, true)}>
-                            <Check size={20} />
-                            <span>完全に覚えた</span>
-                        </button>
+                    <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+                        <div className="judgement-buttons">
+                            <button className="judge-btn bad" onClick={() => onJudge(userInputs, false)}>
+                                <X size={20} />
+                                <span>覚えられていない</span>
+                            </button>
+                            <button className="judge-btn good" onClick={() => onJudge(userInputs, true)}>
+                                <Check size={20} />
+                                <span>完全に覚えた</span>
+                            </button>
+                        </div>
+                        {showResultButton && isCurrentQuestionJudged && onShowResult && (
+                            <button className="check-answer-btn" onClick={onShowResult}>
+                                テスト結果を表示する
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -254,8 +274,11 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                                                         <div>
                                                             <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>正解</strong>
                                                             {q.options.map((opt, i) => (
-                                                                <div key={i} className="review-option correct">
-                                                                    <span>{i + 1}. {opt}</span>
+                                                                <div key={i} className="review-option correct" style={{ alignItems: 'flex-start' }}>
+                                                                    <span style={{ flexShrink: 0 }}>{i + 1}.</span>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <MarkdownText content={opt} />
+                                                                    </div>
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -264,7 +287,9 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                                                     {q.explanation && (
                                                         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
                                                             <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>解説</strong>
-                                                            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: '0.9rem' }}>{q.explanation}</p>
+                                                            <div style={{ fontSize: '0.9rem' }}>
+                                                                <MarkdownText content={q.explanation} />
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>

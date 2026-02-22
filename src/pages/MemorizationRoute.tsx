@@ -182,8 +182,6 @@ export const MemorizationRoute: React.FC = () => {
 
         if (currentQuestionIndex < questions.length - 1) {
             setCurrentQuestionIndex(prev => prev + 1);
-        } else {
-            handleCompleteMemorization(newLogs);
         }
     };
 
@@ -216,6 +214,16 @@ export const MemorizationRoute: React.FC = () => {
         } catch (e) {
             console.error('Failed to save history', e);
         }
+    };
+
+    const handleShowResult = async () => {
+        const answeredIds = new Set(memorizationLogs.map(log => log.questionId));
+        const unansweredCount = questions.filter(q => q.id !== undefined && !answeredIds.has(q.id)).length;
+        if (unansweredCount > 0) {
+            const shouldComplete = window.confirm(`未回答の問題が${unansweredCount}問あります。テスト結果を表示してもいいですか？`);
+            if (!shouldComplete) return;
+        }
+        await handleCompleteMemorization(memorizationLogs);
     };
 
     const handleRetryMemorization = () => {
@@ -278,6 +286,9 @@ export const MemorizationRoute: React.FC = () => {
                         index={currentQuestionIndex}
                         total={questions.length}
                         onJudge={handleMemorizationJudge}
+                        isCurrentQuestionJudged={memorizationLogs.some(log => log.questionId === questions[currentQuestionIndex].id)}
+                        showResultButton={currentQuestionIndex === questions.length - 1}
+                        onShowResult={handleShowResult}
                         isMarked={markedQuestions.includes(questions[currentQuestionIndex].id!)}
                         onToggleMark={handleToggleMark}
                     />
