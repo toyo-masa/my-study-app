@@ -7,7 +7,7 @@ import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { getQuestionsForQuizSet, addHistory } from '../db';
-import type { Question, QuizHistory } from '../types';
+import type { Question, QuizHistory, HistoryMode } from '../types';
 import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
 
 export const MemorizationRoute: React.FC = () => {
@@ -15,6 +15,10 @@ export const MemorizationRoute: React.FC = () => {
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
     const startNewFromState = location.state?.startNew as boolean | undefined;
+    const fromReviewBoardFromState = location.state?.fromReviewBoard === true;
+    const reviewQuestionIdsFromState = Array.isArray(location.state?.reviewQuestionIds)
+        ? location.state.reviewQuestionIds as number[]
+        : undefined;
 
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
 
@@ -26,13 +30,17 @@ export const MemorizationRoute: React.FC = () => {
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
+    const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
     const [showEmptyCardsModal, setShowEmptyCardsModal] = useState(false);
     const startTimeRef = useRef<Date>(new Date());
 
     const lastSessionKeyRef = useRef<string | null>(null);
 
     // Unique key for the current session
-    const sessionKey = `${quizSetId}-${startNewFromState}-${historyFromState?.id || 'new'}-${location.key}`;
+    const reviewQuestionIdsKey = reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0
+        ? reviewQuestionIdsFromState.join(',')
+        : 'all';
+    const sessionKey = `${quizSetId}-${startNewFromState}-${historyFromState?.id || 'new'}-${reviewQuestionIdsKey}-${location.key}`;
 
     // Synchronous state reset to prevent flickering
     const [renderedSessionKey, setRenderedSessionKey] = useState<string | null>(null);
@@ -45,11 +53,28 @@ export const MemorizationRoute: React.FC = () => {
         setMarkedQuestions([]);
         setIsTestCompleted(false);
         setActiveHistory(null);
+        setHistoryMode('normal');
         setShowEmptyCardsModal(false);
     }
 
-    const startNew = useCallback((qs: Question[]) => {
+    const startNew = useCallback((qs: Question[], targetQuestionIds?: number[], mode: HistoryMode = 'normal') => {
         let studyQuestions: Question[] = qs.map(q => ({ ...q, id: q.id! }));
+        if (targetQuestionIds && targetQuestionIds.length > 0) {
+            const targetSet = new Set(targetQuestionIds);
+            studyQuestions = studyQuestions.filter(q => targetSet.has(q.id!));
+        }
+
+        if (studyQuestions.length === 0) {
+            alert('復習対象の問題が見つかりませんでした。');
+            setIsLoading(false);
+            if (fromReviewBoardFromState) {
+                navigate('/review-board');
+            } else {
+                navigate(`/quiz/${quizSetId}`);
+            }
+            return;
+        }
+
         if (quizSetId) {
             const settings = loadQuizSetSettings(quizSetId);
             studyQuestions = applyShuffleSettings(studyQuestions, settings);
@@ -61,12 +86,13 @@ export const MemorizationRoute: React.FC = () => {
         setMarkedQuestions([]);
         setIsTestCompleted(false);
         setActiveHistory(null);
+        setHistoryMode(mode);
         startTimeRef.current = new Date();
 
         // Mark as initialized to prevent useEffect from re-shuffling
         lastSessionKeyRef.current = sessionKey;
         setIsLoading(false);
-    }, [quizSetId, sessionKey]);
+    }, [navigate, quizSetId, sessionKey, fromReviewBoardFromState]);
 
     useEffect(() => {
         const initMem = async () => {
@@ -79,7 +105,7 @@ export const MemorizationRoute: React.FC = () => {
             try {
                 const qs = await getQuestionsForQuizSet(quizSetId);
 
-                if (!historyFromState && qs.length === 0) {
+                if (!historyFromState && !reviewQuestionIdsFromState && qs.length === 0) {
                     await clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
                     setQuestions([]);
                     setShowEmptyCardsModal(true);
@@ -93,7 +119,13 @@ export const MemorizationRoute: React.FC = () => {
                     setMemorizationLogs(historyFromState.memorizationDetail);
                     setMarkedQuestions(historyFromState.markedQuestionIds || []);
                     setIsTestCompleted(true);
+                    setHistoryMode(historyFromState.mode || 'normal');
                     setIsLoading(false);
+                    return;
+                }
+
+                if (reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0) {
+                    startNew(qs, reviewQuestionIdsFromState, 'review_due');
                     return;
                 }
 
@@ -120,6 +152,7 @@ export const MemorizationRoute: React.FC = () => {
 
                         setIsTestCompleted(false);
                         setActiveHistory(null);
+                        setHistoryMode(suspendedSession.historyMode || 'normal');
                         setIsLoading(false);
                     }
                 } else {
@@ -134,13 +167,24 @@ export const MemorizationRoute: React.FC = () => {
         };
 
         initMem();
-    }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState]);
+    }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState]);
 
-    const handleBackToDetail = async () => {
-        if (!isTestCompleted && !activeHistory && activeQuizSet?.id !== undefined && questions.length > 0) {
+    const handleBackToDetail = () => {
+        if (fromReviewBoardFromState) {
+            navigate('/review-board');
+            return;
+        }
+
+        const quizSetIdForSave = activeQuizSet?.id;
+        const shouldSaveSuspendedSession =
+            !isTestCompleted &&
+            !activeHistory &&
+            quizSetIdForSave !== undefined &&
+            questions.length > 0;
+
+        if (shouldSaveSuspendedSession) {
             const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
-            try {
-                await saveSessionToStorage(activeQuizSet.id, {
+            void saveSessionToStorage(quizSetIdForSave, {
                     questions,
                     currentQuestionIndex,
                     answers: {},
@@ -149,13 +193,15 @@ export const MemorizationRoute: React.FC = () => {
                     markedQuestions,
                     startTime: startTimeRef.current,
                     elapsedSeconds,
-                    historyMode: 'normal',
+                    historyMode,
                     type: 'memorization',
                     memorizationLogs,
+                }).catch((err) => {
+                    console.error('Failed to save suspended session', err);
                 });
-            } catch (err) {
-                console.error('Failed to save suspended session', err);
-            }
+
+            navigate(`/quiz/${quizSetId}`, { state: { expectSuspendedSession: true } });
+            return;
         }
         navigate(`/quiz/${quizSetId}`);
     };
@@ -213,7 +259,7 @@ export const MemorizationRoute: React.FC = () => {
             answers: {},
             markedQuestionIds: finalLogs.filter(l => !l.isMemorized).map(l => l.questionId),
             memorizationDetail: finalLogs,
-            mode: 'normal'
+            mode: historyMode
         };
 
         if (activeQuizSet?.id !== undefined) {
@@ -258,6 +304,14 @@ export const MemorizationRoute: React.FC = () => {
     const managePath = `/quiz/${quizSetId}/manage`;
     const detailPath = `/quiz/${quizSetId}`;
 
+    const reviewHeaderBadge =
+        historyMode === 'review_wrong'
+            ? '復習中（誤りのみ）'
+            : historyMode === 'review_weak' || historyMode === 'review_weak_strict'
+                ? '復習中（苦手）'
+                : historyMode === 'review_due'
+                    ? '復習中'
+                    : undefined;
     return (
         <QuizSessionLayout
             title={`${activeQuizSet.name} (暗記)`}
@@ -265,6 +319,7 @@ export const MemorizationRoute: React.FC = () => {
             sidebarOpen={sidebarOpen}
             showSidebar={!isTestCompleted}
             onBack={handleBackToDetail}
+            sessionBadge={!isTestCompleted ? reviewHeaderBadge : undefined}
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             onCloseSidebar={() => setSidebarOpen(false)}
             sidebarContent={
@@ -287,7 +342,11 @@ export const MemorizationRoute: React.FC = () => {
                     questions={questions}
                     onBack={() => {
                         setActiveHistory(null);
-                        navigate(`/quiz/${quizSetId}`);
+                        if (fromReviewBoardFromState) {
+                            navigate('/review-board');
+                        } else {
+                            navigate(`/quiz/${quizSetId}`);
+                        }
                     }}
                     onRetry={!activeHistory ? handleRetryMemorization : undefined}
                     isHistory={!!activeHistory}
@@ -313,7 +372,7 @@ export const MemorizationRoute: React.FC = () => {
                 title="暗記カードがまだありません"
                 message={
                     <>
-                        この問題集には暗記カードが0件です。暗記カードを追加してから開始してください。<br />
+                        この問題集には暗記カードが0件です。問題/暗記カードを追加してから開始してください。<br />
                         <a
                             href={managePath}
                             onClick={(e) => {
@@ -335,7 +394,11 @@ export const MemorizationRoute: React.FC = () => {
                 }}
                 onCancel={() => {
                     setShowEmptyCardsModal(false);
-                    navigate(detailPath);
+                    if (fromReviewBoardFromState) {
+                        navigate('/review-board');
+                    } else {
+                        navigate(detailPath);
+                    }
                 }}
             />
         </QuizSessionLayout>
