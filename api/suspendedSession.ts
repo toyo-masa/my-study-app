@@ -7,6 +7,8 @@ type SuspendedSessionBody = {
     session?: unknown;
 };
 
+let suspendedSessionSchemaEnsured = false;
+
 export default async function handler(req: ApiHandlerRequest<SuspendedSessionBody>, res: ApiHandlerResponse) {
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {
@@ -26,6 +28,23 @@ export default async function handler(req: ApiHandlerRequest<SuspendedSessionBod
     }
 
     try {
+        if (!suspendedSessionSchemaEnsured) {
+            await sql`
+                CREATE TABLE IF NOT EXISTS suspended_sessions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    quiz_set_id INTEGER REFERENCES quiz_sets(id) ON DELETE CASCADE,
+                    session_data JSONB NOT NULL,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            `;
+            await sql`
+                CREATE UNIQUE INDEX IF NOT EXISTS suspended_sessions_user_quiz_unique_idx
+                ON suspended_sessions (user_id, quiz_set_id)
+            `;
+            suspendedSessionSchemaEnsured = true;
+        }
+
         const ownedQuizSet = await sql`
             SELECT id
             FROM quiz_sets
@@ -37,6 +56,7 @@ export default async function handler(req: ApiHandlerRequest<SuspendedSessionBod
         }
 
         if (method === 'GET') {
+            res.setHeader('Cache-Control', 'no-store');
             const rows = await sql`
                 SELECT session_data
                 FROM suspended_sessions

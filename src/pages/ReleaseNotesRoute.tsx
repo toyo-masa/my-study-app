@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.4',
+        date: '2026年2月22日',
+        improvements: [
+            '中断セッションAPIの安定性を強化し、本番環境でも再開データを継続して扱えるようにしました。',
+        ],
+        fixes: [
+            '中断データ取得がキャッシュで古い状態になることで「中断から再開」が表示されない場合がある問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.3',
         date: '2026年2月22日',
         improvements: [

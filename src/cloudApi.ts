@@ -201,7 +201,7 @@ export const cloudApi = {
     // Suspended Sessions
     async getSuspendedSession(quizSetId: number): Promise<SuspendedSession | null> {
         const params = new URLSearchParams({ quizSetId: quizSetId.toString() });
-        return fetchApi(`/api/suspendedSession?${params.toString()}`);
+        return fetchApi(`/api/suspendedSession?${params.toString()}`, { cache: 'no-store' });
     },
 
     async upsertSuspendedSession(quizSetId: number, session: SuspendedSession): Promise<void> {
