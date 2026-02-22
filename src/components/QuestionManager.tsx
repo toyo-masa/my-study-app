@@ -110,24 +110,26 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const handleAddTag = async () => {
         const trimmed = newTagInput.trim();
-        if (trimmed && !currentTags.includes(trimmed)) {
-            const previousTags = [...currentTags];
-            const finalTags = [...currentTags, trimmed];
-
-            // Optimistic UI update
-            setCurrentTags(finalTags);
+        if (trimmed) {
             setNewTagInput('');
+            if (!currentTags.includes(trimmed)) {
+                const previousTags = [...currentTags];
+                const finalTags = [...currentTags, trimmed];
 
-            try {
-                if (quizSet.id !== undefined) {
-                    await updateQuizSet(quizSet.id, { tags: finalTags });
-                    showStatus(`タグ「${trimmed}」を追加しました`, 'success');
-                    if (onQuizSetUpdated) onQuizSetUpdated();
+                // Optimistic UI update
+                setCurrentTags(finalTags);
+
+                try {
+                    if (quizSet.id !== undefined) {
+                        await updateQuizSet(quizSet.id, { tags: finalTags });
+                        showStatus(`タグ「${trimmed}」を追加しました`, 'success');
+                        if (onQuizSetUpdated) onQuizSetUpdated();
+                    }
+                } catch (err) {
+                    // Rollback
+                    setCurrentTags(previousTags);
+                    onCloudError(err, 'タグの追加に失敗しました');
                 }
-            } catch (err) {
-                // Rollback
-                setCurrentTags(previousTags);
-                onCloudError(err, 'タグの追加に失敗しました');
             }
         }
     };
