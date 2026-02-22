@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.10',
+        date: '2026年2月22日',
+        improvements: [
+            '「新しく始める」の確認表示をアプリ内モーダルに切り替え、端末やブラウザ差があっても安定して選択できるようにしました。',
+        ],
+        fixes: [
+            '中断データがある状態で新規開始しようとした際、確認ダイアログが一瞬で消えて選択できない場合がある問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.9',
         date: '2026年2月22日',
         improvements: [

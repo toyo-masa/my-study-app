@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QuizDetail } from '../components/QuizDetail';
 import { NotFoundView } from '../components/NotFoundView';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { loadSessionFromStorage, loadQuizSetSettings, saveQuizSetSettings } from '../utils/quizSettings';
 import type { QuizHistory } from '../types';
@@ -10,6 +11,7 @@ export const QuizDetailRoute: React.FC = () => {
     const navigate = useNavigate();
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
     const [hasSuspendedSession, setHasSuspendedSession] = useState(false);
+    const [showStartConfirmation, setShowStartConfirmation] = useState(false);
 
     useEffect(() => {
         let active = true;
@@ -31,17 +33,22 @@ export const QuizDetailRoute: React.FC = () => {
         };
     }, [quizSetId]);
 
-    const handleStartStudy = () => {
+    const startNewStudy = () => {
         if (!activeQuizSet) return;
-        if (hasSuspendedSession) {
-            const shouldStartNew = window.confirm('中断中の解答があります。新しく始めると中断データは削除されます。新しく始めますか？');
-            if (!shouldStartNew) return;
-        }
         if (activeQuizSet.type === 'memorization') {
             navigate(`/quiz/${activeQuizSet.id}/memorization`, { state: { startNew: true } });
         } else {
             navigate(`/quiz/${activeQuizSet.id}/study`, { state: { startNew: true } });
         }
+    };
+
+    const handleStartStudy = () => {
+        if (!activeQuizSet) return;
+        if (hasSuspendedSession) {
+            setShowStartConfirmation(true);
+            return;
+        }
+        startNewStudy();
     };
 
     const handleResumeStudy = () => {
@@ -78,6 +85,18 @@ export const QuizDetailRoute: React.FC = () => {
                 onResume={handleResumeStudy}
                 settings={loadQuizSetSettings(activeQuizSet.id!)}
                 onSettingsChange={(s) => saveQuizSetSettings(activeQuizSet.id!, s)}
+            />
+            <ConfirmationModal
+                isOpen={showStartConfirmation}
+                title="新しく始める"
+                message="中断中の解答があります。新しく始めると中断データは削除されます。新しく始めますか？"
+                confirmLabel="新しく始める"
+                cancelLabel="キャンセル"
+                onConfirm={() => {
+                    setShowStartConfirmation(false);
+                    startNewStudy();
+                }}
+                onCancel={() => setShowStartConfirmation(false)}
             />
         </main>
     );

@@ -7,6 +7,8 @@ interface ConfirmationModalProps {
     message: string;
     onConfirm: () => void;
     onCancel: () => void;
+    confirmLabel?: string;
+    cancelLabel?: string;
 }
 
 // Ensure CSS styles in App.css are present:
@@ -17,7 +19,9 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     title,
     message,
     onConfirm,
-    onCancel
+    onCancel,
+    confirmLabel = '削除する',
+    cancelLabel = 'キャンセル'
 }) => {
     // We render always but control visibility via CSS opacity/pointer-events for transition, 
     // OR we can conditionally render if we don't care about exit transition.
@@ -42,8 +46,8 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                 </h3>
                 <p className="confirmation-message">{message}</p>
                 <div className="confirmation-actions">
-                    <button className="btn-cancel" onClick={onCancel}>キャンセル</button>
-                    <button className="btn-delete" onClick={onConfirm}>削除する</button>
+                    <button className="btn-cancel" onClick={onCancel}>{cancelLabel}</button>
+                    <button className="btn-delete" onClick={onConfirm}>{confirmLabel}</button>
                 </div>
             </div>
         </div>
