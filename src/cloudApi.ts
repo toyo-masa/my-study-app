@@ -1,4 +1,5 @@
 import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType } from './types';
+import type { SuspendedSession } from './utils/quizSettings';
 
 // Helper to handle API responses
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
@@ -195,5 +196,25 @@ export const cloudApi = {
             body: JSON.stringify(log)
         });
         return res.id;
+    },
+
+    // Suspended Sessions
+    async getSuspendedSession(quizSetId: number): Promise<SuspendedSession | null> {
+        const params = new URLSearchParams({ quizSetId: quizSetId.toString() });
+        return fetchApi(`/api/suspendedSession?${params.toString()}`);
+    },
+
+    async upsertSuspendedSession(quizSetId: number, session: SuspendedSession): Promise<void> {
+        await fetchApi('/api/suspendedSession', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quizSetId, session })
+        });
+    },
+
+    async clearSuspendedSession(quizSetId: number): Promise<void> {
+        await fetchApi(`/api/suspendedSession?quizSetId=${quizSetId}`, {
+            method: 'DELETE'
+        });
     }
 };

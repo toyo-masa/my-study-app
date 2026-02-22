@@ -1,5 +1,7 @@
 import type { Question, HistoryMode } from '../types';
 import type { MemorizationLog } from '../components/MemorizationView';
+import { isCloudSyncEnabled } from '../db';
+import { cloudApi } from '../cloudApi';
 
 export interface QuizSetSettings {
     shuffleQuestions: boolean;
@@ -20,8 +22,17 @@ export interface SuspendedSession {
     memorizationLogs?: MemorizationLog[];
 }
 
-export const loadSessionFromStorage = (quizSetId: number): SuspendedSession | null => {
+export const loadSessionFromStorage = async (quizSetId: number): Promise<SuspendedSession | null> => {
     try {
+        if (isCloudSyncEnabled()) {
+            const cloudSession = await cloudApi.getSuspendedSession(quizSetId);
+            if (!cloudSession) return null;
+            return {
+                ...cloudSession,
+                startTime: new Date(cloudSession.startTime),
+            };
+        }
+
         const stored = localStorage.getItem(`suspendedSession_${quizSetId}`);
         if (stored) {
             const session = JSON.parse(stored);
@@ -37,11 +48,19 @@ export const loadSessionFromStorage = (quizSetId: number): SuspendedSession | nu
     return null;
 };
 
-export const saveSessionToStorage = (quizSetId: number, session: SuspendedSession) => {
+export const saveSessionToStorage = async (quizSetId: number, session: SuspendedSession) => {
+    if (isCloudSyncEnabled()) {
+        await cloudApi.upsertSuspendedSession(quizSetId, session);
+        return;
+    }
     localStorage.setItem(`suspendedSession_${quizSetId}`, JSON.stringify(session));
 };
 
-export const clearSessionFromStorage = (quizSetId: number) => {
+export const clearSessionFromStorage = async (quizSetId: number) => {
+    if (isCloudSyncEnabled()) {
+        await cloudApi.clearSuspendedSession(quizSetId);
+        return;
+    }
     localStorage.removeItem(`suspendedSession_${quizSetId}`);
 };
 

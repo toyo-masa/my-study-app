@@ -50,7 +50,7 @@ export const MemorizationRoute: React.FC = () => {
         if (quizSetId) {
             const settings = loadQuizSetSettings(quizSetId);
             studyQuestions = applyShuffleSettings(studyQuestions, settings);
-            clearSessionFromStorage(quizSetId);
+            clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
         }
         setQuestions(studyQuestions);
         setMemorizationLogs([]);
@@ -86,7 +86,7 @@ export const MemorizationRoute: React.FC = () => {
                     return;
                 }
 
-                const suspendedSession = !startNewFromState ? loadSessionFromStorage(quizSetId) : null;
+                const suspendedSession = !startNewFromState ? await loadSessionFromStorage(quizSetId) : null;
 
                 if (suspendedSession && suspendedSession.type === 'memorization') {
                     const validOptionIds = new Set(qs.map(q => q.id));
@@ -94,7 +94,7 @@ export const MemorizationRoute: React.FC = () => {
 
                     if (filteredQuestions.length === 0) {
                         alert('中断していた問題はすべて削除されました。');
-                        clearSessionFromStorage(quizSetId);
+                        await clearSessionFromStorage(quizSetId);
                         startNew(qs);
                     } else {
                         const nextIndex = Math.min(suspendedSession.currentQuestionIndex, filteredQuestions.length - 1);
@@ -140,7 +140,7 @@ export const MemorizationRoute: React.FC = () => {
                 historyMode: 'normal',
                 type: 'memorization',
                 memorizationLogs,
-            });
+            }).catch(err => console.error('Failed to save suspended session', err));
         }
         navigate(`/quiz/${quizSetId}`);
     };
@@ -204,7 +204,7 @@ export const MemorizationRoute: React.FC = () => {
         };
 
         if (activeQuizSet?.id !== undefined) {
-            clearSessionFromStorage(activeQuizSet.id);
+            await clearSessionFromStorage(activeQuizSet.id);
         }
 
         try {

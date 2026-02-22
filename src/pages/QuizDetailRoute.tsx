@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QuizDetail } from '../components/QuizDetail';
 import { NotFoundView } from '../components/NotFoundView';
@@ -9,10 +9,27 @@ import type { QuizHistory } from '../types';
 export const QuizDetailRoute: React.FC = () => {
     const navigate = useNavigate();
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
+    const [hasSuspendedSession, setHasSuspendedSession] = useState(false);
 
-    // Derived state instead of useEffect to avoid cascading renders
-    const hasSuspendedSession = quizSetId ? !!loadSessionFromStorage(quizSetId) : false;
+    useEffect(() => {
+        let active = true;
 
+        const checkSuspendedSession = async () => {
+            if (!quizSetId) {
+                if (active) setHasSuspendedSession(false);
+                return;
+            }
+            const session = await loadSessionFromStorage(quizSetId);
+            if (active) {
+                setHasSuspendedSession(!!session);
+            }
+        };
+
+        checkSuspendedSession();
+        return () => {
+            active = false;
+        };
+    }, [quizSetId]);
 
     const handleStartStudy = () => {
         if (!activeQuizSet) return;

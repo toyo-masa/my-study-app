@@ -128,6 +128,17 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
       );
     `;
 
+    // Create suspended_sessions table
+    await sql`
+      CREATE TABLE IF NOT EXISTS suspended_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        quiz_set_id INTEGER REFERENCES quiz_sets(id) ON DELETE CASCADE,
+        session_data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     // Add columns to existing tables if they don't exist
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
@@ -167,6 +178,10 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`
       CREATE INDEX IF NOT EXISTS review_logs_user_quiz_reviewed_idx
       ON review_logs (user_id, quiz_set_id, reviewed_at DESC)
+    `;
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS suspended_sessions_user_quiz_unique_idx
+      ON suspended_sessions (user_id, quiz_set_id)
     `;
 
     return res.status(200).json({ message: 'Database tables initialized successfully' });

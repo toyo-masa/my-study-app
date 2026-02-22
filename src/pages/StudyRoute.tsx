@@ -102,7 +102,7 @@ export const StudyRoute: React.FC = () => {
                 }
 
                 // Check if resuming session
-                const suspendedSession = !startNewFromState ? loadSessionFromStorage(quizSetId) : null;
+                const suspendedSession = !startNewFromState ? await loadSessionFromStorage(quizSetId) : null;
 
                 if (suspendedSession && suspendedSession.type !== 'memorization') {
                     // Resume logic
@@ -111,7 +111,7 @@ export const StudyRoute: React.FC = () => {
 
                     if (filteredQuestions.length === 0) {
                         alert('中断していた問題はすべて削除されました。新規開始します。');
-                        clearSessionFromStorage(quizSetId);
+                        await clearSessionFromStorage(quizSetId);
                         startNew(qs);
                     } else {
                         const nextIndex = Math.min(suspendedSession.currentQuestionIndex, filteredQuestions.length - 1);
@@ -150,7 +150,7 @@ export const StudyRoute: React.FC = () => {
             if (quizSetId) {
                 const settings = loadQuizSetSettings(quizSetId);
                 studyQuestions = applyShuffleSettings(studyQuestions, settings);
-                clearSessionFromStorage(quizSetId);
+                clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
             }
             // All state updates together
             setQuestions(studyQuestions);
@@ -184,7 +184,7 @@ export const StudyRoute: React.FC = () => {
                 elapsedSeconds,
                 historyMode,
                 type: 'study',
-            });
+            }).catch(err => console.error('Failed to save suspended session', err));
         }
         navigate(`/quiz/${quizSetId}`);
     };
@@ -265,7 +265,7 @@ export const StudyRoute: React.FC = () => {
         setIsTestCompleted(true);
 
         if (activeQuizSet?.id !== undefined) {
-            clearSessionFromStorage(activeQuizSet.id);
+            await clearSessionFromStorage(activeQuizSet.id);
 
             let correctCount = 0;
             questions.forEach(q => {
