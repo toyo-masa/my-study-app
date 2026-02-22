@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
 
 type ApiBody = Record<string, string | number | boolean | null | undefined>;
@@ -16,7 +17,7 @@ type ApiResponse = {
 };
 
 async function hasOwnedQuestion(
-    sql: ReturnType<typeof neon>,
+    sql: NeonQueryFunction<false, false>,
     userId: number,
     questionId: number,
     quizSetId: number

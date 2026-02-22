@@ -1,6 +1,14 @@
 {
     "rewrites": [
         {
+            "source": "/api/me",
+            "destination": "/api/session?action=me"
+        },
+        {
+            "source": "/api/logout",
+            "destination": "/api/session?action=logout"
+        },
+        {
             "source": "/api/(.*)",
             "destination": "/api/$1"
         },

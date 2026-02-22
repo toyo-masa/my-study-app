@@ -11,6 +11,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.1',
+        date: '2026年2月22日',
+        improvements: [
+            '認証関連APIの構成を見直し、Vercel Hobbyプランの関数上限内で安定してデプロイできるようにしました。',
+        ],
+        fixes: [
+            'Vercelビルド時に発生していた reviewLogs/reviewSchedules の型エラーを修正しました。',
+            'Serverless Functions 数が上限を超えてデプロイできない問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.0',
         date: '2026年2月22日',
         improvements: [
