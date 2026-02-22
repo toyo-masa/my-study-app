@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.6.7',
+        date: '2026年2月22日',
+        improvements: [
+            '中断中の学習がある状態で「新しく始める」を押した際、開始前に確認ダイアログを表示するようにしました。',
+        ],
+        fixes: [
+            '中断データがあるのに誤って新規開始してしまい、途中データを上書きしやすい問題を修正しました。',
+        ],
+    },
+    {
         version: '1.6.6',
         date: '2026年2月22日',
         improvements: [

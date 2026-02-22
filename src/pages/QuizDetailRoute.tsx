@@ -31,8 +31,13 @@ export const QuizDetailRoute: React.FC = () => {
         };
     }, [quizSetId]);
 
-    const handleStartStudy = () => {
+    const handleStartStudy = async () => {
         if (!activeQuizSet) return;
+        const suspendedSession = await loadSessionFromStorage(activeQuizSet.id!);
+        if (suspendedSession) {
+            const shouldStartNew = window.confirm('中断中の解答があります。新しく始めると中断データは削除されます。新しく始めますか？');
+            if (!shouldStartNew) return;
+        }
         if (activeQuizSet.type === 'memorization') {
             navigate(`/quiz/${activeQuizSet.id}/memorization`, { state: { startNew: true } });
         } else {
