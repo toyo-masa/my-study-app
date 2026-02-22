@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Grid3X3,
     BarChart3,
+    CalendarCheck2,
 } from 'lucide-react';
 
 interface AppItem {
@@ -14,6 +15,7 @@ interface AppItem {
 
 const apps: AppItem[] = [
     { id: 'distribution-sim', name: '分布シミュレーション', icon: <BarChart3 size={24} />, color: '#6366f1' },
+    { id: 'review-board', name: '復習ボード（試作）', icon: <CalendarCheck2 size={24} />, color: '#0d9488' },
 ];
 
 interface AppLauncherProps {
@@ -93,4 +95,3 @@ export const AppLauncher: React.FC<AppLauncherProps> = ({ onOpenApp }) => {
         </div>
     );
 };
-

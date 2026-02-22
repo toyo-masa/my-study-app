@@ -41,7 +41,7 @@ export interface QuizHistory {
     }[];
 }
 
-export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict';
+export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict' | 'review_due';
 
 export type StudyMode = 'practice' | 'test' | 'review';
 
