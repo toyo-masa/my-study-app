@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QuizDetail } from '../components/QuizDetail';
+import { NotFoundView } from '../components/NotFoundView';
 import { useAppContext } from '../contexts/AppContext';
 import { loadSessionFromStorage, loadQuizSetSettings, saveQuizSetSettings } from '../utils/quizSettings';
 import type { QuizHistory } from '../types';
@@ -45,7 +46,7 @@ export const QuizDetailRoute: React.FC = () => {
     };
 
     if (!activeQuizSet) {
-        return <div style={{ padding: '2rem', textAlign: 'center' }}>問題集が見つかりませんでした。または読み込み中です...</div>;
+        return <NotFoundView message="問題集が見つかりませんでした。または読み込み中です..." />;
     }
 
     return (

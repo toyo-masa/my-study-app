@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, ArrowLeft } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { LoadingView } from '../components/LoadingView';
 import { Sidebar } from '../components/Sidebar';
 import { TestResult } from '../components/TestResult';
 import { QuestionView } from '../components/QuestionView';
+import { QuizSessionLayout } from '../components/QuizSessionLayout';
+import { NotFoundView } from '../components/NotFoundView';
 import { useAppContext } from '../contexts/AppContext';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, updateConsecutiveCorrect } from '../utils/spacedRepetition';
@@ -395,124 +394,90 @@ export const StudyRoute: React.FC = () => {
     };
 
     if (!activeQuizSet) {
-        return <div style={{ padding: '2rem', textAlign: 'center' }}>問題集が見つかりませんでした。</div>;
+        return <NotFoundView />;
     }
 
     const currentQuestion = questions[currentQuestionIndex];
     const qId = currentQuestion ? String(currentQuestion.id) : '';
+    const answeredCount = Object.values(showAnswerMap).filter(Boolean).length;
 
     return (
-        <>
-            <header className="app-header">
-                <div className="header-left">
-                    <button className="menu-btn" onClick={handleBackToDetail}>
-                        <ArrowLeft size={20} />
-                    </button>
-                    <button className="menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                        <Menu />
-                    </button>
-                    <h1>{activeQuizSet.name}</h1>
-                </div>
-            </header>
+        <QuizSessionLayout
+            title={activeQuizSet.name}
+            isLoading={isLoading}
+            sidebarOpen={sidebarOpen}
+            showSidebar={!isTestCompleted}
+            onBack={handleBackToDetail}
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            onCloseSidebar={() => setSidebarOpen(false)}
+            sidebarContent={
+                <Sidebar
+                    questions={questions}
+                    currentQuestionIndex={currentQuestionIndex}
+                    onSelectQuestion={setCurrentQuestionIndex}
+                    answers={answers}
+                    showAnswerMap={showAnswerMap}
+                    markedQuestionIds={markedQuestions}
+                    onToggleMark={handleToggleMark}
+                />
+            }
+        >
+            {isTestCompleted ? (
+                <TestResult
+                    questions={questions}
+                    answers={answers}
+                    confidences={confidences}
+                    startTime={startTimeRef.current}
+                    endTime={endTime}
+                    onReview={handleReview}
+                    onRetestWrong={handleRetestWrong}
+                    onRetestWeak={handleRetestWeak}
+                    historyOverrides={activeHistory ? {
+                        correctCount: activeHistory.correctCount,
+                        totalCount: activeHistory.totalCount
+                    } : undefined}
+                />
+            ) : currentQuestion ? (
+                <>
+                    <div className="progress-section">
+                        <span className="progress-text">
+                            {answeredCount}/{questions.length}
+                        </span>
+                        <div className="progress-bar-track">
+                            <div
+                                className="progress-bar-fill"
+                                style={{ width: `${(answeredCount / questions.length) * 100}%` }}
+                            />
+                        </div>
+                        <button className="finish-test-btn" onClick={handleCompleteTest}>
+                            テストを完了する
+                        </button>
+                    </div>
 
-            <div className="main-layout">
-                <AnimatePresence mode="wait">
-                    {isLoading ? (
-                        <LoadingView key="loader" />
-                    ) : (
-                        <motion.div
-                            key="content"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            style={{ flex: 1, display: 'flex', minHeight: 0 }}
-                        >
-                            <AnimatePresence>
-                                {sidebarOpen && !isTestCompleted && (
-                                    <motion.div
-                                        className="sidebar-overlay"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        onClick={() => setSidebarOpen(false)}
-                                    />
-                                )}
-                            </AnimatePresence>
-                            {!isTestCompleted && (
-                                <aside className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
-                                    <Sidebar
-                                        questions={questions}
-                                        currentQuestionIndex={currentQuestionIndex}
-                                        onSelectQuestion={setCurrentQuestionIndex}
-                                        answers={answers}
-                                        showAnswerMap={showAnswerMap}
-                                        markedQuestionIds={markedQuestions}
-                                        onToggleMark={handleToggleMark}
-                                    />
-                                </aside>
-                            )}
-
-                            <main className="content-area">
-                                {isTestCompleted ? (
-                                    <TestResult
-                                        questions={questions}
-                                        answers={answers}
-                                        confidences={confidences}
-                                        startTime={startTimeRef.current}
-                                        endTime={endTime}
-                                        onReview={handleReview}
-                                        onRetestWrong={handleRetestWrong}
-                                        onRetestWeak={handleRetestWeak}
-                                        historyOverrides={activeHistory ? {
-                                            correctCount: activeHistory.correctCount,
-                                            totalCount: activeHistory.totalCount
-                                        } : undefined}
-                                    />
-                                ) : currentQuestion ? (
-                                    <>
-                                        <div className="progress-section">
-                                            <span className="progress-text">
-                                                {Object.values(showAnswerMap).filter(Boolean).length}/{questions.length}
-                                            </span>
-                                            <div className="progress-bar-track">
-                                                <div
-                                                    className="progress-bar-fill"
-                                                    style={{ width: `${(Object.values(showAnswerMap).filter(Boolean).length / questions.length) * 100}%` }}
-                                                />
-                                            </div>
-                                            <button className="finish-test-btn" onClick={handleCompleteTest}>
-                                                テストを完了する
-                                            </button>
-                                        </div>
-
-                                        <QuestionView
-                                            question={currentQuestion}
-                                            questionIndex={currentQuestionIndex}
-                                            totalQuestions={questions.length}
-                                            selectedOptions={answers[qId] || []}
-                                            onToggleOption={handleToggleOption}
-                                            showAnswer={showAnswerMap[qId] || false}
-                                            isMarked={markedQuestions.includes(currentQuestion.id!)}
-                                            onToggleMark={handleToggleMark}
-                                            onShowAnswer={handleShowAnswer}
-                                            onNext={handleNext}
-                                            onPrev={handlePrev}
-                                            onCompleteTest={handleCompleteTest}
-                                            isLast={currentQuestionIndex === questions.length - 1}
-                                            isFirst={currentQuestionIndex === 0}
-                                            memo={memos[qId] || ''}
-                                            onMemoChange={(val) => handleMemoChange(currentQuestion.id!, val)}
-                                            confidence={confidences[qId] || null}
-                                            onConfidenceChange={(level) => handleConfidenceChange(currentQuestion.id!, level)}
-                                        />
-                                    </>
-                                ) : (
-                                    <div className="loading-text">Loading questions...</div>
-                                )}
-                            </main>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </>
+                    <QuestionView
+                        question={currentQuestion}
+                        questionIndex={currentQuestionIndex}
+                        totalQuestions={questions.length}
+                        selectedOptions={answers[qId] || []}
+                        onToggleOption={handleToggleOption}
+                        showAnswer={showAnswerMap[qId] || false}
+                        isMarked={markedQuestions.includes(currentQuestion.id!)}
+                        onToggleMark={handleToggleMark}
+                        onShowAnswer={handleShowAnswer}
+                        onNext={handleNext}
+                        onPrev={handlePrev}
+                        onCompleteTest={handleCompleteTest}
+                        isLast={currentQuestionIndex === questions.length - 1}
+                        isFirst={currentQuestionIndex === 0}
+                        memo={memos[qId] || ''}
+                        onMemoChange={(val) => handleMemoChange(currentQuestion.id!, val)}
+                        confidence={confidences[qId] || null}
+                        onConfidenceChange={(level) => handleConfidenceChange(currentQuestion.id!, level)}
+                    />
+                </>
+            ) : (
+                <div className="loading-text">Loading questions...</div>
+            )}
+        </QuizSessionLayout>
     );
 };

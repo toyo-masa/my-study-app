@@ -3,32 +3,29 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { QuestionManager } from '../components/QuestionManager';
 import { useAppContext } from '../contexts/AppContext';
 import { LoadingView } from '../components/LoadingView';
+import { NotFoundView } from '../components/NotFoundView';
 import { AnimatePresence } from 'framer-motion';
 
 export const ManageRoute: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { quizSets, loadQuizSets, handleCloudError } = useAppContext();
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(() => quizSets.length === 0);
 
     const quizSetId = id ? parseInt(id, 10) : undefined;
     const activeQuizSet = quizSets.find(s => s.id === quizSetId);
 
     useEffect(() => {
-        // Ensure data is loaded
-        if (quizSets.length === 0) {
-            loadQuizSets().finally(() => setIsLoading(false));
-        } else {
-            setIsLoading(false);
-        }
-    }, [quizSets.length, loadQuizSets]);
+        if (!isLoading) return;
+        loadQuizSets().finally(() => setIsLoading(false));
+    }, [isLoading, loadQuizSets]);
 
     return (
         <AnimatePresence mode="wait">
             {isLoading ? (
                 <LoadingView key="loading" />
             ) : !activeQuizSet ? (
-                <div key="not-found" style={{ padding: '2rem', textAlign: 'center' }}>問題集が見つかりませんでした。</div>
+                <NotFoundView key="not-found" />
             ) : (
                 <main key="content" className="content-area" style={{ padding: '1.5rem' }}>
                     <QuestionManager
