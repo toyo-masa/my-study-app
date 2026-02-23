@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.16.12',
+        date: '2026年2月23日 19:37',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '問題/暗記カード詳細で「回答表示間隔」の?をスマホでタップしても説明が表示されない問題を修正しました。',
+        ],
+    },
+    {
         version: '1.16.11',
         date: '2026年2月23日 19:23',
         improvements: [
