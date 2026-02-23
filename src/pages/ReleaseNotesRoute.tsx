@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.16.7',
+        date: '2026年2月23日 18:29',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '管理画面で画面下の余白が不足して末尾が詰まって見える問題を修正しました。',
+        ],
+    },
+    {
         version: '1.16.6',
         date: '2026年2月23日',
         improvements: [

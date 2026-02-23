@@ -29,7 +29,7 @@
   width: 100%;
   box-sizing: border-box;
   margin: 0 auto;
-  padding: var(--page-padding-top) var(--page-padding-inline) var(--page-padding-bottom);
+  padding: var(--page-padding-top) var(--page-padding-inline) calc(var(--page-padding-bottom) + var(--global-page-bottom-space) + env(safe-area-inset-bottom, 0px));
   min-height: 100vh;
   color: var(--text-color);
 }
