@@ -148,6 +148,21 @@ export const HistoryTableRoute: React.FC = () => {
         });
     }, [historyColumns, sortedQuestions]);
 
+    const historyAttemptSummaries = useMemo(() => {
+        return historyStatusMaps.map((statusMap) => {
+            let correctCount = 0;
+            let incorrectCount = 0;
+            statusMap.forEach((status) => {
+                if (status === 'correct') {
+                    correctCount += 1;
+                } else {
+                    incorrectCount += 1;
+                }
+            });
+            return { correctCount, incorrectCount };
+        });
+    }, [historyStatusMaps]);
+
     if (isLoadingQuizSet || isLoadingData) {
         return <LoadingView fullPage message="回答履歴を読み込み中..." />;
     }
@@ -159,6 +174,7 @@ export const HistoryTableRoute: React.FC = () => {
     const handleBack = () => {
         navigate(`/quiz/${quizSetId}`);
     };
+    const answerSectionTitle = activeQuizSet.type === 'memorization' ? '解答' : '選択肢';
 
     return (
         <main className="content-area history-table-page">
@@ -196,8 +212,8 @@ export const HistoryTableRoute: React.FC = () => {
                         <span>回答履歴: {historyColumns.length}回</span>
                         <span>セル色: 緑=正解 / 赤=不正解</span>
                     </div>
-                    <div className="history-table-wrapper">
-                        <table className="history-table-grid">
+                    <div className="table-wrapper history-table-wrapper">
+                        <table className="question-table history-table-grid">
                             <thead>
                                 <tr>
                                     <th>番号</th>
@@ -211,7 +227,7 @@ export const HistoryTableRoute: React.FC = () => {
                                 {sortedQuestions.map((question, rowIndex) => (
                                     <tr
                                         key={question.id ?? `question-${rowIndex}`}
-                                        className="history-question-row"
+                                        className="table-row history-question-row"
                                         onClick={() => setSelectedQuestion({ question, questionNumber: rowIndex + 1 })}
                                         role="button"
                                         tabIndex={0}
@@ -247,6 +263,24 @@ export const HistoryTableRoute: React.FC = () => {
                                         })}
                                     </tr>
                                 ))}
+                                <tr className="history-summary-row">
+                                    <td className="history-question-number history-summary-label">-</td>
+                                    <td className="history-question-text history-summary-title">正解数</td>
+                                    {historyAttemptSummaries.map((summary, columnIndex) => (
+                                        <td key={`summary-correct-${columnIndex}`} className="history-answer-cell history-summary-cell">
+                                            {summary.correctCount}
+                                        </td>
+                                    ))}
+                                </tr>
+                                <tr className="history-summary-row">
+                                    <td className="history-question-number history-summary-label">-</td>
+                                    <td className="history-question-text history-summary-title">誤り数</td>
+                                    {historyAttemptSummaries.map((summary, columnIndex) => (
+                                        <td key={`summary-incorrect-${columnIndex}`} className="history-answer-cell history-summary-cell">
+                                            {summary.incorrectCount}
+                                        </td>
+                                    ))}
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -276,7 +310,7 @@ export const HistoryTableRoute: React.FC = () => {
                             </section>
 
                             <section className="history-modal-section">
-                                <h4>選択肢</h4>
+                                <h4>{answerSectionTitle}</h4>
                                 <ol className="history-modal-options">
                                     {selectedQuestion.question.options.map((option, index) => {
                                         const isCorrect = selectedQuestion.question.correctAnswers.includes(index);
