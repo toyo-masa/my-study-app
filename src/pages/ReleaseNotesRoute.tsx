@@ -11,6 +11,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.11.3',
+        date: '2026年2月23日 15:01',
+        improvements: [
+            '回答完了時の履歴保存APIで、古いDBスキーマを検出した場合に必要カラムを自動補完してから再試行するようにしました。',
+            'サーバー初期化処理でも `histories` テーブルの `memorization_detail` 列を `IF NOT EXISTS` で安全に補完するようにしました。',
+        ],
+        fixes: [
+            '環境によって `histories.feedback_mode` が未作成のまま残っていると、回答完了時に保存エラーが発生する問題を修正しました。',
+        ],
+    },
+    {
         version: '1.11.2',
         date: '2026年2月23日',
         improvements: [

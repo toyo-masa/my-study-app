@@ -83,28 +83,53 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                 }
 
                 const dateStr = h.date ? new Date(h.date).toISOString() : new Date().toISOString();
-                const result = await sql`
-                INSERT INTO histories (
-                    quiz_set_id, date, correct_count, total_count, duration_seconds,
-                    answers, marked_question_ids, memos, confidences, question_ids, mode, feedback_mode, memorization_detail, user_id
-                ) VALUES (
-                    ${targetQuizSetId},
-                    ${dateStr},
-                    ${h.correctCount},
-                    ${h.totalCount},
-                    ${h.durationSeconds || 0},
-                    ${JSON.stringify(h.answers || {})}::jsonb,
-                    ${JSON.stringify(h.markedQuestionIds || [])}::jsonb,
-                    ${JSON.stringify(h.memos || {})}::jsonb,
-                    ${JSON.stringify(h.confidences || {})}::jsonb,
-                    ${JSON.stringify(h.questionIds || [])}::jsonb,
-                    ${h.mode || 'normal'},
-                    ${h.feedbackTimingMode || 'immediate'},
-                    ${JSON.stringify(h.memorizationDetail || [])}::jsonb,
-                    ${userId}
-                )
-                RETURNING id
-            `;
+                const insertHistory = async () => sql`
+                    INSERT INTO histories (
+                        quiz_set_id, date, correct_count, total_count, duration_seconds,
+                        answers, marked_question_ids, memos, confidences, question_ids, mode, feedback_mode, memorization_detail, user_id
+                    ) VALUES (
+                        ${targetQuizSetId},
+                        ${dateStr},
+                        ${h.correctCount},
+                        ${h.totalCount},
+                        ${h.durationSeconds || 0},
+                        ${JSON.stringify(h.answers || {})}::jsonb,
+                        ${JSON.stringify(h.markedQuestionIds || [])}::jsonb,
+                        ${JSON.stringify(h.memos || {})}::jsonb,
+                        ${JSON.stringify(h.confidences || {})}::jsonb,
+                        ${JSON.stringify(h.questionIds || [])}::jsonb,
+                        ${h.mode || 'normal'},
+                        ${h.feedbackTimingMode || 'immediate'},
+                        ${JSON.stringify(h.memorizationDetail || [])}::jsonb,
+                        ${userId}
+                    )
+                    RETURNING id
+                `;
+
+                let result;
+                try {
+                    result = await insertHistory();
+                } catch (insertErr: unknown) {
+                    const errorCode = typeof insertErr === 'object' && insertErr !== null && 'code' in insertErr
+                        ? (insertErr as { code?: string }).code
+                        : undefined;
+                    const errorMessage = typeof insertErr === 'object' && insertErr !== null && 'message' in insertErr
+                        ? String((insertErr as { message?: unknown }).message || '')
+                        : '';
+                    const isMissingHistoryColumn = errorCode === '42703' && (
+                        errorMessage.includes('feedback_mode') ||
+                        errorMessage.includes('memorization_detail')
+                    );
+
+                    if (!isMissingHistoryColumn) {
+                        throw insertErr;
+                    }
+
+                    await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS feedback_mode VARCHAR(30)`;
+                    await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS memorization_detail JSONB`;
+                    result = await insertHistory();
+                }
+
                 return res.status(201).json({ id: result[0].id });
             }
         } // Close else block
