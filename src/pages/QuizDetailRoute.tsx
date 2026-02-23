@@ -97,6 +97,11 @@ export const QuizDetailRoute: React.FC = () => {
         }
     };
 
+    const handleOpenHistoryTable = () => {
+        if (quizSetId === undefined) return;
+        navigate(`/quiz/${quizSetId}/history-table`);
+    };
+
     if (!activeQuizSet) {
         return <NotFoundView message="問題集が見つかりませんでした。または読み込み中です..." />;
     }
@@ -108,6 +113,7 @@ export const QuizDetailRoute: React.FC = () => {
                 onBack={() => navigate('/')}
                 onStart={handleStartStudy}
                 onSelectHistory={handleSelectHistory}
+                onOpenHistoryTable={handleOpenHistoryTable}
                 hasSuspendedSession={hasSuspendedSession}
                 onResume={handleResumeStudy}
                 settings={loadQuizSetSettings(activeQuizSet.id!)}

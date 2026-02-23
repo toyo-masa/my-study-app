@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { QuizSet, QuizHistory } from '../types';
 import { getHistories } from '../db';
-import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle } from 'lucide-react';
+import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle, Table2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingView } from './LoadingView';
 
@@ -15,6 +15,7 @@ interface QuizDetailProps {
     onBack: () => void;
     onStart: () => void;
     onSelectHistory: (history: QuizHistory) => void;
+    onOpenHistoryTable: () => void;
     hasSuspendedSession: boolean;
     onResume: () => void;
     settings: QuizSetSettings;
@@ -26,6 +27,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
     onBack,
     onStart,
     onSelectHistory,
+    onOpenHistoryTable,
     hasSuspendedSession,
     onResume,
     settings,
@@ -123,7 +125,18 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                 </div>
 
                 <div className="history-section">
-                    <h2>解答履歴</h2>
+                    <div className="history-section-header">
+                        <h2>解答履歴</h2>
+                        <button
+                            type="button"
+                            className="nav-btn history-table-open-btn"
+                            onClick={onOpenHistoryTable}
+                            disabled={loading || histories.length === 0}
+                        >
+                            <Table2 size={15} />
+                            表で見る
+                        </button>
+                    </div>
                     <AnimatePresence mode="wait">
                         {loading ? (
                             <LoadingView key="loading" message="履歴を読み込み中..." />

@@ -23,6 +23,7 @@ import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
+import { HistoryTableRoute } from './pages/HistoryTableRoute';
 
 function App() {
   const {
@@ -310,6 +311,7 @@ function App() {
           <Route path="/quiz/:id/manage" element={<ManageRoute />} />
           <Route path="/quiz/:id/study" element={<StudyRoute />} />
           <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />
+          <Route path="/quiz/:id/history-table" element={<HistoryTableRoute />} />
           <Route path="/quiz/:id" element={<QuizDetailRoute />} />
           <Route path="/release-notes" element={<ReleaseNotesRoute />} />
         </Routes>
