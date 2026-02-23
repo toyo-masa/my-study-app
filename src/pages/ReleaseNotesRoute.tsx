@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.16.13',
+        date: '2026年2月23日 21:06',
+        improvements: [
+            'スマホで問題回答画面（問題集/暗記カード）を開いた際、サイドバーを閉じた状態で開始するようにしました。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.16.12',
         date: '2026年2月23日 19:37',
         improvements: [

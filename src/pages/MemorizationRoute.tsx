@@ -10,6 +10,11 @@ import { getQuestionsForQuizSet, addHistory } from '../db';
 import type { Question, QuizHistory, HistoryMode, FeedbackTimingMode } from '../types';
 import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
 
+const isMobileViewport = () => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+};
+
 export const MemorizationRoute: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -35,7 +40,7 @@ export const MemorizationRoute: React.FC = () => {
     const [feedbackBlockSize, setFeedbackBlockSize] = useState(5);
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
     const [isTestCompleted, setIsTestCompleted] = useState(false);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
     const [showEmptyCardsModal, setShowEmptyCardsModal] = useState(false);
@@ -70,6 +75,7 @@ export const MemorizationRoute: React.FC = () => {
         setCurrentQuestionIndex(0);
         setMarkedQuestions([]);
         setIsTestCompleted(false);
+        setSidebarOpen(!isMobileViewport());
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyCardsModal(false);
