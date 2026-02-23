@@ -134,7 +134,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                             disabled={loading || histories.length === 0}
                         >
                             <Table2 size={15} />
-                            表で見る
+                            問題ごとの回答履歴を見る
                         </button>
                     </div>
                     <AnimatePresence mode="wait">

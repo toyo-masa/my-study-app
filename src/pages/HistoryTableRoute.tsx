@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Table2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Table2, X } from 'lucide-react';
 import { getHistories, getQuestionsForQuizSet } from '../db';
 import type { Question, QuizHistory } from '../types';
 import { LoadingView } from '../components/LoadingView';
@@ -10,6 +10,10 @@ import { useAppContext } from '../contexts/AppContext';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 
 type CellStatus = 'correct' | 'incorrect';
+type SelectedQuestionState = {
+    question: Question;
+    questionNumber: number;
+};
 
 function formatMonthDay(date: Date): string {
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -26,6 +30,7 @@ export const HistoryTableRoute: React.FC = () => {
     const [isLoadingQuizSet, setIsLoadingQuizSet] = useState(() => quizSetsCount === 0);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
+    const [selectedQuestion, setSelectedQuestion] = useState<SelectedQuestionState | null>(null);
 
     useEffect(() => {
         if (!isLoadingQuizSet) return;
@@ -70,6 +75,21 @@ export const HistoryTableRoute: React.FC = () => {
     useEffect(() => {
         void loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        if (!selectedQuestion) return;
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setSelectedQuestion(null);
+            }
+        };
+
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [selectedQuestion]);
 
     const sortedQuestions = useMemo(() => {
         return [...questions].sort((a, b) => {
@@ -180,16 +200,28 @@ export const HistoryTableRoute: React.FC = () => {
                         <table className="history-table-grid">
                             <thead>
                                 <tr>
-                                    <th>問題番号</th>
+                                    <th>番号</th>
                                     <th>問題文</th>
                                     {historyColumns.map((column) => (
-                                        <th key={`attempt-${column.attemptNumber}`}>回答{column.attemptNumber}回目</th>
+                                        <th key={`attempt-${column.attemptNumber}`} className="history-attempt-header">{column.attemptNumber}回目</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {sortedQuestions.map((question, rowIndex) => (
-                                    <tr key={question.id ?? `question-${rowIndex}`}>
+                                    <tr
+                                        key={question.id ?? `question-${rowIndex}`}
+                                        className="history-question-row"
+                                        onClick={() => setSelectedQuestion({ question, questionNumber: rowIndex + 1 })}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                setSelectedQuestion({ question, questionNumber: rowIndex + 1 });
+                                            }
+                                        }}
+                                    >
                                         <td className="history-question-number">{rowIndex + 1}</td>
                                         <td className="history-question-text">
                                             <MarkdownText content={question.text} className="table-markdown" />
@@ -219,6 +251,69 @@ export const HistoryTableRoute: React.FC = () => {
                         </table>
                     </div>
                 </>
+            )}
+
+            {selectedQuestion && (
+                <div className="modal-overlay" onClick={() => setSelectedQuestion(null)}>
+                    <div className="modal-content history-question-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>問題 {selectedQuestion.questionNumber}</h3>
+                            <button
+                                type="button"
+                                className="icon-btn"
+                                onClick={() => setSelectedQuestion(null)}
+                                aria-label="モーダルを閉じる"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="modal-body history-question-modal-body">
+                            <section className="history-modal-section">
+                                <h4>問題文</h4>
+                                <div className="history-modal-markdown">
+                                    <MarkdownText content={selectedQuestion.question.text} />
+                                </div>
+                            </section>
+
+                            <section className="history-modal-section">
+                                <h4>選択肢</h4>
+                                <ol className="history-modal-options">
+                                    {selectedQuestion.question.options.map((option, index) => {
+                                        const isCorrect = selectedQuestion.question.correctAnswers.includes(index);
+                                        return (
+                                            <li
+                                                key={`modal-option-${selectedQuestion.question.id ?? selectedQuestion.questionNumber}-${index}`}
+                                                className={`history-modal-option-item ${isCorrect ? 'correct' : ''}`}
+                                            >
+                                                <span className="history-modal-option-index">{index + 1}.</span>
+                                                <div className="history-modal-option-text">
+                                                    <MarkdownText content={option} />
+                                                </div>
+                                                {isCorrect && <span className="history-modal-correct-badge">正解</span>}
+                                            </li>
+                                        );
+                                    })}
+                                </ol>
+                            </section>
+
+                            <section className="history-modal-section">
+                                <h4>解説</h4>
+                                <div className="history-modal-markdown">
+                                    {selectedQuestion.question.explanation ? (
+                                        <MarkdownText content={selectedQuestion.question.explanation.replace(/\\n/g, '\n')} />
+                                    ) : (
+                                        <p className="history-modal-empty">解説はありません</p>
+                                    )}
+                                </div>
+                            </section>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="nav-btn" onClick={() => setSelectedQuestion(null)}>
+                                閉じる
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </main>
     );
