@@ -5,7 +5,15 @@ import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { loadSessionFromStorage, loadQuizSetSettings, saveQuizSetSettings } from '../utils/quizSettings';
+import type { QuizSetSettings } from '../utils/quizSettings';
 import type { QuizHistory } from '../types';
+
+const DEFAULT_QUIZ_SET_SETTINGS: QuizSetSettings = {
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    feedbackTimingMode: 'immediate',
+    feedbackBlockSize: 5,
+};
 
 export const QuizDetailRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -14,12 +22,9 @@ export const QuizDetailRoute: React.FC = () => {
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
     const [hasSuspendedSession, setHasSuspendedSession] = useState(expectSuspendedSession);
     const [showStartConfirmation, setShowStartConfirmation] = useState(false);
-
-    useEffect(() => {
-        if (expectSuspendedSession) {
-            setHasSuspendedSession(true);
-        }
-    }, [expectSuspendedSession]);
+    const [, setSettingsRevision] = useState(0);
+    const quizSetSettings = activeQuizSet?.id ? loadQuizSetSettings(activeQuizSet.id) : DEFAULT_QUIZ_SET_SETTINGS;
+    const effectiveHasSuspendedSession = hasSuspendedSession || expectSuspendedSession;
 
     useEffect(() => {
         let active = true;
@@ -72,7 +77,7 @@ export const QuizDetailRoute: React.FC = () => {
 
     const handleStartStudy = () => {
         if (!activeQuizSet) return;
-        if (hasSuspendedSession) {
+        if (effectiveHasSuspendedSession) {
             setShowStartConfirmation(true);
             return;
         }
@@ -114,10 +119,13 @@ export const QuizDetailRoute: React.FC = () => {
                 onStart={handleStartStudy}
                 onSelectHistory={handleSelectHistory}
                 onOpenHistoryTable={handleOpenHistoryTable}
-                hasSuspendedSession={hasSuspendedSession}
+                hasSuspendedSession={effectiveHasSuspendedSession}
                 onResume={handleResumeStudy}
-                settings={loadQuizSetSettings(activeQuizSet.id!)}
-                onSettingsChange={(s) => saveQuizSetSettings(activeQuizSet.id!, s)}
+                settings={quizSetSettings}
+                onSettingsChange={(s) => {
+                    saveQuizSetSettings(activeQuizSet.id!, s);
+                    setSettingsRevision((prev) => prev + 1);
+                }}
             />
             <ConfirmationModal
                 isOpen={showStartConfirmation}

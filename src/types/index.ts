@@ -33,6 +33,7 @@ export interface QuizHistory {
     confidences?: Record<string, ConfidenceLevel>;
     questionIds?: number[];
     mode?: HistoryMode;
+    feedbackTimingMode?: FeedbackTimingMode;
     // Memorization specific
     memorizationDetail?: {
         questionId: number;
@@ -42,6 +43,7 @@ export interface QuizHistory {
 }
 
 export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict' | 'review_due';
+export type FeedbackTimingMode = 'immediate' | 'delayed_block' | 'delayed_end';
 
 // === 復習スケジューラ（間隔反復）用の型 ===
 

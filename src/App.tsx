@@ -25,6 +25,21 @@ import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 import { HistoryTableRoute } from './pages/HistoryTableRoute';
 
+const hexToRgbString = (hex: string): string | null => {
+  const match = hex.trim().match(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (!match) return null;
+  let value = match[1];
+  if (value.length === 3) {
+    value = value.split('').map((ch) => ch + ch).join('');
+  }
+  const intValue = Number.parseInt(value, 16);
+  if (Number.isNaN(intValue)) return null;
+  const r = (intValue >> 16) & 255;
+  const g = (intValue >> 8) & 255;
+  const b = intValue & 255;
+  return `${r}, ${g}, ${b}`;
+};
+
 function App() {
   const {
     currentUser, setCurrentUser,
@@ -59,6 +74,10 @@ function App() {
 
   useEffect(() => {
     document.documentElement.style.setProperty('--primary-color', accentColor);
+    const primaryColorRgb = hexToRgbString(accentColor);
+    if (primaryColorRgb) {
+      document.documentElement.style.setProperty('--primary-color-rgb', primaryColorRgb);
+    }
     localStorage.setItem('accentColor', accentColor);
   }, [accentColor]);
 

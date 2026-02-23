@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
-import type { Question, ConfidenceLevel } from '../types';
+import type { Question, ConfidenceLevel, FeedbackTimingMode } from '../types';
 import { motion } from 'framer-motion';
 import { Bookmark } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
@@ -13,16 +13,18 @@ interface QuestionViewProps {
     showAnswer: boolean;
     onShowAnswer: () => void;
     onNext: () => void;
-    onPrev: () => void;
     onCompleteTest: () => void;
     isLast: boolean;
-    isFirst: boolean;
     isMarked: boolean;
     onToggleMark: () => void;
     memo: string;
     onMemoChange: (value: string) => void;
     confidence: ConfidenceLevel | null;
     onConfidenceChange: (level: ConfidenceLevel) => void;
+    feedbackTimingMode: FeedbackTimingMode;
+    isAnswerLocked: boolean;
+    revealReadyCount?: number | null;
+    useNextAnswerLabel?: boolean;
 }
 
 export const QuestionView: React.FC<QuestionViewProps> = ({
@@ -41,6 +43,10 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     onMemoChange,
     confidence,
     onConfidenceChange,
+    feedbackTimingMode,
+    isAnswerLocked,
+    revealReadyCount = null,
+    useNextAnswerLabel = false,
 }) => {
     // キーボードショートカット
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -62,7 +68,8 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
         if (e.key === ' ' || e.code === 'Space') {
             e.preventDefault();
             if (!showAnswer) {
-                if (!confidence) onConfidenceChange('high');
+                const shouldAutoSetConfidence = !confidence && !isAnswerLocked && selectedOptions.length > 0;
+                if (shouldAutoSetConfidence) onConfidenceChange('high');
                 onShowAnswer();
             } else if (isLast) {
                 onCompleteTest();
@@ -88,7 +95,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             e.preventDefault();
             onConfidenceChange(confidence === 'low' ? 'high' : 'low');
         }
-    }, [showAnswer, question.options.length, onToggleOption, onShowAnswer, onNext, onCompleteTest, isLast, confidence, onConfidenceChange]);
+    }, [showAnswer, question.options.length, onToggleOption, onShowAnswer, onNext, onCompleteTest, isLast, confidence, onConfidenceChange, isAnswerLocked, selectedOptions.length]);
 
     useEffect(() => {
         document.addEventListener('keydown', handleKeyDown);
@@ -168,7 +175,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                 {!showAnswer && (
                     <div className="navigation-buttons inline-nav">
                         <div className="confidence-select-section">
-                            <span className="confidence-prompt">自信度</span>
+                            <span className="confidence-prompt">自信度：</span>
                             <div className="confidence-buttons-inline">
                                 <button
                                     className={`confidence-btn-inline low ${confidence === 'low' ? 'active' : ''}`}
@@ -189,11 +196,26 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         <div style={{ flex: 1 }} />
                         <div className="nav-right">
                             <button onClick={() => {
-                                if (!confidence) onConfidenceChange('high');
+                                const shouldAutoSetConfidence = !confidence && !isAnswerLocked && selectedOptions.length > 0;
+                                if (shouldAutoSetConfidence) onConfidenceChange('high');
                                 onShowAnswer();
-                            }} className="nav-btn action-btn">解答を確認する</button>
+                            }} className="nav-btn action-btn">
+                                {(revealReadyCount !== null && revealReadyCount > 0)
+                                    ? `${revealReadyCount}件の回答を確認する`
+                                    : isAnswerLocked
+                                        ? (isLast ? '完了へ進む' : '次の問題へ')
+                                        : feedbackTimingMode === 'immediate'
+                                            ? '解答を確認する'
+                                            : '回答して次へ'}
+                            </button>
                         </div>
                     </div>
+                )}
+
+                {!showAnswer && isAnswerLocked && feedbackTimingMode !== 'immediate' && (
+                    <p className="instruction" style={{ marginTop: '0.75rem', color: 'var(--text-secondary)' }}>
+                        この問題は回答済みです。正誤と解説は遅延表示モードでまとめて表示されます。
+                    </p>
                 )}
 
                 {showAnswer && (
@@ -212,7 +234,9 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                             {isLast ? (
                                 <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>
                             ) : (
-                                <button onClick={onNext} className="nav-btn action-btn">次の質問</button>
+                                <button onClick={onNext} className="nav-btn action-btn">
+                                    {useNextAnswerLabel ? '次の回答' : '次の質問'}
+                                </button>
                             )}
                             <button
                                 className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}

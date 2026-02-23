@@ -14,6 +14,7 @@ type HistoryBody = {
     confidences?: unknown;
     questionIds?: unknown;
     mode?: string;
+    feedbackTimingMode?: string;
     memorizationDetail?: unknown;
 };
 
@@ -57,6 +58,7 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                 confidences: h.confidences,
                 questionIds: h.question_ids,
                 mode: h.mode,
+                feedbackTimingMode: h.feedback_mode,
                 memorizationDetail: h.memorization_detail
             }));
             return res.status(200).json(histories);
@@ -84,7 +86,7 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                 const result = await sql`
                 INSERT INTO histories (
                     quiz_set_id, date, correct_count, total_count, duration_seconds,
-                    answers, marked_question_ids, memos, confidences, question_ids, mode, memorization_detail, user_id
+                    answers, marked_question_ids, memos, confidences, question_ids, mode, feedback_mode, memorization_detail, user_id
                 ) VALUES (
                     ${targetQuizSetId},
                     ${dateStr},
@@ -97,6 +99,7 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                     ${JSON.stringify(h.confidences || {})}::jsonb,
                     ${JSON.stringify(h.questionIds || [])}::jsonb,
                     ${h.mode || 'normal'},
+                    ${h.feedbackTimingMode || 'immediate'},
                     ${JSON.stringify(h.memorizationDetail || [])}::jsonb,
                     ${userId}
                 )

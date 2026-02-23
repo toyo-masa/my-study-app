@@ -1,4 +1,4 @@
-import type { Question, HistoryMode } from '../types';
+import type { Question, HistoryMode, FeedbackTimingMode } from '../types';
 import type { MemorizationLog } from '../components/MemorizationView';
 import { isCloudSyncEnabled } from '../db';
 import { cloudApi } from '../cloudApi';
@@ -6,6 +6,8 @@ import { cloudApi } from '../cloudApi';
 export interface QuizSetSettings {
     shuffleQuestions: boolean;
     shuffleOptions: boolean;
+    feedbackTimingMode: FeedbackTimingMode;
+    feedbackBlockSize: number;
 }
 
 export interface SuspendedSession {
@@ -13,13 +15,19 @@ export interface SuspendedSession {
     currentQuestionIndex: number;
     answers: Record<string, number[]>;
     memos: Record<string, string>;
+    answeredMap?: Record<string, boolean>;
     showAnswerMap: Record<string, boolean>;
+    pendingRevealQuestionIds?: number[];
+    feedbackPhase?: 'answering' | 'revealing';
+    feedbackTimingMode?: FeedbackTimingMode;
+    feedbackBlockSize?: number;
     markedQuestions: number[];
     startTime: Date;
     elapsedSeconds: number; // The amount of time already spent in the session before this suspension
     historyMode: HistoryMode;
     type: 'study' | 'memorization';
     memorizationLogs?: MemorizationLog[];
+    memorizationInputsMap?: Record<string, string[]>;
 }
 
 export const loadSessionFromStorage = async (quizSetId: number): Promise<SuspendedSession | null> => {
@@ -65,18 +73,51 @@ export const clearSessionFromStorage = async (quizSetId: number) => {
 };
 
 // Quiz set settings helpers (localStorage)
+const DEFAULT_QUIZ_SET_SETTINGS: QuizSetSettings = {
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    feedbackTimingMode: 'immediate',
+    feedbackBlockSize: 5,
+};
+
+const FEEDBACK_BLOCK_SIZE_MIN = 1;
+const FEEDBACK_BLOCK_SIZE_MAX = 20;
+
+const normalizeFeedbackBlockSize = (value: unknown): number => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+        return DEFAULT_QUIZ_SET_SETTINGS.feedbackBlockSize;
+    }
+    const rounded = Math.round(num);
+    return Math.min(FEEDBACK_BLOCK_SIZE_MAX, Math.max(FEEDBACK_BLOCK_SIZE_MIN, rounded));
+};
+
+const normalizeFeedbackTimingMode = (value: unknown): FeedbackTimingMode => {
+    return value === 'delayed_block' || value === 'delayed_end' ? value : 'immediate';
+};
+
+const normalizeQuizSetSettings = (raw: unknown): QuizSetSettings => {
+    const source = (raw && typeof raw === 'object') ? raw as Partial<QuizSetSettings> : {};
+    return {
+        shuffleQuestions: source.shuffleQuestions === true,
+        shuffleOptions: source.shuffleOptions === true,
+        feedbackTimingMode: normalizeFeedbackTimingMode(source.feedbackTimingMode),
+        feedbackBlockSize: normalizeFeedbackBlockSize(source.feedbackBlockSize),
+    };
+};
+
 export const loadQuizSetSettings = (quizSetId: number): QuizSetSettings => {
     try {
         const stored = localStorage.getItem(`quizSetSettings_${quizSetId}`);
-        if (stored) return JSON.parse(stored);
+        if (stored) return normalizeQuizSetSettings(JSON.parse(stored));
     } catch (e) {
         console.error('Failed to load quiz set settings', e);
     }
-    return { shuffleQuestions: false, shuffleOptions: false };
+    return { ...DEFAULT_QUIZ_SET_SETTINGS };
 };
 
 export const saveQuizSetSettings = (quizSetId: number, settings: QuizSetSettings) => {
-    localStorage.setItem(`quizSetSettings_${quizSetId}`, JSON.stringify(settings));
+    localStorage.setItem(`quizSetSettings_${quizSetId}`, JSON.stringify(normalizeQuizSetSettings(settings)));
 };
 
 // Fisher-Yates shuffle (immutable)
