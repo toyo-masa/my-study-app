@@ -59,7 +59,11 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                     )
                     SELECT rs.* FROM review_schedules rs
                     JOIN valid_session vs ON rs.user_id = vs.user_id
+                    JOIN quiz_sets q ON rs.quiz_set_id = q.id
                     WHERE rs.question_id = ${questionId}
+                      AND q.is_deleted = false
+                      AND q.is_archived = false
+                      AND COALESCE(q.exclude_from_review, false) = false
                     LIMIT 1
                 `;
         if (rows.length === 0) return res.status(200).json(null);
@@ -83,7 +87,11 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
             )
             SELECT rs.* FROM review_schedules rs
             JOIN valid_session vs ON rs.user_id = vs.user_id
+            JOIN quiz_sets q ON rs.quiz_set_id = q.id
             WHERE rs.quiz_set_id = ${quizSetId}
+              AND q.is_deleted = false
+              AND q.is_archived = false
+              AND COALESCE(q.exclude_from_review, false) = false
         `;
       } else {
         rows = await sql`
@@ -93,7 +101,9 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                     SELECT s.* FROM review_schedules s
                     JOIN quiz_sets q ON s.quiz_set_id = q.id
                     JOIN valid_session vs ON s.user_id = vs.user_id
-                    WHERE q.is_deleted = false AND q.is_archived = false
+                    WHERE q.is_deleted = false
+                      AND q.is_archived = false
+                      AND COALESCE(q.exclude_from_review, false) = false
                 `;
       }
 

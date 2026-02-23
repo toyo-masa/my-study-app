@@ -26,7 +26,7 @@ export const ManageRoute: React.FC = () => {
             ) : !activeQuizSet ? (
                 <NotFoundView key="not-found" />
             ) : (
-                <main key="content" className="content-area" style={{ padding: '1.5rem' }}>
+                <main key="content" className="content-area">
                     <QuestionManager
                         quizSet={activeQuizSet}
                         onBack={() => navigate('/')}

@@ -17,6 +17,7 @@ export interface QuizSet {
     type?: QuizSetType; // Default to 'quiz' if undefined
     isDeleted?: boolean; // Logical delete flag
     isArchived?: boolean; // Archive flag
+    isReviewExcluded?: boolean; // 復習対象から除外するフラグ
     tags?: string[]; // ユーザー設定タグ
 }
 

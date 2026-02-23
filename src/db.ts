@@ -184,9 +184,23 @@ export async function getDueReviews(
         schedules = schedules.filter(s => s.nextDue <= today);
     } else {
         if (quizSetId !== undefined) {
+            const targetSet = await db.quizSets.get(quizSetId);
+            if (!targetSet || targetSet.isDeleted || targetSet.isArchived || targetSet.isReviewExcluded) {
+                return [];
+            }
             schedules = await db.reviewSchedules.where('quizSetId').equals(quizSetId).filter(s => s.nextDue <= today).toArray();
         } else {
-            schedules = await db.reviewSchedules.filter(s => s.nextDue <= today).toArray();
+            const activeSetIds = (await db.quizSets
+                .filter((set) => !set.isDeleted && !set.isArchived && !set.isReviewExcluded)
+                .primaryKeys()) as number[];
+            if (activeSetIds.length === 0) {
+                return [];
+            }
+            schedules = await db.reviewSchedules
+                .where('quizSetId')
+                .anyOf(activeSetIds)
+                .filter(s => s.nextDue <= today)
+                .toArray();
         }
     }
 
@@ -273,6 +287,17 @@ export async function getDueReviews(
 export async function getReviewSchedulesForQuizSet(quizSetId: number): Promise<ReviewSchedule[]> {
     if (isCloudSyncEnabled()) return cloudApi.getDueReviews(quizSetId);
     return db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
+}
+
+export async function getAllReviewSchedules(): Promise<ReviewSchedule[]> {
+    if (isCloudSyncEnabled()) return cloudApi.getDueReviews();
+    const activeSetIds = (await db.quizSets
+        .filter((set) => !set.isDeleted && !set.isArchived && !set.isReviewExcluded)
+        .primaryKeys()) as number[];
+    if (activeSetIds.length === 0) {
+        return [];
+    }
+    return db.reviewSchedules.where('quizSetId').anyOf(activeSetIds).toArray();
 }
 
 export async function upsertReviewSchedulesBulk(schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[]): Promise<{ updated: number, inserted: number }> {

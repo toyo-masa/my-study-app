@@ -25,6 +25,7 @@ type QuizSetMutationBody = {
     questions?: QuizSetQuestionInput[];
     isDeleted?: boolean;
     isArchived?: boolean;
+    isReviewExcluded?: boolean;
     tags?: unknown;
 };
 
@@ -127,6 +128,7 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                     type: row.type,
                     isDeleted: row.is_deleted,
                     isArchived: row.is_archived,
+                    isReviewExcluded: row.exclude_from_review,
                     tags: row.tags,
                     questionCount: Number(row.q_count),
                     categories: row.tags || []
@@ -193,7 +195,7 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                 return res.status(201).json({ id: setId });
             } else if (method === 'PUT') {
                 if (!id) return res.status(400).json({ error: 'Missing id' });
-                const { name, isDeleted, isArchived, tags } = req.body || {};
+                const { name, isDeleted, isArchived, isReviewExcluded, tags } = req.body || {};
 
                 const current = await sql`SELECT * FROM quiz_sets WHERE id = ${id} AND user_id = ${userId}`;
                 if (current.length === 0) return res.status(404).json({ error: 'Not found' });
@@ -201,6 +203,24 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                 if (name !== undefined) await sql`UPDATE quiz_sets SET name = ${name} WHERE id = ${id} AND user_id = ${userId}`;
                 if (isDeleted !== undefined) await sql`UPDATE quiz_sets SET is_deleted = ${isDeleted} WHERE id = ${id} AND user_id = ${userId}`;
                 if (isArchived !== undefined) await sql`UPDATE quiz_sets SET is_archived = ${isArchived} WHERE id = ${id} AND user_id = ${userId}`;
+                if (isReviewExcluded !== undefined) {
+                    try {
+                        await sql`UPDATE quiz_sets SET exclude_from_review = ${isReviewExcluded} WHERE id = ${id} AND user_id = ${userId}`;
+                    } catch (updateErr: unknown) {
+                        const errorCode = typeof updateErr === 'object' && updateErr !== null && 'code' in updateErr
+                            ? (updateErr as { code?: string }).code
+                            : undefined;
+                        const errorMessage = typeof updateErr === 'object' && updateErr !== null && 'message' in updateErr
+                            ? String((updateErr as { message?: unknown }).message || '')
+                            : '';
+                        const isMissingColumn = errorCode === '42703' && errorMessage.includes('exclude_from_review');
+                        if (!isMissingColumn) {
+                            throw updateErr;
+                        }
+                        await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS exclude_from_review BOOLEAN DEFAULT FALSE`;
+                        await sql`UPDATE quiz_sets SET exclude_from_review = ${isReviewExcluded} WHERE id = ${id} AND user_id = ${userId}`;
+                    }
+                }
                 if (tags !== undefined) await sql`UPDATE quiz_sets SET tags = ${JSON.stringify(tags)}::jsonb WHERE id = ${id} AND user_id = ${userId}`;
 
                 return res.status(200).json({ success: true });

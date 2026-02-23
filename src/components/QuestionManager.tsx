@@ -44,6 +44,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isSaving, setIsSaving] = useState(false);
     const [newTagInput, setNewTagInput] = useState('');
     const [currentTags, setCurrentTags] = useState<string[]>(quizSet.tags || []);
+    const [isReviewExcluded, setIsReviewExcluded] = useState<boolean>(!!quizSet.isReviewExcluded);
     const [modalError, setModalError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,8 +74,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         };
         fetchQs();
         setCurrentTags(quizSet.tags || []);
+        setIsReviewExcluded(!!quizSet.isReviewExcluded);
         return () => { mounted = false; };
-    }, [quizSet.id, quizSet.tags]);
+    }, [quizSet.id, quizSet.tags, quizSet.isReviewExcluded]);
 
     const loadQuestions = async () => {
         if (quizSet.id !== undefined) {
@@ -84,7 +86,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     };
 
     const updateGlobalQuestionCount = (delta: number) => {
-        setQuizSets((prev: any[]) => prev.map(qs =>
+        setQuizSets((prev) => prev.map(qs =>
             qs.id === quizSet.id
                 ? { ...qs, questionCount: (qs.questionCount || 0) + delta }
                 : qs
@@ -151,6 +153,38 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             // Rollback
             setCurrentTags(previousTags);
             onCloudError(err, 'タグの削除に失敗しました');
+        }
+    };
+
+    const handleToggleReviewExcluded = async () => {
+        if (quizSet.id === undefined) return;
+
+        const previousValue = isReviewExcluded;
+        const nextValue = !previousValue;
+        setIsReviewExcluded(nextValue);
+        setQuizSets((prev) => prev.map(qs =>
+            qs.id === quizSet.id
+                ? { ...qs, isReviewExcluded: nextValue }
+                : qs
+        ));
+
+        try {
+            await updateQuizSet(quizSet.id, { isReviewExcluded: nextValue });
+            showStatus(
+                nextValue
+                    ? 'このセットを復習対象から除外しました'
+                    : 'このセットを復習対象に戻しました',
+                'success'
+            );
+            if (onQuizSetUpdated) onQuizSetUpdated();
+        } catch (err) {
+            setIsReviewExcluded(previousValue);
+            setQuizSets((prev) => prev.map(qs =>
+                qs.id === quizSet.id
+                    ? { ...qs, isReviewExcluded: previousValue }
+                    : qs
+            ));
+            onCloudError(err, '復習設定の更新に失敗しました');
         }
     };
 
@@ -544,6 +578,48 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     />
                     <button onClick={handleAddTag} className="nav-btn primary" style={{ padding: '0.4rem 0.75rem', background: 'var(--primary-color)', color: 'white' }}>
                         追加
+                    </button>
+                </div>
+            </div>
+
+            <div className="review-setting-section" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>復習設定</h4>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                このセットを復習対象から除外すると、復習ボードに表示されなくなります。
+                            </p>
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    width: 'fit-content',
+                                    marginLeft: '0.2rem',
+                                    padding: '0.18rem 0.5rem',
+                                    borderRadius: '999px',
+                                    border: isReviewExcluded ? '1px solid var(--border-color)' : '1px solid var(--primary-color)',
+                                    background: isReviewExcluded ? 'var(--bg-primary)' : 'rgba(var(--primary-color-rgb, 99, 102, 241), 0.08)',
+                                    color: isReviewExcluded ? 'var(--text-color)' : 'var(--primary-color)',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 600
+                                }}
+                            >
+                                {isReviewExcluded ? '復習対象外（復習ボード非表示）' : '復習対象設定（復習ボード表示中）'}
+                            </span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        className={`nav-btn ${isReviewExcluded ? '' : 'action-btn'}`}
+                        onClick={handleToggleReviewExcluded}
+                        style={{
+                            background: isReviewExcluded ? 'var(--bg-secondary)' : 'var(--primary-color)',
+                            color: isReviewExcluded ? 'var(--text-color)' : 'white',
+                            border: isReviewExcluded ? '1px solid var(--border-color)' : 'none'
+                        }}
+                    >
+                        {isReviewExcluded ? '復習対象に戻す' : '復習対象から除外する'}
                     </button>
                 </div>
             </div>

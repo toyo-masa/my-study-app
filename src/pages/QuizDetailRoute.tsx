@@ -112,7 +112,7 @@ export const QuizDetailRoute: React.FC = () => {
     }
 
     return (
-        <main className="content-area" style={{ padding: '1.5rem' }}>
+        <main className="content-area">
             <QuizDetail
                 quizSet={activeQuizSet}
                 onBack={() => navigate('/')}

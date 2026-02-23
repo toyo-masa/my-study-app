@@ -26,12 +26,17 @@ import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 import { HistoryTableRoute } from './pages/HistoryTableRoute';
 
 const APP_TITLE_PREFIX = 'qa';
+const APP_TITLE_SEPARATOR = ' - ';
+
+const buildPageTitle = (...segments: string[]): string => {
+  return segments.filter(Boolean).join(APP_TITLE_SEPARATOR);
+};
 
 function resolvePageTitle(pathname: string, quizSets: Array<{ id?: number; name: string }>): string {
-  if (pathname === '/') return `${APP_TITLE_PREFIX} | ホーム`;
-  if (pathname === '/distribution-sim') return `${APP_TITLE_PREFIX} | 分布シミュレーター`;
-  if (pathname === '/review-board') return `${APP_TITLE_PREFIX} | 復習ボード`;
-  if (pathname === '/release-notes') return `${APP_TITLE_PREFIX} | リリースノート`;
+  if (pathname === '/') return buildPageTitle(APP_TITLE_PREFIX, 'ホーム');
+  if (pathname === '/distribution-sim') return buildPageTitle(APP_TITLE_PREFIX, '分布シミュレーター');
+  if (pathname === '/review-board') return buildPageTitle(APP_TITLE_PREFIX, '復習ボード');
+  if (pathname === '/release-notes') return buildPageTitle(APP_TITLE_PREFIX, 'リリースノート');
 
   const quizRouteMatch = pathname.match(/^\/quiz\/(\d+)(?:\/([a-z-]+))?$/);
   if (quizRouteMatch) {
@@ -51,9 +56,9 @@ function resolvePageTitle(pathname: string, quizSets: Array<{ id?: number; name:
               : '問題集';
 
     if (quizSetName) {
-      return `${APP_TITLE_PREFIX} | ${quizSetName} | ${pageLabel}`;
+      return buildPageTitle(APP_TITLE_PREFIX, quizSetName, pageLabel);
     }
-    return `${APP_TITLE_PREFIX} | ${pageLabel}`;
+    return buildPageTitle(APP_TITLE_PREFIX, pageLabel);
   }
 
   return APP_TITLE_PREFIX;

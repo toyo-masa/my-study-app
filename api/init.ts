@@ -58,6 +58,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
         type VARCHAR(50) DEFAULT 'quiz',
         is_deleted BOOLEAN DEFAULT FALSE,
         is_archived BOOLEAN DEFAULT FALSE,
+        exclude_from_review BOOLEAN DEFAULT FALSE,
         tags JSONB DEFAULT '[]'::jsonb,
         user_id INTEGER REFERENCES users(id)
       );
@@ -143,6 +144,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     // Add columns to existing tables if they don't exist
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
+    await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS exclude_from_review BOOLEAN DEFAULT FALSE`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS feedback_mode VARCHAR(30)`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS memorization_detail JSONB`;
