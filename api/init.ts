@@ -91,6 +91,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
         confidences JSONB,
         question_ids JSONB,
         mode VARCHAR(50),
+        feedback_mode VARCHAR(30),
         memorization_detail JSONB,
         user_id INTEGER REFERENCES users(id)
       );
@@ -143,6 +144,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+    await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS feedback_mode VARCHAR(30)`;
     await sql`ALTER TABLE review_schedules ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE review_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
 

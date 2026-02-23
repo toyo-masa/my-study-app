@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Sidebar } from '../components/Sidebar';
+import { Sidebar, type SidebarClickPosition } from '../components/Sidebar';
 import { TestResult } from '../components/TestResult';
 import { QuestionView } from '../components/QuestionView';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
@@ -9,7 +9,7 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
-import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule } from '../types';
+import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
 
 export const StudyRoute: React.FC = () => {
@@ -28,8 +28,13 @@ export const StudyRoute: React.FC = () => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, number[]>>({});
+    const [answeredMap, setAnsweredMap] = useState<Record<string, boolean>>({});
     const [memos, setMemos] = useState<Record<string, string>>({});
     const [showAnswerMap, setShowAnswerMap] = useState<Record<string, boolean>>({});
+    const [pendingRevealQuestionIds, setPendingRevealQuestionIds] = useState<number[]>([]);
+    const [feedbackPhase, setFeedbackPhase] = useState<'answering' | 'revealing'>('answering');
+    const [feedbackTimingMode, setFeedbackTimingMode] = useState<FeedbackTimingMode>('immediate');
+    const [feedbackBlockSize, setFeedbackBlockSize] = useState(5);
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
     const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
     const [isTestCompleted, setIsTestCompleted] = useState(false);
@@ -38,9 +43,13 @@ export const StudyRoute: React.FC = () => {
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
     const [showEmptyQuestionsModal, setShowEmptyQuestionsModal] = useState(false);
+    const [sessionInlineNotice, setSessionInlineNotice] = useState<string | null>(null);
+    const [sessionPointerNotice, setSessionPointerNotice] = useState<{ message: string; x: number; y: number } | null>(null);
 
     const startTimeRef = useRef<Date>(new Date());
     const lastSessionKeyRef = useRef<string | null>(null);
+    const sessionInlineNoticeTimeoutRef = useRef<number | null>(null);
+    const sessionPointerNoticeTimeoutRef = useRef<number | null>(null);
 
     // Unique key for the current session to detect changes
     const reviewQuestionIdsKey = reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0
@@ -54,15 +63,43 @@ export const StudyRoute: React.FC = () => {
         setQuestions([]);
         setCurrentQuestionIndex(0);
         setAnswers({});
+        setAnsweredMap({});
         setMemos({});
         setShowAnswerMap({});
+        setPendingRevealQuestionIds([]);
+        setFeedbackPhase('answering');
+        setFeedbackTimingMode('immediate');
+        setFeedbackBlockSize(5);
         setMarkedQuestions([]);
         setConfidences({});
         setIsTestCompleted(false);
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyQuestionsModal(false);
+        setSessionInlineNotice(null);
+        setSessionPointerNotice(null);
+        if (sessionInlineNoticeTimeoutRef.current !== null) {
+            window.clearTimeout(sessionInlineNoticeTimeoutRef.current);
+            sessionInlineNoticeTimeoutRef.current = null;
+        }
+        if (sessionPointerNoticeTimeoutRef.current !== null) {
+            window.clearTimeout(sessionPointerNoticeTimeoutRef.current);
+            sessionPointerNoticeTimeoutRef.current = null;
+        }
     }, [sessionKey]);
+
+    useEffect(() => {
+        return () => {
+            if (sessionInlineNoticeTimeoutRef.current !== null) {
+                window.clearTimeout(sessionInlineNoticeTimeoutRef.current);
+                sessionInlineNoticeTimeoutRef.current = null;
+            }
+            if (sessionPointerNoticeTimeoutRef.current !== null) {
+                window.clearTimeout(sessionPointerNoticeTimeoutRef.current);
+                sessionPointerNoticeTimeoutRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const initStudy = async () => {
@@ -74,6 +111,7 @@ export const StudyRoute: React.FC = () => {
 
             try {
                 const qs = await getQuestionsForQuizSet(quizSetId);
+                const quizSetSettings = loadQuizSetSettings(quizSetId);
 
                 if (!historyFromState && !reviewQuestionIdsFromState && qs.length === 0) {
                     await clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
@@ -103,14 +141,23 @@ export const StudyRoute: React.FC = () => {
                     setQuestions(studyQuestions);
                     setActiveHistory(historyFromState);
                     setAnswers(historyFromState.answers || {});
+                    const allAnswered: Record<string, boolean> = {};
                     setMemos(historyFromState.memos || {});
                     setConfidences(historyFromState.confidences || {});
                     setMarkedQuestions(historyFromState.markedQuestionIds || []);
                     setHistoryMode(historyFromState.mode || 'normal');
+                    setPendingRevealQuestionIds([]);
+                    setFeedbackPhase('revealing');
+                    setFeedbackTimingMode(historyFromState.feedbackTimingMode || 'immediate');
+                    setFeedbackBlockSize(quizSetSettings.feedbackBlockSize);
 
                     const allShown: Record<string, boolean> = {};
-                    studyQuestions.forEach(q => { allShown[String(q.id)] = true; });
+                    studyQuestions.forEach(q => {
+                        allShown[String(q.id)] = true;
+                        allAnswered[String(q.id)] = true;
+                    });
                     setShowAnswerMap(allShown);
+                    setAnsweredMap(allAnswered);
 
                     setEndTime(new Date(historyFromState.date));
                     const restoredStartTime = new Date(new Date(historyFromState.date).getTime() - historyFromState.durationSeconds * 1000);
@@ -143,8 +190,13 @@ export const StudyRoute: React.FC = () => {
                         setQuestions(filteredQuestions);
                         setCurrentQuestionIndex(nextIndex);
                         setAnswers(suspendedSession.answers || {});
+                        setAnsweredMap(suspendedSession.answeredMap || suspendedSession.showAnswerMap || {});
                         setMemos(suspendedSession.memos || {});
                         setShowAnswerMap(suspendedSession.showAnswerMap || {});
+                        setPendingRevealQuestionIds(suspendedSession.pendingRevealQuestionIds || []);
+                        setFeedbackPhase(suspendedSession.feedbackPhase || 'answering');
+                        setFeedbackTimingMode(suspendedSession.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
+                        setFeedbackBlockSize(suspendedSession.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
                         setMarkedQuestions(suspendedSession.markedQuestions || []);
 
                         // Restore startTimeRef by subtracting previously spent time from NOW
@@ -191,13 +243,18 @@ export const StudyRoute: React.FC = () => {
                 const settings = loadQuizSetSettings(quizSetId);
                 studyQuestions = applyShuffleSettings(studyQuestions, settings);
                 clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
+                setFeedbackTimingMode(settings.feedbackTimingMode);
+                setFeedbackBlockSize(settings.feedbackBlockSize);
             }
             // All state updates together
             setQuestions(studyQuestions);
             setCurrentQuestionIndex(0);
             setAnswers({});
+            setAnsweredMap({});
             setMemos({});
             setShowAnswerMap({});
+            setPendingRevealQuestionIds([]);
+            setFeedbackPhase('answering');
             setMarkedQuestions([]);
             setConfidences({});
             setIsTestCompleted(false);
@@ -229,8 +286,13 @@ export const StudyRoute: React.FC = () => {
                     questions,
                     currentQuestionIndex,
                     answers,
+                    answeredMap,
                     memos,
                     showAnswerMap,
+                    pendingRevealQuestionIds,
+                    feedbackPhase,
+                    feedbackTimingMode,
+                    feedbackBlockSize,
                     markedQuestions,
                     startTime: startTimeRef.current,
                     elapsedSeconds,
@@ -246,6 +308,62 @@ export const StudyRoute: React.FC = () => {
         navigate(`/quiz/${quizSetId}`);
     };
 
+    const getAnsweringPhasePendingIdsForBlock = (
+        targetAnswers: Record<string, number[]> = answers,
+        targetAnsweredMap: Record<string, boolean> = answeredMap,
+        targetPendingRevealQuestionIds: number[] = pendingRevealQuestionIds
+    ): number[] => {
+        const pendingSet = new Set<number>();
+
+        targetPendingRevealQuestionIds.forEach(questionId => {
+            if (!showAnswerMap[String(questionId)]) {
+                pendingSet.add(questionId);
+            }
+        });
+
+        questions.forEach(q => {
+            const questionId = q.id!;
+            const qKey = String(questionId);
+            if (showAnswerMap[qKey]) return;
+            if (targetAnsweredMap[qKey]) {
+                pendingSet.add(questionId);
+                return;
+            }
+            if ((targetAnswers[qKey] || []).length > 0) {
+                pendingSet.add(questionId);
+            }
+        });
+
+        return questions.map(q => q.id!).filter(questionId => pendingSet.has(questionId));
+    };
+
+    const getDelayedBlockLockPreview = (
+        targetAnswers: Record<string, number[]> = answers,
+        targetAnsweredMap: Record<string, boolean> = answeredMap,
+        targetPendingRevealQuestionIds: number[] = pendingRevealQuestionIds
+    ) => {
+        if (feedbackTimingMode !== 'delayed_block' || feedbackPhase !== 'answering' || questions.length === 0) {
+            return { locked: false, pendingIds: [] as number[], remainingCount: 0 };
+        }
+
+        const pendingIds = getAnsweringPhasePendingIdsForBlock(
+            targetAnswers,
+            targetAnsweredMap,
+            targetPendingRevealQuestionIds
+        );
+        const pendingSet = new Set(pendingIds);
+        const allAnsweredLike = questions.every(
+            q => showAnswerMap[String(q.id)] === true || pendingSet.has(q.id!)
+        );
+        const locked = pendingIds.length > 0 && (pendingIds.length >= feedbackBlockSize || allAnsweredLike);
+
+        return {
+            locked,
+            pendingIds,
+            remainingCount: pendingIds.length,
+        };
+    };
+
     const handleToggleOption = (optionIndex: number) => {
         const currentQuestion = questions[currentQuestionIndex];
         if (!currentQuestion) return;
@@ -255,7 +373,7 @@ export const StudyRoute: React.FC = () => {
         const currentAnswers = answers[qId] || [];
         const isSingleChoice = currentQuestion.correctAnswers.length === 1;
 
-        let newAnswers;
+        let newAnswers: number[];
         if (isSingleChoice) {
             newAnswers = [optionIndex];
         } else {
@@ -265,58 +383,75 @@ export const StudyRoute: React.FC = () => {
                 newAnswers = [...currentAnswers, optionIndex];
             }
         }
-        setAnswers({ ...answers, [qId]: newAnswers });
+
+        const nextAnswers = { ...answers, [qId]: newAnswers };
+        setAnswers(nextAnswers);
     };
 
-    const handleShowAnswer = () => {
-        const qId = String(questions[currentQuestionIndex].id);
-        setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
+    const findQuestionIndexById = (questionId: number): number => {
+        return questions.findIndex(q => q.id === questionId);
     };
 
-    const handleToggleMark = (questionId?: number) => {
-        let qId = typeof questionId === 'number' ? questionId : undefined;
-        if (qId === undefined) {
-            const currentQuestion = questions[currentQuestionIndex];
-            if (!currentQuestion || !currentQuestion.id) return;
-            qId = currentQuestion.id;
-        }
-
-        setMarkedQuestions(prev => {
-            if (prev.includes(qId!)) {
-                return prev.filter(id => id !== qId);
-            } else {
-                return [...prev, qId!];
-            }
-        });
-    };
-
-    const handleNext = () => {
-        if (currentQuestionIndex < questions.length - 1) {
-            setCurrentQuestionIndex(prev => prev + 1);
-        }
-    };
-
-    const handlePrev = () => {
-        if (currentQuestionIndex > 0) {
-            setCurrentQuestionIndex(prev => prev - 1);
-        }
-    };
-
-    const handleMemoChange = (questionId: number, value: string) => {
-        setMemos(prev => ({ ...prev, [String(questionId)]: value }));
-    };
-
-    const handleConfidenceChange = (questionId: number, level: ConfidenceLevel) => {
-        setConfidences(prev => ({ ...prev, [String(questionId)]: level }));
-    };
-
-    const handleCompleteTest = async () => {
-        const answeredCount = Object.values(showAnswerMap).filter(Boolean).length;
-        if (answeredCount < questions.length) {
-            if (!window.confirm('未回答の問題があります。テストを完了してもいいですか？')) {
-                return;
+    const findNextUnansweredIndex = (fromIndex: number, targetAnsweredMap: Record<string, boolean> = answeredMap): number => {
+        for (let i = fromIndex + 1; i < questions.length; i++) {
+            if (!targetAnsweredMap[String(questions[i].id)]) {
+                return i;
             }
         }
+        for (let i = 0; i <= fromIndex; i++) {
+            if (!targetAnsweredMap[String(questions[i].id)]) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    const getUnrevealedAnsweredQuestionIds = (targetAnsweredMap: Record<string, boolean> = answeredMap): number[] => {
+        return questions
+            .map(q => q.id!)
+            .filter(questionId => targetAnsweredMap[String(questionId)] && !showAnswerMap[String(questionId)]);
+    };
+
+    const enterRevealPhase = (questionIds: number[]) => {
+        if (questionIds.length === 0) return;
+        setFeedbackPhase('revealing');
+        setPendingRevealQuestionIds(questionIds);
+        setShowAnswerMap(prev => ({ ...prev, [String(questionIds[0])]: true }));
+        const nextIndex = findQuestionIndexById(questionIds[0]);
+        if (nextIndex >= 0) {
+            setCurrentQuestionIndex(nextIndex);
+        }
+    };
+
+    const flashSessionInlineNotice = (message: string) => {
+        if (sessionInlineNoticeTimeoutRef.current !== null) {
+            window.clearTimeout(sessionInlineNoticeTimeoutRef.current);
+        }
+        setSessionInlineNotice(message);
+        sessionInlineNoticeTimeoutRef.current = window.setTimeout(() => {
+            setSessionInlineNotice(null);
+            sessionInlineNoticeTimeoutRef.current = null;
+        }, 1800);
+    };
+
+    const flashSessionPointerNotice = (message: string, clickPosition?: SidebarClickPosition) => {
+        if (!clickPosition) {
+            return;
+        }
+        if (sessionPointerNoticeTimeoutRef.current !== null) {
+            window.clearTimeout(sessionPointerNoticeTimeoutRef.current);
+        }
+        const maxNoticeWidth = 320;
+        const x = Math.min(Math.max(clickPosition.x + 14, 8), window.innerWidth - maxNoticeWidth - 8);
+        const y = Math.min(Math.max(clickPosition.y + 14, 72), window.innerHeight - 44);
+        setSessionPointerNotice({ message, x, y });
+        sessionPointerNoticeTimeoutRef.current = window.setTimeout(() => {
+            setSessionPointerNotice(null);
+            sessionPointerNoticeTimeoutRef.current = null;
+        }, 1800);
+    };
+
+    const finalizeTestCompletion = async () => {
         const end = new Date();
         setEndTime(end);
         setIsTestCompleted(true);
@@ -347,6 +482,7 @@ export const StudyRoute: React.FC = () => {
                 confidences,
                 questionIds: questions.map(q => q.id!),
                 mode: historyMode,
+                feedbackTimingMode,
             };
 
             await addHistory(historyData);
@@ -385,12 +521,270 @@ export const StudyRoute: React.FC = () => {
         }
     };
 
+    const handleShowAnswer = () => {
+        const currentQuestion = questions[currentQuestionIndex];
+        if (!currentQuestion) return;
+
+        const questionId = currentQuestion.id!;
+        const qId = String(questionId);
+        const selectedCount = (answers[qId] || []).length;
+        const alreadyAnswered = answeredMap[qId] === true;
+
+        if (showAnswerMap[qId]) return;
+        if (feedbackTimingMode === 'delayed_block' && feedbackPhase === 'answering') {
+            const blockState = getDelayedBlockLockPreview();
+            const isCurrentPending = blockState.pendingIds.includes(questionId);
+            if (blockState.locked && blockState.remainingCount > 0 && !isCurrentPending) {
+                return;
+            }
+        }
+        if (!alreadyAnswered && selectedCount === 0) {
+            flashSessionInlineNotice('選択肢を1つ以上選んでから回答してください');
+            return;
+        }
+
+        if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
+            setAnsweredMap(prev => ({ ...prev, [qId]: true }));
+            setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
+            return;
+        }
+        const nextAnsweredMap = alreadyAnswered
+            ? answeredMap
+            : { ...answeredMap, [qId]: true };
+
+        if (!alreadyAnswered) {
+            setAnsweredMap(nextAnsweredMap);
+        }
+
+        const nextPendingRevealQuestionIds = pendingRevealQuestionIds.includes(questionId)
+            ? pendingRevealQuestionIds
+            : [...pendingRevealQuestionIds, questionId];
+
+        if (!pendingRevealQuestionIds.includes(questionId)) {
+            setPendingRevealQuestionIds(nextPendingRevealQuestionIds);
+        }
+
+        const allAnswered = questions.every(q => nextAnsweredMap[String(q.id)] === true);
+        const shouldLockByDelayedBlock = feedbackTimingMode === 'delayed_block' &&
+            (nextPendingRevealQuestionIds.length >= feedbackBlockSize || allAnswered);
+        const remainingPendingCount = nextPendingRevealQuestionIds.filter(
+            questionId => !showAnswerMap[String(questionId)]
+        ).length;
+
+        if (feedbackTimingMode === 'delayed_end' && allAnswered) {
+            enterRevealPhase(getUnrevealedAnsweredQuestionIds(nextAnsweredMap));
+            return;
+        }
+
+        if (feedbackTimingMode === 'delayed_block' && shouldLockByDelayedBlock && remainingPendingCount > 0) {
+            enterRevealPhase(nextPendingRevealQuestionIds);
+            return;
+        }
+
+        const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex, nextAnsweredMap);
+        if (nextUnansweredIndex >= 0) {
+            setCurrentQuestionIndex(nextUnansweredIndex);
+        }
+    };
+
+    const handleSidebarSelectQuestion = (targetIndex: number, clickPosition?: SidebarClickPosition) => {
+        if (targetIndex < 0 || targetIndex >= questions.length || targetIndex === currentQuestionIndex) {
+            return;
+        }
+
+        const currentQuestion = questions[currentQuestionIndex];
+        if (!currentQuestion) {
+            setCurrentQuestionIndex(targetIndex);
+            return;
+        }
+
+        const targetQuestionId = questions[targetIndex].id!;
+
+        if (feedbackTimingMode !== 'immediate' && feedbackPhase === 'revealing') {
+            const remainingPendingCount = pendingRevealQuestionIds.filter(
+                questionId => !showAnswerMap[String(questionId)]
+            ).length;
+            const isTargetPending = pendingRevealQuestionIds.includes(targetQuestionId);
+            const isTargetAlreadyConfirmed = showAnswerMap[String(targetQuestionId)] === true;
+            if (remainingPendingCount > 0 && !isTargetPending && !isTargetAlreadyConfirmed) {
+                flashSessionPointerNotice(`残り${remainingPendingCount}件の回答確認後に移動できます`, clickPosition);
+                return;
+            }
+
+            if (remainingPendingCount === 0 && feedbackTimingMode === 'delayed_block') {
+                setPendingRevealQuestionIds([]);
+                setFeedbackPhase('answering');
+                setCurrentQuestionIndex(targetIndex);
+                return;
+            }
+
+            if (isTargetPending) {
+                setShowAnswerMap(prev => ({ ...prev, [String(targetQuestionId)]: true }));
+            }
+            setCurrentQuestionIndex(targetIndex);
+            return;
+        }
+
+        if (feedbackTimingMode === 'immediate' || feedbackPhase !== 'answering') {
+            setCurrentQuestionIndex(targetIndex);
+            return;
+        }
+
+        const currentQuestionId = currentQuestion.id!;
+        const currentQKey = String(currentQuestionId);
+        const hasSelectedOptions = (answers[currentQKey] || []).length > 0;
+        let nextAnsweredMap = answeredMap;
+        let nextPendingRevealQuestionIds = pendingRevealQuestionIds;
+        let didAutoSave = false;
+
+        if (hasSelectedOptions && !answeredMap[currentQKey] && !showAnswerMap[currentQKey]) {
+            nextAnsweredMap = { ...answeredMap, [currentQKey]: true };
+            setAnsweredMap(nextAnsweredMap);
+            didAutoSave = true;
+
+            nextPendingRevealQuestionIds = pendingRevealQuestionIds.includes(currentQuestionId)
+                ? pendingRevealQuestionIds
+                : [...pendingRevealQuestionIds, currentQuestionId];
+
+            if (!pendingRevealQuestionIds.includes(currentQuestionId)) {
+                setPendingRevealQuestionIds(nextPendingRevealQuestionIds);
+            }
+        }
+
+        const blockState = getDelayedBlockLockPreview(
+            answers,
+            nextAnsweredMap,
+            nextPendingRevealQuestionIds
+        );
+        const isTargetAlreadyConfirmed = showAnswerMap[String(targetQuestionId)] === true;
+        if (
+            blockState.locked &&
+            blockState.remainingCount > 0 &&
+            !blockState.pendingIds.includes(targetQuestionId) &&
+            !isTargetAlreadyConfirmed
+        ) {
+            flashSessionPointerNotice(`残り${blockState.remainingCount}件の回答確認後に移動できます`, clickPosition);
+            return;
+        }
+
+        if (didAutoSave) {
+            flashSessionInlineNotice('移動時に一時回答として保存しました');
+        }
+
+        setCurrentQuestionIndex(targetIndex);
+    };
+
+    const handleToggleMark = (questionId?: number) => {
+        let qId = typeof questionId === 'number' ? questionId : undefined;
+        if (qId === undefined) {
+            const currentQuestion = questions[currentQuestionIndex];
+            if (!currentQuestion || !currentQuestion.id) return;
+            qId = currentQuestion.id;
+        }
+
+        setMarkedQuestions(prev => {
+            if (prev.includes(qId!)) {
+                return prev.filter(id => id !== qId);
+            } else {
+                return [...prev, qId!];
+            }
+        });
+    };
+
+    const handleNext = () => {
+        if (feedbackTimingMode === 'immediate') {
+            if (currentQuestionIndex < questions.length - 1) {
+                setCurrentQuestionIndex(prev => prev + 1);
+            }
+            return;
+        }
+
+        if (feedbackPhase === 'answering') {
+            const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
+            if (nextUnansweredIndex >= 0) {
+                setCurrentQuestionIndex(nextUnansweredIndex);
+                return;
+            }
+
+            const unrevealedAnswered = getUnrevealedAnsweredQuestionIds();
+            if (unrevealedAnswered.length > 0) {
+                enterRevealPhase(unrevealedAnswered);
+            }
+            return;
+        }
+
+        const currentQuestionId = questions[currentQuestionIndex]?.id;
+        if (currentQuestionId === undefined) return;
+
+        const currentPos = pendingRevealQuestionIds.indexOf(currentQuestionId);
+        const nextPendingId = currentPos >= 0 ? pendingRevealQuestionIds[currentPos + 1] : pendingRevealQuestionIds[0];
+
+        if (nextPendingId !== undefined) {
+            setShowAnswerMap(prev => ({ ...prev, [String(nextPendingId)]: true }));
+            const nextIndex = findQuestionIndexById(nextPendingId);
+            if (nextIndex >= 0) {
+                setCurrentQuestionIndex(nextIndex);
+            }
+            return;
+        }
+
+        setPendingRevealQuestionIds([]);
+        const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
+        if (feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0) {
+            setFeedbackPhase('answering');
+            setCurrentQuestionIndex(nextUnansweredIndex);
+            return;
+        }
+
+        void finalizeTestCompletion();
+    };
+
+    const handleMemoChange = (questionId: number, value: string) => {
+        setMemos(prev => ({ ...prev, [String(questionId)]: value }));
+    };
+
+    const handleConfidenceChange = (questionId: number, level: ConfidenceLevel) => {
+        setConfidences(prev => ({ ...prev, [String(questionId)]: level }));
+    };
+
+    const handleCompleteTest = async () => {
+        const answeredCount = Object.values(answeredMap).filter(Boolean).length;
+        if (answeredCount < questions.length) {
+            if (!window.confirm('未回答の問題があります。テストを完了してもいいですか？')) {
+                return;
+            }
+        }
+
+        if (feedbackTimingMode !== 'immediate') {
+            const unrevealedAnswered = getUnrevealedAnsweredQuestionIds();
+            if (unrevealedAnswered.length > 0) {
+                enterRevealPhase(unrevealedAnswered);
+                return;
+            }
+
+            const remainingPending = pendingRevealQuestionIds.filter(questionId => !showAnswerMap[String(questionId)]);
+            if (remainingPending.length > 0) {
+                enterRevealPhase(remainingPending);
+                return;
+            }
+        }
+
+        await finalizeTestCompletion();
+    };
+
     const handleReview = () => {
         setIsTestCompleted(false);
         setCurrentQuestionIndex(0);
         const allShown: Record<string, boolean> = {};
-        questions.forEach(q => { allShown[String(q.id)] = true; });
+        const allAnswered: Record<string, boolean> = {};
+        questions.forEach(q => {
+            allShown[String(q.id)] = true;
+            allAnswered[String(q.id)] = true;
+        });
+        setAnsweredMap(allAnswered);
         setShowAnswerMap(allShown);
+        setPendingRevealQuestionIds([]);
+        setFeedbackPhase('revealing');
     };
 
     const startReviewSession = (targetQuestions: Question[], mode: HistoryMode) => {
@@ -402,8 +796,11 @@ export const StudyRoute: React.FC = () => {
         setQuestions(qs);
         setCurrentQuestionIndex(0);
         setAnswers({});
+        setAnsweredMap({});
         setMemos({});
         setShowAnswerMap({});
+        setPendingRevealQuestionIds([]);
+        setFeedbackPhase('answering');
         setMarkedQuestions([]);
         setConfidences({});
         setIsTestCompleted(false);
@@ -455,7 +852,107 @@ export const StudyRoute: React.FC = () => {
     const detailPath = `/quiz/${quizSetId}`;
     const currentQuestion = questions[currentQuestionIndex];
     const qId = currentQuestion ? String(currentQuestion.id) : '';
-    const answeredCount = Object.values(showAnswerMap).filter(Boolean).length;
+    const showAnswerForCurrent = currentQuestion
+        ? (feedbackTimingMode === 'immediate'
+            ? showAnswerMap[qId] === true
+            : feedbackPhase === 'revealing' && answeredMap[qId] === true)
+        : false;
+    const isAnswerLocked =
+        feedbackTimingMode !== 'immediate' &&
+        feedbackPhase === 'answering' &&
+        answeredMap[qId] === true &&
+        !showAnswerMap[qId];
+    const revealReadyCount = (() => {
+        if (!currentQuestion) return null;
+        if (feedbackTimingMode === 'immediate') return null;
+        if (feedbackPhase !== 'answering') return null;
+        if (showAnswerMap[qId]) return null;
+
+        if (feedbackTimingMode === 'delayed_block') {
+            const blockState = getDelayedBlockLockPreview();
+            if (blockState.locked && blockState.pendingIds.includes(currentQuestion.id!)) {
+                return blockState.remainingCount > 0 ? blockState.remainingCount : null;
+            }
+            return null;
+        }
+
+        if (answeredMap[qId]) {
+            const allAnsweredNow = questions.every(q => answeredMap[String(q.id)] === true);
+
+            if (feedbackTimingMode === 'delayed_end') {
+                if (!allAnsweredNow) return null;
+                const count = questions.filter(q => answeredMap[String(q.id)] && !showAnswerMap[String(q.id)]).length;
+                return count > 0 ? count : null;
+            }
+        }
+
+        return null;
+    })();
+    const canCompleteAfterCurrent = (() => {
+        if (!currentQuestion) return false;
+        if (feedbackTimingMode === 'immediate') {
+            return currentQuestionIndex === questions.length - 1;
+        }
+        if (!showAnswerForCurrent || feedbackPhase !== 'revealing') {
+            return false;
+        }
+
+        const currentQuestionId = currentQuestion.id!;
+        const currentPos = pendingRevealQuestionIds.indexOf(currentQuestionId);
+        const nextPendingId = currentPos >= 0
+            ? pendingRevealQuestionIds[currentPos + 1]
+            : pendingRevealQuestionIds[0];
+
+        if (nextPendingId !== undefined) {
+            return false;
+        }
+
+        if (feedbackTimingMode === 'delayed_block') {
+            const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
+            return nextUnansweredIndex < 0;
+        }
+
+        return true;
+    })();
+    const useNextAnswerLabel = (() => {
+        if (!currentQuestion) return false;
+        if (feedbackTimingMode === 'immediate') return false;
+        if (!showAnswerForCurrent || feedbackPhase !== 'revealing') return false;
+
+        const currentQuestionId = currentQuestion.id!;
+        const currentPos = pendingRevealQuestionIds.indexOf(currentQuestionId);
+        const nextPendingId = currentPos >= 0
+            ? pendingRevealQuestionIds[currentPos + 1]
+            : pendingRevealQuestionIds[0];
+
+        return nextPendingId !== undefined;
+    })();
+    const sidebarLockedQuestionIds = (() => {
+        if (feedbackTimingMode === 'immediate' || questions.length === 0) {
+            return [] as number[];
+        }
+
+        const blockState = getDelayedBlockLockPreview();
+        if (blockState.locked && blockState.remainingCount > 0) {
+            const allowedSet = new Set(blockState.pendingIds);
+            return questions
+                .filter(q => !allowedSet.has(q.id!) && !showAnswerMap[String(q.id)])
+                .map(q => q.id!);
+        }
+
+        if (feedbackPhase === 'revealing') {
+            const remainingPendingCount = pendingRevealQuestionIds.filter(questionId => !showAnswerMap[String(questionId)]).length;
+            if (remainingPendingCount > 0) {
+                const allowedSet = new Set(pendingRevealQuestionIds);
+                return questions
+                    .filter(q => !allowedSet.has(q.id!) && !showAnswerMap[String(q.id)])
+                    .map(q => q.id!);
+            }
+        }
+
+        return [] as number[];
+    })();
+    const answeredCount = Object.values(answeredMap).filter(Boolean).length;
     const reviewHeaderBadge =
         historyMode === 'review_wrong'
             ? '復習中（誤りのみ）'
@@ -479,11 +976,13 @@ export const StudyRoute: React.FC = () => {
                 <Sidebar
                     questions={questions}
                     currentQuestionIndex={currentQuestionIndex}
-                    onSelectQuestion={setCurrentQuestionIndex}
+                    onSelectQuestion={handleSidebarSelectQuestion}
                     answers={answers}
+                    answeredMap={answeredMap}
                     showAnswerMap={showAnswerMap}
                     markedQuestionIds={markedQuestions}
                     onToggleMark={handleToggleMark}
+                    lockedQuestionIds={sidebarLockedQuestionIds}
                 />
             }
         >
@@ -504,6 +1003,19 @@ export const StudyRoute: React.FC = () => {
                 />
             ) : currentQuestion ? (
                 <>
+                    {sessionPointerNotice && (
+                        <div
+                            className="session-pointer-notice"
+                            style={{ left: `${sessionPointerNotice.x}px`, top: `${sessionPointerNotice.y}px` }}
+                        >
+                            {sessionPointerNotice.message}
+                        </div>
+                    )}
+                    {sessionInlineNotice && (
+                        <div className={`session-inline-notice ${sessionInlineNotice.includes('一時回答') ? 'saved' : ''}`}>
+                            {sessionInlineNotice}
+                        </div>
+                    )}
                     <div className="progress-section">
                         <span className="progress-text">
                             {answeredCount}/{questions.length}
@@ -525,19 +1037,21 @@ export const StudyRoute: React.FC = () => {
                         totalQuestions={questions.length}
                         selectedOptions={answers[qId] || []}
                         onToggleOption={handleToggleOption}
-                        showAnswer={showAnswerMap[qId] || false}
+                        showAnswer={showAnswerForCurrent}
                         isMarked={markedQuestions.includes(currentQuestion.id!)}
                         onToggleMark={handleToggleMark}
                         onShowAnswer={handleShowAnswer}
                         onNext={handleNext}
-                        onPrev={handlePrev}
                         onCompleteTest={handleCompleteTest}
-                        isLast={currentQuestionIndex === questions.length - 1}
-                        isFirst={currentQuestionIndex === 0}
+                        isLast={canCompleteAfterCurrent}
                         memo={memos[qId] || ''}
                         onMemoChange={(val) => handleMemoChange(currentQuestion.id!, val)}
                         confidence={confidences[qId] || null}
                         onConfidenceChange={(level) => handleConfidenceChange(currentQuestion.id!, level)}
+                        feedbackTimingMode={feedbackTimingMode}
+                        isAnswerLocked={isAnswerLocked}
+                        revealReadyCount={revealReadyCount}
+                        useNextAnswerLabel={useNextAnswerLabel}
                     />
                 </>
             ) : (
