@@ -3144,7 +3144,7 @@ input:checked+.slider svg {
 
 .detail-info-card {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   background: var(--surface-color);
   border-radius: var(--radius-lg);
   padding: 2rem;
@@ -3254,6 +3254,34 @@ input:checked+.slider svg {
   color: var(--text-secondary);
   white-space: nowrap;
   text-align: center;
+}
+
+.quiz-setup-label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  position: relative;
+}
+
+.help-popover.quiz-setup-help-popover {
+  top: auto;
+  bottom: calc(100% + 10px);
+  left: auto;
+  right: -6px;
+  width: min(320px, calc(100vw - 2.5rem));
+  max-width: min(320px, calc(100vw - 2.5rem));
+  z-index: 120;
+}
+
+@media (max-width: 768px) {
+  .help-popover.quiz-setup-help-popover {
+    top: calc(100% + 8px);
+    bottom: auto;
+    left: 0;
+    right: auto;
+    width: min(320px, calc(100vw - 2rem));
+    max-width: min(320px, calc(100vw - 2rem));
+  }
 }
 
 .quiz-setup-controls {

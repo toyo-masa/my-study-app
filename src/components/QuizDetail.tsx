@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import type { QuizSet, QuizHistory } from '../types';
 import { getHistories } from '../db';
-import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Table2, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Table2, Minus, Plus, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingView } from './LoadingView';
 import type { QuizSetSettings } from '../utils/quizSettings';
@@ -38,8 +38,8 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
     const [localFeedbackSize, setLocalFeedbackSize] = useState<string>(
         String(settings.feedbackBlockSize || 1)
     );
-    const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const holdIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const currentValRef = useRef(settings.feedbackBlockSize || 1);
 
     const currentTags = quizSet.tags || [];
@@ -80,7 +80,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
             holdTimerRef.current = null;
         }
         if (holdIntervalRef.current) {
-            clearInterval(holdIntervalRef.current);
+            clearTimeout(holdIntervalRef.current);
             holdIntervalRef.current = null;
         }
     };
@@ -104,7 +104,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                 if (count > 10) speed = 50;
                 else if (count > 3) speed = 100;
 
-                holdIntervalRef.current = setTimeout(run, speed) as any;
+                holdIntervalRef.current = setTimeout(run, speed);
             };
             run();
         }, 400);
@@ -218,7 +218,27 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                             </div>
                         </div>
                         <div className="quiz-setup-row">
-                            <span className="quiz-setup-label">回答表示間隔</span>
+                            <div className="quiz-setup-label-wrap">
+                                <span className="quiz-setup-label">回答表示間隔</span>
+                                <details className="review-board-help quiz-setup-help">
+                                    <summary className="help-icon-btn review-board-help-btn" aria-label="回答表示間隔の説明">
+                                        <HelpCircle size={15} />
+                                    </summary>
+                                    <div className="help-popover review-board-help-popover quiz-setup-help-popover">
+                                        <div className="help-popover-header">
+                                            <h4>回答表示間隔とは？</h4>
+                                        </div>
+                                        <div className="help-popover-body">
+                                            <ul className="review-board-help-list">
+                                                <li>正解と解説を、何問ごとにまとめて表示するかを決める設定です。</li>
+                                                <li>1問: 1問回答するたびに確認できます。</li>
+                                                <li>2問: 2問回答後にまとめて確認できます。</li>
+                                                <li>設定可能な最大値は、この問題集の問題数です。</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
                             <div className="quiz-feedback-inline-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <div className="stepper-control" style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '2.5rem' }}>
                                     <button
