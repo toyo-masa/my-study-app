@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import type { QuizSet, QuizHistory } from '../types';
 import { getHistories } from '../db';
-import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Table2 } from 'lucide-react';
+import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Table2, Minus, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingView } from './LoadingView';
 import type { QuizSetSettings } from '../utils/quizSettings';
@@ -35,6 +35,12 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
     const [histories, setHistories] = useState<QuizHistory[]>([]);
     const [loading, setLoading] = useState(true);
     const [visibleHistoryCount, setVisibleHistoryCount] = useState(INITIAL_VISIBLE_HISTORY_COUNT);
+    const [localFeedbackSize, setLocalFeedbackSize] = useState<string>(
+        String(settings.feedbackBlockSize || 1)
+    );
+    const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const currentValRef = useRef(settings.feedbackBlockSize || 1);
 
     const currentTags = quizSet.tags || [];
     const feedbackBlockSizeMax = Math.max(1, quizSet.questionCount);
@@ -64,8 +70,49 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
 
     const handleFeedbackBlockSizeChange = (value: number) => {
         const normalized = Math.min(feedbackBlockSizeMax, Math.max(1, Math.round(value)));
+        currentValRef.current = normalized;
         handleSettingsChange({ ...normalizedSettings, feedbackBlockSize: normalized });
     };
+
+    const stopContinuousChange = () => {
+        if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = null;
+        }
+        if (holdIntervalRef.current) {
+            clearInterval(holdIntervalRef.current);
+            holdIntervalRef.current = null;
+        }
+    };
+
+    const startContinuousChange = (direction: 1 | -1) => {
+        stopContinuousChange();
+
+        // 最初の1クリック
+        handleFeedbackBlockSizeChange(currentValRef.current + direction);
+
+        // 長押し開始までのディレイ
+        holdTimerRef.current = setTimeout(() => {
+            let speed = 200;
+            let count = 0;
+
+            const run = () => {
+                handleFeedbackBlockSizeChange(currentValRef.current + direction);
+                count++;
+
+                // 加速ロジック
+                if (count > 10) speed = 50;
+                else if (count > 3) speed = 100;
+
+                holdIntervalRef.current = setTimeout(run, speed) as any;
+            };
+            run();
+        }, 400);
+    };
+
+    useEffect(() => {
+        return () => stopContinuousChange();
+    }, []);
 
     useEffect(() => {
         const normalizedSize = Math.min(
@@ -81,6 +128,11 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
             onSettingsChange(nextSettings);
         }
     }, [settings, onSettingsChange, feedbackBlockSizeMax]);
+
+    useEffect(() => {
+        setLocalFeedbackSize(String(normalizedSettings.feedbackBlockSize));
+        currentValRef.current = normalizedSettings.feedbackBlockSize;
+    }, [normalizedSettings.feedbackBlockSize]);
 
     useEffect(() => {
         const loadHistories = async () => {
@@ -167,17 +219,59 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                         </div>
                         <div className="quiz-setup-row">
                             <span className="quiz-setup-label">回答表示間隔</span>
-                            <div className="quiz-feedback-inline-controls">
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={feedbackBlockSizeMax}
-                                    step={1}
-                                    className="field-input quiz-feedback-size-input"
-                                    value={normalizedSettings.feedbackBlockSize}
-                                    onChange={(e) => handleFeedbackBlockSizeChange(Number(e.target.value))}
-                                />
-                                <span className="quiz-feedback-size-help">問（1〜{feedbackBlockSizeMax}）</span>
+                            <div className="quiz-feedback-inline-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div className="stepper-control" style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '2.5rem' }}>
+                                    <button
+                                        type="button"
+                                        onPointerDown={() => startContinuousChange(-1)}
+                                        onPointerUp={stopContinuousChange}
+                                        onPointerLeave={stopContinuousChange}
+                                        disabled={normalizedSettings.feedbackBlockSize <= 1}
+                                        style={{ width: '2.5rem', height: '100%', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-color)', userSelect: 'none', touchAction: 'none' }}
+                                        aria-label="減らす"
+                                    >
+                                        <Minus size={16} />
+                                    </button>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        className="field-input quiz-feedback-size-input"
+                                        style={{ border: 'none', borderRadius: 0, textAlign: 'center', width: '2.5rem', minWidth: 'unset', height: '100%', padding: '0', fontWeight: 'bold', fontSize: '1rem' }}
+                                        value={localFeedbackSize}
+                                        onChange={(e) => {
+                                            // 数字のみ許可
+                                            const val = e.target.value;
+                                            if (val === '' || /^\d+$/.test(val)) {
+                                                setLocalFeedbackSize(val);
+                                            }
+                                        }}
+                                        onBlur={(e) => {
+                                            const val = parseInt(e.target.value, 10);
+                                            if (isNaN(val) || val < 1) {
+                                                handleFeedbackBlockSizeChange(1);
+                                                setLocalFeedbackSize('1');
+                                            } else if (val > feedbackBlockSizeMax) {
+                                                handleFeedbackBlockSizeChange(feedbackBlockSizeMax);
+                                                setLocalFeedbackSize(String(feedbackBlockSizeMax));
+                                            } else {
+                                                handleFeedbackBlockSizeChange(val);
+                                                setLocalFeedbackSize(String(val));
+                                            }
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onPointerDown={() => startContinuousChange(1)}
+                                        onPointerUp={stopContinuousChange}
+                                        onPointerLeave={stopContinuousChange}
+                                        disabled={normalizedSettings.feedbackBlockSize >= feedbackBlockSizeMax}
+                                        style={{ width: '2.5rem', height: '100%', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-color)', userSelect: 'none', touchAction: 'none' }}
+                                        aria-label="増やす"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                </div>
+                                <span className="quiz-feedback-size-help" style={{ marginLeft: '4px' }}>問（最大{feedbackBlockSizeMax}）</span>
                             </div>
                         </div>
                         <div className="mode-settings-divider" aria-hidden="true" />
