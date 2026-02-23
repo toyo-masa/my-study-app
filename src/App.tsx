@@ -25,6 +25,40 @@ import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 import { HistoryTableRoute } from './pages/HistoryTableRoute';
 
+const APP_TITLE_PREFIX = 'qa';
+
+function resolvePageTitle(pathname: string, quizSets: Array<{ id?: number; name: string }>): string {
+  if (pathname === '/') return `${APP_TITLE_PREFIX} | ホーム`;
+  if (pathname === '/distribution-sim') return `${APP_TITLE_PREFIX} | 分布シミュレーター`;
+  if (pathname === '/review-board') return `${APP_TITLE_PREFIX} | 復習ボード`;
+  if (pathname === '/release-notes') return `${APP_TITLE_PREFIX} | リリースノート`;
+
+  const quizRouteMatch = pathname.match(/^\/quiz\/(\d+)(?:\/([a-z-]+))?$/);
+  if (quizRouteMatch) {
+    const quizSetId = Number.parseInt(quizRouteMatch[1], 10);
+    const section = quizRouteMatch[2] ?? 'detail';
+    const quizSetName = quizSets.find((quizSet) => quizSet.id === quizSetId)?.name;
+    const pageLabel = section === 'detail'
+      ? '問題集詳細'
+      : section === 'manage'
+        ? '問題設定'
+        : section === 'study'
+          ? '問題演習'
+          : section === 'memorization'
+            ? '暗記学習'
+            : section === 'history-table'
+              ? '回答履歴テーブル'
+              : '問題集';
+
+    if (quizSetName) {
+      return `${APP_TITLE_PREFIX} | ${quizSetName} | ${pageLabel}`;
+    }
+    return `${APP_TITLE_PREFIX} | ${pageLabel}`;
+  }
+
+  return APP_TITLE_PREFIX;
+}
+
 const hexToRgbString = (hex: string): string | null => {
   const match = hex.trim().match(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
   if (!match) return null;
@@ -45,7 +79,8 @@ function App() {
     currentUser, setCurrentUser,
     isLoginModalOpen, setIsLoginModalOpen,
     isRegisterModalOpen, setIsRegisterModalOpen,
-    isInitialized
+    isInitialized,
+    quizSets
   } = useAppContext();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -84,6 +119,10 @@ function App() {
   useEffect(() => {
     saveReviewIntervalSettings(reviewIntervalSettings);
   }, [reviewIntervalSettings]);
+
+  useEffect(() => {
+    document.title = resolvePageTitle(location.pathname, quizSets);
+  }, [location.pathname, quizSets]);
 
   const toggleDarkMode = () => setIsDarkMode(prev => !prev);
   const handleReviewIntervalSettingsChange = (settings: ReviewIntervalSettings) => {
