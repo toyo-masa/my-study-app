@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.11.4',
+        date: '2026年2月23日 17:01',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            'ホワイトモードでトップページのタイトルが見づらい問題を修正し、文字色のコントラストを改善しました。',
+        ],
+    },
+    {
         version: '1.11.3',
         date: '2026年2月23日 15:01',
         improvements: [

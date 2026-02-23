@@ -1175,7 +1175,7 @@ input:checked+.slider svg {
 
 .home-header {
   text-align: center;
-  color: white;
+  color: var(--text-color);
   margin-bottom: 3rem;
   position: relative;
   width: 100%;
@@ -1216,7 +1216,16 @@ input:checked+.slider svg {
 
 .home-subtitle {
   font-size: 1.1rem;
-  opacity: 0.9;
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.dark-mode .home-header {
+  color: #ffffff;
+}
+
+.dark-mode .home-subtitle {
+  color: #cbd5e1;
 }
 
 .home-content {
