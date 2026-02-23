@@ -5,7 +5,15 @@ import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { loadSessionFromStorage, loadQuizSetSettings, saveQuizSetSettings } from '../utils/quizSettings';
+import type { QuizSetSettings } from '../utils/quizSettings';
 import type { QuizHistory } from '../types';
+
+const DEFAULT_QUIZ_SET_SETTINGS: QuizSetSettings = {
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    feedbackTimingMode: 'immediate',
+    feedbackBlockSize: 5,
+};
 
 export const QuizDetailRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -14,12 +22,9 @@ export const QuizDetailRoute: React.FC = () => {
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
     const [hasSuspendedSession, setHasSuspendedSession] = useState(expectSuspendedSession);
     const [showStartConfirmation, setShowStartConfirmation] = useState(false);
-
-    useEffect(() => {
-        if (expectSuspendedSession) {
-            setHasSuspendedSession(true);
-        }
-    }, [expectSuspendedSession]);
+    const [, setSettingsRevision] = useState(0);
+    const quizSetSettings = activeQuizSet?.id ? loadQuizSetSettings(activeQuizSet.id) : DEFAULT_QUIZ_SET_SETTINGS;
+    const effectiveHasSuspendedSession = hasSuspendedSession || expectSuspendedSession;
 
     useEffect(() => {
         let active = true;
@@ -72,7 +77,7 @@ export const QuizDetailRoute: React.FC = () => {
 
     const handleStartStudy = () => {
         if (!activeQuizSet) return;
-        if (hasSuspendedSession) {
+        if (effectiveHasSuspendedSession) {
             setShowStartConfirmation(true);
             return;
         }
@@ -97,6 +102,11 @@ export const QuizDetailRoute: React.FC = () => {
         }
     };
 
+    const handleOpenHistoryTable = () => {
+        if (quizSetId === undefined) return;
+        navigate(`/quiz/${quizSetId}/history-table`);
+    };
+
     if (!activeQuizSet) {
         return <NotFoundView message="問題集が見つかりませんでした。または読み込み中です..." />;
     }
@@ -108,10 +118,14 @@ export const QuizDetailRoute: React.FC = () => {
                 onBack={() => navigate('/')}
                 onStart={handleStartStudy}
                 onSelectHistory={handleSelectHistory}
-                hasSuspendedSession={hasSuspendedSession}
+                onOpenHistoryTable={handleOpenHistoryTable}
+                hasSuspendedSession={effectiveHasSuspendedSession}
                 onResume={handleResumeStudy}
-                settings={loadQuizSetSettings(activeQuizSet.id!)}
-                onSettingsChange={(s) => saveQuizSetSettings(activeQuizSet.id!, s)}
+                settings={quizSetSettings}
+                onSettingsChange={(s) => {
+                    saveQuizSetSettings(activeQuizSet.id!, s);
+                    setSettingsRevision((prev) => prev + 1);
+                }}
             />
             <ConfirmationModal
                 isOpen={showStartConfirmation}

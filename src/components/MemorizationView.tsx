@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Bookmark, Check, X, RotateCcw, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Question } from '../types';
+import type { Question, FeedbackTimingMode } from '../types';
 import { MarkdownText } from './MarkdownText';
 
 export interface MemorizationLog {
@@ -14,33 +14,47 @@ interface QuestionViewProps {
     question: Question;
     index: number;
     total: number;
+    userInputs: string[];
+    onInputChange: (index: number, value: string) => void;
+    showAnswer: boolean;
+    onRevealAnswer: () => void;
     onJudge: (inputs: string[], isMemorized: boolean) => void;
     isCurrentQuestionJudged?: boolean;
     showResultButton?: boolean;
     onShowResult?: () => void;
     isMarked?: boolean;
     onToggleMark?: (questionId?: number) => void;
+    onNext?: () => void;
+    isAnswerLocked?: boolean;
+    isLastQuestion?: boolean;
+    feedbackTimingMode?: FeedbackTimingMode;
+    feedbackBlockSize?: number;
+    revealReadyCount?: number | null;
 }
 
 export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
     question,
     index,
     total,
+    userInputs,
+    onInputChange,
+    showAnswer,
+    onRevealAnswer,
     onJudge,
     isCurrentQuestionJudged = false,
     showResultButton = false,
     onShowResult,
     isMarked,
-    onToggleMark
+    onToggleMark,
+    onNext,
+    isAnswerLocked = false,
+    isLastQuestion = false,
+    feedbackTimingMode = 'immediate',
+    feedbackBlockSize = 5,
+    revealReadyCount = null,
 }) => {
-    // State local to the specific question instance
-    const [userInputs, setUserInputs] = useState<string[]>(new Array(question.options.length).fill(''));
-    const [showAnswer, setShowAnswer] = useState(false);
-
     const handleInputChange = (idx: number, value: string) => {
-        const newInputs = [...userInputs];
-        newInputs[idx] = value;
-        setUserInputs(newInputs);
+        onInputChange(idx, value);
     };
 
     return (
@@ -107,9 +121,40 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
 
             <div className="control-bar">
                 {!showAnswer ? (
-                    <button className="check-answer-btn" onClick={() => setShowAnswer(true)}>
-                        回答を確認
-                    </button>
+                    <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
+                        <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                            <button
+                                className="check-answer-btn"
+                                onClick={() => {
+                                    const canRevealPendingAnswers = revealReadyCount !== null && revealReadyCount > 0;
+                                    if (canRevealPendingAnswers) {
+                                        onRevealAnswer();
+                                        return;
+                                    }
+                                    if (isAnswerLocked) {
+                                        onNext?.();
+                                        return;
+                                    }
+                                    onRevealAnswer();
+                                }}
+                            >
+                                {(revealReadyCount !== null && revealReadyCount > 0)
+                                    ? `${revealReadyCount}件の回答を確認する`
+                                    : isAnswerLocked
+                                        ? (isLastQuestion ? '完了へ進む' : '次の問題へ')
+                                        : feedbackTimingMode === 'immediate'
+                                            ? '回答を確認'
+                                            : '回答して次へ'}
+                            </button>
+                        </div>
+                        {isAnswerLocked && feedbackTimingMode !== 'immediate' && (
+                            <p className="instruction" style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                                {feedbackTimingMode === 'delayed_block'
+                                    ? `このカードは回答済みです。正解と解説は遅延表示（${feedbackBlockSize}問回答後）でまとめて確認します。`
+                                    : 'このカードは回答済みです。正解と解説は最後にまとめて確認します。'}
+                            </p>
+                        )}
+                    </div>
                 ) : (
                     <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
                         <div className="judgement-buttons">
@@ -151,6 +196,7 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
     onRetry,
     isHistory
 }) => {
+    type MemorizationResultItem = { log: MemorizationLog; question: Question; index: number };
     const [filter, setFilter] = useState<MemorizationFilter>('all');
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
     const toggleExpand = (id: number) => {
@@ -162,27 +208,31 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
         });
     };
 
-    const filteredLogs = useMemo(() => {
+    const allLogs = useMemo(() => {
         return logs.map((log, idx) => ({ log, question: questions.find(q => q.id === log.questionId), index: idx }))
-            .filter((item): item is { log: MemorizationLog; question: Question; index: number } => {
-                const { log, question } = item;
-                if (!question || question.id === undefined) return false;
-                if (filter === 'memorized') return log.isMemorized;
-                if (filter === 'not_memorized') return !log.isMemorized;
-                return true;
+            .filter((item): item is MemorizationResultItem => {
+                return !!item.question && item.question.id !== undefined;
             });
-    }, [logs, questions, filter]);
+    }, [logs, questions]);
+
+    const filteredLogs = useMemo(() => {
+        return allLogs.filter((item) => {
+            if (filter === 'memorized') return item.log.isMemorized;
+            if (filter === 'not_memorized') return !item.log.isMemorized;
+            return true;
+        });
+    }, [allLogs, filter]);
 
     const filterCounts = useMemo(() => {
-        const memorized = filteredLogs.filter(item => item.log.isMemorized).length;
+        const memorized = allLogs.filter(item => item.log.isMemorized).length;
         return {
             memorized,
-            not_memorized: filteredLogs.length - memorized
+            not_memorized: allLogs.length - memorized
         };
-    }, [filteredLogs]);
+    }, [allLogs]);
 
-    const memorizedCount = filteredLogs.filter(item => item.log.isMemorized).length;
-    const validTotalCount = filteredLogs.length;
+    const memorizedCount = filterCounts.memorized;
+    const validTotalCount = allLogs.length;
     const percentage = validTotalCount > 0 ? Math.round((memorizedCount / validTotalCount) * 100) : 0;
 
     return (

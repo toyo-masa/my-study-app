@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Sidebar } from '../components/Sidebar';
+import { Sidebar, type SidebarClickPosition } from '../components/Sidebar';
 import { MemorizationResultView, MemorizationQuestionView, type MemorizationLog } from '../components/MemorizationView';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { getQuestionsForQuizSet, addHistory } from '../db';
-import type { Question, QuizHistory, HistoryMode } from '../types';
+import type { Question, QuizHistory, HistoryMode, FeedbackTimingMode } from '../types';
 import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
 
 export const MemorizationRoute: React.FC = () => {
@@ -26,15 +26,26 @@ export const MemorizationRoute: React.FC = () => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [memorizationLogs, setMemorizationLogs] = useState<MemorizationLog[]>([]);
+    const [memorizationInputsMap, setMemorizationInputsMap] = useState<Record<string, string[]>>({});
+    const [answeredMap, setAnsweredMap] = useState<Record<string, boolean>>({});
+    const [showAnswerMap, setShowAnswerMap] = useState<Record<string, boolean>>({});
+    const [pendingRevealQuestionIds, setPendingRevealQuestionIds] = useState<number[]>([]);
+    const [feedbackPhase, setFeedbackPhase] = useState<'answering' | 'revealing'>('answering');
+    const [feedbackTimingMode, setFeedbackTimingMode] = useState<FeedbackTimingMode>('immediate');
+    const [feedbackBlockSize, setFeedbackBlockSize] = useState(5);
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
     const [showEmptyCardsModal, setShowEmptyCardsModal] = useState(false);
+    const [sessionInlineNotice, setSessionInlineNotice] = useState<string | null>(null);
+    const [sessionPointerNotice, setSessionPointerNotice] = useState<{ message: string; x: number; y: number } | null>(null);
     const startTimeRef = useRef<Date>(new Date());
 
     const lastSessionKeyRef = useRef<string | null>(null);
+    const sessionInlineNoticeTimeoutRef = useRef<number | null>(null);
+    const sessionPointerNoticeTimeoutRef = useRef<number | null>(null);
 
     // Unique key for the current session
     const reviewQuestionIdsKey = reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0
@@ -49,13 +60,35 @@ export const MemorizationRoute: React.FC = () => {
         setIsLoading(true);
         setQuestions([]);
         setMemorizationLogs([]);
+        setMemorizationInputsMap({});
+        setAnsweredMap({});
+        setShowAnswerMap({});
+        setPendingRevealQuestionIds([]);
+        setFeedbackPhase('answering');
+        setFeedbackTimingMode('immediate');
+        setFeedbackBlockSize(5);
         setCurrentQuestionIndex(0);
         setMarkedQuestions([]);
         setIsTestCompleted(false);
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyCardsModal(false);
+        setSessionInlineNotice(null);
+        setSessionPointerNotice(null);
     }
+
+    useEffect(() => {
+        return () => {
+            if (sessionInlineNoticeTimeoutRef.current !== null) {
+                window.clearTimeout(sessionInlineNoticeTimeoutRef.current);
+                sessionInlineNoticeTimeoutRef.current = null;
+            }
+            if (sessionPointerNoticeTimeoutRef.current !== null) {
+                window.clearTimeout(sessionPointerNoticeTimeoutRef.current);
+                sessionPointerNoticeTimeoutRef.current = null;
+            }
+        };
+    }, []);
 
     const startNew = useCallback((qs: Question[], targetQuestionIds?: number[], mode: HistoryMode = 'normal') => {
         let studyQuestions: Question[] = qs.map(q => ({ ...q, id: q.id! }));
@@ -79,9 +112,16 @@ export const MemorizationRoute: React.FC = () => {
             const settings = loadQuizSetSettings(quizSetId);
             studyQuestions = applyShuffleSettings(studyQuestions, settings);
             clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
+            setFeedbackTimingMode(settings.feedbackTimingMode);
+            setFeedbackBlockSize(settings.feedbackBlockSize);
         }
         setQuestions(studyQuestions);
         setMemorizationLogs([]);
+        setMemorizationInputsMap({});
+        setAnsweredMap({});
+        setShowAnswerMap({});
+        setPendingRevealQuestionIds([]);
+        setFeedbackPhase('answering');
         setCurrentQuestionIndex(0);
         setMarkedQuestions([]);
         setIsTestCompleted(false);
@@ -104,6 +144,7 @@ export const MemorizationRoute: React.FC = () => {
 
             try {
                 const qs = await getQuestionsForQuizSet(quizSetId);
+                const quizSetSettings = loadQuizSetSettings(quizSetId);
 
                 if (!historyFromState && !reviewQuestionIdsFromState && qs.length === 0) {
                     await clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
@@ -114,9 +155,25 @@ export const MemorizationRoute: React.FC = () => {
                 }
 
                 if (historyFromState && historyFromState.memorizationDetail && historyFromState.memorizationDetail.length > 0) {
+                    const inputsMap: Record<string, string[]> = {};
+                    const allAnswered: Record<string, boolean> = {};
+                    const allShown: Record<string, boolean> = {};
+                    historyFromState.memorizationDetail.forEach(log => {
+                        inputsMap[String(log.questionId)] = log.userInputs;
+                        allAnswered[String(log.questionId)] = true;
+                        allShown[String(log.questionId)] = true;
+                    });
+
                     setQuestions(qs);
                     setActiveHistory(historyFromState);
                     setMemorizationLogs(historyFromState.memorizationDetail);
+                    setMemorizationInputsMap(inputsMap);
+                    setAnsweredMap(allAnswered);
+                    setShowAnswerMap(allShown);
+                    setPendingRevealQuestionIds([]);
+                    setFeedbackPhase('revealing');
+                    setFeedbackTimingMode(historyFromState.feedbackTimingMode || 'immediate');
+                    setFeedbackBlockSize(quizSetSettings.feedbackBlockSize);
                     setMarkedQuestions(historyFromState.markedQuestionIds || []);
                     setIsTestCompleted(true);
                     setHistoryMode(historyFromState.mode || 'normal');
@@ -143,6 +200,13 @@ export const MemorizationRoute: React.FC = () => {
                         const nextIndex = Math.min(suspendedSession.currentQuestionIndex, filteredQuestions.length - 1);
                         setQuestions(filteredQuestions);
                         setMemorizationLogs(suspendedSession.memorizationLogs || []);
+                        setMemorizationInputsMap(suspendedSession.memorizationInputsMap || {});
+                        setAnsweredMap(suspendedSession.answeredMap || {});
+                        setShowAnswerMap(suspendedSession.showAnswerMap || {});
+                        setPendingRevealQuestionIds(suspendedSession.pendingRevealQuestionIds || []);
+                        setFeedbackPhase(suspendedSession.feedbackPhase || 'answering');
+                        setFeedbackTimingMode(suspendedSession.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
+                        setFeedbackBlockSize(suspendedSession.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
                         setCurrentQuestionIndex(nextIndex);
                         setMarkedQuestions(suspendedSession.markedQuestions || []);
 
@@ -189,13 +253,19 @@ export const MemorizationRoute: React.FC = () => {
                     currentQuestionIndex,
                     answers: {},
                     memos: {},
-                    showAnswerMap: {},
+                    answeredMap,
+                    showAnswerMap,
+                    pendingRevealQuestionIds,
+                    feedbackPhase,
+                    feedbackTimingMode,
+                    feedbackBlockSize,
                     markedQuestions,
                     startTime: startTimeRef.current,
                     elapsedSeconds,
                     historyMode,
                     type: 'memorization',
                     memorizationLogs,
+                    memorizationInputsMap,
                 }).catch((err) => {
                     console.error('Failed to save suspended session', err);
                 });
@@ -223,9 +293,353 @@ export const MemorizationRoute: React.FC = () => {
         });
     };
 
+    const findQuestionIndexById = (questionId: number): number => {
+        return questions.findIndex(q => q.id === questionId);
+    };
+
+    const findNextUnansweredIndex = (fromIndex: number, targetAnsweredMap: Record<string, boolean> = answeredMap): number => {
+        for (let i = fromIndex + 1; i < questions.length; i++) {
+            if (!targetAnsweredMap[String(questions[i].id)]) {
+                return i;
+            }
+        }
+        for (let i = 0; i <= fromIndex; i++) {
+            if (!targetAnsweredMap[String(questions[i].id)]) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    const getUnjudgedAnsweredQuestionIds = (
+        targetAnsweredMap: Record<string, boolean> = answeredMap,
+        targetLogs: MemorizationLog[] = memorizationLogs
+    ): number[] => {
+        const judgedSet = new Set(targetLogs.map(log => log.questionId));
+        return questions
+            .map(q => q.id!)
+            .filter(questionId => targetAnsweredMap[String(questionId)] && !judgedSet.has(questionId));
+    };
+
+    const enterRevealPhase = (questionIds: number[]) => {
+        if (questionIds.length === 0) return;
+        setFeedbackPhase('revealing');
+        setPendingRevealQuestionIds(questionIds);
+        const nextIndex = findQuestionIndexById(questionIds[0]);
+        if (nextIndex >= 0) {
+            setCurrentQuestionIndex(nextIndex);
+        }
+    };
+
+    const flashSessionInlineNotice = (message: string) => {
+        if (sessionInlineNoticeTimeoutRef.current !== null) {
+            window.clearTimeout(sessionInlineNoticeTimeoutRef.current);
+        }
+        setSessionInlineNotice(message);
+        sessionInlineNoticeTimeoutRef.current = window.setTimeout(() => {
+            setSessionInlineNotice(null);
+            sessionInlineNoticeTimeoutRef.current = null;
+        }, 1800);
+    };
+
+    const flashSessionPointerNotice = (message: string, clickPosition?: SidebarClickPosition) => {
+        if (!clickPosition) {
+            return;
+        }
+        if (sessionPointerNoticeTimeoutRef.current !== null) {
+            window.clearTimeout(sessionPointerNoticeTimeoutRef.current);
+        }
+        const maxNoticeWidth = 320;
+        const x = Math.min(Math.max(clickPosition.x + 14, 8), window.innerWidth - maxNoticeWidth - 8);
+        const y = Math.min(Math.max(clickPosition.y + 14, 72), window.innerHeight - 44);
+        setSessionPointerNotice({ message, x, y });
+        sessionPointerNoticeTimeoutRef.current = window.setTimeout(() => {
+            setSessionPointerNotice(null);
+            sessionPointerNoticeTimeoutRef.current = null;
+        }, 1800);
+    };
+
+    const hasAnyMemorizationInput = (
+        questionId: number,
+        targetInputsMap: Record<string, string[]> = memorizationInputsMap
+    ): boolean => {
+        const inputs = targetInputsMap[String(questionId)] || [];
+        return inputs.some(input => input.trim().length > 0);
+    };
+
+    const getAnsweringPhasePendingIdsForBlock = (
+        targetInputsMap: Record<string, string[]> = memorizationInputsMap,
+        targetAnsweredMap: Record<string, boolean> = answeredMap,
+        targetPendingRevealQuestionIds: number[] = pendingRevealQuestionIds,
+        targetLogs: MemorizationLog[] = memorizationLogs
+    ): number[] => {
+        const judgedSet = new Set(targetLogs.map(log => log.questionId));
+        const pendingSet = new Set<number>();
+
+        targetPendingRevealQuestionIds.forEach(questionId => {
+            if (!judgedSet.has(questionId)) {
+                pendingSet.add(questionId);
+            }
+        });
+
+        questions.forEach(q => {
+            const questionId = q.id!;
+            const qKey = String(questionId);
+            if (judgedSet.has(questionId)) return;
+            if (targetAnsweredMap[qKey]) {
+                pendingSet.add(questionId);
+                return;
+            }
+            if (hasAnyMemorizationInput(questionId, targetInputsMap)) {
+                pendingSet.add(questionId);
+            }
+        });
+
+        return questions.map(q => q.id!).filter(questionId => pendingSet.has(questionId));
+    };
+
+    const getDelayedBlockLockPreview = (
+        targetInputsMap: Record<string, string[]> = memorizationInputsMap,
+        targetAnsweredMap: Record<string, boolean> = answeredMap,
+        targetPendingRevealQuestionIds: number[] = pendingRevealQuestionIds,
+        targetLogs: MemorizationLog[] = memorizationLogs
+    ) => {
+        if (feedbackTimingMode !== 'delayed_block' || feedbackPhase !== 'answering' || questions.length === 0) {
+            return { locked: false, pendingIds: [] as number[], remainingCount: 0 };
+        }
+
+        const pendingIds = getAnsweringPhasePendingIdsForBlock(
+            targetInputsMap,
+            targetAnsweredMap,
+            targetPendingRevealQuestionIds,
+            targetLogs
+        );
+        const pendingSet = new Set(pendingIds);
+        const judgedSet = new Set(targetLogs.map(log => log.questionId));
+        const allAnsweredLike = questions.every(
+            q => judgedSet.has(q.id!) || pendingSet.has(q.id!)
+        );
+        const locked = pendingIds.length > 0 && (pendingIds.length >= feedbackBlockSize || allAnsweredLike);
+
+        return {
+            locked,
+            pendingIds,
+            remainingCount: pendingIds.length,
+        };
+    };
+
+    const handleInputChange = (optionIndex: number, value: string) => {
+        const currentQ = questions[currentQuestionIndex];
+        if (!currentQ) return;
+        const qId = String(currentQ.id);
+
+        const baseInputs = memorizationInputsMap[qId] || new Array(currentQ.options.length).fill('');
+        const nextInputs = [...baseInputs];
+        nextInputs[optionIndex] = value;
+        const nextInputsMap = { ...memorizationInputsMap, [qId]: nextInputs };
+
+        setMemorizationInputsMap(nextInputsMap);
+    };
+
+    const handleRevealAnswer = () => {
+        const currentQ = questions[currentQuestionIndex];
+        if (!currentQ) return;
+        const questionId = currentQ.id!;
+        const qId = String(questionId);
+
+        setMemorizationInputsMap(prev => {
+            if (prev[qId]) return prev;
+            return { ...prev, [qId]: new Array(currentQ.options.length).fill('') };
+        });
+
+        if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
+            setAnsweredMap(prev => ({ ...prev, [qId]: true }));
+            setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
+            return;
+        }
+
+        const alreadyAnswered = answeredMap[qId] === true;
+        const nextAnsweredMap = alreadyAnswered
+            ? answeredMap
+            : { ...answeredMap, [qId]: true };
+
+        if (!alreadyAnswered) {
+            setAnsweredMap(nextAnsweredMap);
+        }
+
+        const nextPendingRevealQuestionIds = pendingRevealQuestionIds.includes(questionId)
+            ? pendingRevealQuestionIds
+            : [...pendingRevealQuestionIds, questionId];
+
+        if (!pendingRevealQuestionIds.includes(questionId)) {
+            setPendingRevealQuestionIds(nextPendingRevealQuestionIds);
+        }
+
+        const allAnswered = questions.every(q => nextAnsweredMap[String(q.id)] === true);
+        const shouldLockByDelayedBlock = feedbackTimingMode === 'delayed_block' &&
+            (nextPendingRevealQuestionIds.length >= feedbackBlockSize || allAnswered);
+
+        if (feedbackTimingMode === 'delayed_end' && allAnswered) {
+            enterRevealPhase(getUnjudgedAnsweredQuestionIds(nextAnsweredMap));
+            return;
+        }
+
+        if (shouldLockByDelayedBlock) {
+            enterRevealPhase(nextPendingRevealQuestionIds);
+            return;
+        }
+
+        const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex, nextAnsweredMap);
+        if (nextUnansweredIndex >= 0) {
+            setCurrentQuestionIndex(nextUnansweredIndex);
+        }
+    };
+
+    const handleSidebarSelectQuestion = (targetIndex: number, clickPosition?: SidebarClickPosition) => {
+        if (targetIndex < 0 || targetIndex >= questions.length || targetIndex === currentQuestionIndex) {
+            return;
+        }
+
+        const currentQ = questions[currentQuestionIndex];
+        if (!currentQ) {
+            setCurrentQuestionIndex(targetIndex);
+            return;
+        }
+
+        const targetQuestionId = questions[targetIndex].id!;
+
+        if (feedbackTimingMode !== 'immediate' && feedbackPhase === 'revealing') {
+            const judgedSet = new Set(memorizationLogs.map(log => log.questionId));
+            const remainingPendingCount = pendingRevealQuestionIds.filter(
+                questionId => !judgedSet.has(questionId)
+            ).length;
+            const isTargetPending = pendingRevealQuestionIds.includes(targetQuestionId);
+            const isTargetAlreadyConfirmed = judgedSet.has(targetQuestionId);
+            if (remainingPendingCount > 0 && !isTargetPending && !isTargetAlreadyConfirmed) {
+                flashSessionPointerNotice(`残り${remainingPendingCount}件の回答確認後に移動できます`, clickPosition);
+                return;
+            }
+
+            if (remainingPendingCount === 0 && feedbackTimingMode === 'delayed_block') {
+                setPendingRevealQuestionIds([]);
+                setFeedbackPhase('answering');
+                setCurrentQuestionIndex(targetIndex);
+                return;
+            }
+
+            if (isTargetPending) {
+                setShowAnswerMap(prev => ({ ...prev, [String(targetQuestionId)]: true }));
+            }
+            setCurrentQuestionIndex(targetIndex);
+            return;
+        }
+
+        if (feedbackTimingMode === 'immediate' || feedbackPhase !== 'answering') {
+            setCurrentQuestionIndex(targetIndex);
+            return;
+        }
+
+        const currentQuestionId = currentQ.id!;
+        const currentQKey = String(currentQuestionId);
+        const currentInputs = memorizationInputsMap[currentQKey] || [];
+        const hasAnyInput = currentInputs.some(input => input.trim().length > 0);
+        let nextAnsweredMap = answeredMap;
+        let nextPendingRevealQuestionIds = pendingRevealQuestionIds;
+        let didAutoSave = false;
+
+        if (hasAnyInput && !answeredMap[currentQKey] && !showAnswerMap[currentQKey]) {
+            nextAnsweredMap = { ...answeredMap, [currentQKey]: true };
+            setAnsweredMap(nextAnsweredMap);
+            didAutoSave = true;
+
+            nextPendingRevealQuestionIds = pendingRevealQuestionIds.includes(currentQuestionId)
+                ? pendingRevealQuestionIds
+                : [...pendingRevealQuestionIds, currentQuestionId];
+
+            if (!pendingRevealQuestionIds.includes(currentQuestionId)) {
+                setPendingRevealQuestionIds(nextPendingRevealQuestionIds);
+            }
+        }
+
+        const blockState = getDelayedBlockLockPreview(
+            memorizationInputsMap,
+            nextAnsweredMap,
+            nextPendingRevealQuestionIds,
+            memorizationLogs
+        );
+        const judgedSet = new Set(memorizationLogs.map(log => log.questionId));
+        const isTargetAlreadyConfirmed = judgedSet.has(targetQuestionId);
+        if (
+            blockState.locked &&
+            blockState.remainingCount > 0 &&
+            !blockState.pendingIds.includes(targetQuestionId) &&
+            !isTargetAlreadyConfirmed
+        ) {
+            flashSessionPointerNotice(`残り${blockState.remainingCount}件の回答確認後に移動できます`, clickPosition);
+            return;
+        }
+
+        if (didAutoSave) {
+            flashSessionInlineNotice('移動時に一時回答として保存しました');
+        }
+
+        setCurrentQuestionIndex(targetIndex);
+    };
+
+    const handleMoveNext = () => {
+        if (feedbackTimingMode === 'immediate') {
+            if (currentQuestionIndex < questions.length - 1) {
+                setCurrentQuestionIndex(prev => prev + 1);
+            }
+            return;
+        }
+
+        if (feedbackPhase === 'answering') {
+            const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
+            if (nextUnansweredIndex >= 0) {
+                setCurrentQuestionIndex(nextUnansweredIndex);
+                return;
+            }
+
+            const unjudgedAnswered = getUnjudgedAnsweredQuestionIds();
+            if (unjudgedAnswered.length > 0) {
+                enterRevealPhase(unjudgedAnswered);
+            }
+            return;
+        }
+
+        const judgedSet = new Set(memorizationLogs.map(log => log.questionId));
+        const remainingPending = pendingRevealQuestionIds.filter(questionId => !judgedSet.has(questionId));
+        const currentQuestionId = questions[currentQuestionIndex]?.id;
+        if (currentQuestionId === undefined) return;
+
+        const currentPos = remainingPending.indexOf(currentQuestionId);
+        const nextPendingId = currentPos >= 0 ? remainingPending[currentPos + 1] : remainingPending[0];
+
+        if (nextPendingId !== undefined) {
+            const nextIndex = findQuestionIndexById(nextPendingId);
+            if (nextIndex >= 0) {
+                setCurrentQuestionIndex(nextIndex);
+            }
+            return;
+        }
+
+        setPendingRevealQuestionIds([]);
+        const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
+        if (feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0) {
+            setFeedbackPhase('answering');
+            setCurrentQuestionIndex(nextUnansweredIndex);
+        }
+    };
+
     const handleMemorizationJudge = (inputs: string[], isMemorized: boolean) => {
         const currentQ = questions[currentQuestionIndex];
         if (!currentQ) return;
+        const qId = String(currentQ.id);
+
+        setMemorizationInputsMap(prev => ({ ...prev, [qId]: inputs }));
+        setAnsweredMap(prev => ({ ...prev, [qId]: true }));
+        setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
 
         const filteredLogs = memorizationLogs.filter(l => l.questionId !== currentQ.id);
 
@@ -237,8 +651,33 @@ export const MemorizationRoute: React.FC = () => {
         const newLogs = [...filteredLogs, log];
         setMemorizationLogs(newLogs);
 
-        if (currentQuestionIndex < questions.length - 1) {
-            setCurrentQuestionIndex(prev => prev + 1);
+        if (feedbackTimingMode === 'immediate') {
+            if (currentQuestionIndex < questions.length - 1) {
+                setCurrentQuestionIndex(prev => prev + 1);
+            }
+            return;
+        }
+
+        if (feedbackPhase === 'revealing') {
+            const judgedSet = new Set(newLogs.map(item => item.questionId));
+            const remainingPending = pendingRevealQuestionIds.filter(questionId => !judgedSet.has(questionId));
+            const currentPos = remainingPending.indexOf(currentQ.id!);
+            const nextPendingId = currentPos >= 0 ? remainingPending[currentPos + 1] : remainingPending[0];
+
+            if (nextPendingId !== undefined) {
+                const nextIndex = findQuestionIndexById(nextPendingId);
+                if (nextIndex >= 0) {
+                    setCurrentQuestionIndex(nextIndex);
+                }
+                return;
+            }
+
+            setPendingRevealQuestionIds([]);
+            const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
+            if (feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0) {
+                setFeedbackPhase('answering');
+                setCurrentQuestionIndex(nextUnansweredIndex);
+            }
         }
     };
 
@@ -259,7 +698,8 @@ export const MemorizationRoute: React.FC = () => {
             answers: {},
             markedQuestionIds: finalLogs.filter(l => !l.isMemorized).map(l => l.questionId),
             memorizationDetail: finalLogs,
-            mode: historyMode
+            mode: historyMode,
+            feedbackTimingMode,
         };
 
         if (activeQuizSet?.id !== undefined) {
@@ -274,12 +714,20 @@ export const MemorizationRoute: React.FC = () => {
     };
 
     const handleShowResult = async () => {
-        const answeredIds = new Set(memorizationLogs.map(log => log.questionId));
-        const unansweredCount = questions.filter(q => q.id !== undefined && !answeredIds.has(q.id)).length;
+        const unansweredCount = questions.filter(q => q.id !== undefined && !answeredMap[String(q.id)]).length;
         if (unansweredCount > 0) {
             const shouldComplete = window.confirm(`未回答の問題が${unansweredCount}問あります。テスト結果を表示してもいいですか？`);
             if (!shouldComplete) return;
         }
+
+        if (feedbackTimingMode !== 'immediate') {
+            const unjudgedAnswered = getUnjudgedAnsweredQuestionIds();
+            if (unjudgedAnswered.length > 0) {
+                enterRevealPhase(unjudgedAnswered);
+                return;
+            }
+        }
+
         await handleCompleteMemorization(memorizationLogs);
     };
 
@@ -303,6 +751,97 @@ export const MemorizationRoute: React.FC = () => {
 
     const managePath = `/quiz/${quizSetId}/manage`;
     const detailPath = `/quiz/${quizSetId}`;
+    const currentQuestion = questions[currentQuestionIndex];
+    const currentQuestionKey = currentQuestion ? String(currentQuestion.id) : '';
+    const currentInputs = currentQuestion
+        ? (memorizationInputsMap[currentQuestionKey] || new Array(currentQuestion.options.length).fill(''))
+        : [];
+    const judgedQuestionIds = new Set(memorizationLogs.map(log => log.questionId));
+    const isCurrentQuestionJudged = currentQuestion ? judgedQuestionIds.has(currentQuestion.id!) : false;
+    const showAnswerForCurrent = currentQuestion
+        ? (feedbackTimingMode === 'immediate'
+            ? showAnswerMap[currentQuestionKey] === true
+            : feedbackPhase === 'revealing' && answeredMap[currentQuestionKey] === true)
+        : false;
+    const isAnswerLocked = currentQuestion
+        ? (feedbackTimingMode !== 'immediate' &&
+            feedbackPhase === 'answering' &&
+            answeredMap[currentQuestionKey] === true &&
+            !showAnswerMap[currentQuestionKey])
+        : false;
+    const revealReadyCount = (() => {
+        if (!currentQuestion) return null;
+        if (feedbackTimingMode === 'immediate') return null;
+        if (feedbackPhase !== 'answering') return null;
+        if (showAnswerMap[currentQuestionKey]) return null;
+
+        if (feedbackTimingMode === 'delayed_block') {
+            const blockState = getDelayedBlockLockPreview();
+            if (blockState.locked && blockState.pendingIds.includes(currentQuestion.id!)) {
+                return blockState.remainingCount > 0 ? blockState.remainingCount : null;
+            }
+
+            if (judgedQuestionIds.has(currentQuestion.id!)) {
+                return null;
+            }
+            if (!blockState.pendingIds.includes(currentQuestion.id!)) {
+                const predictedCount = blockState.pendingIds.length + 1;
+                const pendingSet = new Set<number>(blockState.pendingIds);
+                const allAnsweredLikeAfterCurrent = questions.every(
+                    q => judgedQuestionIds.has(q.id!) || pendingSet.has(q.id!) || q.id === currentQuestion.id!
+                );
+                const shouldLockAfterCurrent = predictedCount > 0 &&
+                    (predictedCount >= feedbackBlockSize || allAnsweredLikeAfterCurrent);
+
+                if (shouldLockAfterCurrent) {
+                    return predictedCount;
+                }
+            }
+            return null;
+        }
+
+        if (answeredMap[currentQuestionKey] || hasAnyMemorizationInput(currentQuestion.id!)) {
+            const allAnsweredNow = questions.every(q => answeredMap[String(q.id)] === true);
+
+            if (feedbackTimingMode === 'delayed_end') {
+                if (!allAnsweredNow) return null;
+                const unjudgedCount = questions.filter(q => answeredMap[String(q.id)] && !judgedQuestionIds.has(q.id!)).length;
+                return unjudgedCount > 0 ? unjudgedCount : null;
+            }
+        }
+
+        return null;
+    })();
+    const canShowResultButton = currentQuestionIndex === questions.length - 1 ||
+        (feedbackTimingMode !== 'immediate' &&
+            questions.length > 0 &&
+            questions.every(q => answeredMap[String(q.id)] && judgedQuestionIds.has(q.id!)));
+    const sidebarLockedQuestionIds = (() => {
+        if (feedbackTimingMode === 'immediate' || questions.length === 0) {
+            return [] as number[];
+        }
+
+        const blockState = getDelayedBlockLockPreview();
+        if (blockState.locked && blockState.remainingCount > 0) {
+            const allowedSet = new Set(blockState.pendingIds);
+            return questions
+                .filter(q => !allowedSet.has(q.id!) && !judgedQuestionIds.has(q.id!))
+                .map(q => q.id!);
+        }
+
+        if (feedbackPhase === 'revealing') {
+            const judgedSet = new Set(memorizationLogs.map(log => log.questionId));
+            const remainingPendingCount = pendingRevealQuestionIds.filter(questionId => !judgedSet.has(questionId)).length;
+            if (remainingPendingCount > 0) {
+                const allowedSet = new Set(pendingRevealQuestionIds);
+                return questions
+                    .filter(q => !allowedSet.has(q.id!) && !judgedSet.has(q.id!))
+                    .map(q => q.id!);
+            }
+        }
+
+        return [] as number[];
+    })();
 
     const reviewHeaderBadge =
         historyMode === 'review_wrong'
@@ -326,13 +865,15 @@ export const MemorizationRoute: React.FC = () => {
                 <Sidebar
                     questions={questions}
                     currentQuestionIndex={currentQuestionIndex}
-                    onSelectQuestion={setCurrentQuestionIndex}
+                    onSelectQuestion={handleSidebarSelectQuestion}
                     mode="memorization"
                     memorizationStatus={memStatus}
                     answers={{}}
+                    answeredMap={answeredMap}
                     showAnswerMap={{}}
                     markedQuestionIds={markedQuestions}
                     onToggleMark={handleToggleMark}
+                    lockedQuestionIds={sidebarLockedQuestionIds}
                 />
             }
         >
@@ -352,19 +893,44 @@ export const MemorizationRoute: React.FC = () => {
                     isHistory={!!activeHistory}
                 />
             ) : (
-                questions[currentQuestionIndex] && (
-                    <MemorizationQuestionView
-                        key={questions[currentQuestionIndex].id}
-                        question={questions[currentQuestionIndex]}
-                        index={currentQuestionIndex}
-                        total={questions.length}
-                        onJudge={handleMemorizationJudge}
-                        isCurrentQuestionJudged={memorizationLogs.some(log => log.questionId === questions[currentQuestionIndex].id)}
-                        showResultButton={currentQuestionIndex === questions.length - 1}
-                        onShowResult={handleShowResult}
-                        isMarked={markedQuestions.includes(questions[currentQuestionIndex].id!)}
-                        onToggleMark={handleToggleMark}
-                    />
+                currentQuestion && (
+                    <>
+                        {sessionPointerNotice && (
+                            <div
+                                className="session-pointer-notice"
+                                style={{ left: `${sessionPointerNotice.x}px`, top: `${sessionPointerNotice.y}px` }}
+                            >
+                                {sessionPointerNotice.message}
+                            </div>
+                        )}
+                        {sessionInlineNotice && (
+                            <div className={`session-inline-notice ${sessionInlineNotice.includes('一時回答') ? 'saved' : ''}`}>
+                                {sessionInlineNotice}
+                            </div>
+                        )}
+                        <MemorizationQuestionView
+                            key={currentQuestion.id}
+                            question={currentQuestion}
+                            index={currentQuestionIndex}
+                            total={questions.length}
+                            userInputs={currentInputs}
+                            onInputChange={handleInputChange}
+                            showAnswer={showAnswerForCurrent}
+                            onRevealAnswer={handleRevealAnswer}
+                            onJudge={handleMemorizationJudge}
+                            isCurrentQuestionJudged={isCurrentQuestionJudged}
+                            showResultButton={canShowResultButton}
+                            onShowResult={handleShowResult}
+                            isMarked={markedQuestions.includes(currentQuestion.id!)}
+                            onToggleMark={handleToggleMark}
+                            onNext={handleMoveNext}
+                            isAnswerLocked={isAnswerLocked}
+                            isLastQuestion={currentQuestionIndex === questions.length - 1}
+                            feedbackTimingMode={feedbackTimingMode}
+                            feedbackBlockSize={feedbackBlockSize}
+                            revealReadyCount={revealReadyCount}
+                        />
+                    </>
                 )
             )}
             <ConfirmationModal

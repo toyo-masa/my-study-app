@@ -1,20 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import type { QuizSet, QuizHistory } from '../types';
 import { getHistories } from '../db';
-import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Shuffle } from 'lucide-react';
+import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Table2, Minus, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingView } from './LoadingView';
+import type { QuizSetSettings } from '../utils/quizSettings';
 
-interface QuizSetSettings {
-    shuffleQuestions: boolean;
-    shuffleOptions: boolean;
-}
+const INITIAL_VISIBLE_HISTORY_COUNT = 10;
+const HISTORY_BATCH_SIZE = 10;
 
 interface QuizDetailProps {
     quizSet: QuizSet & { questionCount: number; categories: string[] };
     onBack: () => void;
     onStart: () => void;
     onSelectHistory: (history: QuizHistory) => void;
+    onOpenHistoryTable: () => void;
     hasSuspendedSession: boolean;
     onResume: () => void;
     settings: QuizSetSettings;
@@ -26,6 +26,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
     onBack,
     onStart,
     onSelectHistory,
+    onOpenHistoryTable,
     hasSuspendedSession,
     onResume,
     settings,
@@ -33,25 +34,135 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
 }) => {
     const [histories, setHistories] = useState<QuizHistory[]>([]);
     const [loading, setLoading] = useState(true);
-    const [localSettings, setLocalSettings] = useState<QuizSetSettings>(settings);
+    const [visibleHistoryCount, setVisibleHistoryCount] = useState(INITIAL_VISIBLE_HISTORY_COUNT);
+    const [localFeedbackSize, setLocalFeedbackSize] = useState<string>(
+        String(settings.feedbackBlockSize || 1)
+    );
+    const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const currentValRef = useRef(settings.feedbackBlockSize || 1);
 
     const currentTags = quizSet.tags || [];
+    const feedbackBlockSizeMax = Math.max(1, quizSet.questionCount);
+
+    const normalizedSettings = useMemo<QuizSetSettings>(() => {
+        const normalizedSize = Math.min(
+            feedbackBlockSizeMax,
+            Math.max(1, Math.round(settings.feedbackBlockSize || 1)),
+        );
+        return {
+            ...settings,
+            feedbackTimingMode: 'delayed_block',
+            feedbackBlockSize: normalizedSize,
+        };
+    }, [settings, feedbackBlockSizeMax]);
 
     const handleSettingsChange = (newSettings: QuizSetSettings) => {
-        setLocalSettings(newSettings);
-        onSettingsChange(newSettings);
+        onSettingsChange({
+            ...newSettings,
+            feedbackTimingMode: 'delayed_block',
+            feedbackBlockSize: Math.min(
+                feedbackBlockSizeMax,
+                Math.max(1, Math.round(newSettings.feedbackBlockSize || 1)),
+            ),
+        });
     };
+
+    const handleFeedbackBlockSizeChange = (value: number) => {
+        const normalized = Math.min(feedbackBlockSizeMax, Math.max(1, Math.round(value)));
+        currentValRef.current = normalized;
+        handleSettingsChange({ ...normalizedSettings, feedbackBlockSize: normalized });
+    };
+
+    const stopContinuousChange = () => {
+        if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current);
+            holdTimerRef.current = null;
+        }
+        if (holdIntervalRef.current) {
+            clearInterval(holdIntervalRef.current);
+            holdIntervalRef.current = null;
+        }
+    };
+
+    const startContinuousChange = (direction: 1 | -1) => {
+        stopContinuousChange();
+
+        // 最初の1クリック
+        handleFeedbackBlockSizeChange(currentValRef.current + direction);
+
+        // 長押し開始までのディレイ
+        holdTimerRef.current = setTimeout(() => {
+            let speed = 200;
+            let count = 0;
+
+            const run = () => {
+                handleFeedbackBlockSizeChange(currentValRef.current + direction);
+                count++;
+
+                // 加速ロジック
+                if (count > 10) speed = 50;
+                else if (count > 3) speed = 100;
+
+                holdIntervalRef.current = setTimeout(run, speed) as any;
+            };
+            run();
+        }, 400);
+    };
+
+    useEffect(() => {
+        return () => stopContinuousChange();
+    }, []);
+
+    useEffect(() => {
+        const normalizedSize = Math.min(
+            feedbackBlockSizeMax,
+            Math.max(1, Math.round(settings.feedbackBlockSize || 1)),
+        );
+        if (settings.feedbackTimingMode !== 'delayed_block' || settings.feedbackBlockSize !== normalizedSize) {
+            const nextSettings: QuizSetSettings = {
+                ...settings,
+                feedbackTimingMode: 'delayed_block',
+                feedbackBlockSize: normalizedSize,
+            };
+            onSettingsChange(nextSettings);
+        }
+    }, [settings, onSettingsChange, feedbackBlockSizeMax]);
+
+    useEffect(() => {
+        setLocalFeedbackSize(String(normalizedSettings.feedbackBlockSize));
+        currentValRef.current = normalizedSettings.feedbackBlockSize;
+    }, [normalizedSettings.feedbackBlockSize]);
 
     useEffect(() => {
         const loadHistories = async () => {
             if (quizSet.id !== undefined) {
                 const data = await getHistories(quizSet.id);
                 setHistories(data);
+                setVisibleHistoryCount(INITIAL_VISIBLE_HISTORY_COUNT);
             }
             setLoading(false);
         };
         loadHistories();
     }, [quizSet.id]);
+
+    const sortedHistories = useMemo(() => {
+        return [...histories].sort((a, b) => {
+            return new Date(b.date).getTime() - new Date(a.date).getTime();
+        });
+    }, [histories]);
+
+    const visibleHistories = sortedHistories.slice(0, visibleHistoryCount);
+    const hasHiddenHistories = visibleHistoryCount < sortedHistories.length;
+    const isHistoryExpanded = visibleHistoryCount > INITIAL_VISIBLE_HISTORY_COUNT;
+
+    const showMoreHistories = () => {
+        setVisibleHistoryCount((prev) => Math.min(prev + HISTORY_BATCH_SIZE, sortedHistories.length));
+    };
+
+    const collapseHistories = () => {
+        setVisibleHistoryCount(INITIAL_VISIBLE_HISTORY_COUNT);
+    };
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -70,60 +181,127 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
 
             <div className="detail-content">
                 <div className="detail-info-card">
-                    <div className="info-row">
-                        <span className="info-label">問題数</span>
-                        <span className="info-value">{quizSet.questionCount}問</span>
-                    </div>
                     {currentTags.length > 0 && (
-                        <div className="info-row" style={{ alignItems: 'flex-start' }}>
-                            <div style={{ flex: 1, paddingTop: '0.5rem' }}>
-                                <div className="info-tags" style={{ flexWrap: 'wrap' }}>
-                                    {currentTags.map(tag => (
-                                        <span key={tag} className="tag">
-                                            {tag}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
+                        <div className="info-tags" aria-label="タグ">
+                            {currentTags.map(tag => (
+                                <span key={tag} className="tag">
+                                    {tag}
+                                </span>
+                            ))}
                         </div>
                     )}
-
-                    {/* 出題設定 */}
-                    <div className="quiz-settings-row">
-                        <label className={`quiz-setting-chip ${localSettings.shuffleQuestions ? 'active' : ''}`}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.shuffleQuestions}
-                                onChange={(e) => handleSettingsChange({ ...localSettings, shuffleQuestions: e.target.checked })}
-                            />
-                            <Shuffle size={14} />
-                            <span>出題順ランダム</span>
-                        </label>
-                        <label className={`quiz-setting-chip ${localSettings.shuffleOptions ? 'active' : ''}`}>
-                            <input
-                                type="checkbox"
-                                checked={localSettings.shuffleOptions}
-                                onChange={(e) => handleSettingsChange({ ...localSettings, shuffleOptions: e.target.checked })}
-                            />
-                            <Shuffle size={14} />
-                            <span>選択肢ランダム</span>
-                        </label>
+                    <div className="quiz-count-row">
+                        <span className="info-label">問題数</span>
+                        <span className="info-value compact">{quizSet.questionCount}問</span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                    <div className="quiz-setup-grid">
+                        <div className="quiz-setup-row">
+                            <span className="quiz-setup-label">ランダム設定</span>
+                            <div className="quiz-setup-controls">
+                                <label className={`quiz-setting-chip compact ${normalizedSettings.shuffleQuestions ? 'active' : ''}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={normalizedSettings.shuffleQuestions}
+                                        onChange={(e) => handleSettingsChange({ ...normalizedSettings, shuffleQuestions: e.target.checked })}
+                                    />
+                                    出題順ランダム
+                                </label>
+                                <label className={`quiz-setting-chip compact ${normalizedSettings.shuffleOptions ? 'active' : ''}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={normalizedSettings.shuffleOptions}
+                                        onChange={(e) => handleSettingsChange({ ...normalizedSettings, shuffleOptions: e.target.checked })}
+                                    />
+                                    選択肢ランダム
+                                </label>
+                            </div>
+                        </div>
+                        <div className="quiz-setup-row">
+                            <span className="quiz-setup-label">回答表示間隔</span>
+                            <div className="quiz-feedback-inline-controls" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div className="stepper-control" style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden', height: '2.5rem' }}>
+                                    <button
+                                        type="button"
+                                        onPointerDown={() => startContinuousChange(-1)}
+                                        onPointerUp={stopContinuousChange}
+                                        onPointerLeave={stopContinuousChange}
+                                        disabled={normalizedSettings.feedbackBlockSize <= 1}
+                                        style={{ width: '2.5rem', height: '100%', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-color)', userSelect: 'none', touchAction: 'none' }}
+                                        aria-label="減らす"
+                                    >
+                                        <Minus size={16} />
+                                    </button>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        className="field-input quiz-feedback-size-input"
+                                        style={{ border: 'none', borderRadius: 0, textAlign: 'center', width: '2.5rem', minWidth: 'unset', height: '100%', padding: '0', fontWeight: 'bold', fontSize: '1rem' }}
+                                        value={localFeedbackSize}
+                                        onChange={(e) => {
+                                            // 数字のみ許可
+                                            const val = e.target.value;
+                                            if (val === '' || /^\d+$/.test(val)) {
+                                                setLocalFeedbackSize(val);
+                                            }
+                                        }}
+                                        onBlur={(e) => {
+                                            const val = parseInt(e.target.value, 10);
+                                            if (isNaN(val) || val < 1) {
+                                                handleFeedbackBlockSizeChange(1);
+                                                setLocalFeedbackSize('1');
+                                            } else if (val > feedbackBlockSizeMax) {
+                                                handleFeedbackBlockSizeChange(feedbackBlockSizeMax);
+                                                setLocalFeedbackSize(String(feedbackBlockSizeMax));
+                                            } else {
+                                                handleFeedbackBlockSizeChange(val);
+                                                setLocalFeedbackSize(String(val));
+                                            }
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onPointerDown={() => startContinuousChange(1)}
+                                        onPointerUp={stopContinuousChange}
+                                        onPointerLeave={stopContinuousChange}
+                                        disabled={normalizedSettings.feedbackBlockSize >= feedbackBlockSizeMax}
+                                        style={{ width: '2.5rem', height: '100%', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-color)', userSelect: 'none', touchAction: 'none' }}
+                                        aria-label="増やす"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                </div>
+                                <span className="quiz-feedback-size-help" style={{ marginLeft: '4px' }}>問（最大{feedbackBlockSizeMax}）</span>
+                            </div>
+                        </div>
+                        <div className="mode-settings-divider" aria-hidden="true" />
+                    </div>
+
+                    <div className="quiz-start-actions">
                         {hasSuspendedSession && (
-                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ flex: 1, backgroundColor: 'var(--success-color, #10b981)' }}>
+                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ backgroundColor: 'var(--success-color, #10b981)' }}>
                                 <RotateCw size={20} /> 中断から再開
                             </button>
                         )}
-                        <button className="start-test-btn-large" onClick={onStart} style={{ flex: 1 }}>
+                        <button className="start-test-btn-large" onClick={onStart}>
                             <Play size={20} fill="currentColor" /> {hasSuspendedSession ? '新しく始める' : 'テストを開始する'}
                         </button>
                     </div>
                 </div>
 
                 <div className="history-section">
-                    <h2>解答履歴</h2>
+                    <div className="history-section-header">
+                        <h2>解答履歴</h2>
+                        <button
+                            type="button"
+                            className="nav-btn history-table-open-btn"
+                            onClick={onOpenHistoryTable}
+                            disabled={loading || histories.length === 0}
+                        >
+                            <Table2 size={15} />
+                            問題ごとの回答履歴を見る
+                        </button>
+                    </div>
                     <AnimatePresence mode="wait">
                         {loading ? (
                             <LoadingView key="loading" message="履歴を読み込み中..." />
@@ -134,7 +312,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                             >
-                                {histories.map((history) => (
+                                {visibleHistories.map((history) => (
                                     <motion.div
                                         key={history.id}
                                         className="history-item clickable"
@@ -169,6 +347,27 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
                                         </div>
                                     </motion.div>
                                 ))}
+                                {sortedHistories.length > INITIAL_VISIBLE_HISTORY_COUNT && (
+                                    <div style={{ width: '100%', textAlign: 'center', marginTop: '0.5rem' }}>
+                                        {hasHiddenHistories && (
+                                            <button className="nav-btn" onClick={showMoreHistories}>
+                                                さらに{Math.min(HISTORY_BATCH_SIZE, sortedHistories.length - visibleHistoryCount)}件表示
+                                            </button>
+                                        )}
+                                        {isHistoryExpanded && (
+                                            <button
+                                                className="nav-btn"
+                                                onClick={collapseHistories}
+                                                style={{ marginLeft: hasHiddenHistories ? '0.75rem' : 0 }}
+                                            >
+                                                最新{INITIAL_VISIBLE_HISTORY_COUNT}件に戻す
+                                            </button>
+                                        )}
+                                        <div style={{ marginTop: '0.65rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                            表示中: {visibleHistories.length} / {sortedHistories.length} 件
+                                        </div>
+                                    </div>
+                                )}
                             </motion.div>
                         ) : (
                             <motion.div
