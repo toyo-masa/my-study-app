@@ -139,7 +139,7 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
         }) + ' ' + endTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
         return { correct, incorrect, skipped, totalQuestions, correctPct, timeStr, dateStr, categoryMap };
-    }, [questions, answers, startTime, endTime]);
+    }, [questions, answers, startTime, endTime, props.historyOverrides]);
 
     // Filtered questions
     const filteredQuestions = useMemo(() => {
@@ -183,7 +183,7 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
 
     return (
         <motion.div
-            className="test-result-container"
+            className="test-result-container quiz-result-view"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
@@ -311,16 +311,18 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
                                                                 <span className="review-option-marker">
                                                                     {isCorrectOption ? '✓' : isUserSelected ? '✗' : ''}
                                                                 </span>
-                                                                <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}><MarkdownText content={opt} /></div>
+                                                                <div className="review-option-text-block"><MarkdownText content={opt} /></div>
                                                                 {isUserSelected && <span className="review-your-answer">あなたの回答</span>}
                                                             </div>
                                                         );
                                                     })}
                                                 </div>
                                                 {q.explanation && (
-                                                    <div className="review-explanation" style={{ marginTop: '1rem' }}>
-                                                        <strong>解説:</strong>
-                                                        <MarkdownText content={q.explanation?.replace(/\\n/g, '\n')} />
+                                                    <div className="review-explanation review-question-explanation">
+                                                        <strong className="review-question-explanation-title">解説:</strong>
+                                                        <div className="review-question-explanation-content">
+                                                            <MarkdownText content={q.explanation?.replace(/\\n/g, '\n')} />
+                                                        </div>
                                                     </div>
                                                 )}
                                             </motion.div>

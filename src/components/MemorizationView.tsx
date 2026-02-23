@@ -237,18 +237,18 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
 
     return (
         <motion.div
-            className="test-result-container"
+            className={`test-result-container memorization-result-view ${isHistory ? 'is-history' : ''}`}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
         >
             <div className="result-main">
                 {/* Simplified info section without chart */}
-                <div className="result-info-section" style={{ width: '100%', textAlign: 'center', marginBottom: '2rem' }}>
+                <div className="result-info-section memorization-result-info">
                     <p className="result-attempt">{isHistory ? '学習履歴' : '学習完了'}</p>
                     <h1 className="result-percentage">{percentage}%<span className="result-sub">記憶 ({memorizedCount}/{validTotalCount})</span></h1>
 
-                    <div className="result-actions" style={{ justifyContent: 'center' }}>
+                    <div className="result-actions memorization-result-actions">
                         {onBack && <button className="review-btn" onClick={onBack}>戻る</button>}
                         {!isHistory && onRetry && (
                             <button className="review-btn secondary" onClick={onRetry}>
@@ -312,21 +312,21 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                                             >
                                                 <div className="review-options">
                                                     {/* Show Your Answer vs Correct Answer */}
-                                                    <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
-                                                        <div>
-                                                            <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>あなたの回答</strong>
+                                                    <div className="review-answer-compare-grid">
+                                                        <div className="review-answer-compare-column">
+                                                            <strong className="review-answer-compare-title">あなたの回答</strong>
                                                             {log.userInputs.map((input, i) => (
                                                                 <div key={i} className="review-option" style={{ borderColor: log.isMemorized ? 'var(--success-color)' : 'var(--error-color)' }}>
                                                                     <span>{i + 1}. {input || '(未入力)'}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
-                                                        <div>
-                                                            <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>正解</strong>
+                                                        <div className="review-answer-compare-column">
+                                                            <strong className="review-answer-compare-title">正解</strong>
                                                             {q.options.map((opt, i) => (
-                                                                <div key={i} className="review-option correct" style={{ alignItems: 'flex-start' }}>
+                                                                <div key={i} className="review-option correct review-option-multiline">
                                                                     <span style={{ flexShrink: 0 }}>{i + 1}.</span>
-                                                                    <div style={{ flex: 1 }}>
+                                                                    <div className="review-option-text-block">
                                                                         <MarkdownText content={opt} />
                                                                     </div>
                                                                 </div>
@@ -335,9 +335,9 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                                                     </div>
 
                                                     {q.explanation && (
-                                                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-                                                            <strong style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>解説</strong>
-                                                            <div style={{ fontSize: '0.9rem' }}>
+                                                        <div className="review-question-explanation">
+                                                            <strong className="review-question-explanation-title">解説</strong>
+                                                            <div className="review-question-explanation-content">
                                                                 <MarkdownText content={q.explanation} />
                                                             </div>
                                                         </div>
