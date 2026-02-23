@@ -18,6 +18,12 @@ ADMIN_USERNAMES=owner,ops-admin
 
 未認証は `401`、非管理者は `403` で拒否されます。
 
+管理コンソールでは以下の管理操作が可能です。
+
+- 登録ユーザー一覧の参照（パスワードは非表示）
+- ユーザーパスワードの再設定（実行時に既存セッションを無効化）
+- ユーザー削除（自分自身は削除不可）
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -24,6 +24,7 @@ import { DistributionRoute } from './pages/DistributionRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 import { AdminRoute } from './pages/AdminRoute';
+import { NotFoundRoute } from './pages/NotFoundRoute';
 
 function App() {
   const {
@@ -308,12 +309,13 @@ function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/distribution-sim" element={<DistributionRoute />} />
           <Route path="/review-board" element={<ReviewBoardRoute />} />
-          <Route path="/admin" element={<AdminRoute />} />
+          {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
           <Route path="/quiz/:id/manage" element={<ManageRoute />} />
           <Route path="/quiz/:id/study" element={<StudyRoute />} />
           <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />
           <Route path="/quiz/:id" element={<QuizDetailRoute />} />
           <Route path="/release-notes" element={<ReleaseNotesRoute />} />
+          <Route path="*" element={<NotFoundRoute />} />
         </Routes>
       </AnimatePresence>
     </div>

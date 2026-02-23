@@ -43,6 +43,14 @@ export interface AdminSummary {
     };
 }
 
+export interface AdminUser {
+    id: number;
+    username: string;
+    createdAt: string;
+    activeSessionCount: number;
+    isAdmin: boolean;
+}
+
 export const cloudApi = {
     // === Auth ===
     async login(username: string, password: string): Promise<{ success: boolean; user: AuthUser }> {
@@ -75,6 +83,27 @@ export const cloudApi = {
 
     async getAdminSummary(): Promise<AdminSummary> {
         return fetchApi<AdminSummary>('/api/session?action=adminSummary');
+    },
+
+    async getAdminUsers(): Promise<AdminUser[]> {
+        const response = await fetchApi<{ users: AdminUser[] }>('/api/session?action=adminUsers');
+        return response.users;
+    },
+
+    async resetAdminUserPassword(targetUserId: number, newPassword: string): Promise<void> {
+        await fetchApi('/api/session?action=adminResetPassword', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUserId, newPassword })
+        });
+    },
+
+    async deleteAdminUser(targetUserId: number): Promise<void> {
+        await fetchApi('/api/session?action=adminDeleteUser', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUserId })
+        });
     },
 
     // === Quiz Sets ===
