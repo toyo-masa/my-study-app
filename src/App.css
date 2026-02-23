@@ -1273,7 +1273,7 @@ input:checked+.slider svg {
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   color: white;
   display: flex;
   align-items: center;
@@ -6590,6 +6590,7 @@ input:checked+.slider svg {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .sidebar-preview .markdown-body p,
 .sidebar-preview .markdown-body div,
 .sidebar-preview .markdown-body span.katex-display {

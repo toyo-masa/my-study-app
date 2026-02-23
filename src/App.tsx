@@ -40,6 +40,29 @@ const hexToRgbString = (hex: string): string | null => {
   return `${r}, ${g}, ${b}`;
 };
 
+const adjustColor = (hex: string, amount: number): string => {
+  const match = hex.trim().match(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (!match) return hex;
+  let value = match[1];
+  if (value.length === 3) {
+    value = value.split('').map((ch) => ch + ch).join('');
+  }
+  const intValue = Number.parseInt(value, 16);
+  let r = (intValue >> 16) & 255;
+  let g = (intValue >> 8) & 255;
+  let b = intValue & 255;
+
+  r = Math.max(0, Math.min(255, r + amount));
+  g = Math.max(0, Math.min(255, g + amount));
+  b = Math.max(0, Math.min(255, b + amount));
+
+  const rr = r.toString(16).padStart(2, '0');
+  const gg = g.toString(16).padStart(2, '0');
+  const bb = b.toString(16).padStart(2, '0');
+
+  return `#${rr}${gg}${bb}`;
+};
+
 function App() {
   const {
     currentUser, setCurrentUser,
@@ -78,8 +101,13 @@ function App() {
     if (primaryColorRgb) {
       document.documentElement.style.setProperty('--primary-color-rgb', primaryColorRgb);
     }
+
+    // グラデーション用のセカンダリカラー（少し暗く/明るくする）を動的に計算
+    const secondaryColor = adjustColor(accentColor, isDarkMode ? 30 : -30);
+    document.documentElement.style.setProperty('--secondary-color', secondaryColor);
+
     localStorage.setItem('accentColor', accentColor);
-  }, [accentColor]);
+  }, [accentColor, isDarkMode]);
 
   useEffect(() => {
     saveReviewIntervalSettings(reviewIntervalSettings);
