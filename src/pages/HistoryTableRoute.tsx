@@ -175,6 +175,8 @@ export const HistoryTableRoute: React.FC = () => {
         navigate(`/quiz/${quizSetId}`);
     };
     const answerSectionTitle = activeQuizSet.type === 'memorization' ? '解答' : '選択肢';
+    const positiveSummaryLabel = activeQuizSet.type === 'memorization' ? '覚えた数' : '正解数';
+    const negativeSummaryLabel = activeQuizSet.type === 'memorization' ? '覚えていない数' : '誤り数';
 
     return (
         <main className="content-area history-table-page">
@@ -265,7 +267,7 @@ export const HistoryTableRoute: React.FC = () => {
                                 ))}
                                 <tr className="history-summary-row">
                                     <td className="history-question-number history-summary-label">-</td>
-                                    <td className="history-question-text history-summary-title">正解数</td>
+                                    <td className="history-question-text history-summary-title">{positiveSummaryLabel}</td>
                                     {historyAttemptSummaries.map((summary, columnIndex) => (
                                         <td key={`summary-correct-${columnIndex}`} className="history-answer-cell history-summary-cell">
                                             {summary.correctCount}
@@ -274,7 +276,7 @@ export const HistoryTableRoute: React.FC = () => {
                                 </tr>
                                 <tr className="history-summary-row">
                                     <td className="history-question-number history-summary-label">-</td>
-                                    <td className="history-question-text history-summary-title">誤り数</td>
+                                    <td className="history-question-text history-summary-title">{negativeSummaryLabel}</td>
                                     {historyAttemptSummaries.map((summary, columnIndex) => (
                                         <td key={`summary-incorrect-${columnIndex}`} className="history-answer-cell history-summary-cell">
                                             {summary.incorrectCount}

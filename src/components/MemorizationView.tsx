@@ -151,6 +151,7 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
     onRetry,
     isHistory
 }) => {
+    type MemorizationResultItem = { log: MemorizationLog; question: Question; index: number };
     const [filter, setFilter] = useState<MemorizationFilter>('all');
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
     const toggleExpand = (id: number) => {
@@ -162,27 +163,31 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
         });
     };
 
-    const filteredLogs = useMemo(() => {
+    const allLogs = useMemo(() => {
         return logs.map((log, idx) => ({ log, question: questions.find(q => q.id === log.questionId), index: idx }))
-            .filter((item): item is { log: MemorizationLog; question: Question; index: number } => {
-                const { log, question } = item;
-                if (!question || question.id === undefined) return false;
-                if (filter === 'memorized') return log.isMemorized;
-                if (filter === 'not_memorized') return !log.isMemorized;
-                return true;
+            .filter((item): item is MemorizationResultItem => {
+                return !!item.question && item.question.id !== undefined;
             });
-    }, [logs, questions, filter]);
+    }, [logs, questions]);
+
+    const filteredLogs = useMemo(() => {
+        return allLogs.filter((item) => {
+            if (filter === 'memorized') return item.log.isMemorized;
+            if (filter === 'not_memorized') return !item.log.isMemorized;
+            return true;
+        });
+    }, [allLogs, filter]);
 
     const filterCounts = useMemo(() => {
-        const memorized = filteredLogs.filter(item => item.log.isMemorized).length;
+        const memorized = allLogs.filter(item => item.log.isMemorized).length;
         return {
             memorized,
-            not_memorized: filteredLogs.length - memorized
+            not_memorized: allLogs.length - memorized
         };
-    }, [filteredLogs]);
+    }, [allLogs]);
 
-    const memorizedCount = filteredLogs.filter(item => item.log.isMemorized).length;
-    const validTotalCount = filteredLogs.length;
+    const memorizedCount = filterCounts.memorized;
+    const validTotalCount = allLogs.length;
     const percentage = validTotalCount > 0 ? Math.round((memorizedCount / validTotalCount) * 100) : 0;
 
     return (
