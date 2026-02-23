@@ -81,7 +81,7 @@ const DEFAULT_QUIZ_SET_SETTINGS: QuizSetSettings = {
 };
 
 const FEEDBACK_BLOCK_SIZE_MIN = 1;
-const FEEDBACK_BLOCK_SIZE_MAX = 20;
+const FEEDBACK_BLOCK_SIZE_MAX = 1000;
 
 const normalizeFeedbackBlockSize = (value: unknown): number => {
     const num = Number(value);
