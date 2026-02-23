@@ -2,14 +2,21 @@ import { serialize } from 'cookie';
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { isAdminIdentity } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
-export default async function handler(req: any, res: any) {
+type LoginRequestBody = {
+    username?: unknown;
+    password?: unknown;
+};
+
+export default async function handler(req: ApiHandlerRequest<LoginRequestBody>, res: ApiHandlerResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
     const { username, password } = req.body || {};
-    if (!username || !password) {
+    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
         return res.status(400).json({ error: 'ユーザー名とパスワードを入力してください' });
     }
 
@@ -51,11 +58,12 @@ export default async function handler(req: any, res: any) {
         };
 
         res.setHeader('Set-Cookie', serialize('auth_session', token, cookieOptions));
+        const isAdmin = isAdminIdentity(user.id as number, user.username as string);
         return res.status(200).json({
             success: true,
-            user: { id: user.id, username: user.username }
+            user: { id: user.id, username: user.username, isAdmin }
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Login error:', err);
         return res.status(500).json({ error: 'ログイン処理中にエラーが発生しました' });
     }

@@ -26,6 +26,21 @@ async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
 export interface AuthUser {
     id: number;
     username: string;
+    isAdmin: boolean;
+}
+
+export interface AdminSummary {
+    generatedAt: string;
+    summary: {
+        totalUsers: number;
+        activeSessions: number;
+        totalQuizSets: number;
+        totalQuestions: number;
+        totalHistories: number;
+        totalReviewSchedules: number;
+        totalReviewLogs: number;
+        dueReviewItems: number;
+    };
 }
 
 export const cloudApi = {
@@ -56,6 +71,10 @@ export const cloudApi = {
         } catch {
             return null;
         }
+    },
+
+    async getAdminSummary(): Promise<AdminSummary> {
+        return fetchApi<AdminSummary>('/api/session?action=adminSummary');
     },
 
     // === Quiz Sets ===

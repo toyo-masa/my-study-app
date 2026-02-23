@@ -2,6 +2,22 @@
 
 React + TypeScript + Vite
 
+## Admin Console
+
+`/admin` は管理者専用です。アクセス権限はサーバー側で検証されます。
+
+- `ADMIN_USER_IDS`: 管理者ユーザーIDをカンマ区切りで指定（推奨）
+- `ADMIN_USERNAMES`: 管理者ユーザー名をカンマ区切りで指定
+
+例:
+
+```bash
+ADMIN_USER_IDS=1,7
+ADMIN_USERNAMES=owner,ops-admin
+```
+
+未認証は `401`、非管理者は `403` で拒否されます。
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
