@@ -1,5 +1,6 @@
 :root {
   --primary-color: #6366f1;
+  --global-page-bottom-space: 24px;
   --bg-color: #f8fafc;
   --surface-color: #ffffff;
   --text-color: #1e293b;
@@ -1088,9 +1089,15 @@ input:checked+.slider svg {
   height: 100vh;
   height: 100dvh;
   height: -webkit-fill-available;
+  box-sizing: border-box;
+  padding-bottom: calc(var(--global-page-bottom-space) + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior-y: none;
+}
+
+.app-container.study-mode-active {
+  padding-bottom: 0;
 }
 
 .app-header {
