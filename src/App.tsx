@@ -23,6 +23,8 @@ import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
+import { AdminRoute } from './pages/AdminRoute';
+import { NotFoundRoute } from './pages/NotFoundRoute';
 import { HistoryTableRoute } from './pages/HistoryTableRoute';
 
 const APP_TITLE_PREFIX = 'qa';
@@ -79,6 +81,38 @@ const hexToRgbString = (hex: string): string | null => {
   return `${r}, ${g}, ${b}`;
 };
 
+const adjustColor = (hex: string, amount: number): string => {
+  const match = hex.trim().match(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (!match) return hex;
+  let value = match[1];
+  if (value.length === 3) {
+    value = value.split('').map((ch) => ch + ch).join('');
+  }
+  const intValue = Number.parseInt(value, 16);
+  let r = (intValue >> 16) & 255;
+  let g = (intValue >> 8) & 255;
+  let b = intValue & 255;
+
+  r = Math.max(0, Math.min(255, r + amount));
+  g = Math.max(0, Math.min(255, g + amount));
+  b = Math.max(0, Math.min(255, b + amount));
+
+  const rr = r.toString(16).padStart(2, '0');
+  const gg = g.toString(16).padStart(2, '0');
+  const bb = b.toString(16).padStart(2, '0');
+
+  return `#${rr}${gg}${bb}`;
+};
+
+type ThemeMode = 'light' | 'dark' | 'monokai';
+
+const normalizeThemeMode = (value: string | null): ThemeMode => {
+  if (value === 'light' || value === 'dark' || value === 'monokai') {
+    return value;
+  }
+  return 'dark';
+};
+
 function App() {
   const {
     currentUser, setCurrentUser,
@@ -92,10 +126,11 @@ function App() {
   const location = useLocation();
   const isReleaseNotesRoute = location.pathname.startsWith('/release-notes');
 
-  // Dark mode and Accent color
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem('theme') !== 'light';
+  // Theme and Accent color
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    return normalizeThemeMode(localStorage.getItem('theme'));
   });
+  const isDarkMode = themeMode !== 'light';
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('accentColor') || '#3b82f6';
   });
@@ -104,13 +139,10 @@ function App() {
   });
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    document.body.classList.toggle('theme-monokai', themeMode === 'monokai');
+    localStorage.setItem('theme', themeMode);
+  }, [isDarkMode, themeMode]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--primary-color', accentColor);
@@ -118,8 +150,13 @@ function App() {
     if (primaryColorRgb) {
       document.documentElement.style.setProperty('--primary-color-rgb', primaryColorRgb);
     }
+
+    // グラデーション用のセカンダリカラー（少し暗く/明るくする）を動的に計算
+    const secondaryColor = adjustColor(accentColor, isDarkMode ? 30 : -30);
+    document.documentElement.style.setProperty('--secondary-color', secondaryColor);
+
     localStorage.setItem('accentColor', accentColor);
-  }, [accentColor]);
+  }, [accentColor, isDarkMode]);
 
   useEffect(() => {
     saveReviewIntervalSettings(reviewIntervalSettings);
@@ -129,7 +166,7 @@ function App() {
     document.title = resolvePageTitle(location.pathname, quizSets);
   }, [location.pathname, quizSets]);
 
-  const toggleDarkMode = () => setIsDarkMode(prev => !prev);
+  const toggleDarkMode = () => setThemeMode(prev => (prev === 'light' ? 'dark' : 'light'));
   const handleReviewIntervalSettingsChange = (settings: ReviewIntervalSettings) => {
     setReviewIntervalSettings(normalizeReviewIntervalSettings(settings));
   };
@@ -235,6 +272,8 @@ function App() {
         onClose={() => setIsSettingsOpen(false)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
+        themeMode={themeMode}
+        onThemeModeChange={setThemeMode}
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
         reviewIntervalSettings={reviewIntervalSettings}
@@ -371,12 +410,14 @@ function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/distribution-sim" element={<DistributionRoute />} />
           <Route path="/review-board" element={<ReviewBoardRoute />} />
+          {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
           <Route path="/quiz/:id/manage" element={<ManageRoute />} />
           <Route path="/quiz/:id/study" element={<StudyRoute />} />
           <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />
           <Route path="/quiz/:id/history-table" element={<HistoryTableRoute />} />
           <Route path="/quiz/:id" element={<QuizDetailRoute />} />
           <Route path="/release-notes" element={<ReleaseNotesRoute />} />
+          <Route path="*" element={<NotFoundRoute />} />
         </Routes>
       </AnimatePresence>
     </div>

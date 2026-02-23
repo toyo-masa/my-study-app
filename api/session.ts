@@ -1,17 +1,89 @@
 import { serialize } from 'cookie';
 import { neon } from '@neondatabase/serverless';
-import { getSessionToken } from './_auth.js';
+import bcrypt from 'bcryptjs';
+import { getAuthenticatedUser, getSessionToken, isAdminIdentity } from './_auth.js';
 import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
-type SessionAction = 'me' | 'logout';
+type SessionAction = 'me' | 'logout' | 'adminSummary' | 'adminUsers' | 'adminResetPassword' | 'adminDeleteUser';
+
+type AdminSummaryRow = {
+    total_users: number | string;
+    active_sessions: number | string;
+    total_quiz_sets: number | string;
+    total_questions: number | string;
+    total_histories: number | string;
+    total_review_schedules: number | string;
+    total_review_logs: number | string;
+    due_review_items: number | string;
+};
+
+type AdminUserRow = {
+    id: number | string;
+    username: string;
+    created_at: string | Date;
+    active_session_count: number | string;
+};
+
+type SessionRequestBody = {
+    targetUserId?: unknown;
+    newPassword?: unknown;
+};
+
+function toNumber(value: number | string): number {
+    if (typeof value === 'number') {
+        return value;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parsePositiveInt(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseInt(value, 10);
+        if (Number.isInteger(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+    return null;
+}
+
+function toIsoDateString(value: string | Date): string {
+    if (value instanceof Date) {
+        return value.toISOString();
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return '';
+    }
+    return parsed.toISOString();
+}
 
 function resolveAction(req: ApiHandlerRequest): SessionAction | undefined {
     const rawAction = req.query.action;
     const action = Array.isArray(rawAction) ? rawAction[0] : rawAction;
-    if (action === 'me' || action === 'logout') {
+    if (
+        action === 'me' ||
+        action === 'logout' ||
+        action === 'adminSummary' ||
+        action === 'adminUsers' ||
+        action === 'adminResetPassword' ||
+        action === 'adminDeleteUser'
+    ) {
         return action;
     }
     return undefined;
+}
+
+async function requireAdminForPrivateAction(req: ApiHandlerRequest, res: ApiHandlerResponse) {
+    const user = await getAuthenticatedUser(req);
+    if (!user || !user.isAdmin) {
+        res.status(404).json({ error: 'Not found' });
+        return null;
+    }
+    return user;
 }
 
 async function handleMe(req: ApiHandlerRequest, res: ApiHandlerResponse) {
@@ -39,6 +111,7 @@ async function handleMe(req: ApiHandlerRequest, res: ApiHandlerResponse) {
         return res.status(200).json({
             id: rows[0].id,
             username: rows[0].username,
+            isAdmin: isAdminIdentity(rows[0].id as number, rows[0].username as string),
             createdAt: rows[0].created_at,
         });
     } catch (err: unknown) {
@@ -74,7 +147,167 @@ async function handleLogout(req: ApiHandlerRequest, res: ApiHandlerResponse) {
     }
 }
 
-export default async function handler(req: ApiHandlerRequest, res: ApiHandlerResponse) {
+async function handleAdminSummary(req: ApiHandlerRequest, res: ApiHandlerResponse) {
+    if (!(await requireAdminForPrivateAction(req, res))) {
+        return;
+    }
+
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!databaseUrl) {
+        return res.status(500).json({ error: 'Database URL not found' });
+    }
+
+    try {
+        const sql = neon(databaseUrl);
+        const rows = await sql<AdminSummaryRow[]>`
+            SELECT
+                (SELECT COUNT(*)::int FROM users) AS total_users,
+                (SELECT COUNT(*)::int FROM sessions WHERE expires_at > NOW()) AS active_sessions,
+                (SELECT COUNT(*)::int FROM quiz_sets WHERE COALESCE(is_deleted, FALSE) = FALSE) AS total_quiz_sets,
+                (SELECT COUNT(*)::int FROM questions) AS total_questions,
+                (SELECT COUNT(*)::int FROM histories) AS total_histories,
+                (SELECT COUNT(*)::int FROM review_schedules) AS total_review_schedules,
+                (SELECT COUNT(*)::int FROM review_logs) AS total_review_logs,
+                (SELECT COUNT(*)::int FROM review_schedules WHERE next_due <= CURRENT_DATE) AS due_review_items
+        `;
+
+        const row = rows[0];
+        return res.status(200).json({
+            generatedAt: new Date().toISOString(),
+            summary: {
+                totalUsers: toNumber(row.total_users),
+                activeSessions: toNumber(row.active_sessions),
+                totalQuizSets: toNumber(row.total_quiz_sets),
+                totalQuestions: toNumber(row.total_questions),
+                totalHistories: toNumber(row.total_histories),
+                totalReviewSchedules: toNumber(row.total_review_schedules),
+                totalReviewLogs: toNumber(row.total_review_logs),
+                dueReviewItems: toNumber(row.due_review_items),
+            },
+        });
+    } catch (err: unknown) {
+        console.error('session adminSummary error:', err);
+        return res.status(500).json({ error: '管理情報の取得に失敗しました' });
+    }
+}
+
+async function handleAdminUsers(req: ApiHandlerRequest, res: ApiHandlerResponse) {
+    if (!(await requireAdminForPrivateAction(req, res))) {
+        return;
+    }
+
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!databaseUrl) {
+        return res.status(500).json({ error: 'Database URL not found' });
+    }
+
+    try {
+        const sql = neon(databaseUrl);
+        const rows = await sql<AdminUserRow[]>`
+            SELECT
+                u.id,
+                u.username,
+                u.created_at,
+                COALESCE(COUNT(s.id) FILTER (WHERE s.expires_at > NOW()), 0)::int AS active_session_count
+            FROM users u
+            LEFT JOIN sessions s ON s.user_id = u.id
+            GROUP BY u.id, u.username, u.created_at
+            ORDER BY u.id ASC
+        `;
+
+        return res.status(200).json({
+            users: rows.map(row => ({
+                id: toNumber(row.id),
+                username: row.username,
+                createdAt: toIsoDateString(row.created_at),
+                activeSessionCount: toNumber(row.active_session_count),
+                isAdmin: isAdminIdentity(toNumber(row.id), row.username),
+            })),
+        });
+    } catch (err: unknown) {
+        console.error('session adminUsers error:', err);
+        return res.status(500).json({ error: 'ユーザー一覧の取得に失敗しました' });
+    }
+}
+
+async function handleAdminResetPassword(req: ApiHandlerRequest<SessionRequestBody>, res: ApiHandlerResponse) {
+    if (!(await requireAdminForPrivateAction(req, res))) {
+        return;
+    }
+
+    const targetUserId = parsePositiveInt(req.body?.targetUserId);
+    const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+    if (!targetUserId) {
+        return res.status(400).json({ error: '対象ユーザーIDが不正です' });
+    }
+    if (newPassword.length < 6 || newPassword.length > 128) {
+        return res.status(400).json({ error: '新しいパスワードは6〜128文字で入力してください' });
+    }
+
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!databaseUrl) {
+        return res.status(500).json({ error: 'Database URL not found' });
+    }
+
+    try {
+        const sql = neon(databaseUrl);
+        const targetUsers = await sql`SELECT id FROM users WHERE id = ${targetUserId} LIMIT 1`;
+        if (targetUsers.length === 0) {
+            return res.status(404).json({ error: '対象ユーザーが見つかりません' });
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await sql`UPDATE users SET password_hash = ${passwordHash} WHERE id = ${targetUserId}`;
+        await sql`DELETE FROM sessions WHERE user_id = ${targetUserId}`;
+        return res.status(200).json({ success: true });
+    } catch (err: unknown) {
+        console.error('session adminResetPassword error:', err);
+        return res.status(500).json({ error: 'パスワードリセットに失敗しました' });
+    }
+}
+
+async function handleAdminDeleteUser(req: ApiHandlerRequest<SessionRequestBody>, res: ApiHandlerResponse) {
+    const user = await requireAdminForPrivateAction(req, res);
+    if (!user) {
+        return;
+    }
+
+    const targetUserId = parsePositiveInt(req.body?.targetUserId);
+    if (!targetUserId) {
+        return res.status(400).json({ error: '対象ユーザーIDが不正です' });
+    }
+    if (targetUserId === user.id) {
+        return res.status(400).json({ error: '自分自身は削除できません' });
+    }
+
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    if (!databaseUrl) {
+        return res.status(500).json({ error: 'Database URL not found' });
+    }
+
+    try {
+        const sql = neon(databaseUrl);
+        const targetUsers = await sql`SELECT id FROM users WHERE id = ${targetUserId} LIMIT 1`;
+        if (targetUsers.length === 0) {
+            return res.status(404).json({ error: '対象ユーザーが見つかりません' });
+        }
+
+        await sql`DELETE FROM sessions WHERE user_id = ${targetUserId}`;
+        await sql`DELETE FROM suspended_sessions WHERE user_id = ${targetUserId}`;
+        await sql`DELETE FROM review_logs WHERE user_id = ${targetUserId}`;
+        await sql`DELETE FROM review_schedules WHERE user_id = ${targetUserId}`;
+        await sql`DELETE FROM histories WHERE user_id = ${targetUserId}`;
+        await sql`DELETE FROM quiz_sets WHERE user_id = ${targetUserId}`;
+        await sql`DELETE FROM users WHERE id = ${targetUserId}`;
+
+        return res.status(200).json({ success: true });
+    } catch (err: unknown) {
+        console.error('session adminDeleteUser error:', err);
+        return res.status(500).json({ error: 'ユーザー削除に失敗しました' });
+    }
+}
+
+export default async function handler(req: ApiHandlerRequest<SessionRequestBody>, res: ApiHandlerResponse) {
     const action = resolveAction(req);
 
     if (action === 'me' || (!action && req.method === 'GET')) {
@@ -89,6 +322,34 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
             return res.status(405).json({ error: 'Method not allowed' });
         }
         return handleLogout(req, res);
+    }
+
+    if (action === 'adminSummary') {
+        if (req.method !== 'GET') {
+            return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return handleAdminSummary(req, res);
+    }
+
+    if (action === 'adminUsers') {
+        if (req.method !== 'GET') {
+            return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return handleAdminUsers(req, res);
+    }
+
+    if (action === 'adminResetPassword') {
+        if (req.method !== 'POST') {
+            return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return handleAdminResetPassword(req, res);
+    }
+
+    if (action === 'adminDeleteUser') {
+        if (req.method !== 'POST') {
+            return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return handleAdminDeleteUser(req, res);
     }
 
     res.setHeader('Allow', ['GET', 'POST']);

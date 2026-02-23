@@ -4,11 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
 
+type ThemeMode = 'light' | 'dark' | 'monokai';
+
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
     isDarkMode: boolean;
     onToggleDarkMode: () => void;
+    themeMode: ThemeMode;
+    onThemeModeChange: (theme: ThemeMode) => void;
     accentColor: string;
     onAccentColorChange: (color: string) => void;
     reviewIntervalSettings: ReviewIntervalSettings;
@@ -33,6 +37,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose,
     isDarkMode,
     onToggleDarkMode,
+    themeMode,
+    onThemeModeChange,
     accentColor,
     onAccentColorChange,
     reviewIntervalSettings,
@@ -179,13 +185,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <span>外観</span>
                                 </div>
                                 <div className="appearance-grid">
-                                    <div className={`appearance-option ${!isDarkMode ? 'active' : ''}`} onClick={() => isDarkMode && onToggleDarkMode()}>
+                                    <div className={`appearance-option ${themeMode === 'light' ? 'active' : ''}`} onClick={() => onThemeModeChange('light')}>
                                         <div className="appearance-preview light"></div>
                                         <span>ライト</span>
                                     </div>
-                                    <div className={`appearance-option ${isDarkMode ? 'active' : ''}`} onClick={() => !isDarkMode && onToggleDarkMode()}>
+                                    <div className={`appearance-option ${themeMode === 'dark' ? 'active' : ''}`} onClick={() => onThemeModeChange('dark')}>
                                         <div className="appearance-preview dark"></div>
                                         <span>ダーク</span>
+                                    </div>
+                                    <div className={`appearance-option ${themeMode === 'monokai' ? 'active' : ''}`} onClick={() => onThemeModeChange('monokai')}>
+                                        <div className="appearance-preview monokai"></div>
+                                        <span>Monokai</span>
                                     </div>
                                 </div>
                             </section>

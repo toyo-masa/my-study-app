@@ -4,18 +4,22 @@ import {
     Grid3X3,
     BarChart3,
     CalendarCheck2,
+    ShieldCheck,
 } from 'lucide-react';
+import { useAppContext } from '../contexts/AppContext';
 
 interface AppItem {
     id: string;
     name: string;
     icon: React.ReactNode;
     color: string;
+    requiresAdmin?: boolean;
 }
 
 const apps: AppItem[] = [
     { id: 'distribution-sim', name: '分布シミュレーション', icon: <BarChart3 size={24} />, color: '#6366f1' },
     { id: 'review-board', name: '復習ボード（試作）', icon: <CalendarCheck2 size={24} />, color: '#0d9488' },
+    { id: 'admin', name: '管理コンソール', icon: <ShieldCheck size={24} />, color: '#dc2626', requiresAdmin: true },
 ];
 
 interface AppLauncherProps {
@@ -23,8 +27,10 @@ interface AppLauncherProps {
 }
 
 export const AppLauncher: React.FC<AppLauncherProps> = ({ onOpenApp }) => {
+    const { currentUser } = useAppContext();
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
+    const visibleApps = apps.filter(app => !app.requiresAdmin || !!currentUser?.isAdmin);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -73,7 +79,7 @@ export const AppLauncher: React.FC<AppLauncherProps> = ({ onOpenApp }) => {
                         </div>
 
                         <div className="launcher-grid">
-                            {apps.map((app) => (
+                            {visibleApps.map((app) => (
                                 <motion.div
                                     key={app.id}
                                     className="launcher-item"

@@ -2,8 +2,15 @@ import { serialize } from 'cookie';
 import { neon } from '@neondatabase/serverless';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { isAdminIdentity } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
-export default async function handler(req: any, res: any) {
+type RegisterRequestBody = {
+    username?: unknown;
+    password?: unknown;
+};
+
+export default async function handler(req: ApiHandlerRequest<RegisterRequestBody>, res: ApiHandlerResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -11,7 +18,7 @@ export default async function handler(req: any, res: any) {
     const { username, password } = req.body || {};
 
     // Validation
-    if (!username || !password) {
+    if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
         return res.status(400).json({ error: 'ユーザー名とパスワードを入力してください' });
     }
     if (username.length < 3 || username.length > 50) {
@@ -43,6 +50,7 @@ export default async function handler(req: any, res: any) {
             RETURNING id
         `;
         const userId = result[0].id;
+        const isAdmin = isAdminIdentity(userId as number, username as string);
 
         // Auto-login: create session
         const token = crypto.randomUUID();
@@ -65,9 +73,9 @@ export default async function handler(req: any, res: any) {
         res.setHeader('Set-Cookie', serialize('auth_session', token, cookieOptions));
         return res.status(201).json({
             success: true,
-            user: { id: userId, username }
+            user: { id: userId, username, isAdmin }
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Register error:', err);
         return res.status(500).json({ error: '登録処理中にエラーが発生しました' });
     }

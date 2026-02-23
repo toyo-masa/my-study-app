@@ -26,6 +26,29 @@ async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
 export interface AuthUser {
     id: number;
     username: string;
+    isAdmin: boolean;
+}
+
+export interface AdminSummary {
+    generatedAt: string;
+    summary: {
+        totalUsers: number;
+        activeSessions: number;
+        totalQuizSets: number;
+        totalQuestions: number;
+        totalHistories: number;
+        totalReviewSchedules: number;
+        totalReviewLogs: number;
+        dueReviewItems: number;
+    };
+}
+
+export interface AdminUser {
+    id: number;
+    username: string;
+    createdAt: string;
+    activeSessionCount: number;
+    isAdmin: boolean;
 }
 
 export const cloudApi = {
@@ -56,6 +79,31 @@ export const cloudApi = {
         } catch {
             return null;
         }
+    },
+
+    async getAdminSummary(): Promise<AdminSummary> {
+        return fetchApi<AdminSummary>('/api/session?action=adminSummary');
+    },
+
+    async getAdminUsers(): Promise<AdminUser[]> {
+        const response = await fetchApi<{ users: AdminUser[] }>('/api/session?action=adminUsers');
+        return response.users;
+    },
+
+    async resetAdminUserPassword(targetUserId: number, newPassword: string): Promise<void> {
+        await fetchApi('/api/session?action=adminResetPassword', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUserId, newPassword })
+        });
+    },
+
+    async deleteAdminUser(targetUserId: number): Promise<void> {
+        await fetchApi('/api/session?action=adminDeleteUser', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUserId })
+        });
     },
 
     // === Quiz Sets ===
