@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.11.5',
+        date: '2026年2月23日 17:20',
+        improvements: [
+            'ページ設定の「外観」で Monokai テーマを選べるようにし、ダーク系の配色バリエーションを追加しました。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.11.4',
         date: '2026年2月23日 17:01',
         improvements: [

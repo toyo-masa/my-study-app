@@ -63,6 +63,15 @@ const adjustColor = (hex: string, amount: number): string => {
   return `#${rr}${gg}${bb}`;
 };
 
+type ThemeMode = 'light' | 'dark' | 'monokai';
+
+const normalizeThemeMode = (value: string | null): ThemeMode => {
+  if (value === 'light' || value === 'dark' || value === 'monokai') {
+    return value;
+  }
+  return 'dark';
+};
+
 function App() {
   const {
     currentUser, setCurrentUser,
@@ -75,10 +84,11 @@ function App() {
   const location = useLocation();
   const isReleaseNotesRoute = location.pathname.startsWith('/release-notes');
 
-  // Dark mode and Accent color
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem('theme') !== 'light';
+  // Theme and Accent color
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    return normalizeThemeMode(localStorage.getItem('theme'));
   });
+  const isDarkMode = themeMode !== 'light';
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('accentColor') || '#3b82f6';
   });
@@ -87,13 +97,10 @@ function App() {
   });
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    document.body.classList.toggle('theme-monokai', themeMode === 'monokai');
+    localStorage.setItem('theme', themeMode);
+  }, [isDarkMode, themeMode]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--primary-color', accentColor);
@@ -113,7 +120,7 @@ function App() {
     saveReviewIntervalSettings(reviewIntervalSettings);
   }, [reviewIntervalSettings]);
 
-  const toggleDarkMode = () => setIsDarkMode(prev => !prev);
+  const toggleDarkMode = () => setThemeMode(prev => (prev === 'light' ? 'dark' : 'light'));
   const handleReviewIntervalSettingsChange = (settings: ReviewIntervalSettings) => {
     setReviewIntervalSettings(normalizeReviewIntervalSettings(settings));
   };
@@ -219,6 +226,8 @@ function App() {
         onClose={() => setIsSettingsOpen(false)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
+        themeMode={themeMode}
+        onThemeModeChange={setThemeMode}
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
         reviewIntervalSettings={reviewIntervalSettings}
