@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.16.21',
+        date: '2026年2月24日 23:56',
+        improvements: [
+            '復習ボードの「今後の復習予定」に、今日が予定日の問題も表示し、今日分と直近1週間の予定をまとめて確認できるようにしました。',
+        ],
+        fixes: [
+            '今日復習すべき問題があるのに「今後の復習予定」が空表示になる問題を修正しました。',
+        ],
+    },
+    {
         version: '1.16.20',
         date: '2026年2月24日 12:07',
         improvements: [

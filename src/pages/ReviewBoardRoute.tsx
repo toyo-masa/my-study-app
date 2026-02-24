@@ -327,7 +327,7 @@ export const ReviewBoardRoute: React.FC = () => {
         const startDate = parseLocalDate(today) ?? new Date();
         return Array.from({ length: 7 }, (_, index) => {
             const date = new Date(startDate);
-            date.setDate(startDate.getDate() + index + 1);
+            date.setDate(startDate.getDate() + index);
             return toLocalDateString(date);
         });
     }, [today]);
@@ -337,7 +337,7 @@ export const ReviewBoardRoute: React.FC = () => {
     const futureSetOptions = useMemo(() => {
         const setNameById = new Map<number, string>();
         for (const schedule of activeSchedules) {
-            if (schedule.nextDue <= today || schedule.nextDue > nextWeekLastDateKey) continue;
+            if (schedule.nextDue < today || schedule.nextDue > nextWeekLastDateKey) continue;
             const setName = quizSetMetaById[schedule.quizSetId]?.name;
             if (!setName) continue;
             if (!setNameById.has(schedule.quizSetId)) {
@@ -359,7 +359,7 @@ export const ReviewBoardRoute: React.FC = () => {
 
     const upcomingScheduleRows = useMemo<UpcomingScheduleRow[]>(
         () => activeSchedules
-            .filter((schedule) => schedule.nextDue > today && schedule.nextDue <= nextWeekLastDateKey)
+            .filter((schedule) => schedule.nextDue >= today && schedule.nextDue <= nextWeekLastDateKey)
             .map((schedule) => {
                 const question = questionById[schedule.questionId];
                 const quizSetName = quizSetMetaById[schedule.quizSetId]?.name || `セット #${schedule.quizSetId}`;
