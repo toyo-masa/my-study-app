@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.16.14',
+        date: '2026年2月24日 03:17',
+        improvements: [
+            '暗記カードの学習完了時にも復習スケジュールを更新し、翌日以降の復習ボードに反映されるようにしました。',
+        ],
+        fixes: [
+            '暗記カードを解いても復習ボードへ予定が登録されず、次回復習日が表示されない問題を修正しました。',
+        ],
+    },
+    {
         version: '1.16.13',
         date: '2026年2月23日 21:06',
         improvements: [
