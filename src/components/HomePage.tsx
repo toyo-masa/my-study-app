@@ -315,7 +315,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                                             <h3 className="quiz-card-title" style={{ color: 'var(--text-secondary)' }}>{qs.name}</h3>
                                             <p className="quiz-card-count">{qs.questionCount} 問</p>
                                             <div className="quiz-card-actions" style={{ position: 'relative', zIndex: 2, justifyContent: 'flex-end', width: '100%' }}>
-                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onRestoreQuizSet(qs.id!); }} data-tooltip="復元する" style={{ color: 'var(--primary-color)' }}>
+                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onRestoreQuizSet(qs.id!); }} data-tooltip="復元する">
                                                     <RotateCcw size={16} /> 元に戻す
                                                 </button>
                                                 <button className="delete-btn" onClick={(e) => {
@@ -355,7 +355,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                                             <h3 className="quiz-card-title" style={{ color: 'var(--text-secondary)' }}>{qs.name}</h3>
                                             <p className="quiz-card-count">{qs.questionCount} 問</p>
                                             <div className="quiz-card-actions" style={{ position: 'relative', zIndex: 2, justifyContent: 'flex-end', width: '100%' }}>
-                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onUnarchiveQuizSet(qs.id!); }} data-tooltip="アーカイブを解除" style={{ color: 'var(--primary-color)' }}>
+                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onUnarchiveQuizSet(qs.id!); }} data-tooltip="アーカイブを解除">
                                                     <RotateCcw size={16} /> 元に戻す
                                                 </button>
                                                 <button className="delete-btn" onClick={(e) => {
