@@ -195,7 +195,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                             onClick={() => setViewMode(viewMode === 'archive' ? 'active' : 'archive')}
                             style={{ background: viewMode === 'archive' ? 'var(--primary-color)' : 'var(--bg-secondary)', color: viewMode === 'archive' ? 'white' : 'var(--text-primary)' }}
                         >
-                            <FileText size={16} /> {viewMode === 'archive' ? '一覧に戻る' : 'アーカイブ'}
+                            {viewMode === 'archive' ? <BookOpen size={16} /> : <Archive size={16} />} {viewMode === 'archive' ? '一覧に戻る' : 'アーカイブ'}
                         </button>
                         <button
                             className={`nav-btn ${viewMode === 'trash' ? 'active' : ''}`}

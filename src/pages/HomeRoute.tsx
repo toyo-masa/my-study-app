@@ -122,9 +122,11 @@ export const HomeRoute: React.FC = () => {
         try {
             await restoreQuizSet(id);
             await loadQuizSets();
+            showHomeNotice('問題集を一覧に戻しました。', 'success');
         } catch (error) {
             handleCloudError(error, '復元に失敗しました。');
             await loadQuizSets();
+            showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
         }
     };
 
@@ -159,9 +161,11 @@ export const HomeRoute: React.FC = () => {
         try {
             await unarchiveQuizSet(quizSetId);
             await loadQuizSets();
+            showHomeNotice('問題集を一覧に戻しました。', 'success');
         } catch (error) {
             handleCloudError(error, 'アーカイブ解除に失敗しました。');
             await loadQuizSets();
+            showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
         }
     };
 

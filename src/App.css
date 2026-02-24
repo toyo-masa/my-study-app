@@ -6748,7 +6748,7 @@ input:checked+.slider svg {
   .session-inline-notice {
     top: max(0.6rem, env(safe-area-inset-top));
     width: min(95vw, 760px);
-    padding: 0.42rem 0.75rem;
+    padding: 0.63rem 0.75rem;
     font-size: 0.74rem;
   }
 
