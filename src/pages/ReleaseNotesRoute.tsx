@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.16.16',
+        date: '2026年2月24日 11:20',
+        improvements: [
+            '暗記カードの回答結果確認画面で、問題一覧のタイトル表示を安定化し、問題文の先頭だけが見える表示を改善しました。',
+        ],
+        fixes: [
+            '暗記カードの学習履歴で、特定の問題文が「T」「F」など1文字だけに見えてしまう問題を修正しました。',
+        ],
+    },
+    {
         version: '1.16.15',
         date: '2026年2月24日 03:57',
         improvements: [
