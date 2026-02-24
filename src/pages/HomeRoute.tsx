@@ -20,6 +20,11 @@ export const HomeRoute: React.FC = () => {
     const [homeNotice, setHomeNotice] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const homeNoticeTimeoutRef = useRef<number | null>(null);
 
+    const formatQuizSetLabel = useCallback((name: string, type: 'quiz' | 'memorization') => {
+        const kind = type === 'memorization' ? '暗記カード' : '問題集';
+        return `${kind}「${name}」`;
+    }, []);
+
     useEffect(() => {
         return () => {
             if (homeNoticeTimeoutRef.current !== null) {
@@ -55,7 +60,7 @@ export const HomeRoute: React.FC = () => {
             }));
             await addQuizSetWithQuestions(name, questionsForDB);
             await loadQuizSets();
-            showHomeNotice('問題集を追加しました。', 'success');
+            showHomeNotice(`${formatQuizSetLabel(name, 'quiz')}を追加しました。`, 'success');
         } catch {
             showHomeNotice('問題集の追加に失敗しました。', 'error');
         }
@@ -68,7 +73,7 @@ export const HomeRoute: React.FC = () => {
             const name = file.name.replace(/\.csv$/i, '');
             await addQuizSetWithQuestions(name, parsed, 'memorization');
             await loadQuizSets();
-            showHomeNotice('暗記カードを追加しました。', 'success');
+            showHomeNotice(`${formatQuizSetLabel(name, 'memorization')}を追加しました。`, 'success');
         } catch {
             showHomeNotice('暗記カードの追加に失敗しました。', 'error');
         }
@@ -76,10 +81,11 @@ export const HomeRoute: React.FC = () => {
 
     // Add empty quiz set
     const handleAddEmptyQuizSet = async () => {
+        const quizSetName = '新しい問題集';
         try {
-            await addQuizSetWithQuestions('新しい問題集', []);
+            await addQuizSetWithQuestions(quizSetName, []);
             await loadQuizSets();
-            showHomeNotice('問題集を追加しました。', 'success');
+            showHomeNotice(`${formatQuizSetLabel(quizSetName, 'quiz')}を追加しました。`, 'success');
         } catch {
             showHomeNotice('問題集の追加に失敗しました。', 'error');
         }
@@ -87,10 +93,11 @@ export const HomeRoute: React.FC = () => {
 
     // Add empty memorization set
     const handleAddEmptyMemorizationSet = async () => {
+        const quizSetName = '新しい暗記カード';
         try {
-            await addQuizSetWithQuestions('新しい暗記カード', [], 'memorization');
+            await addQuizSetWithQuestions(quizSetName, [], 'memorization');
             await loadQuizSets();
-            showHomeNotice('暗記カードを追加しました。', 'success');
+            showHomeNotice(`${formatQuizSetLabel(quizSetName, 'memorization')}を追加しました。`, 'success');
         } catch {
             showHomeNotice('暗記カードの追加に失敗しました。', 'error');
         }
@@ -105,11 +112,19 @@ export const HomeRoute: React.FC = () => {
         try {
             await softDeleteQuizSet(quizSetId);
             await loadQuizSets();
-            showHomeNotice('問題集をゴミ箱に移動しました。', 'success');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をゴミ箱に移動しました。`, 'success');
+            } else {
+                showHomeNotice('問題集をゴミ箱に移動しました。', 'success');
+            }
         } catch (error) {
             handleCloudError(error, '削除に失敗しました。');
             await loadQuizSets();
-            showHomeNotice('問題集をゴミ箱に移動できませんでした。', 'error');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をゴミ箱に移動できませんでした。`, 'error');
+            } else {
+                showHomeNotice('問題集をゴミ箱に移動できませんでした。', 'error');
+            }
         }
     };
 
@@ -122,11 +137,19 @@ export const HomeRoute: React.FC = () => {
         try {
             await restoreQuizSet(id);
             await loadQuizSets();
-            showHomeNotice('問題集を一覧に戻しました。', 'success');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
+            } else {
+                showHomeNotice('問題集を一覧に戻しました。', 'success');
+            }
         } catch (error) {
             handleCloudError(error, '復元に失敗しました。');
             await loadQuizSets();
-            showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻せませんでした。`, 'error');
+            } else {
+                showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
+            }
         }
     };
 
@@ -144,11 +167,19 @@ export const HomeRoute: React.FC = () => {
         try {
             await archiveQuizSet(quizSetId);
             await loadQuizSets();
-            showHomeNotice('問題集をアーカイブしました。', 'success');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をアーカイブしました。`, 'success');
+            } else {
+                showHomeNotice('問題集をアーカイブしました。', 'success');
+            }
         } catch (error) {
             handleCloudError(error, 'アーカイブに失敗しました。');
             await loadQuizSets();
-            showHomeNotice('問題集をアーカイブできませんでした。', 'error');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をアーカイブできませんでした。`, 'error');
+            } else {
+                showHomeNotice('問題集をアーカイブできませんでした。', 'error');
+            }
         }
     };
 
@@ -161,11 +192,19 @@ export const HomeRoute: React.FC = () => {
         try {
             await unarchiveQuizSet(quizSetId);
             await loadQuizSets();
-            showHomeNotice('問題集を一覧に戻しました。', 'success');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
+            } else {
+                showHomeNotice('問題集を一覧に戻しました。', 'success');
+            }
         } catch (error) {
             handleCloudError(error, 'アーカイブ解除に失敗しました。');
             await loadQuizSets();
-            showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
+            if (targetSet) {
+                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻せませんでした。`, 'error');
+            } else {
+                showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
+            }
         }
     };
 
