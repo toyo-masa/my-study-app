@@ -6,9 +6,10 @@ import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
-import { getQuestionsForQuizSet, addHistory } from '../db';
-import type { Question, QuizHistory, HistoryMode, FeedbackTimingMode } from '../types';
+import { getQuestionsForQuizSet, addHistory, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
+import type { Question, QuizHistory, HistoryMode, FeedbackTimingMode, ReviewSchedule } from '../types';
 import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
+import { calculateNextDue, calculateNextInterval, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 
 const isMobileViewport = () => {
     if (typeof window === 'undefined') return false;
@@ -714,6 +715,32 @@ export const MemorizationRoute: React.FC = () => {
 
         try {
             await addHistory(history);
+
+            if (activeQuizSet?.id !== undefined && finalLogs.length > 0) {
+                const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
+                const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
+                const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
+                const reviewIntervalSettings = loadReviewIntervalSettings();
+
+                const schedulesToUpdate: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = finalLogs.map((log) => {
+                    const currentInterval = intervalByQuestionId.get(log.questionId) ?? 1;
+                    const currentConsecutive = consecutiveByQuestionId.get(log.questionId) ?? 0;
+                    const intervalDays = calculateNextInterval(log.isMemorized, 'high', currentInterval, reviewIntervalSettings);
+                    const nextDue = calculateNextDue(intervalDays);
+                    const consecutiveCorrect = updateConsecutiveCorrect(log.isMemorized, currentConsecutive);
+
+                    return {
+                        questionId: log.questionId,
+                        quizSetId: activeQuizSet.id!,
+                        intervalDays,
+                        nextDue,
+                        lastReviewedAt: new Date().toISOString(),
+                        consecutiveCorrect,
+                    };
+                });
+
+                await upsertReviewSchedulesBulk(schedulesToUpdate);
+            }
         } catch (e) {
             console.error('Failed to save history', e);
         }
