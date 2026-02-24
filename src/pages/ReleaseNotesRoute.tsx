@@ -11,6 +11,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.16.17',
+        date: '2026年2月24日 11:24',
+        improvements: [
+            '暗記カードの回答結果確認画面で、問題一覧の問題文プレビューでも数式（KaTeX）を含むMarkdown表示を維持できるようにしました。',
+        ],
+        fixes: [
+            '暗記カードの学習履歴で、問題一覧の一部が先頭1文字だけ表示されることがある問題を、表示スタイル調整で修正しました。',
+        ],
+    },
+    {
         version: '1.16.16',
         date: '2026年2月24日 11:20',
         improvements: [

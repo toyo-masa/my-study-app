@@ -189,8 +189,6 @@ interface ResultViewProps {
 
 type MemorizationFilter = 'all' | 'memorized' | 'not_memorized';
 
-const getQuestionPreviewText = (text: string): string => text.replace(/\s+/g, ' ').trim();
-
 export const MemorizationResultView: React.FC<ResultViewProps> = ({
     logs,
     questions,
@@ -300,7 +298,7 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                                             </span>
                                             <span className="review-question-num">Q{index + 1}</span>
                                         </div>
-                                        <div className="review-question-text">{getQuestionPreviewText(q.text)}</div>
+                                        <div className="review-question-text"><MarkdownText content={q.text} className="review-question-markdown" /></div>
                                         <ChevronDown size={18} className={`review-chevron ${isExpanded ? 'expanded' : ''}`} />
                                     </div>
                                     <AnimatePresence>
