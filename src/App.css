@@ -1833,6 +1833,12 @@ input:checked+.slider svg {
   border: 1px solid rgba(74, 222, 128, 0.56);
 }
 
+.home-inline-notice.is-success {
+  color: #dcfce7;
+  background: rgba(20, 83, 45, 0.92);
+  border: 1px solid rgba(74, 222, 128, 0.56);
+}
+
 .session-pointer-notice {
   position: fixed;
   z-index: 80;

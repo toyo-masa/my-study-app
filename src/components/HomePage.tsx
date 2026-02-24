@@ -13,6 +13,7 @@ export interface QuizSetWithMeta extends QuizSet {
 }
 
 interface HomePageProps {
+    homeNotice: { text: string; type: 'success' | 'error' } | null;
     quizSets: QuizSetWithMeta[];
     onAddQuizSet: (file: File) => void;
     onAddEmptyQuizSet: () => void;
@@ -49,7 +50,8 @@ export const HomePage: React.FC<HomePageProps> = ({
     onOpenApp,
     deletedQuizSets,
     archivedQuizSets,
-    onRefresh
+    onRefresh,
+    homeNotice
 }) => {
     const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'active' | 'trash' | 'archive'>('active');
@@ -193,7 +195,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                             onClick={() => setViewMode(viewMode === 'archive' ? 'active' : 'archive')}
                             style={{ background: viewMode === 'archive' ? 'var(--primary-color)' : 'var(--bg-secondary)', color: viewMode === 'archive' ? 'white' : 'var(--text-primary)' }}
                         >
-                            <FileText size={16} /> アーカイブ
+                            <FileText size={16} /> {viewMode === 'archive' ? '一覧に戻る' : 'アーカイブ'}
                         </button>
                         <button
                             className={`nav-btn ${viewMode === 'trash' ? 'active' : ''}`}
@@ -205,6 +207,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                         </button>
                     </div>
                 </div>
+
+
+
+                {homeNotice && (
+                    <div className={`session-inline-notice home-inline-notice ${homeNotice.type === 'success' ? 'is-success' : 'is-error'}`}>
+                        {homeNotice.text}
+                    </div>
+                )}
 
                 {viewMode === 'active' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
