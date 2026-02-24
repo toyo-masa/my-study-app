@@ -13,6 +13,7 @@ import type { Question, QuizSetType, ReviewSchedule } from '../types';
 import {
     getAllReviewSchedules,
     getDueReviews,
+    getHistories,
     getQuestionsForQuizSet,
     getQuizSetsWithCounts,
     getTodayString,
@@ -65,13 +66,6 @@ function toLocalDateString(date: Date): string {
     return `${year}-${month}-${day}`;
 }
 
-function toLocalDateStringFromIso(iso?: string): string | null {
-    if (!iso) return null;
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return null;
-    return toLocalDateString(date);
-}
-
 function parseLocalDate(dateString: string): Date | null {
     const parts = dateString.split('-').map(Number);
     if (parts.length !== 3) return null;
@@ -101,6 +95,7 @@ export const ReviewBoardRoute: React.FC = () => {
     const [quizSetMetaById, setQuizSetMetaById] = useState<Record<number, QuizSetMeta>>({});
     const [questionById, setQuestionById] = useState<Record<number, Question>>({});
     const [questionNumberById, setQuestionNumberById] = useState<Record<number, number>>({});
+    const [reviewedTodayQuestionIds, setReviewedTodayQuestionIds] = useState<Set<number>>(new Set());
     const [typeFilter, setTypeFilter] = useState<ReviewSetTypeFilter>('all');
     const [futureSetFilter, setFutureSetFilter] = useState<string>('all');
     const [togglingSetIds, setTogglingSetIds] = useState<Set<number>>(new Set());
@@ -164,11 +159,27 @@ export const ReviewBoardRoute: React.FC = () => {
                 }
             }
 
+            const historyLists = await Promise.all(
+                targetQuizSetIds.map((quizSetId) => getHistories(quizSetId))
+            );
+            const nextReviewedTodayQuestionIds = new Set<number>();
+            for (const histories of historyLists) {
+                for (const history of histories) {
+                    if (history.mode !== 'review_due') continue;
+                    if (!(history.date instanceof Date) || Number.isNaN(history.date.getTime())) continue;
+                    if (toLocalDateString(history.date) !== today) continue;
+                    for (const questionId of history.questionIds || []) {
+                        nextReviewedTodayQuestionIds.add(questionId);
+                    }
+                }
+            }
+
             setDueReviews(reviews);
             setAllReviewSchedules(schedules);
             setQuizSetMetaById(nextMetaById);
             setQuestionById(nextQuestionById);
             setQuestionNumberById(nextQuestionNumberById);
+            setReviewedTodayQuestionIds(nextReviewedTodayQuestionIds);
         } catch (error) {
             console.error('復習ボードの読み込みに失敗しました:', error);
             const message = error instanceof Error ? error.message : '';
@@ -188,7 +199,7 @@ export const ReviewBoardRoute: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [handleCloudError]);
+    }, [handleCloudError, today]);
 
     useEffect(() => {
         void loadData();
@@ -308,11 +319,8 @@ export const ReviewBoardRoute: React.FC = () => {
     );
 
     const totalReviewedTodayQuestions = useMemo(
-        () => activeSchedules.filter(schedule => {
-            const reviewedDate = toLocalDateStringFromIso(schedule.lastReviewedAt);
-            return reviewedDate === today && schedule.nextDue > today;
-        }).length,
-        [activeSchedules, today]
+        () => activeSchedules.filter((schedule) => reviewedTodayQuestionIds.has(schedule.questionId)).length,
+        [activeSchedules, reviewedTodayQuestionIds]
     );
 
     const nextWeekDateKeys = useMemo(() => {
