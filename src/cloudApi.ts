@@ -47,7 +47,10 @@ export interface AdminUser {
     id: number;
     username: string;
     createdAt: string;
+    lastLoginAt: string | null;
     activeSessionCount: number;
+    quizSetCount: number;
+    memorizationCardCount: number;
     isAdmin: boolean;
 }
 
