@@ -85,12 +85,12 @@ export const cloudApi = {
     },
 
     async logout(): Promise<void> {
-        await fetchApi('/api/logout', { method: 'POST' });
+        await fetchApi('/api/session?action=logout', { method: 'POST' });
     },
 
     async getCurrentUser(): Promise<AuthUser | null> {
         try {
-            return await fetchApi<AuthUser>('/api/me');
+            return await fetchApi<AuthUser>('/api/session?action=me');
         } catch {
             return null;
         }

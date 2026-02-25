@@ -316,6 +316,15 @@ async function handleAdminDeleteUser(req: ApiHandlerRequest<SessionRequestBody>,
 
     try {
         const sql = neon(databaseUrl);
+        await sql`
+            CREATE TABLE IF NOT EXISTS suspended_sessions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                quiz_set_id INTEGER REFERENCES quiz_sets(id) ON DELETE CASCADE,
+                session_data JSONB NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
         const targetUsers = await sql`SELECT id FROM users WHERE id = ${targetUserId} LIMIT 1`;
         if (targetUsers.length === 0) {
             return res.status(404).json({ error: '対象ユーザーが見つかりません' });
@@ -337,6 +346,8 @@ async function handleAdminDeleteUser(req: ApiHandlerRequest<SessionRequestBody>,
 }
 
 export default async function handler(req: ApiHandlerRequest<SessionRequestBody>, res: ApiHandlerResponse) {
+    res.setHeader('Cache-Control', 'no-store');
+
     const action = resolveAction(req);
 
     if (action === 'me' || (!action && req.method === 'GET')) {

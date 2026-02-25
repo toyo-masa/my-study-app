@@ -32,6 +32,16 @@ async function hasOwnedQuestion(
     return rows.length > 0;
 }
 
+function parsePositiveIntParam(value: string | string[] | undefined): number | null {
+    if (value === undefined) return null;
+    const normalized = Array.isArray(value) ? value[0] : value;
+    const parsed = Number(normalized);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        return null;
+    }
+    return parsed;
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
@@ -48,13 +58,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     try {
         if (method === 'GET') {
             if (questionId) {
+                const questionIdNum = parsePositiveIntParam(questionId);
+                if (!questionIdNum) {
+                    return res.status(400).json({ error: 'Invalid questionId parameter' });
+                }
+
                 const rows = await sql`
                     WITH valid_session AS (
                         SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
                     )
                     SELECT rl.* FROM review_logs rl
                     JOIN valid_session vs ON rl.user_id = vs.user_id
-                    WHERE rl.question_id = ${questionId}
+                    WHERE rl.question_id = ${questionIdNum}
                     ORDER BY rl.reviewed_at DESC
                 `;
                 return res.status(200).json(rows.map(r => ({
@@ -149,7 +164,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
             } else if (method === 'DELETE') {
                 if (quizSetId) {
-                    await sql`DELETE FROM review_logs WHERE quiz_set_id = ${quizSetId} AND user_id = ${userId}`;
+                    const quizSetIdNum = parsePositiveIntParam(quizSetId);
+                    if (!quizSetIdNum) {
+                        return res.status(400).json({ error: 'Invalid quizSetId' });
+                    }
+                    await sql`DELETE FROM review_logs WHERE quiz_set_id = ${quizSetIdNum} AND user_id = ${userId}`;
                     return res.status(200).json({ success: true });
                 }
                 return res.status(400).json({ error: 'Missing quizSetId' });

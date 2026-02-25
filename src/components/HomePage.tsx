@@ -289,8 +289,30 @@ export const HomePage: React.FC<HomePageProps> = ({
                         ) : (
                             <div className="empty-hint">
                                 <p>{quizSets.length > 0 ? "条件に一致する問題集がありません" : "まだ問題集がありません"}</p>
-                                {quizSets.length === 0 && (
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>上のボタンから問題集や暗記カードを追加しましょう</p>
+                                {quizSets.length === 0 ? (
+                                    <div className="starter-guide">
+                                        <h3 className="starter-guide-title">はじめての方へ: 最初の3ステップ</h3>
+                                        <ol className="starter-guide-steps">
+                                            <li>まず「空の問題集を追加」または「空の暗記カードを追加」を押します。</li>
+                                            <li>作成したカードの「問題管理」で、問題や解説を追加します。</li>
+                                            <li>ホームに戻って「開始」を押すと学習を始められます。</li>
+                                        </ol>
+                                        <div className="starter-guide-actions">
+                                            <button className="nav-btn" onClick={onAddEmptyQuizSet}>
+                                                <Plus size={16} /> 空の問題集を追加
+                                            </button>
+                                            <button className="nav-btn" onClick={onAddEmptyMemorizationSet}>
+                                                <Brain size={16} /> 空の暗記カードを追加
+                                            </button>
+                                            <button className="nav-btn" onClick={() => setIsHelpOpen(true)}>
+                                                <HelpCircle size={16} /> CSVフォーマットを見る
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                                        タグ条件を見直すか、フィルタを外してください
+                                    </p>
                                 )}
                             </div>
                         )}

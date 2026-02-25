@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import type { NeonQueryFunction } from '@neondatabase/serverless';
-import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
+import { getAuthenticatedUserId } from './_auth.js';
 import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 
 async function hasOwnedQuestion(
@@ -31,15 +31,112 @@ type ReviewScheduleBody = {
   id?: number | string;
   questionId?: number | string;
   quizSetId?: number | string;
-  intervalDays?: number;
+  intervalDays?: number | string;
   nextDue?: string;
-  lastReviewedAt?: string;
-  consecutiveCorrect?: number;
+  lastReviewedAt?: string | null;
+  consecutiveCorrect?: number | string;
 };
 
+type ParsedScheduleMutation = {
+  intervalDays: number;
+  nextDue: string;
+  lastReviewedAt: string | null;
+  consecutiveCorrect: number;
+};
+
+function hasValue(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== '';
+}
+
+function parsePositiveInt(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function parseNonNegativeInt(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function isValidLocalDateString(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const [yearText, monthText, dayText] = value.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return false;
+  }
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+function parseScheduleMutation(data: ReviewScheduleBody): { value: ParsedScheduleMutation | null; error: string | null } {
+  const intervalDays = parsePositiveInt(data.intervalDays);
+  if (!intervalDays) {
+    return { value: null, error: 'Missing or invalid intervalDays' };
+  }
+
+  const nextDue = typeof data.nextDue === 'string' ? data.nextDue : '';
+  if (!isValidLocalDateString(nextDue)) {
+    return { value: null, error: 'Missing or invalid nextDue (YYYY-MM-DD)' };
+  }
+
+  const rawLastReviewedAt = data.lastReviewedAt;
+  let lastReviewedAt: string | null = null;
+  if (hasValue(rawLastReviewedAt)) {
+    if (typeof rawLastReviewedAt !== 'string' || Number.isNaN(Date.parse(rawLastReviewedAt))) {
+      return { value: null, error: 'Invalid lastReviewedAt' };
+    }
+    lastReviewedAt = rawLastReviewedAt;
+  }
+
+  const consecutiveCorrectRaw = hasValue(data.consecutiveCorrect) ? data.consecutiveCorrect : 0;
+  const consecutiveCorrect = parseNonNegativeInt(consecutiveCorrectRaw);
+  if (consecutiveCorrect === null) {
+    return { value: null, error: 'Invalid consecutiveCorrect' };
+  }
+
+  return {
+    value: {
+      intervalDays,
+      nextDue,
+      lastReviewedAt,
+      consecutiveCorrect,
+    },
+    error: null,
+  };
+}
+
+function parseQueryPositiveInt(value: string | string[] | undefined): { exists: boolean; value: number | null } {
+  if (value === undefined) {
+    return { exists: false, value: null };
+  }
+  const normalized = Array.isArray(value) ? value[0] : value;
+  return { exists: true, value: parsePositiveInt(normalized) };
+}
+
 export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>, res: ApiHandlerResponse) {
-  const sessionToken = getSessionToken(req);
-  if (!sessionToken) {
+  const userId = await getAuthenticatedUserId(req);
+  if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -49,18 +146,21 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
 
   const { method } = req;
   const { quizSetId, questionId } = req.query;
+  const parsedQuestionId = parseQueryPositiveInt(questionId);
+  const parsedQuizSetId = parseQueryPositiveInt(quizSetId);
 
   try {
     if (method === 'GET') {
-      if (questionId) {
+      if (parsedQuestionId.exists) {
+        if (!parsedQuestionId.value) {
+          return res.status(400).json({ error: 'Invalid questionId parameter' });
+        }
+
         const rows = await sql`
-                    WITH valid_session AS (
-                        SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
-                    )
                     SELECT rs.* FROM review_schedules rs
-                    JOIN valid_session vs ON rs.user_id = vs.user_id
                     JOIN quiz_sets q ON rs.quiz_set_id = q.id
-                    WHERE rs.question_id = ${questionId}
+                    WHERE rs.user_id = ${userId}
+                      AND rs.question_id = ${parsedQuestionId.value}
                       AND q.is_deleted = false
                       AND q.is_archived = false
                       AND COALESCE(q.exclude_from_review, false) = false
@@ -80,28 +180,26 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
       }
 
       let rows;
-      if (quizSetId) {
+      if (parsedQuizSetId.exists) {
+        if (!parsedQuizSetId.value) {
+          return res.status(400).json({ error: 'Invalid quizSetId parameter' });
+        }
+
         rows = await sql`
-            WITH valid_session AS (
-                SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
-            )
             SELECT rs.* FROM review_schedules rs
-            JOIN valid_session vs ON rs.user_id = vs.user_id
             JOIN quiz_sets q ON rs.quiz_set_id = q.id
-            WHERE rs.quiz_set_id = ${quizSetId}
+            WHERE rs.user_id = ${userId}
+              AND rs.quiz_set_id = ${parsedQuizSetId.value}
               AND q.is_deleted = false
               AND q.is_archived = false
               AND COALESCE(q.exclude_from_review, false) = false
         `;
       } else {
         rows = await sql`
-                    WITH valid_session AS (
-                        SELECT user_id FROM sessions WHERE token = ${sessionToken} AND expires_at > NOW() LIMIT 1
-                    )
                     SELECT s.* FROM review_schedules s
                     JOIN quiz_sets q ON s.quiz_set_id = q.id
-                    JOIN valid_session vs ON s.user_id = vs.user_id
-                    WHERE q.is_deleted = false
+                    WHERE s.user_id = ${userId}
+                      AND q.is_deleted = false
                       AND q.is_archived = false
                       AND COALESCE(q.exclude_from_review, false) = false
                 `;
@@ -119,16 +217,19 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
       return res.status(200).json(schedules);
 
     } else {
-      const userId = await getAuthenticatedUserId(req);
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
       if (method === 'POST') {
         const s = req.body || {};
-        const questionIdNum = Number(s?.questionId);
-        const quizSetIdNum = Number(s?.quizSetId);
-        if (!Number.isInteger(questionIdNum) || questionIdNum <= 0 || !Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
+        const questionIdNum = parsePositiveInt(s.questionId);
+        const quizSetIdNum = parsePositiveInt(s.quizSetId);
+        if (!questionIdNum || !quizSetIdNum) {
           return res.status(400).json({ error: 'Missing or invalid questionId/quizSetId' });
         }
+
+        const parsedSchedule = parseScheduleMutation(s);
+        if (!parsedSchedule.value) {
+          return res.status(400).json({ error: parsedSchedule.error || 'Invalid schedule payload' });
+        }
+
         const ownedQuestion = await hasOwnedQuestion(sql, userId, questionIdNum, quizSetIdNum);
         if (!ownedQuestion) {
           return res.status(404).json({ error: 'Question not found' });
@@ -138,7 +239,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                 INSERT INTO review_schedules (
                     question_id, quiz_set_id, interval_days, next_due, last_reviewed_at, consecutive_correct, user_id
                 ) VALUES (
-                    ${questionIdNum}, ${quizSetIdNum}, ${s.intervalDays}, ${s.nextDue}, ${s.lastReviewedAt || null}, ${s.consecutiveCorrect}, ${userId}
+                    ${questionIdNum}, ${quizSetIdNum}, ${parsedSchedule.value.intervalDays}, ${parsedSchedule.value.nextDue}, ${parsedSchedule.value.lastReviewedAt}, ${parsedSchedule.value.consecutiveCorrect}, ${userId}
                 )
                 RETURNING id
             `;
@@ -146,27 +247,39 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
 
       } else if (method === 'PUT') {
         const s = req.body || {};
-        if (!s.id && !s.questionId) return res.status(400).json({ error: 'Missing id or questionId' });
+        const parsedSchedule = parseScheduleMutation(s);
+        if (!parsedSchedule.value) {
+          return res.status(400).json({ error: parsedSchedule.error || 'Invalid schedule payload' });
+        }
 
-        if (s.id) {
+        if (hasValue(s.id)) {
+          const idNum = parsePositiveInt(s.id);
+          if (!idNum) {
+            return res.status(400).json({ error: 'Invalid id' });
+          }
+
           await sql`
                     UPDATE review_schedules SET 
-                        interval_days = ${s.intervalDays},
-                        next_due = ${s.nextDue},
-                        last_reviewed_at = ${s.lastReviewedAt || null},
-                        consecutive_correct = ${s.consecutiveCorrect}
-                    WHERE id = ${s.id} AND user_id = ${userId}
+                        interval_days = ${parsedSchedule.value.intervalDays},
+                        next_due = ${parsedSchedule.value.nextDue},
+                        last_reviewed_at = ${parsedSchedule.value.lastReviewedAt},
+                        consecutive_correct = ${parsedSchedule.value.consecutiveCorrect}
+                    WHERE id = ${idNum} AND user_id = ${userId}
                 `;
           return res.status(200).json({ success: true });
         } else {
-          const questionIdNum = Number(s.questionId);
-          if (!Number.isInteger(questionIdNum) || questionIdNum <= 0) {
+          const questionIdNum = parsePositiveInt(s.questionId);
+          if (!questionIdNum) {
             return res.status(400).json({ error: 'Missing or invalid questionId' });
           }
 
-          const quizSetIdNum = s.quizSetId !== undefined ? Number(s.quizSetId) : undefined;
-          if (quizSetIdNum !== undefined && (!Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0)) {
-            return res.status(400).json({ error: 'Invalid quizSetId' });
+          let quizSetIdNum: number | undefined;
+          if (hasValue(s.quizSetId)) {
+            const parsedQuizSetIdNum = parsePositiveInt(s.quizSetId);
+            if (!parsedQuizSetIdNum) {
+              return res.status(400).json({ error: 'Invalid quizSetId' });
+            }
+            quizSetIdNum = parsedQuizSetIdNum;
           }
 
           const ownedQuestion = await hasOwnedQuestion(sql, userId, questionIdNum, quizSetIdNum);
@@ -178,10 +291,10 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
           if (existing.length > 0) {
             await sql`
                         UPDATE review_schedules SET 
-                            interval_days = ${s.intervalDays},
-                            next_due = ${s.nextDue},
-                            last_reviewed_at = ${s.lastReviewedAt || null},
-                            consecutive_correct = ${s.consecutiveCorrect}
+                            interval_days = ${parsedSchedule.value.intervalDays},
+                            next_due = ${parsedSchedule.value.nextDue},
+                            last_reviewed_at = ${parsedSchedule.value.lastReviewedAt},
+                            consecutive_correct = ${parsedSchedule.value.consecutiveCorrect}
                         WHERE id = ${existing[0].id} AND user_id = ${userId}
                     `;
             return res.status(200).json({ id: existing[0].id });
@@ -193,7 +306,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                         INSERT INTO review_schedules (
                             question_id, quiz_set_id, interval_days, next_due, last_reviewed_at, consecutive_correct, user_id
                         ) VALUES (
-                            ${questionIdNum}, ${quizSetIdNum}, ${s.intervalDays}, ${s.nextDue}, ${s.lastReviewedAt || null}, ${s.consecutiveCorrect}, ${userId}
+                            ${questionIdNum}, ${quizSetIdNum}, ${parsedSchedule.value.intervalDays}, ${parsedSchedule.value.nextDue}, ${parsedSchedule.value.lastReviewedAt}, ${parsedSchedule.value.consecutiveCorrect}, ${userId}
                         )
                         RETURNING id
                     `;
@@ -201,9 +314,12 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
           }
         }
       } else if (method === 'DELETE') {
-        if (quizSetId) {
-          await sql`DELETE FROM review_schedules WHERE quiz_set_id = ${quizSetId} AND user_id = ${userId}`;
+        if (parsedQuizSetId.exists && parsedQuizSetId.value) {
+          await sql`DELETE FROM review_schedules WHERE quiz_set_id = ${parsedQuizSetId.value} AND user_id = ${userId}`;
           return res.status(200).json({ deleted: true });
+        }
+        if (parsedQuizSetId.exists && !parsedQuizSetId.value) {
+          return res.status(400).json({ error: 'Missing or invalid quizSetId for delete' });
         }
         return res.status(400).json({ error: 'Missing quizSetId for delete' });
       }

@@ -1644,6 +1644,45 @@ input:checked+.slider svg {
   font-size: 1rem;
 }
 
+.starter-guide {
+  margin: 1rem auto 0;
+  max-width: 760px;
+  text-align: left;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 1.15rem 1.2rem;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-color);
+}
+
+.starter-guide-title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.starter-guide-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.starter-guide-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.starter-guide-actions .nav-btn {
+  flex: 1 1 210px;
+  justify-content: center;
+}
+
 .main-layout {
   display: flex;
   flex: 1;
@@ -6368,6 +6407,18 @@ input:checked+.slider svg {
     gap: 0.35rem;
   }
 
+  .starter-guide {
+    padding: 1rem;
+  }
+
+  .starter-guide-actions {
+    flex-direction: column;
+  }
+
+  .starter-guide-actions .nav-btn {
+    width: 100%;
+  }
+
   /* --- Home Actions (nav buttons) --- */
   .home-actions {
     flex-direction: column;
@@ -6822,6 +6873,20 @@ input:checked+.slider svg {
 
   .quiz-card-actions {
     gap: 0.25rem;
+  }
+
+  .starter-guide {
+    margin-top: 0.85rem;
+    padding: 0.85rem;
+  }
+
+  .starter-guide-title {
+    font-size: 0.92rem;
+  }
+
+  .starter-guide-steps {
+    font-size: 0.84rem;
+    padding-left: 1.05rem;
   }
 
   .start-btn {

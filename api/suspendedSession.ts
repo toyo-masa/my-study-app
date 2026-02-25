@@ -10,6 +10,8 @@ type SuspendedSessionBody = {
 let suspendedSessionSchemaEnsured = false;
 
 export default async function handler(req: ApiHandlerRequest<SuspendedSessionBody>, res: ApiHandlerResponse) {
+    res.setHeader('Cache-Control', 'no-store');
+
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -56,7 +58,6 @@ export default async function handler(req: ApiHandlerRequest<SuspendedSessionBod
         }
 
         if (method === 'GET') {
-            res.setHeader('Cache-Control', 'no-store');
             const rows = await sql`
                 SELECT session_data
                 FROM suspended_sessions
