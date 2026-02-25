@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Lock, LogIn, RefreshCw, ShieldCheck, KeyRound, Trash2, CircleCheck, X } from 'lucide-react';
-import { cloudApi, type AdminSummary, type AdminUser } from '../cloudApi';
+import { ApiError, cloudApi, type AdminSummary, type AdminUser } from '../cloudApi';
 import { useAppContext } from '../contexts/AppContext';
 import { LoadingView } from '../components/LoadingView';
 import '../App.css';
@@ -81,13 +81,12 @@ export const AdminRoute: React.FC = () => {
         } catch (error) {
             setSummary(null);
             setUsers([]);
-            const message = error instanceof Error ? error.message : '';
-            if (message === 'UNAUTHORIZED') {
+            if (error instanceof ApiError && error.status === 401) {
                 setErrorMessage('ログイン状態の有効期限が切れました。再ログインしてください。');
                 setIsLoginModalOpen(true);
                 return;
             }
-            if (message === 'Forbidden') {
+            if (error instanceof ApiError && error.status === 403) {
                 setIsForbidden(true);
                 setErrorMessage('この画面を開く権限がありません。');
                 return;

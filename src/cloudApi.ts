@@ -1,6 +1,18 @@
 import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType } from './types';
 import type { SuspendedSession } from './utils/quizSettings';
 
+export class ApiError extends Error {
+    status: number;
+    code?: string;
+
+    constructor(message: string, status: number, code?: string) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.code = code;
+    }
+}
+
 // Helper to handle API responses
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
     const fetchOptions: RequestInit = {
@@ -10,14 +22,14 @@ async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
 
     const res = await fetch(url, fetchOptions);
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
+        const errorData = await res.json().catch(() => ({} as { error?: string; code?: string }));
+        const fallbackMessage = `HTTP error! status: ${res.status}`;
+        const message = typeof errorData.error === 'string' && errorData.error.length > 0
+            ? errorData.error
+            : (res.status === 401 ? 'UNAUTHORIZED' : fallbackMessage);
+        const code = typeof errorData.code === 'string' ? errorData.code : undefined;
 
-        // Let the caller know it was specifically an auth error (401)
-        if (res.status === 401) {
-            throw new Error('UNAUTHORIZED');
-        }
-
-        throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
+        throw new ApiError(message, res.status, code);
     }
     return res.json() as Promise<T>;
 }

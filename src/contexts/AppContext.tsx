@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { QuizSetWithMeta } from '../components/HomePage';
-import { cloudApi, type AuthUser } from '../cloudApi';
+import { ApiError, cloudApi, type AuthUser } from '../cloudApi';
 import {
     getAllQuizSets,
     addQuizSetWithQuestions
 } from '../db';
 import { parseQuestions } from '../utils/csvParser';
+import { isCloudSyncEnabledInStorage, setCloudSyncEnabledInStorage } from '../utils/settings';
 
 interface AppContextType {
     currentUser: AuthUser | null;
@@ -23,9 +24,10 @@ interface AppContextType {
     setIsRegisterModalOpen: (open: boolean) => void;
 
     useCloudSync: boolean;
+    setUseCloudSync: (enabled: boolean) => void;
 
     loadQuizSets: () => Promise<QuizSetWithMeta[]>;
-    handleCloudError: (err: any, fallbackMessage: string) => void;
+    handleCloudError: (err: unknown, fallbackMessage: string) => void;
 
     isInitialized: boolean;
 }
@@ -43,13 +45,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const [isInitialized, setIsInitialized] = useState(false);
 
-    // Derive cloud sync state from localStorage
-    const [useCloudSync] = useState(() => {
-        return localStorage.getItem('useCloudSync') === 'true';
-    });
+    const [useCloudSync, setUseCloudSyncState] = useState(() => isCloudSyncEnabledInStorage());
 
-    const handleCloudError = useCallback((err: any, fallbackMessage: string) => {
-        if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+    const setUseCloudSync = useCallback((enabled: boolean) => {
+        setCloudSyncEnabledInStorage(enabled);
+        setUseCloudSyncState(enabled);
+    }, []);
+
+    const handleCloudError = useCallback((err: unknown, fallbackMessage: string) => {
+        if (err instanceof ApiError && err.status === 401) {
             setCurrentUser(null);
             setIsLoginModalOpen(true);
         } else {
@@ -71,7 +75,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setArchivedQuizSets(archivedSets);
             return activeSets;
         } catch (err) {
-            if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+            if (err instanceof ApiError && err.status === 401) {
                 setCurrentUser(null);
                 setIsLoginModalOpen(true);
             } else {
@@ -117,14 +121,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         // Reload state with the seeded data
                         await loadQuizSets();
                     } catch (err) {
-                        if (err instanceof Error && err.message === 'UNAUTHORIZED') throw err;
+                        if (err instanceof ApiError && err.status === 401) throw err;
                         console.error('Failed to seed DB:', err);
                     }
                 }
 
                 setIsInitialized(true);
             } catch (err) {
-                if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+                if (err instanceof ApiError && err.status === 401) {
                     setIsLoginModalOpen(true);
                 } else {
                     console.error('Failed to initialize app:', err);
@@ -144,6 +148,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             isLoginModalOpen, setIsLoginModalOpen,
             isRegisterModalOpen, setIsRegisterModalOpen,
             useCloudSync,
+            setUseCloudSync,
             loadQuizSets,
             handleCloudError,
             isInitialized
@@ -153,6 +158,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAppContext = () => {
     const context = useContext(AppContext);
     if (context === undefined) {

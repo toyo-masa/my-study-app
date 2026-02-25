@@ -21,6 +21,7 @@ import {
 } from '../db';
 import { LoadingView } from '../components/LoadingView';
 import { useAppContext } from '../contexts/AppContext';
+import { ApiError } from '../cloudApi';
 import { loadReviewIntervalSettings } from '../utils/spacedRepetition';
 import '../App.css';
 
@@ -182,12 +183,11 @@ export const ReviewBoardRoute: React.FC = () => {
             setReviewedTodayQuestionIds(nextReviewedTodayQuestionIds);
         } catch (error) {
             console.error('復習ボードの読み込みに失敗しました:', error);
-            const message = error instanceof Error ? error.message : '';
-            if (message === 'UNAUTHORIZED') {
+            if (error instanceof ApiError && error.status === 401) {
                 setErrorType('auth');
                 setErrorMessage('ログイン状態の有効期限が切れました。再ログインしてください。');
                 handleCloudError(error, '認証エラーが発生しました。');
-            } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+            } else if ((error instanceof Error && error.message.includes('Failed to fetch')) || (error instanceof Error && error.message.includes('NetworkError'))) {
                 setErrorType('network');
                 setErrorMessage('復習データの取得に失敗しました。ネットワーク接続を確認して再試行してください。');
             } else {
