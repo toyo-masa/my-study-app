@@ -1,18 +1,10 @@
 import { neon } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
+import { hasValue, isValidDateTime } from './_validation.js';
 
-type ApiRequest = {
-    method?: string;
-    body?: {
-        schedules?: unknown;
-    };
-};
-
-type ApiResponse = {
-    status: (statusCode: number) => ApiResponse;
-    json: (payload: unknown) => ApiResponse;
-    setHeader: (name: string, value: string[]) => void;
-    end: (payload?: string) => ApiResponse;
+type ReviewSchedulesBulkBody = {
+    schedules?: unknown;
 };
 
 type ParsedSchedule = {
@@ -46,10 +38,6 @@ function isValidDate(value: string): boolean {
     return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function isValidDateTime(value: string): boolean {
-    return !Number.isNaN(Date.parse(value));
-}
-
 function nowMs(): number {
     if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
         return performance.now();
@@ -67,7 +55,7 @@ function parseSchedule(raw: unknown): ParsedSchedule | null {
     const consecutiveCorrect = Number(data.consecutiveCorrect ?? 0);
     const nextDue = typeof data.nextDue === 'string' ? data.nextDue : '';
     const rawLastReviewedAt = data.lastReviewedAt;
-    const hasLastReviewedAt = rawLastReviewedAt !== undefined && rawLastReviewedAt !== null && rawLastReviewedAt !== '';
+    const hasLastReviewedAt = hasValue(rawLastReviewedAt);
     const lastReviewedAt = hasLastReviewedAt && typeof rawLastReviewedAt === 'string' ? rawLastReviewedAt : null;
 
     if (!Number.isInteger(questionId) || questionId <= 0) return null;
@@ -91,7 +79,7 @@ function parseSchedule(raw: unknown): ParsedSchedule | null {
     };
 }
 
-export default async function handler(req: ApiRequest, res: ApiResponse) {
+export default async function handler(req: ApiHandlerRequest<ReviewSchedulesBulkBody>, res: ApiHandlerResponse) {
     const t0 = nowMs();
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {

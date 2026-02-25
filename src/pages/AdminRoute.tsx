@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Lock, LogIn, RefreshCw, ShieldCheck, KeyRound, Trash2, CircleCheck, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Lock, LogIn, RefreshCw, ShieldCheck, KeyRound, Trash2, CircleCheck, X } from 'lucide-react';
 import { ApiError, cloudApi, type AdminSummary, type AdminUser } from '../cloudApi';
 import { useAppContext } from '../contexts/AppContext';
+import { BackButton } from '../components/BackButton';
 import { LoadingView } from '../components/LoadingView';
 import '../App.css';
 
@@ -217,9 +218,7 @@ export const AdminRoute: React.FC = () => {
     return (
         <div className="review-board-page">
             <div className="detail-header review-board-header">
-                <button className="nav-btn" onClick={() => navigate('/')}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={() => navigate('/')} />
                 <h1 className="review-board-title">
                     <ShieldCheck size={24} />
                     管理コンソール

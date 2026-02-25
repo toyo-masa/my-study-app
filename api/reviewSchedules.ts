@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
 import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
+import { hasValue, isValidDateTime, isValidLocalDateString, parseNonNegativeInt, parsePositiveInt, parseQueryPositiveInt } from './_validation.js';
 
 async function hasOwnedQuestion(
   sql: NeonQueryFunction<false, false>,
@@ -44,51 +45,6 @@ type ParsedScheduleMutation = {
   consecutiveCorrect: number;
 };
 
-function hasValue(value: unknown): boolean {
-  return value !== undefined && value !== null && value !== '';
-}
-
-function parsePositiveInt(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value);
-    if (Number.isInteger(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
-  return null;
-}
-
-function parseNonNegativeInt(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
-    return value;
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value);
-    if (Number.isInteger(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
-  return null;
-}
-
-function isValidLocalDateString(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-  const [yearText, monthText, dayText] = value.split('-');
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return false;
-  }
-  const date = new Date(year, month - 1, day);
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-}
-
 function parseScheduleMutation(data: ReviewScheduleBody): { value: ParsedScheduleMutation | null; error: string | null } {
   const intervalDays = parsePositiveInt(data.intervalDays);
   if (!intervalDays) {
@@ -103,7 +59,7 @@ function parseScheduleMutation(data: ReviewScheduleBody): { value: ParsedSchedul
   const rawLastReviewedAt = data.lastReviewedAt;
   let lastReviewedAt: string | null = null;
   if (hasValue(rawLastReviewedAt)) {
-    if (typeof rawLastReviewedAt !== 'string' || Number.isNaN(Date.parse(rawLastReviewedAt))) {
+    if (typeof rawLastReviewedAt !== 'string' || !isValidDateTime(rawLastReviewedAt)) {
       return { value: null, error: 'Invalid lastReviewedAt' };
     }
     lastReviewedAt = rawLastReviewedAt;
@@ -124,14 +80,6 @@ function parseScheduleMutation(data: ReviewScheduleBody): { value: ParsedSchedul
     },
     error: null,
   };
-}
-
-function parseQueryPositiveInt(value: string | string[] | undefined): { exists: boolean; value: number | null } {
-  if (value === undefined) {
-    return { exists: false, value: null };
-  }
-  const normalized = Array.isArray(value) ? value[0] : value;
-  return { exists: true, value: parsePositiveInt(normalized) };
 }
 
 export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>, res: ApiHandlerResponse) {

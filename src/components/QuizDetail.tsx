@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import type { QuizSet, QuizHistory } from '../types';
 import { getHistories } from '../db';
-import { ArrowLeft, Play, Clock, CheckCircle, RotateCw, Table2, Minus, Plus, HelpCircle } from 'lucide-react';
+import { Play, Clock, CheckCircle, RotateCw, Table2, Minus, Plus, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingView } from './LoadingView';
+import { BackButton } from './BackButton';
 import type { QuizSetSettings } from '../utils/quizSettings';
 
 const INITIAL_VISIBLE_HISTORY_COUNT = 10;
@@ -173,9 +174,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
     return (
         <div className="quiz-detail-container">
             <div className="detail-header">
-                <button className="nav-btn" onClick={onBack}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={onBack} />
                 <h1>{quizSet.name}</h1>
             </div>
 

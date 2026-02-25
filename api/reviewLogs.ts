@@ -1,19 +1,23 @@
 import { neon } from '@neondatabase/serverless';
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { getSessionToken, getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
+import { parseQueryPositiveInt } from './_validation.js';
 
 type ApiBody = Record<string, string | number | boolean | null | undefined>;
-type ApiRequest = {
-    method?: string;
-    query: Record<string, string | string[] | undefined>;
-    body?: ApiBody;
-};
 
-type ApiResponse = {
-    status: (statusCode: number) => ApiResponse;
-    json: (payload: unknown) => ApiResponse;
-    setHeader: (name: string, value: string[]) => void;
-    end: (payload?: string) => ApiResponse;
+type ReviewLogRow = {
+    id: number;
+    question_id: number;
+    quiz_set_id: number;
+    reviewed_at: string | Date;
+    is_correct: boolean;
+    confidence: number;
+    interval_days: number;
+    next_due: string | Date | null;
+    memo: string | null;
+    duration_seconds: number | null;
+    session_id: string | null;
 };
 
 async function hasOwnedQuestion(
@@ -32,17 +36,23 @@ async function hasOwnedQuestion(
     return rows.length > 0;
 }
 
-function parsePositiveIntParam(value: string | string[] | undefined): number | null {
-    if (value === undefined) return null;
-    const normalized = Array.isArray(value) ? value[0] : value;
-    const parsed = Number(normalized);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-        return null;
-    }
-    return parsed;
+function toReviewLogResponse(r: ReviewLogRow) {
+    return {
+        id: r.id,
+        questionId: r.question_id,
+        quizSetId: r.quiz_set_id,
+        reviewedAt: new Date(r.reviewed_at).toISOString(),
+        isCorrect: r.is_correct,
+        confidence: r.confidence,
+        intervalDays: r.interval_days,
+        nextDue: r.next_due ? new Date(r.next_due).toISOString().split('T')[0] : '',
+        memo: r.memo,
+        durationSeconds: r.duration_seconds,
+        sessionId: r.session_id
+    };
 }
 
-export default async function handler(req: ApiRequest, res: ApiResponse) {
+export default async function handler(req: ApiHandlerRequest<ApiBody>, res: ApiHandlerResponse) {
     const sessionToken = getSessionToken(req);
     if (!sessionToken) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -58,7 +68,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     try {
         if (method === 'GET') {
             if (questionId) {
-                const questionIdNum = parsePositiveIntParam(questionId);
+                const questionIdNum = parseQueryPositiveInt(questionId).value;
                 if (!questionIdNum) {
                     return res.status(400).json({ error: 'Invalid questionId parameter' });
                 }
@@ -72,25 +82,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                     WHERE rl.question_id = ${questionIdNum}
                     ORDER BY rl.reviewed_at DESC
                 `;
-                return res.status(200).json(rows.map(r => ({
-                    id: r.id,
-                    questionId: r.question_id,
-                    quizSetId: r.quiz_set_id,
-                    reviewedAt: new Date(r.reviewed_at).toISOString(),
-                    isCorrect: r.is_correct,
-                    confidence: r.confidence,
-                    intervalDays: r.interval_days,
-                    nextDue: r.next_due ? new Date(r.next_due).toISOString().split('T')[0] : '',
-                    memo: r.memo,
-                    durationSeconds: r.duration_seconds,
-                    sessionId: r.session_id
-                })));
+                return res.status(200).json((rows as ReviewLogRow[]).map(toReviewLogResponse));
             }
             if (quizSetId) {
-                const quizSetIdValue = Array.isArray(quizSetId) ? quizSetId[0] : quizSetId;
                 const latestValue = Array.isArray(latest) ? latest[0] : latest;
-                const quizSetIdNum = Number(quizSetIdValue);
-                if (!Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
+                const quizSetIdNum = parseQueryPositiveInt(quizSetId).value;
+                if (!quizSetIdNum) {
                     return res.status(400).json({ error: 'Invalid quizSetId parameter' });
                 }
                 const rows = latestValue === 'true'
@@ -116,19 +113,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                         WHERE rl.quiz_set_id = ${quizSetIdNum}
                         ORDER BY rl.reviewed_at DESC
                     `;
-                return res.status(200).json(rows.map(r => ({
-                    id: r.id,
-                    questionId: r.question_id,
-                    quizSetId: r.quiz_set_id,
-                    reviewedAt: new Date(r.reviewed_at).toISOString(),
-                    isCorrect: r.is_correct,
-                    confidence: r.confidence,
-                    intervalDays: r.interval_days,
-                    nextDue: r.next_due ? new Date(r.next_due).toISOString().split('T')[0] : '',
-                    memo: r.memo,
-                    durationSeconds: r.duration_seconds,
-                    sessionId: r.session_id
-                })));
+                return res.status(200).json((rows as ReviewLogRow[]).map(toReviewLogResponse));
             }
             return res.status(400).json({ error: 'Missing questionId or quizSetId parameter' });
 
@@ -164,7 +149,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
             } else if (method === 'DELETE') {
                 if (quizSetId) {
-                    const quizSetIdNum = parsePositiveIntParam(quizSetId);
+                    const quizSetIdNum = parseQueryPositiveInt(quizSetId).value;
                     if (!quizSetIdNum) {
                         return res.status(400).json({ error: 'Invalid quizSetId' });
                     }

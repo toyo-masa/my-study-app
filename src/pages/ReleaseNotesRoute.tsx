@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BackButton } from '../components/BackButton';
 
 type ReleaseNote = {
     version: string;
@@ -10,6 +11,17 @@ type ReleaseNote = {
 };
 
 const releaseNotes: ReleaseNote[] = [
+    {
+        version: '1.17.2',
+        date: '2026年2月26日 00:18',
+        improvements: [
+            '複数画面で共通して使う「戻る」ボタンの表示・実装を統一し、画面ごとの差が出にくい構成に整理しました。',
+            '復習関連APIの入力チェック処理を共通化し、今後の機能追加時も同じ検証ルールを適用しやすくしました。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
     {
         version: '1.17.1',
         date: '2026年2月25日 21:58',
@@ -1217,9 +1229,7 @@ export const ReleaseNotesRoute: React.FC = () => {
                 width: '100%',
             }}
         >
-            <button className="nav-btn" onClick={() => navigate('/')} style={{ marginBottom: '2rem' }}>
-                <ArrowLeft size={16} /> 戻る
-            </button>
+            <BackButton className="nav-btn" onClick={() => navigate('/')} style={{ marginBottom: '2rem' }} />
 
             <h1
                 style={{

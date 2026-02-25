@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { BackButton } from '../components/BackButton';
 
 export const NotFoundRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -8,9 +8,7 @@ export const NotFoundRoute: React.FC = () => {
     return (
         <div className="review-board-page">
             <div className="detail-header review-board-header">
-                <button className="nav-btn" onClick={() => navigate('/')}>
-                    <ArrowLeft size={16} /> ホームへ戻る
-                </button>
+                <BackButton className="nav-btn" onClick={() => navigate('/')} label="ホームへ戻る" />
             </div>
             <div
                 style={{

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Question, QuizSet } from '../types';
 import { getQuestionsForQuizSet, updateQuestion, addQuestion, addQuestionsBulk, deleteQuestion, updateQuizSet } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
-import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter } from 'lucide-react';
+import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
+import { BackButton } from './BackButton';
 import { useAppContext } from '../contexts/AppContext';
 
 interface QuestionManagerProps {
@@ -478,9 +479,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     return (
         <div className="manager-container">
             <div className="manager-header">
-                <button className="nav-btn" onClick={onBack}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={onBack} />
                 {isEditingName ? (
                     <input
                         className="title-edit-input"

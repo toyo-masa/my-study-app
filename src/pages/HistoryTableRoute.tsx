@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Table2, X } from 'lucide-react';
+import { RefreshCw, Table2, X } from 'lucide-react';
 import { getHistories, getQuestionsForQuizSet } from '../db';
 import type { Question, QuizHistory } from '../types';
 import { LoadingView } from '../components/LoadingView';
 import { NotFoundView } from '../components/NotFoundView';
 import { MarkdownText } from '../components/MarkdownText';
+import { BackButton } from '../components/BackButton';
 import { useAppContext } from '../contexts/AppContext';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 
@@ -181,9 +182,7 @@ export const HistoryTableRoute: React.FC = () => {
     return (
         <main className="content-area history-table-page">
             <div className="detail-header history-table-header">
-                <button className="nav-btn" onClick={handleBack}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={handleBack} />
                 <h1>
                     <Table2 size={22} />
                     回答履歴テーブル

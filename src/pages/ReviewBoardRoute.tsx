@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft,
     BookOpen,
     Brain,
     CalendarCheck2,
@@ -18,6 +17,7 @@ import {
     updateQuizSet,
 } from '../db';
 import { LoadingView } from '../components/LoadingView';
+import { BackButton } from '../components/BackButton';
 import { useAppContext } from '../contexts/AppContext';
 import { ApiError } from '../cloudApi';
 import { loadReviewIntervalSettings } from '../utils/spacedRepetition';
@@ -464,9 +464,7 @@ export const ReviewBoardRoute: React.FC = () => {
     return (
         <div className="review-board-page">
             <div className="detail-header review-board-header">
-                <button className="nav-btn" onClick={() => navigate('/')}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={() => navigate('/')} />
                 <h1 className="review-board-title">
                     <CalendarCheck2 size={24} />
                     復習ボード（試作）
