@@ -13,8 +13,6 @@ import type { Question, QuizSetType, ReviewSchedule } from '../types';
 import {
     getAllReviewSchedules,
     getDueReviews,
-    getHistories,
-    getQuestionsForQuizSet,
     getQuizSetsWithCounts,
     getTodayString,
     updateQuizSet,
@@ -50,7 +48,6 @@ interface UpcomingScheduleRow {
     quizSetName: string;
     questionId: number;
     questionNumber: number;
-    questionText: string;
     nextDue: string;
 }
 
@@ -94,9 +91,6 @@ export const ReviewBoardRoute: React.FC = () => {
     const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
     const [allReviewSchedules, setAllReviewSchedules] = useState<ReviewSchedule[]>([]);
     const [quizSetMetaById, setQuizSetMetaById] = useState<Record<number, QuizSetMeta>>({});
-    const [questionById, setQuestionById] = useState<Record<number, Question>>({});
-    const [questionNumberById, setQuestionNumberById] = useState<Record<number, number>>({});
-    const [reviewedTodayQuestionIds, setReviewedTodayQuestionIds] = useState<Set<number>>(new Set());
     const [typeFilter, setTypeFilter] = useState<ReviewSetTypeFilter>('all');
     const [futureSetFilter, setFutureSetFilter] = useState<string>('all');
     const [togglingSetIds, setTogglingSetIds] = useState<Set<number>>(new Set());
@@ -136,51 +130,9 @@ export const ReviewBoardRoute: React.FC = () => {
                 }
             }
 
-            const targetQuizSetIds = [...new Set(schedules.map(schedule => schedule.quizSetId))]
-                .filter((quizSetId) => nextMetaById[quizSetId] !== undefined);
-            const questionLists = await Promise.all(
-                targetQuizSetIds.map(async (quizSetId) => ({
-                    quizSetId,
-                    questions: await getQuestionsForQuizSet(quizSetId),
-                }))
-            );
-            const nextQuestionById: Record<number, Question> = {};
-            const nextQuestionNumberById: Record<number, number> = {};
-            for (const { questions } of questionLists) {
-                const sortedQuestions = [...questions].sort((a, b) => {
-                    const aId = a.id ?? 0;
-                    const bId = b.id ?? 0;
-                    return aId - bId;
-                });
-                for (const [index, question] of sortedQuestions.entries()) {
-                    if (question.id !== undefined) {
-                        nextQuestionById[question.id] = question;
-                        nextQuestionNumberById[question.id] = index + 1;
-                    }
-                }
-            }
-
-            const historyLists = await Promise.all(
-                targetQuizSetIds.map((quizSetId) => getHistories(quizSetId))
-            );
-            const nextReviewedTodayQuestionIds = new Set<number>();
-            for (const histories of historyLists) {
-                for (const history of histories) {
-                    if (history.mode !== 'review_due') continue;
-                    if (!(history.date instanceof Date) || Number.isNaN(history.date.getTime())) continue;
-                    if (toLocalDateString(history.date) !== today) continue;
-                    for (const questionId of history.questionIds || []) {
-                        nextReviewedTodayQuestionIds.add(questionId);
-                    }
-                }
-            }
-
             setDueReviews(reviews);
             setAllReviewSchedules(schedules);
             setQuizSetMetaById(nextMetaById);
-            setQuestionById(nextQuestionById);
-            setQuestionNumberById(nextQuestionNumberById);
-            setReviewedTodayQuestionIds(nextReviewedTodayQuestionIds);
         } catch (error) {
             console.error('復習ボードの読み込みに失敗しました:', error);
             if (error instanceof ApiError && error.status === 401) {
@@ -199,7 +151,7 @@ export const ReviewBoardRoute: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [handleCloudError, today]);
+    }, [handleCloudError]);
 
     useEffect(() => {
         void loadData();
@@ -318,11 +270,6 @@ export const ReviewBoardRoute: React.FC = () => {
         [activeSchedules, today]
     );
 
-    const totalReviewedTodayQuestions = useMemo(
-        () => activeSchedules.filter((schedule) => reviewedTodayQuestionIds.has(schedule.questionId)).length,
-        [activeSchedules, reviewedTodayQuestionIds]
-    );
-
     const nextWeekDateKeys = useMemo(() => {
         const startDate = parseLocalDate(today) ?? new Date();
         return Array.from({ length: 7 }, (_, index) => {
@@ -361,15 +308,12 @@ export const ReviewBoardRoute: React.FC = () => {
         () => activeSchedules
             .filter((schedule) => schedule.nextDue >= today && schedule.nextDue <= nextWeekLastDateKey)
             .map((schedule) => {
-                const question = questionById[schedule.questionId];
                 const quizSetName = quizSetMetaById[schedule.quizSetId]?.name || `セット #${schedule.quizSetId}`;
-                const questionNumber = questionNumberById[schedule.questionId] ?? schedule.questionId;
                 return {
                     quizSetId: schedule.quizSetId,
                     quizSetName,
                     questionId: schedule.questionId,
-                    questionNumber,
-                    questionText: question?.text || '(問題文を取得できませんでした)',
+                    questionNumber: schedule.questionId,
                     nextDue: schedule.nextDue,
                 };
             })
@@ -381,7 +325,7 @@ export const ReviewBoardRoute: React.FC = () => {
                 if (setCmp !== 0) return setCmp;
                 return a.questionNumber - b.questionNumber;
             }),
-        [activeSchedules, questionById, questionNumberById, quizSetMetaById, today, nextWeekLastDateKey, futureSetFilter]
+        [activeSchedules, quizSetMetaById, today, nextWeekLastDateKey, futureSetFilter]
     );
 
     const calendarColumns = useMemo<CalendarColumn[]>(
@@ -566,10 +510,6 @@ export const ReviewBoardRoute: React.FC = () => {
                             <strong className="review-board-stat-value">{totalTodayUnreviewedQuestions}</strong>
                         </div>
                         <div className="review-board-stat-card">
-                            <span className="review-board-stat-label">今日の復習済み問題数</span>
-                            <strong className="review-board-stat-value">{totalReviewedTodayQuestions}</strong>
-                        </div>
-                        <div className="review-board-stat-card">
                             <span className="review-board-stat-label">期限切れ未復習の問題数</span>
                             <strong className="review-board-stat-value">{totalOverdueUnreviewedQuestions}</strong>
                         </div>
@@ -673,7 +613,6 @@ export const ReviewBoardRoute: React.FC = () => {
                                             <tr>
                                                 <th>セット名</th>
                                                 <th>番号</th>
-                                                <th>問題文</th>
                                                 {calendarColumns.map((column) => (
                                                     <th key={`cal-head-${column.key}`} className="review-board-future-calendar-head">
                                                         <span>{column.label}</span>
@@ -687,7 +626,6 @@ export const ReviewBoardRoute: React.FC = () => {
                                                 <tr key={`future-${row.quizSetId}-${row.questionId}-${row.nextDue}`} className="table-row">
                                                     <td className="review-board-future-set-name">{row.quizSetName}</td>
                                                     <td className="review-board-future-question-number">{row.questionNumber}</td>
-                                                    <td className="text-cell review-board-future-question-text">{row.questionText}</td>
                                                     {calendarColumns.map((column) => {
                                                         const isDueDay = row.nextDue === column.key;
                                                         return (
