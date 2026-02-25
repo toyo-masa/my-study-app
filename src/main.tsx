@@ -6,14 +6,9 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { AppProvider } from './contexts/AppContext'
+import { ensureLocalSettingsInitialized } from './utils/settings'
 
-if (localStorage.getItem('theme') === null) {
-  localStorage.setItem('theme', 'dark')
-}
-
-if (localStorage.getItem('useCloudSync') === null) {
-  localStorage.setItem('useCloudSync', 'true')
-}
+ensureLocalSettingsInitialized()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
