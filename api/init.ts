@@ -141,6 +141,19 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
       );
     `;
 
+    // Create user_onboarding_states table
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_onboarding_states (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        home_tutorial_completed BOOLEAN DEFAULT FALSE,
+        flow_stage VARCHAR(32) DEFAULT 'home',
+        manage_quiz_set_id INTEGER,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
     // Add columns to existing tables if they don't exist
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
@@ -150,6 +163,12 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS memorization_detail JSONB`;
     await sql`ALTER TABLE review_schedules ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE review_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+    await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`;
+    await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS home_tutorial_completed BOOLEAN DEFAULT FALSE`;
+    await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS flow_stage VARCHAR(32) DEFAULT 'home'`;
+    await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS manage_quiz_set_id INTEGER`;
+    await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE`;
+    await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
 
     // Remove duplicated schedules before applying the unique index.
     await sql`
@@ -195,6 +214,23 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`
       CREATE INDEX IF NOT EXISTS review_logs_user_quiz_reviewed_idx
       ON review_logs (user_id, quiz_set_id, reviewed_at DESC)
+    `;
+    await sql`
+      WITH ranked AS (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY user_id
+                 ORDER BY COALESCE(updated_at, completed_at, to_timestamp(0)) DESC, id DESC
+               ) AS rn
+        FROM user_onboarding_states
+        WHERE user_id IS NOT NULL
+      )
+      DELETE FROM user_onboarding_states
+      WHERE id IN (SELECT id FROM ranked WHERE rn > 1)
+    `;
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS user_onboarding_states_user_unique_idx
+      ON user_onboarding_states (user_id)
     `;
     await sql`
       CREATE UNIQUE INDEX IF NOT EXISTS suspended_sessions_user_quiz_unique_idx

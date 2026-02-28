@@ -1,4 +1,4 @@
-import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType } from './types';
+import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType, HomeOnboardingState, HomeOnboardingFlowStage } from './types';
 import type { SuspendedSession } from './utils/quizSettings';
 
 // Helper to handle API responses
@@ -231,6 +231,38 @@ export const cloudApi = {
     async clearSuspendedSession(quizSetId: number): Promise<void> {
         await fetchApi(`/api/suspendedSession?quizSetId=${quizSetId}`, {
             method: 'DELETE'
+        });
+    },
+
+    async getHomeOnboardingState(): Promise<HomeOnboardingState> {
+        return fetchApi('/api/onboardingState');
+    },
+
+    async updateHomeOnboardingState(patch: {
+        homeTutorialCompleted?: boolean;
+        flowStage?: HomeOnboardingFlowStage;
+        manageQuizSetId?: number | null;
+    }): Promise<HomeOnboardingState> {
+        return fetchApi('/api/onboardingState', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch)
+        });
+    },
+
+    async completeHomeOnboarding(): Promise<HomeOnboardingState> {
+        return this.updateHomeOnboardingState({
+            homeTutorialCompleted: true,
+            flowStage: 'completed',
+            manageQuizSetId: null,
+        });
+    },
+
+    async advanceHomeOnboardingToManage(quizSetId: number): Promise<HomeOnboardingState> {
+        return this.updateHomeOnboardingState({
+            homeTutorialCompleted: false,
+            flowStage: 'manage',
+            manageQuizSetId: quizSetId,
         });
     }
 };

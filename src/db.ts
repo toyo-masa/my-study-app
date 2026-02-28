@@ -1,10 +1,18 @@
 import Dexie, { type Table } from 'dexie';
-import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType } from './types';
+import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType, HomeOnboardingState, HomeOnboardingFlowStage } from './types';
 import { cloudApi } from './cloudApi';
 
 export function isCloudSyncEnabled(): boolean {
     return localStorage.getItem('useCloudSync') === 'true';
 }
+
+type LocalAppSetting = {
+    key: string;
+    value: string;
+    updatedAt: string;
+};
+
+const HOME_ONBOARDING_SETTING_KEY = 'homeOnboardingState';
 
 class StudyAppDB extends Dexie {
     quizSets!: Table<QuizSet>;
@@ -12,6 +20,7 @@ class StudyAppDB extends Dexie {
     histories!: Table<QuizHistory>;
     reviewSchedules!: Table<ReviewSchedule>;
     reviewLogs!: Table<ReviewLog>;
+    appSettings!: Table<LocalAppSetting, string>;
 
     constructor() {
         super('StudyAppDB');
@@ -25,6 +34,14 @@ class StudyAppDB extends Dexie {
         this.version(3).stores({
             reviewSchedules: '++id, questionId, quizSetId, nextDue, [quizSetId+nextDue]',
             reviewLogs: '++id, questionId, quizSetId, reviewedAt',
+        });
+        this.version(4).stores({
+            quizSets: '++id, name',
+            questions: '++id, quizSetId, category',
+            histories: '++id, quizSetId, date',
+            reviewSchedules: '++id, questionId, quizSetId, nextDue, [quizSetId+nextDue]',
+            reviewLogs: '++id, questionId, quizSetId, reviewedAt',
+            appSettings: '&key',
         });
     }
 }
@@ -320,4 +337,124 @@ export async function upsertReviewSchedulesBulk(schedules: (Omit<ReviewSchedule,
         }
     }
     return { updated, inserted };
+}
+
+function normalizeHomeOnboardingState(raw: unknown): HomeOnboardingState {
+    if (!raw || typeof raw !== 'object') {
+        return {
+            homeTutorialCompleted: false,
+            completedAt: null,
+            flowStage: 'home',
+            manageQuizSetId: null,
+        };
+    }
+    const record = raw as Record<string, unknown>;
+    const flowStage = record.flowStage;
+    const normalizedFlowStage: HomeOnboardingFlowStage =
+        flowStage === 'manage' || flowStage === 'completed' || flowStage === 'home'
+            ? flowStage
+            : 'home';
+    const manageQuizSetIdRaw = record.manageQuizSetId;
+    const normalizedManageQuizSetId =
+        typeof manageQuizSetIdRaw === 'number' && Number.isInteger(manageQuizSetIdRaw) && manageQuizSetIdRaw > 0
+            ? manageQuizSetIdRaw
+            : null;
+    const homeTutorialCompleted = record.homeTutorialCompleted === true;
+    if (homeTutorialCompleted) {
+        return {
+            homeTutorialCompleted: true,
+            completedAt: typeof record.completedAt === 'string' ? record.completedAt : null,
+            flowStage: 'completed',
+            manageQuizSetId: null,
+        };
+    }
+
+    return {
+        homeTutorialCompleted: record.homeTutorialCompleted === true,
+        completedAt: typeof record.completedAt === 'string' ? record.completedAt : null,
+        flowStage: normalizedFlowStage,
+        manageQuizSetId: normalizedManageQuizSetId,
+    };
+}
+
+export async function getHomeOnboardingState(): Promise<HomeOnboardingState> {
+    if (isCloudSyncEnabled()) {
+        return cloudApi.getHomeOnboardingState();
+    }
+
+    const stored = await db.appSettings.get(HOME_ONBOARDING_SETTING_KEY);
+    if (!stored) {
+        return {
+            homeTutorialCompleted: false,
+            completedAt: null,
+            flowStage: 'home',
+            manageQuizSetId: null,
+        };
+    }
+
+    try {
+        const parsed = JSON.parse(stored.value);
+        return normalizeHomeOnboardingState(parsed);
+    } catch {
+        return {
+            homeTutorialCompleted: false,
+            completedAt: null,
+            flowStage: 'home',
+            manageQuizSetId: null,
+        };
+    }
+}
+
+export async function updateHomeOnboardingState(patch: {
+    homeTutorialCompleted?: boolean;
+    flowStage?: HomeOnboardingFlowStage;
+    manageQuizSetId?: number | null;
+}): Promise<HomeOnboardingState> {
+    if (isCloudSyncEnabled()) {
+        return cloudApi.updateHomeOnboardingState(patch);
+    }
+
+    const current = await getHomeOnboardingState();
+    const next: HomeOnboardingState = {
+        homeTutorialCompleted: patch.homeTutorialCompleted ?? current.homeTutorialCompleted,
+        completedAt: current.completedAt,
+        flowStage: patch.flowStage ?? current.flowStage,
+        manageQuizSetId: patch.manageQuizSetId === undefined ? current.manageQuizSetId : patch.manageQuizSetId,
+    };
+
+    if (next.homeTutorialCompleted || next.flowStage === 'completed') {
+        next.homeTutorialCompleted = true;
+        next.flowStage = 'completed';
+        next.manageQuizSetId = null;
+        next.completedAt = next.completedAt || new Date().toISOString();
+    } else {
+        if (next.flowStage === 'home') {
+            next.manageQuizSetId = null;
+        }
+        next.completedAt = null;
+    }
+
+    await db.appSettings.put({
+        key: HOME_ONBOARDING_SETTING_KEY,
+        value: JSON.stringify(next),
+        updatedAt: new Date().toISOString(),
+    });
+
+    return next;
+}
+
+export async function completeHomeOnboarding(): Promise<HomeOnboardingState> {
+    return updateHomeOnboardingState({
+        homeTutorialCompleted: true,
+        flowStage: 'completed',
+        manageQuizSetId: null,
+    });
+}
+
+export async function advanceHomeOnboardingToManage(quizSetId: number): Promise<HomeOnboardingState> {
+    return updateHomeOnboardingState({
+        homeTutorialCompleted: false,
+        flowStage: 'manage',
+        manageQuizSetId: quizSetId,
+    });
 }

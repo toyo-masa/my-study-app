@@ -1,6 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import type { Question, QuizSet } from '../types';
-import { getQuestionsForQuizSet, updateQuestion, addQuestion, addQuestionsBulk, deleteQuestion, updateQuizSet } from '../db';
+import {
+    getQuestionsForQuizSet,
+    updateQuestion,
+    addQuestion,
+    addQuestionsBulk,
+    deleteQuestion,
+    updateQuizSet,
+    completeHomeOnboarding
+} from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
 import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
@@ -23,6 +32,32 @@ interface EditingQuestion {
     explanation: string;
 }
 
+type ManageOnboardingStep = 'addQuestionButton' | 'fillAndSave' | 'tutorialComplete';
+
+type ManageOnboardingStepMeta = {
+    progress: string;
+    title: string;
+    description: string;
+};
+
+const MANAGE_ONBOARDING_STEP_META: Record<ManageOnboardingStep, ManageOnboardingStepMeta> = {
+    addQuestionButton: {
+        progress: '4 / 6',
+        title: '次は問題を登録します',
+        description: '今回は空の問題集に手入力で登録します。まず「問題を追加」をタップしてください。',
+    },
+    fillAndSave: {
+        progress: '5 / 6',
+        title: '問題を作成・保存してみましょう',
+        description: '今回は例としてサンプル問題を自動入力しました。自由に編集できるので、内容を確認できたら右下の「保存」ボタンを押してください。',
+    },
+    tutorialComplete: {
+        progress: '6 / 6',
+        title: 'チュートリアル完了！',
+        description: '問題が登録できました。左上の「戻る」ボタンを押してHomeに戻り、さっそく学習を始めてみましょう。',
+    }
+};
+
 const emptyQuestion: EditingQuestion = {
     category: '',
     text: '',
@@ -30,6 +65,26 @@ const emptyQuestion: EditingQuestion = {
     correctAnswers: [],
     explanation: '',
 };
+
+function buildManageOnboardingAutoQuestion(type?: QuizSet['type']): EditingQuestion {
+    if (type === 'memorization') {
+        return {
+            category: 'チュートリアル',
+            text: 'チュートリアル用の自動入力サンプルです。暗記カードとして登録されます。',
+            options: ['サンプル解答'],
+            correctAnswers: [0],
+            explanation: 'この問題はチュートリアルの確認用に自動作成されました。',
+        };
+    }
+
+    return {
+        category: 'チュートリアル',
+        text: 'チュートリアル用の自動入力サンプルです。正しい選択肢を選んでください。',
+        options: ['選択肢A', '選択肢B', '選択肢C', '選択肢D'],
+        correctAnswers: [0],
+        explanation: 'この問題はチュートリアルの確認用に自動作成されました。',
+    };
+}
 
 export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBack, onCloudError, onQuizSetUpdated }) => {
     const [questions, setQuestions] = useState<Question[]>([]);
@@ -47,11 +102,18 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isReviewExcluded, setIsReviewExcluded] = useState<boolean>(!!quizSet.isReviewExcluded);
     const [modalError, setModalError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const addQuestionButtonRef = useRef<HTMLButtonElement>(null);
+    const manageModalContentRef = useRef<HTMLDivElement>(null);
+    const saveButtonRef = useRef<HTMLButtonElement>(null);
+    const backButtonRef = useRef<HTMLButtonElement>(null);
 
     const [isImporting, setIsImporting] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>(''); // Category filter state
-    const { setQuizSets } = useAppContext();
+    const { setQuizSets, homeOnboardingState: onboardingState, setHomeOnboardingState: setOnboardingState } = useAppContext();
+    const [manageOnboardingStep, setManageOnboardingStep] = useState<ManageOnboardingStep>('addQuestionButton');
+    const [isManageOnboardingDismissedThisSession, setIsManageOnboardingDismissedThisSession] = useState(false);
+    const [manageOnboardingHighlightRect, setManageOnboardingHighlightRect] = useState<DOMRect | null>(null);
 
     useEffect(() => {
         if (statusMessage) {
@@ -62,6 +124,36 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
         setStatusMessage({ text, type });
+    };
+
+    const isManageOnboardingActive =
+        onboardingState !== null &&
+        onboardingState.flowStage === 'manage' &&
+        onboardingState.homeTutorialCompleted === false &&
+        onboardingState.manageQuizSetId === quizSet.id &&
+        !isManageOnboardingDismissedThisSession;
+
+    const completeManageOnboardingFlow = async (): Promise<boolean> => {
+        try {
+            const state = await completeHomeOnboarding();
+            setOnboardingState(state);
+            setIsManageOnboardingDismissedThisSession(true);
+            return true;
+        } catch (err) {
+            onCloudError(err, 'オンボーディング状態の保存に失敗しました。');
+            return false;
+        }
+    };
+
+    const skipManageOnboarding = async () => {
+        await completeManageOnboardingFlow();
+    };
+
+    const handleBack = () => {
+        if (isManageOnboardingActive && manageOnboardingStep === 'tutorialComplete') {
+            void completeManageOnboardingFlow();
+        }
+        onBack();
     };
 
     useEffect(() => {
@@ -106,6 +198,15 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     };
 
     const handleNew = () => {
+        if (isManageOnboardingActive && manageOnboardingStep === 'addQuestionButton') {
+            const autoQuestion = buildManageOnboardingAutoQuestion(quizSet.type);
+            setEditing(autoQuestion);
+            setIsNew(true);
+            setManageOnboardingStep('fillAndSave');
+            showStatus('チュートリアル用のサンプルを自動入力しました。内容を確認して保存してください。', 'success');
+            return;
+        }
+
         setEditing({ ...emptyQuestion });
         setIsNew(true);
     };
@@ -319,6 +420,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         }
 
         setIsSaving(true);
+        let addedNewQuestion = false;
         try {
             if (isNew) {
                 // Optimistic UI for new question
@@ -331,6 +433,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     correctAnswers: editing.correctAnswers,
                     explanation: editing.explanation,
                 });
+                addedNewQuestion = true;
                 showStatus('問題を追加しました', 'success');
             } else if (editing.id !== undefined) {
                 await updateQuestion(editing.id, {
@@ -346,6 +449,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             setEditing(null);
             await loadQuestions();
             if (onQuizSetUpdated) onQuizSetUpdated();
+            if (addedNewQuestion && isManageOnboardingActive && manageOnboardingStep === 'fillAndSave') {
+                setManageOnboardingStep('tutorialComplete');
+            }
         } catch (err) {
             onCloudError(err, '保存エラー: ' + (err as Error).message);
             await loadQuestions();
@@ -386,6 +492,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const cancelDelete = () => {
         setDeleteConfirmId(null);
+    };
+
+    const handleCloseEditingModal = () => {
+        setEditing(null);
+        if (isManageOnboardingActive && manageOnboardingStep === 'fillAndSave') {
+            setManageOnboardingStep('addQuestionButton');
+        }
     };
 
     const toggleCorrectAnswer = (idx: number) => {
@@ -475,10 +588,134 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         return questions.filter(q => (q.category || 'General') === selectedCategory);
     }, [questions, selectedCategory]);
 
+    const getCurrentManageOnboardingTarget = useCallback((): HTMLElement | null => {
+        if (!isManageOnboardingActive) return null;
+        if (manageOnboardingStep === 'addQuestionButton') {
+            return addQuestionButtonRef.current;
+        }
+        if (manageOnboardingStep === 'fillAndSave') {
+            return manageModalContentRef.current;
+        }
+        if (manageOnboardingStep === 'tutorialComplete') {
+            return backButtonRef.current; // Assuming backButtonRef is defined and points to the back button
+        }
+        return null;
+    }, [isManageOnboardingActive, manageOnboardingStep]);
+
+    useEffect(() => {
+        if (!isManageOnboardingActive) return;
+
+        const updateHighlightRect = () => {
+            const target = getCurrentManageOnboardingTarget();
+            if (!target) {
+                setManageOnboardingHighlightRect(null);
+                return;
+            }
+            setManageOnboardingHighlightRect(target.getBoundingClientRect());
+        };
+
+        const rafId = window.requestAnimationFrame(updateHighlightRect);
+        window.addEventListener('resize', updateHighlightRect);
+        window.addEventListener('scroll', updateHighlightRect, true);
+
+        return () => {
+            window.cancelAnimationFrame(rafId);
+            window.removeEventListener('resize', updateHighlightRect);
+            window.removeEventListener('scroll', updateHighlightRect, true);
+        };
+    }, [editing, getCurrentManageOnboardingTarget, isManageOnboardingActive, manageOnboardingStep, questions.length]);
+
+    const currentManageOnboardingMeta = MANAGE_ONBOARDING_STEP_META[manageOnboardingStep];
+    const manageHighlightPadding = 8;
+    const manageTutorialRect = manageOnboardingHighlightRect
+        ? {
+            top: Math.max(0, manageOnboardingHighlightRect.top - manageHighlightPadding),
+            left: Math.max(0, manageOnboardingHighlightRect.left - manageHighlightPadding),
+            width: Math.max(0, manageOnboardingHighlightRect.width + manageHighlightPadding * 2),
+            height: Math.max(0, manageOnboardingHighlightRect.height + manageHighlightPadding * 2),
+        }
+        : null;
+
+    const manageViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const manageViewportHeight = typeof window !== 'undefined' ? window.innerHeight : 720;
+    const managePopoverWidth = Math.min(380, Math.max(260, manageViewportWidth - 24));
+
+    let managePopoverLeft = manageTutorialRect
+        ? Math.min(
+            Math.max(12, manageTutorialRect.left + manageTutorialRect.width / 2 - managePopoverWidth / 2),
+            Math.max(12, manageViewportWidth - managePopoverWidth - 12)
+        )
+        : Math.max(12, manageViewportWidth / 2 - managePopoverWidth / 2);
+
+    const manageAvailableAbove = manageTutorialRect ? Math.max(0, manageTutorialRect.top - 12) : Math.max(0, manageViewportHeight - 24);
+    const manageAvailableBelow = manageTutorialRect
+        ? Math.max(0, manageViewportHeight - (manageTutorialRect.top + manageTutorialRect.height) - 12)
+        : Math.max(0, manageViewportHeight - 24);
+    const managePreferredSpace = 220;
+    const managePlaceAbove = !!manageTutorialRect && manageAvailableBelow < managePreferredSpace && manageAvailableAbove >= manageAvailableBelow;
+
+    // Use an unconstrained maxHeight or a generous one, rather than Math.max(120, space) which can cut things off tightly
+    const manageMaxHeight = 400;
+
+    // Calculate vertical position carefully to not go off-screen
+    let popoverTop: number | undefined;
+    let popoverBottom: number | undefined;
+
+    if (manageOnboardingStep === 'fillAndSave') {
+        // Fix for 5/6: Prevent overlaying the input form
+
+        // 1. If we have plenty of width (e.g. desktop), put it to the right
+        if (manageTutorialRect && manageViewportWidth - (manageTutorialRect.left + manageTutorialRect.width) >= managePopoverWidth + 24) {
+            managePopoverLeft = manageTutorialRect.left + manageTutorialRect.width + 12;
+            popoverTop = Math.max(12, manageTutorialRect.top);
+        }
+        // 2. If we have plenty of width on the left, put it to the left
+        else if (manageTutorialRect && manageTutorialRect.left >= managePopoverWidth + 24) {
+            managePopoverLeft = manageTutorialRect.left - managePopoverWidth - 12;
+            popoverTop = Math.max(12, manageTutorialRect.top);
+        }
+        // 3. Mobile/Narrow screen: Since the modal usually takes up the whole screen,
+        // and the "Save" button is at the bottom right, we place the tooltip
+        // as high up as possible (top center). Setting popoverTop = 16 guarantees it is at the 
+        // very top of the viewport.
+        else {
+            popoverTop = 16;
+            managePopoverLeft = Math.max(12, manageViewportWidth / 2 - managePopoverWidth / 2);
+        }
+    } else if (manageTutorialRect) {
+        if (managePlaceAbove) {
+            popoverBottom = manageViewportHeight - manageTutorialRect.top + 12;
+            // if this pushes it off the top of the screen (i.e. bottom is too large), clamp it
+            if (popoverBottom + 150 > manageViewportHeight) {
+                popoverBottom = undefined;
+                popoverTop = 12; // just stick it to the top of the screen
+            }
+        } else {
+            popoverTop = manageTutorialRect.top + manageTutorialRect.height + 12;
+            // if this pushes it off the bottom of the screen, clamp it
+            if (popoverTop + 150 > manageViewportHeight) {
+                popoverTop = undefined;
+                popoverBottom = 12; // stick to bottom of the screen
+            }
+        }
+    } else {
+        popoverTop = Math.max(12, manageViewportHeight / 2 - 72);
+    }
+
+    const managePopoverStyle: React.CSSProperties = {
+        top: popoverTop,
+        bottom: popoverBottom,
+        left: managePopoverLeft,
+        width: managePopoverWidth,
+        maxHeight: manageMaxHeight,
+        overflowY: 'auto',
+        pointerEvents: manageOnboardingStep === 'fillAndSave' ? 'none' : 'auto',
+    };
+
     return (
         <div className="manager-container">
             <div className="manager-header">
-                <button className="nav-btn" onClick={onBack}>
+                <button className="nav-btn" onClick={handleBack} ref={backButtonRef}>
                     <ArrowLeft size={16} /> 戻る
                 </button>
                 {isEditingName ? (
@@ -510,7 +747,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             disabled={isImporting}
                         />
                     </label>
-                    <button className="nav-btn action-btn" onClick={handleNew} disabled={isImporting}>
+                    <button ref={addQuestionButtonRef} className="nav-btn action-btn" onClick={handleNew} disabled={isImporting}>
                         <Plus size={16} /> 問題を追加
                     </button>
                 </div>
@@ -674,13 +911,110 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 </div>
             </div>
 
+            {isManageOnboardingActive && ReactDOM.createPortal(
+                <div className="home-onboarding-layer" aria-live="polite" style={{ zIndex: 99999 }}>
+                    {manageTutorialRect ? (
+                        <>
+                            <div className="home-onboarding-mask" style={{ top: 0, left: 0, width: '100vw', height: manageTutorialRect.top }} />
+                            <div className="home-onboarding-mask" style={{ top: manageTutorialRect.top, left: 0, width: manageTutorialRect.left, height: manageTutorialRect.height }} />
+                            <div
+                                className="home-onboarding-mask"
+                                style={{
+                                    top: manageTutorialRect.top,
+                                    left: manageTutorialRect.left + manageTutorialRect.width,
+                                    width: Math.max(0, manageViewportWidth - (manageTutorialRect.left + manageTutorialRect.width)),
+                                    height: manageTutorialRect.height
+                                }}
+                            />
+                            <div
+                                className="home-onboarding-mask"
+                                style={{
+                                    top: manageTutorialRect.top + manageTutorialRect.height,
+                                    left: 0,
+                                    width: '100vw',
+                                    height: Math.max(0, manageViewportHeight - (manageTutorialRect.top + manageTutorialRect.height))
+                                }}
+                            />
+                            <div
+                                className="home-onboarding-highlight"
+                                style={{
+                                    top: manageTutorialRect.top,
+                                    left: manageTutorialRect.left,
+                                    width: manageTutorialRect.width,
+                                    height: manageTutorialRect.height,
+                                }}
+                            />
+                        </>
+                    ) : (
+                        <div className="home-onboarding-mask" style={{ inset: 0 }} />
+                    )}
+
+                    <div
+                        className="home-onboarding-popover"
+                        style={{
+                            ...managePopoverStyle,
+                            ...(manageOnboardingStep === 'fillAndSave' && manageViewportWidth < 600 ? {
+                                padding: '0.6rem 0.8rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '0.5rem',
+                                width: 'auto',
+                                left: '12px',
+                                right: '12px',
+                                maxWidth: 'none',
+                            } : {})
+                        }}
+                    >
+                        {manageOnboardingStep === 'fillAndSave' && manageViewportWidth < 600 ? (
+                            <>
+                                <div style={{ textAlign: 'left', flex: 1 }}>
+                                    <p className="home-onboarding-progress" style={{ marginBottom: '0.1rem', fontSize: '0.65rem' }}>チュートリアル {currentManageOnboardingMeta.progress}</p>
+                                    <h3 className="home-onboarding-title" style={{ fontSize: '0.85rem' }}>{currentManageOnboardingMeta.title}</h3>
+                                    <p className="home-onboarding-description" style={{ display: 'none' }}>{currentManageOnboardingMeta.description}</p>
+                                </div>
+                                <div className="home-onboarding-actions" style={{ marginTop: 0, flexShrink: 0 }}>
+                                    {manageOnboardingStep !== 'tutorialComplete' && (
+                                        <button
+                                            className="nav-btn"
+                                            onClick={(e) => { e.stopPropagation(); void skipManageOnboarding(); }}
+                                            style={{ pointerEvents: 'auto', padding: '0.4rem 0.7rem', fontSize: '0.75rem' }}
+                                        >
+                                            スキップ
+                                        </button>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="home-onboarding-progress">チュートリアル {currentManageOnboardingMeta.progress}</p>
+                                <h3 className="home-onboarding-title">{currentManageOnboardingMeta.title}</h3>
+                                <p className="home-onboarding-description">{currentManageOnboardingMeta.description}</p>
+                                <div className="home-onboarding-actions">
+                                    {manageOnboardingStep !== 'tutorialComplete' && (
+                                        <button
+                                            className="nav-btn"
+                                            onClick={(e) => { e.stopPropagation(); void skipManageOnboarding(); }}
+                                            style={{ pointerEvents: 'auto' }}
+                                        >
+                                            スキップ
+                                        </button>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
+
             {/* Edit Modal */}
             {editing && (
-                <div className="modal-overlay" onClick={() => !isSaving && setEditing(null)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-overlay" onClick={() => !isSaving && handleCloseEditingModal()}>
+                    <div ref={manageModalContentRef} className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3>{isNew ? '問題を追加' : '問題を編集'}</h3>
-                            <button className="icon-btn" onClick={() => setEditing(null)} disabled={isSaving}><X size={20} /></button>
+                            <button className="icon-btn" onClick={handleCloseEditingModal} disabled={isSaving}><X size={20} /></button>
                         </div>
 
                         <div className="modal-body">
@@ -739,11 +1073,12 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         </div>
 
                         <div className="modal-footer">
-                            <button className="nav-btn" onClick={() => setEditing(null)} disabled={isSaving}>キャンセル</button>
+                            <button className="nav-btn" onClick={handleCloseEditingModal} disabled={isSaving}>キャンセル</button>
                             <button
-                                className="nav-btn action-btn"
+                                className="nav-btn action-btn primary"
                                 onClick={handleSave}
                                 disabled={isSaving || !isDirty}
+                                ref={saveButtonRef}
                             >
                                 {isSaving ? (
                                     <>保存中...</>

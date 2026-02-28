@@ -3,9 +3,11 @@ import type { QuizSetWithMeta } from '../components/HomePage';
 import { cloudApi, type AuthUser } from '../cloudApi';
 import {
     getAllQuizSets,
-    addQuizSetWithQuestions
+    addQuizSetWithQuestions,
+    getHomeOnboardingState
 } from '../db';
 import { parseQuestions } from '../utils/csvParser';
+import type { HomeOnboardingState } from '../types';
 
 interface AppContextType {
     currentUser: AuthUser | null;
@@ -21,6 +23,9 @@ interface AppContextType {
     setIsLoginModalOpen: (open: boolean) => void;
     isRegisterModalOpen: boolean;
     setIsRegisterModalOpen: (open: boolean) => void;
+
+    homeOnboardingState: HomeOnboardingState | null;
+    setHomeOnboardingState: React.Dispatch<React.SetStateAction<HomeOnboardingState | null>>;
 
     useCloudSync: boolean;
 
@@ -40,6 +45,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+    const [homeOnboardingState, setHomeOnboardingState] = useState<HomeOnboardingState | null>(null);
 
     const [isInitialized, setIsInitialized] = useState(false);
 
@@ -98,6 +105,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 // First loading of all sets. Replaces `isDBSeeded()`.
                 const allLoadedSets = await loadQuizSets();
 
+                try {
+                    const os = await getHomeOnboardingState();
+                    setHomeOnboardingState(os);
+                } catch (err) {
+                    console.error('Failed to load onboarding state:', err);
+                }
+
                 // If the user truly has 0 sets (or local IndexedDB is completely empty), seed sample questions.
                 if (allLoadedSets.length === 0) {
                     try {
@@ -143,6 +157,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             archivedQuizSets, setArchivedQuizSets,
             isLoginModalOpen, setIsLoginModalOpen,
             isRegisterModalOpen, setIsRegisterModalOpen,
+            homeOnboardingState, setHomeOnboardingState,
             useCloudSync,
             loadQuizSets,
             handleCloudError,

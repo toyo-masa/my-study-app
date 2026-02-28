@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLauncher } from './AppLauncher';
-import type { QuizSet } from '../types';
+import type { HomeOnboardingState, QuizSet } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { HelpModal } from './HelpModal';
 import '../App.css';
@@ -15,9 +15,9 @@ export interface QuizSetWithMeta extends QuizSet {
 interface HomePageProps {
     quizSets: QuizSetWithMeta[];
     onAddQuizSet: (file: File) => void;
-    onAddEmptyQuizSet: () => void;
+    onAddEmptyQuizSet: () => Promise<boolean>;
     onAddMemorizationSet: (file: File) => void;
-    onAddEmptyMemorizationSet: () => void;
+    onAddEmptyMemorizationSet: () => Promise<boolean>;
     onSelectQuizSet: (quizSet: QuizSetWithMeta) => void;
     onManageQuizSet: (quizSet: QuizSetWithMeta) => void;
     onDeleteQuizSet: (quizSetId: number) => void;
@@ -29,7 +29,50 @@ interface HomePageProps {
     deletedQuizSets: QuizSetWithMeta[];
     archivedQuizSets: QuizSetWithMeta[];
     onRefresh: () => void;
+    homeOnboardingState: HomeOnboardingState | null;
+    onCompleteHomeOnboarding: () => Promise<boolean>;
+    onAdvanceHomeOnboardingToManage: (quizSetId: number) => Promise<boolean>;
 }
+
+type HomeOnboardingStep = 'addQuizMenu' | 'addEmptyQuiz' | 'openManage';
+
+type HomeOnboardingStepMeta = {
+    progress: string;
+    title: string;
+    description: string;
+};
+
+const HOME_ONBOARDING_STEP_META: Record<HomeOnboardingStep, HomeOnboardingStepMeta> = {
+    addQuizMenu: {
+        progress: '1 / 6',
+        title: 'まずは問題集を作成します',
+        description: 'CSVで作成することもできますが、このチュートリアルでは「空の問題集に問題を登録する流れ」で進めます。まず「問題集を追加」をタップしてください。',
+    },
+    addEmptyQuiz: {
+        progress: '2 / 6',
+        title: '空の問題集を作成します',
+        description: '今回はCSV取込ではなく、メニューの「空の問題集を追加」をタップしてください。',
+    },
+    openManage: {
+        progress: '3 / 6',
+        title: '問題を追加する画面へ進みます',
+        description: '「問題管理」（最新作成の問題集）をタップしてください。',
+    },
+};
+
+const toCreatedAtMs = (createdAt: unknown): number => {
+    if (createdAt instanceof Date) {
+        const ms = createdAt.getTime();
+        return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms;
+    }
+    if (typeof createdAt === 'string' || typeof createdAt === 'number') {
+        const ms = new Date(createdAt).getTime();
+        return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms;
+    }
+    return Number.NEGATIVE_INFINITY;
+};
+
+
 
 
 
@@ -49,7 +92,10 @@ export const HomePage: React.FC<HomePageProps> = ({
     onOpenApp,
     deletedQuizSets,
     archivedQuizSets,
-    onRefresh
+    onRefresh,
+    homeOnboardingState,
+    onCompleteHomeOnboarding,
+    onAdvanceHomeOnboardingToManage
 }) => {
     const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'active' | 'trash' | 'archive'>('active');
@@ -60,8 +106,16 @@ export const HomePage: React.FC<HomePageProps> = ({
     const helpRef = useRef<HTMLDivElement>(null);
     const quizMenuRef = useRef<HTMLDivElement>(null);
     const memoMenuRef = useRef<HTMLDivElement>(null);
+    const addQuizMenuButtonRef = useRef<HTMLButtonElement>(null);
+    const addEmptyQuizButtonRef = useRef<HTMLButtonElement>(null);
+    const tutorialManageButtonRef = useRef<HTMLButtonElement>(null);
+    const tutorialManageCardRef = useRef<HTMLDivElement>(null);
 
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [tutorialStep, setTutorialStep] = useState<HomeOnboardingStep>('addQuizMenu');
+    const [isTutorialDismissedThisSession, setIsTutorialDismissedThisSession] = useState(false);
+    const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
+    const [tutorialCardHighlightRect, setTutorialCardHighlightRect] = useState<DOMRect | null>(null);
 
     const allTags = useMemo(
         () => Array.from(new Set(quizSets.flatMap(qs => qs.tags || []))).sort(),
@@ -76,6 +130,66 @@ export const HomePage: React.FC<HomePageProps> = ({
         });
     }, [quizSets, selectedTags]);
 
+    const tutorialManageTargetQuizSetId = useMemo(() => {
+        const candidates = quizSets.filter(
+            (quizSet): quizSet is QuizSetWithMeta & { id: number } =>
+                typeof quizSet.id === 'number' && quizSet.type !== 'memorization'
+        );
+        if (candidates.length === 0) {
+            return null;
+        }
+
+        let latest = candidates[0];
+        for (let index = 1; index < candidates.length; index += 1) {
+            const current = candidates[index];
+            const latestCreatedAt = toCreatedAtMs(latest.createdAt);
+            const currentCreatedAt = toCreatedAtMs(current.createdAt);
+            if (currentCreatedAt > latestCreatedAt) {
+                latest = current;
+                continue;
+            }
+            if (currentCreatedAt === latestCreatedAt && current.id > latest.id) {
+                latest = current;
+            }
+        }
+
+        return latest.id;
+    }, [quizSets]);
+
+    const tutorialManageTargetQuizSet = useMemo(
+        () => quizSets.find((quizSet) => quizSet.id === tutorialManageTargetQuizSetId) ?? null,
+        [quizSets, tutorialManageTargetQuizSetId]
+    );
+
+    const canShowHomeOnboarding =
+        viewMode === 'active' &&
+        homeOnboardingState !== null &&
+        homeOnboardingState.flowStage === 'home' &&
+        !homeOnboardingState.homeTutorialCompleted &&
+        !isTutorialDismissedThisSession;
+    const isTutorialActive = canShowHomeOnboarding;
+
+    const completeHomeOnboardingFlow = useCallback(async (): Promise<boolean> => {
+        const success = await onCompleteHomeOnboarding();
+        if (success) {
+            setIsTutorialDismissedThisSession(true);
+        }
+        return success;
+    }, [onCompleteHomeOnboarding]);
+
+    const skipHomeOnboarding = useCallback(async (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        setIsTutorialDismissedThisSession(true);
+        try {
+            await completeHomeOnboardingFlow();
+        } catch (err) {
+            console.error('Failed to skip tutorial', err);
+        }
+    }, [completeHomeOnboardingFlow]);
+
     const handleToggleTagFilter = useCallback((tag: string) => {
         setSelectedTags(prev => (
             prev.includes(tag)
@@ -83,6 +197,62 @@ export const HomePage: React.FC<HomePageProps> = ({
                 : [...prev, tag]
         ));
     }, []);
+
+    const getCurrentTutorialTarget = useCallback((): HTMLElement | null => {
+        if (!isTutorialActive) return null;
+
+        if (tutorialStep === 'addQuizMenu') {
+            return addQuizMenuButtonRef.current;
+        }
+        if (tutorialStep === 'addEmptyQuiz') {
+            return addEmptyQuizButtonRef.current;
+        }
+        if (tutorialStep === 'openManage') {
+            return tutorialManageButtonRef.current;
+        }
+        return null;
+    }, [isTutorialActive, tutorialStep]);
+
+    const handleQuizMenuToggle = useCallback(() => {
+        if (isTutorialActive && tutorialStep === 'addQuizMenu') {
+            setQuizMenuOpen(true);
+            setMemoMenuOpen(false);
+            setTutorialStep('addEmptyQuiz');
+            return;
+        }
+
+        setQuizMenuOpen(prev => !prev);
+        setMemoMenuOpen(false);
+    }, [isTutorialActive, tutorialStep]);
+
+    const handleAddEmptyQuizSetClick = useCallback(async () => {
+        const success = await onAddEmptyQuizSet();
+        if (success) {
+            setSelectedTags([]);
+            setTutorialStep('openManage');
+        }
+        setQuizMenuOpen(false);
+    }, [onAddEmptyQuizSet]);
+
+    const handleManageQuizSetClick = useCallback(async (event: React.MouseEvent, qs: QuizSetWithMeta) => {
+        event.stopPropagation();
+
+        if (isTutorialActive && tutorialStep === 'openManage') {
+            if (
+                typeof qs.id !== 'number' ||
+                tutorialManageTargetQuizSetId === null ||
+                qs.id !== tutorialManageTargetQuizSetId
+            ) {
+                return;
+            }
+            const advanced = await onAdvanceHomeOnboardingToManage(qs.id);
+            if (!advanced) {
+                return;
+            }
+        }
+
+        onManageQuizSet(qs);
+    }, [isTutorialActive, onAdvanceHomeOnboardingToManage, onManageQuizSet, tutorialManageTargetQuizSetId, tutorialStep]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -108,6 +278,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                 setIsHelpOpen(false);
             }
             if (quizMenuOpen && quizMenuRef.current && !quizMenuRef.current.contains(target)) {
+                if (isTutorialActive && tutorialStep === 'addEmptyQuiz') {
+                    return;
+                }
                 setQuizMenuOpen(false);
             }
             if (memoMenuOpen && memoMenuRef.current && !memoMenuRef.current.contains(target)) {
@@ -116,7 +289,142 @@ export const HomePage: React.FC<HomePageProps> = ({
         };
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
-    }, [isHelpOpen, quizMenuOpen, memoMenuOpen]);
+    }, [isHelpOpen, isTutorialActive, memoMenuOpen, quizMenuOpen, tutorialStep]);
+
+    useEffect(() => {
+        if (!isTutorialActive) return;
+
+        // Ensure the step target is scrolled into view (especially if it's on a lower row)
+        // Set a small timeout to allow layout changes (like new cards appearing) to settle
+        const timerId = setTimeout(() => {
+            let targetNode: Element | null = null;
+            if (tutorialStep === 'addQuizMenu' && addQuizMenuButtonRef.current) {
+                targetNode = addQuizMenuButtonRef.current;
+            } else if (tutorialStep === 'addEmptyQuiz' && addEmptyQuizButtonRef.current) {
+                targetNode = addEmptyQuizButtonRef.current;
+            } else if (tutorialStep === 'openManage' && tutorialManageCardRef.current) {
+                targetNode = tutorialManageCardRef.current;
+            }
+
+            if (targetNode) {
+                targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
+
+        return () => clearTimeout(timerId);
+    }, [isTutorialActive, tutorialStep, tutorialManageTargetQuizSetId]);
+
+    useEffect(() => {
+        if (!isTutorialActive) return;
+
+        let rafId: number;
+        let lastTargetRectStr = '';
+        let lastCardRectStr = '';
+
+        const updateHighlightRect = () => {
+            const target = getCurrentTutorialTarget();
+            if (!target) {
+                if (lastTargetRectStr !== 'null') {
+                    setHighlightRect(null);
+                    setTutorialCardHighlightRect(null);
+                    lastTargetRectStr = 'null';
+                    lastCardRectStr = 'null';
+                }
+            } else {
+                const tr = target.getBoundingClientRect();
+                const trStr = `${Math.round(tr.top)},${Math.round(tr.left)},${Math.round(tr.width)},${Math.round(tr.height)}`;
+
+                let crStr = 'null';
+                let cr: DOMRect | null = null;
+
+                if (tutorialStep === 'openManage' && tutorialManageCardRef.current) {
+                    cr = tutorialManageCardRef.current.getBoundingClientRect();
+                    crStr = `${Math.round(cr.top)},${Math.round(cr.left)},${Math.round(cr.width)},${Math.round(cr.height)}`;
+                }
+
+                if (trStr !== lastTargetRectStr || crStr !== lastCardRectStr) {
+                    setHighlightRect(tr);
+                    setTutorialCardHighlightRect(cr);
+                    lastTargetRectStr = trStr;
+                    lastCardRectStr = crStr;
+                }
+            }
+            rafId = window.requestAnimationFrame(updateHighlightRect);
+        };
+
+        rafId = window.requestAnimationFrame(updateHighlightRect);
+
+        return () => {
+            window.cancelAnimationFrame(rafId);
+        };
+    }, [getCurrentTutorialTarget, isTutorialActive, tutorialStep]);
+
+    const currentTutorialMeta = useMemo(() => {
+        if (tutorialStep !== 'openManage' || !tutorialManageTargetQuizSet) {
+            return HOME_ONBOARDING_STEP_META[tutorialStep];
+        }
+        return {
+            ...HOME_ONBOARDING_STEP_META.openManage,
+            description: `「問題管理」をタップしてください。`,
+        };
+    }, [tutorialManageTargetQuizSet, tutorialStep]);
+    const highlightPadding = tutorialStep === 'openManage' ? 4 : 8;
+    const tutorialRect = highlightRect
+        ? {
+            top: Math.max(0, highlightRect.top - highlightPadding),
+            left: Math.max(0, highlightRect.left - highlightPadding),
+            width: Math.max(0, highlightRect.width + highlightPadding * 2),
+            height: Math.max(0, highlightRect.height + highlightPadding * 2),
+        }
+        : null;
+    const tutorialCardRect = tutorialCardHighlightRect
+        ? {
+            top: Math.max(0, tutorialCardHighlightRect.top - 6),
+            left: Math.max(0, tutorialCardHighlightRect.left - 6),
+            width: Math.max(0, tutorialCardHighlightRect.width + 12),
+            height: Math.max(0, tutorialCardHighlightRect.height + 12),
+        }
+        : null;
+    const referenceRect = tutorialCardRect || tutorialRect;
+
+    const tutorialViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const tutorialViewportHeight = typeof window !== 'undefined' ? window.innerHeight : 720;
+    const tutorialPopoverWidth = Math.min(360, Math.max(260, tutorialViewportWidth - 24));
+    const tutorialPopoverLeft = referenceRect
+        ? Math.min(
+            Math.max(12, referenceRect.left + referenceRect.width / 2 - tutorialPopoverWidth / 2),
+            Math.max(12, tutorialViewportWidth - tutorialPopoverWidth - 12)
+        )
+        : Math.max(12, tutorialViewportWidth / 2 - tutorialPopoverWidth / 2);
+    const tutorialAvailableAbove = referenceRect ? Math.max(0, referenceRect.top - 12) : Math.max(0, tutorialViewportHeight - 24);
+    const tutorialAvailableBelow = referenceRect
+        ? Math.max(0, tutorialViewportHeight - (referenceRect.top + referenceRect.height) - 12)
+        : Math.max(0, tutorialViewportHeight - 24);
+    const tutorialPreferredSpace = 210;
+    const tutorialPlaceAbove = !!referenceRect && tutorialAvailableBelow < tutorialPreferredSpace && tutorialAvailableAbove >= tutorialAvailableBelow;
+    const tutorialPopoverStyle: React.CSSProperties = referenceRect
+        ? tutorialPlaceAbove
+            ? {
+                left: tutorialPopoverLeft,
+                bottom: Math.max(12, tutorialViewportHeight - referenceRect.top + 12),
+                width: tutorialPopoverWidth,
+                maxHeight: Math.max(120, tutorialAvailableAbove),
+                overflowY: 'auto',
+            }
+            : {
+                top: referenceRect.top + referenceRect.height + 12,
+                left: tutorialPopoverLeft,
+                width: tutorialPopoverWidth,
+                maxHeight: Math.max(120, tutorialAvailableBelow),
+                overflowY: 'auto',
+            }
+        : {
+            top: Math.max(12, tutorialViewportHeight / 2 - 70),
+            left: tutorialPopoverLeft,
+            width: tutorialPopoverWidth,
+            maxHeight: Math.max(120, tutorialViewportHeight - 24),
+            overflowY: 'auto',
+        };
 
     return (
         <div className="home-page">
@@ -134,16 +442,17 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             <div className="home-content">
                 <div className="home-actions">
-                    <div className="dropdown-container" ref={quizMenuRef} style={{ position: 'relative' }}>
+                    <div className="dropdown-container" ref={quizMenuRef} style={{ position: 'relative', zIndex: isTutorialActive && quizMenuOpen ? 2500 : undefined }}>
                         <button
+                            ref={addQuizMenuButtonRef}
                             className={`nav-btn ${quizMenuOpen ? 'active' : ''}`}
-                            onClick={() => { setQuizMenuOpen(!quizMenuOpen); setMemoMenuOpen(false); }}
+                            onClick={handleQuizMenuToggle}
                         >
                             <BookOpen size={16} /> 問題集を追加 <ChevronDown size={14} style={{ marginLeft: 4 }} />
                         </button>
                         {quizMenuOpen && (
                             <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '200px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                                <button className="dropdown-item" onClick={() => { onAddEmptyQuizSet(); setQuizMenuOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
+                                <button ref={addEmptyQuizButtonRef} className="dropdown-item" onClick={() => { void handleAddEmptyQuizSetClick(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
                                     <Plus size={14} /> 空の問題集を追加
                                 </button>
                                 <label className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
@@ -154,7 +463,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                         )}
                     </div>
 
-                    <div className="dropdown-container" ref={memoMenuRef} style={{ position: 'relative' }}>
+                    <div className="dropdown-container" ref={memoMenuRef} style={{ position: 'relative', zIndex: isTutorialActive && memoMenuOpen ? 2500 : undefined }}>
                         <button
                             className={`nav-btn ${memoMenuOpen ? 'active' : ''}`}
                             onClick={() => { setMemoMenuOpen(!memoMenuOpen); setQuizMenuOpen(false); }}
@@ -163,7 +472,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                         </button>
                         {memoMenuOpen && (
                             <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '200px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                                <button className="dropdown-item" onClick={() => { onAddEmptyMemorizationSet(); setMemoMenuOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
+                                <button className="dropdown-item" onClick={() => { void onAddEmptyMemorizationSet(); setMemoMenuOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
                                     <Plus size={14} /> 空の暗記カードを追加
                                 </button>
                                 <label className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
@@ -236,6 +545,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                                     <motion.div
                                         layout
                                         key={qs.id}
+                                        ref={qs.id === tutorialManageTargetQuizSetId ? tutorialManageCardRef : undefined}
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: index * 0.08 }}
@@ -259,7 +569,13 @@ export const HomePage: React.FC<HomePageProps> = ({
                                             </div>
                                             <div className="quiz-card-actions" style={{ position: 'relative', zIndex: 2 }}>
                                                 <button className="start-btn" onClick={(e) => { e.stopPropagation(); onSelectQuizSet(qs); }} data-tooltip="演習を開始">開始</button>
-                                                <button className="manage-btn" onClick={(e) => { e.stopPropagation(); onManageQuizSet(qs); }} title="問題管理" data-tooltip="問題を編集・管理">
+                                                <button
+                                                    ref={qs.id === tutorialManageTargetQuizSetId ? tutorialManageButtonRef : undefined}
+                                                    className="manage-btn"
+                                                    onClick={(e) => { void handleManageQuizSetClick(e, qs); }}
+                                                    title="問題管理"
+                                                    data-tooltip="問題を編集・管理"
+                                                >
                                                     <Settings size={16} />
                                                 </button>
                                                 <button className="archive-btn" onClick={(e) => { e.stopPropagation(); onArchiveQuizSet(qs.id!); }} title="アーカイブ" data-tooltip="アーカイブに移動">
@@ -364,6 +680,71 @@ export const HomePage: React.FC<HomePageProps> = ({
                                 <p>アーカイブは空です</p>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {isTutorialActive && (
+                    <div className="home-onboarding-layer" aria-live="polite">
+                        {tutorialRect ? (
+                            <>
+                                <div className="home-onboarding-mask" style={{ top: 0, left: 0, width: '100vw', height: tutorialRect.top }} />
+                                <div className="home-onboarding-mask" style={{ top: tutorialRect.top, left: 0, width: tutorialRect.left, height: tutorialRect.height }} />
+                                <div
+                                    className="home-onboarding-mask"
+                                    style={{
+                                        top: tutorialRect.top,
+                                        left: tutorialRect.left + tutorialRect.width,
+                                        width: Math.max(0, tutorialViewportWidth - (tutorialRect.left + tutorialRect.width)),
+                                        height: tutorialRect.height
+                                    }}
+                                />
+                                <div
+                                    className="home-onboarding-mask"
+                                    style={{
+                                        top: tutorialRect.top + tutorialRect.height,
+                                        left: 0,
+                                        width: '100vw',
+                                        height: Math.max(0, tutorialViewportHeight - (tutorialRect.top + tutorialRect.height))
+                                    }}
+                                />
+                                <div
+                                    className="home-onboarding-highlight"
+                                    style={{
+                                        top: tutorialRect.top,
+                                        left: tutorialRect.left,
+                                        width: tutorialRect.width,
+                                        height: tutorialRect.height,
+                                    }}
+                                />
+                                {tutorialStep === 'openManage' && tutorialCardRect && (
+                                    <div
+                                        className="home-onboarding-card-highlight"
+                                        style={{
+                                            top: tutorialCardRect.top,
+                                            left: tutorialCardRect.left,
+                                            width: tutorialCardRect.width,
+                                            height: tutorialCardRect.height,
+                                        }}
+                                    />
+                                )}
+                            </>
+                        ) : (
+                            <div className="home-onboarding-mask" style={{ inset: 0 }} />
+                        )}
+
+                        <div
+                            className="home-onboarding-popover"
+                            style={tutorialPopoverStyle}
+                        >
+                            <p className="home-onboarding-progress">チュートリアル {currentTutorialMeta.progress}</p>
+                            <h3 className="home-onboarding-title">{currentTutorialMeta.title}</h3>
+                            <p className="home-onboarding-description">{currentTutorialMeta.description}</p>
+                            <div className="home-onboarding-actions">
+                                <button className="nav-btn" onClick={(e) => { void skipHomeOnboarding(e); }}>
+                                    スキップ
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 

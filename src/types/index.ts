@@ -76,3 +76,12 @@ export interface ReviewLog {
     durationSeconds?: number; // 所要時間（秒）
     sessionId?: string;       // セッションID（任意）
 }
+
+export type HomeOnboardingFlowStage = 'home' | 'manage' | 'completed';
+
+export interface HomeOnboardingState {
+    homeTutorialCompleted: boolean;
+    completedAt: string | null;
+    flowStage: HomeOnboardingFlowStage;
+    manageQuizSetId: number | null;
+}

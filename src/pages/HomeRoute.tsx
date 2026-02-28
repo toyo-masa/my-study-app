@@ -1,8 +1,17 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { HomePage } from '../components/HomePage';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { softDeleteQuizSet, restoreQuizSet, hardDeleteQuizSet, archiveQuizSet, unarchiveQuizSet, addQuizSetWithQuestions } from '../db';
+import {
+    softDeleteQuizSet,
+    restoreQuizSet,
+    hardDeleteQuizSet,
+    archiveQuizSet,
+    unarchiveQuizSet,
+    addQuizSetWithQuestions,
+    completeHomeOnboarding,
+    advanceHomeOnboardingToManage
+} from '../db';
 import { parseQuestions, parseMemorizationQuestions } from '../utils/csvParser';
 
 export const HomeRoute: React.FC = () => {
@@ -14,7 +23,9 @@ export const HomeRoute: React.FC = () => {
         setDeletedQuizSets,
         setArchivedQuizSets,
         loadQuizSets,
-        handleCloudError
+        handleCloudError,
+        homeOnboardingState,
+        setHomeOnboardingState
     } = useAppContext();
     const navigate = useNavigate();
 
@@ -50,24 +61,50 @@ export const HomeRoute: React.FC = () => {
     };
 
     // Add empty quiz set
-    const handleAddEmptyQuizSet = async () => {
+    const handleAddEmptyQuizSet = async (): Promise<boolean> => {
         try {
             await addQuizSetWithQuestions('新しい問題集', []);
             await loadQuizSets();
+            return true;
         } catch (err) {
             alert('問題集の作成エラー: ' + (err as Error).message);
+            return false;
         }
     };
 
     // Add empty memorization set
-    const handleAddEmptyMemorizationSet = async () => {
+    const handleAddEmptyMemorizationSet = async (): Promise<boolean> => {
         try {
             await addQuizSetWithQuestions('新しい暗記カード', [], 'memorization');
             await loadQuizSets();
+            return true;
         } catch (err) {
             alert('暗記カードの作成エラー: ' + (err as Error).message);
+            return false;
         }
     };
+
+    const handleCompleteHomeOnboarding = useCallback(async (): Promise<boolean> => {
+        try {
+            const state = await completeHomeOnboarding();
+            setHomeOnboardingState(state);
+            return true;
+        } catch (error) {
+            handleCloudError(error, 'オンボーディング状態の保存に失敗しました。');
+            return false;
+        }
+    }, [handleCloudError]);
+
+    const handleAdvanceHomeOnboardingToManage = useCallback(async (quizSetId: number): Promise<boolean> => {
+        try {
+            const state = await advanceHomeOnboardingToManage(quizSetId);
+            setHomeOnboardingState(state);
+            return true;
+        } catch (error) {
+            handleCloudError(error, 'オンボーディング状態の更新に失敗しました。');
+            return false;
+        }
+    }, [handleCloudError]);
 
     const handleDeleteQuizSet = async (quizSetId: number) => {
         const targetSet = quizSets.find(qs => qs.id === quizSetId);
@@ -152,6 +189,9 @@ export const HomeRoute: React.FC = () => {
             onUnarchiveQuizSet={handleUnarchiveQuizSet}
             onOpenApp={(appId) => navigate(`/${appId}`)}
             onRefresh={() => loadQuizSets()}
+            homeOnboardingState={homeOnboardingState}
+            onCompleteHomeOnboarding={handleCompleteHomeOnboarding}
+            onAdvanceHomeOnboardingToManage={handleAdvanceHomeOnboardingToManage}
         />
     );
 };

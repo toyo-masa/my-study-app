@@ -26,6 +26,7 @@ import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 import { AdminRoute } from './pages/AdminRoute';
 import { NotFoundRoute } from './pages/NotFoundRoute';
 import { HistoryTableRoute } from './pages/HistoryTableRoute';
+import { TutorialHubRoute } from './pages/TutorialHubRoute';
 
 const APP_TITLE_PREFIX = 'qa';
 const APP_TITLE_SEPARATOR = ' - ';
@@ -38,6 +39,7 @@ function resolvePageTitle(pathname: string, quizSets: Array<{ id?: number; name:
   if (pathname === '/') return buildPageTitle(APP_TITLE_PREFIX, 'ホーム');
   if (pathname === '/distribution-sim') return buildPageTitle(APP_TITLE_PREFIX, '分布シミュレーター');
   if (pathname === '/review-board') return buildPageTitle(APP_TITLE_PREFIX, '復習ボード');
+  if (pathname === '/tutorial') return buildPageTitle(APP_TITLE_PREFIX, 'チュートリアル');
   if (pathname === '/release-notes') return buildPageTitle(APP_TITLE_PREFIX, 'リリースノート');
 
   const quizRouteMatch = pathname.match(/^\/quiz\/(\d+)(?:\/([a-z-]+))?$/);
@@ -410,6 +412,7 @@ function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/distribution-sim" element={<DistributionRoute />} />
           <Route path="/review-board" element={<ReviewBoardRoute />} />
+          <Route path="/tutorial" element={<TutorialHubRoute />} />
           {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
           <Route path="/quiz/:id/manage" element={<ManageRoute />} />
           <Route path="/quiz/:id/study" element={<StudyRoute />} />

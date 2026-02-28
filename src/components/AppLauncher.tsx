@@ -4,6 +4,7 @@ import {
     Grid3X3,
     BarChart3,
     CalendarCheck2,
+    GraduationCap,
     ShieldCheck,
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
@@ -19,6 +20,7 @@ interface AppItem {
 const apps: AppItem[] = [
     { id: 'distribution-sim', name: '分布シミュレーション', icon: <BarChart3 size={24} />, color: '#6366f1' },
     { id: 'review-board', name: '復習ボード（試作）', icon: <CalendarCheck2 size={24} />, color: '#0d9488' },
+    { id: 'tutorial', name: 'チュートリアル', icon: <GraduationCap size={24} />, color: '#2563eb' },
     { id: 'admin', name: '管理コンソール', icon: <ShieldCheck size={24} />, color: '#dc2626', requiresAdmin: true },
 ];
 
