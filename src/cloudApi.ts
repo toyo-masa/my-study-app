@@ -239,13 +239,15 @@ export const cloudApi = {
         await fetchApi('/api/suspendedSession', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ quizSetId, session })
+            body: JSON.stringify({ quizSetId, session }),
+            keepalive: true
         });
     },
 
     async clearSuspendedSession(quizSetId: number): Promise<void> {
         await fetchApi(`/api/suspendedSession?quizSetId=${quizSetId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            keepalive: true
         });
     },
 
