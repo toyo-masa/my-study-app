@@ -111,10 +111,19 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isImporting, setIsImporting] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>(''); // Category filter state
-    const { setQuizSets, homeOnboardingState: onboardingState, setHomeOnboardingState: setOnboardingState } = useAppContext();
+    const { quizSets, setQuizSets, homeOnboardingState: onboardingState, setHomeOnboardingState: setOnboardingState } = useAppContext();
     const [manageOnboardingStep, setManageOnboardingStep] = useState<ManageOnboardingStep>('addQuestionButton');
     const [isManageOnboardingDismissedThisSession, setIsManageOnboardingDismissedThisSession] = useState(false);
     const [manageOnboardingHighlightRect, setManageOnboardingHighlightRect] = useState<DOMRect | null>(null);
+
+    // 全問題集から既存のタグを抽出し、重複を除去してソート
+    const allExistingTags = React.useMemo(() => {
+        const tagSet = new Set<string>();
+        quizSets.forEach(qs => {
+            if (qs.tags) qs.tags.forEach(t => tagSet.add(t));
+        });
+        return Array.from(tagSet).sort();
+    }, [quizSets]);
 
     useEffect(() => {
         if (statusMessage) {
@@ -808,6 +817,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             }
                         }}
                         placeholder="新しいタグを入力..."
+                        list="existing-tags-list"
                         style={{
                             padding: '0.4rem 0.75rem',
                             border: '1px solid var(--border-color)',
@@ -818,6 +828,11 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             flex: 1
                         }}
                     />
+                    <datalist id="existing-tags-list">
+                        {allExistingTags.map(tag => (
+                            <option key={tag} value={tag} />
+                        ))}
+                    </datalist>
                     <button onClick={handleAddTag} className="nav-btn primary" style={{ padding: '0.4rem 0.75rem', background: 'var(--primary-color)', color: 'white' }}>
                         追加
                     </button>
