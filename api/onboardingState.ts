@@ -95,12 +95,12 @@ export default async function handler(req: ApiHandlerRequest<OnboardingStateBody
         await ensureOnboardingStateSchema(sql);
 
         if (req.method === 'GET') {
-            const rows = await sql<OnboardingStateRow[]>`
+            const rows = (await sql`
                 SELECT home_tutorial_completed, completed_at, flow_stage, manage_quiz_set_id
                 FROM user_onboarding_states
                 WHERE user_id = ${userId}
                 LIMIT 1
-            `;
+            `) as OnboardingStateRow[];
 
             if (rows.length === 0) {
                 return res.status(200).json({
@@ -129,12 +129,12 @@ export default async function handler(req: ApiHandlerRequest<OnboardingStateBody
                 return res.status(400).json({ error: 'No updatable fields provided' });
             }
 
-            const existingRows = await sql<OnboardingStateRow[]>`
+            const existingRows = (await sql`
                 SELECT home_tutorial_completed, completed_at, flow_stage, manage_quiz_set_id
                 FROM user_onboarding_states
                 WHERE user_id = ${userId}
                 LIMIT 1
-            `;
+            `) as OnboardingStateRow[];
 
             const existing = existingRows[0];
             const baseHomeTutorialCompleted = existing?.home_tutorial_completed === true;
@@ -212,12 +212,12 @@ export default async function handler(req: ApiHandlerRequest<OnboardingStateBody
                     updated_at = NOW()
             `;
 
-            const rows = await sql<OnboardingStateRow[]>`
+            const rows = (await sql`
                 SELECT home_tutorial_completed, completed_at, flow_stage, manage_quiz_set_id
                 FROM user_onboarding_states
                 WHERE user_id = ${userId}
                 LIMIT 1
-            `;
+            `) as OnboardingStateRow[];
 
             const isCompleted = rows[0]?.home_tutorial_completed === true;
 

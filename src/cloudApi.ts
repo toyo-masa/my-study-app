@@ -213,7 +213,7 @@ export const cloudApi = {
     },
 
     async upsertReviewSchedulesBulk(schedules: (Partial<ReviewSchedule> & { questionId: number, quizSetId: number })[]): Promise<{ updated: number, inserted: number }> {
-        const res = await fetchApi<{ success: boolean, updated: number, inserted: number }>('/api/reviewSchedulesBulk', {
+        const res = await fetchApi<{ success: boolean, updated: number, inserted: number }>('/api/reviewSchedules?bulk=true', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ schedules })

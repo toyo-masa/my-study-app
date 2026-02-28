@@ -148,7 +148,6 @@ export const HomeRoute: React.FC = () => {
         }
         try {
             await softDeleteQuizSet(quizSetId);
-            await loadQuizSets();
             if (targetSet) {
                 showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をゴミ箱に移動しました。`, 'success');
             } else {
@@ -173,7 +172,6 @@ export const HomeRoute: React.FC = () => {
         }
         try {
             await restoreQuizSet(id);
-            await loadQuizSets();
             if (targetSet) {
                 showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
             } else {
@@ -191,8 +189,13 @@ export const HomeRoute: React.FC = () => {
     };
 
     const handlePermanentDeleteQuizSet = async (id: number) => {
-        await hardDeleteQuizSet(id);
-        await loadQuizSets();
+        setDeletedQuizSets(prev => prev.filter(qs => qs.id !== id));
+        try {
+            await hardDeleteQuizSet(id);
+        } catch (error) {
+            handleCloudError(error, '完全削除に失敗しました。');
+            await loadQuizSets();
+        }
     };
 
     const handleArchiveQuizSet = async (quizSetId: number) => {
@@ -203,7 +206,6 @@ export const HomeRoute: React.FC = () => {
         }
         try {
             await archiveQuizSet(quizSetId);
-            await loadQuizSets();
             if (targetSet) {
                 showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をアーカイブしました。`, 'success');
             } else {
@@ -228,7 +230,6 @@ export const HomeRoute: React.FC = () => {
         }
         try {
             await unarchiveQuizSet(quizSetId);
-            await loadQuizSets();
             if (targetSet) {
                 showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
             } else {

@@ -12,6 +12,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.19.1',
+        date: '2026年2月28日 07:40',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            'デプロイ時のTypeScriptエラー（TS2558）を修正しました。',
+            'Vercel上のAPI関数数が上限を超えるエラーを修正しました（reviewSchedulesBulk APIをreviewSchedulesに統合）。',
+        ],
+    },
+    {
         version: '1.18.6',
         date: '2026年2月28日 12:54',
         improvements: [
@@ -86,6 +97,16 @@ const releaseNotes: ReleaseNote[] = [
         ],
         fixes: [
             '変更なし',
+        ],
+    },
+    {
+        version: '1.18.7',
+        date: '2026年2月28日 15:25',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            'ホーム画面で問題集の削除・ゴミ箱への移動・アーカイブ操作を行った際に、一瞬消えて復活してまた消えるちらつきが発生していた問題を修正しました。',
         ],
     },
     {

@@ -162,7 +162,7 @@ async function handleAdminSummary(req: ApiHandlerRequest, res: ApiHandlerRespons
 
     try {
         const sql = neon(databaseUrl);
-        const rows = await sql<AdminSummaryRow[]>`
+        const rows = (await sql`
             SELECT
                 (SELECT COUNT(*)::int FROM users) AS total_users,
                 (SELECT COUNT(*)::int FROM sessions WHERE expires_at > NOW()) AS active_sessions,
@@ -172,7 +172,7 @@ async function handleAdminSummary(req: ApiHandlerRequest, res: ApiHandlerRespons
                 (SELECT COUNT(*)::int FROM review_schedules) AS total_review_schedules,
                 (SELECT COUNT(*)::int FROM review_logs) AS total_review_logs,
                 (SELECT COUNT(*)::int FROM review_schedules WHERE next_due <= CURRENT_DATE) AS due_review_items
-        `;
+        `) as AdminSummaryRow[];
 
         const row = rows[0];
         return res.status(200).json({
@@ -206,7 +206,7 @@ async function handleAdminUsers(req: ApiHandlerRequest, res: ApiHandlerResponse)
 
     try {
         const sql = neon(databaseUrl);
-        const rows = await sql<AdminUserRow[]>`
+        const rows = (await sql`
             SELECT
                 u.id,
                 u.username,
@@ -239,7 +239,7 @@ async function handleAdminUsers(req: ApiHandlerRequest, res: ApiHandlerResponse)
                   AND COALESCE(qs.type, 'quiz') = 'memorization'
             ) AS cards ON TRUE
             ORDER BY u.id ASC
-        `;
+        `) as AdminUserRow[];
 
         return res.status(200).json({
             users: rows.map(row => ({

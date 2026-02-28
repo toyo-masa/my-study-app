@@ -1,16 +1,15 @@
 import { neon } from '@neondatabase/serverless';
-import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
 import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 import { hasValue, isValidDateTime, isValidLocalDateString, parseNonNegativeInt, parsePositiveInt, parseQueryPositiveInt } from './_validation.js';
 
 async function hasOwnedQuestion(
-  sql: NeonQueryFunction<false, false>,
+  sql: ReturnType<typeof neon>,
   userId: number,
   questionId: number,
   quizSetId?: number
 ): Promise<boolean> {
-  const rows = quizSetId === undefined
+  const rows = (quizSetId === undefined
     ? await sql`
         SELECT q.id
         FROM questions q
@@ -24,10 +23,187 @@ async function hasOwnedQuestion(
         JOIN quiz_sets qs ON q.quiz_set_id = qs.id
         WHERE q.id = ${questionId} AND qs.id = ${quizSetId} AND qs.user_id = ${userId}
         LIMIT 1
-      `;
+      `) as Record<string, unknown>[];
   return rows.length > 0;
 }
 
+// ---- Bulk upsert types ----
+type BulkParsedSchedule = {
+  questionId: number;
+  quizSetId: number;
+  intervalDays: number;
+  nextDue: string;
+  lastReviewedAt: string | null;
+  consecutiveCorrect: number;
+};
+
+type BulkUpdateRow = {
+  id: number;
+  interval_days: number;
+  next_due: string;
+  last_reviewed_at: string | null;
+  consecutive_correct: number;
+};
+
+type BulkInsertRow = {
+  question_id: number;
+  quiz_set_id: number;
+  interval_days: number;
+  next_due: string;
+  last_reviewed_at: string | null;
+  consecutive_correct: number;
+  user_id: number;
+};
+
+function isValidBulkDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function parseBulkSchedule(raw: unknown): BulkParsedSchedule | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+
+  const questionId = Number(data.questionId);
+  const quizSetId = Number(data.quizSetId);
+  const intervalDays = Number(data.intervalDays);
+  const consecutiveCorrect = Number(data.consecutiveCorrect ?? 0);
+  const nextDue = typeof data.nextDue === 'string' ? data.nextDue : '';
+  const rawLastReviewedAt = data.lastReviewedAt;
+  const hasLastReviewedAt = hasValue(rawLastReviewedAt);
+  const lastReviewedAt = hasLastReviewedAt && typeof rawLastReviewedAt === 'string' ? rawLastReviewedAt : null;
+
+  if (!Number.isInteger(questionId) || questionId <= 0) return null;
+  if (!Number.isInteger(quizSetId) || quizSetId <= 0) return null;
+  if (!Number.isInteger(intervalDays) || intervalDays <= 0) return null;
+  if (!Number.isInteger(consecutiveCorrect) || consecutiveCorrect < 0) return null;
+  if (!isValidBulkDate(nextDue)) return null;
+  if (hasLastReviewedAt) {
+    if (typeof rawLastReviewedAt !== 'string' || !isValidDateTime(rawLastReviewedAt)) {
+      return null;
+    }
+  }
+
+  return { questionId, quizSetId, intervalDays, nextDue, lastReviewedAt, consecutiveCorrect };
+}
+
+async function handleBulkUpsert(
+  sql: ReturnType<typeof neon>,
+  userId: number,
+  rawSchedules: unknown,
+  res: ApiHandlerResponse
+) {
+  if (!Array.isArray(rawSchedules) || rawSchedules.length === 0) {
+    return res.status(400).json({ error: 'Invalid or empty schedules array' });
+  }
+
+  const schedules: BulkParsedSchedule[] = [];
+  for (const raw of rawSchedules) {
+    const parsed = parseBulkSchedule(raw);
+    if (!parsed) {
+      return res.status(400).json({ error: 'Invalid schedule payload' });
+    }
+    schedules.push(parsed);
+  }
+
+  const questionIds = schedules.map(s => s.questionId);
+  const uniqueQuestionIds = Array.from(new Set(questionIds));
+  if (uniqueQuestionIds.length !== questionIds.length) {
+    return res.status(400).json({ error: 'Duplicate questionId in schedules array' });
+  }
+
+  const ownedQuestions = (await sql`
+    SELECT q.id AS question_id, q.quiz_set_id
+    FROM questions q
+    JOIN quiz_sets qs ON q.quiz_set_id = qs.id
+    WHERE qs.user_id = ${userId}
+      AND q.id = ANY(${questionIds})
+  `) as Record<string, unknown>[];
+
+  if (ownedQuestions.length !== uniqueQuestionIds.length) {
+    return res.status(404).json({ error: 'Question not found' });
+  }
+  const ownedQuizSetByQuestionId = new Map(
+    ownedQuestions.map(r => [Number(r.question_id), Number(r.quiz_set_id)])
+  );
+  for (const schedule of schedules) {
+    const ownerQuizSetId = ownedQuizSetByQuestionId.get(schedule.questionId);
+    if (ownerQuizSetId !== schedule.quizSetId) {
+      return res.status(400).json({ error: 'questionId and quizSetId mismatch' });
+    }
+  }
+
+  const existingRows = (await sql`
+    SELECT id, question_id FROM review_schedules
+    WHERE user_id = ${userId} AND question_id = ANY(${questionIds})
+  `) as Record<string, unknown>[];
+
+  const existingMap = new Map(existingRows.map(r => [Number(r.question_id), Number(r.id)]));
+
+  const inserts: BulkInsertRow[] = [];
+  const updates: BulkUpdateRow[] = [];
+
+  for (const s of schedules) {
+    const existingId = existingMap.get(s.questionId);
+    if (existingId) {
+      updates.push({
+        id: existingId,
+        interval_days: s.intervalDays,
+        next_due: s.nextDue,
+        last_reviewed_at: s.lastReviewedAt || null,
+        consecutive_correct: s.consecutiveCorrect,
+      });
+    } else {
+      inserts.push({
+        question_id: s.questionId,
+        quiz_set_id: s.quizSetId,
+        interval_days: s.intervalDays,
+        next_due: s.nextDue,
+        last_reviewed_at: s.lastReviewedAt || null,
+        consecutive_correct: s.consecutiveCorrect,
+        user_id: userId,
+      });
+    }
+  }
+
+  if (updates.length > 0) {
+    await sql`
+      UPDATE review_schedules AS rs
+      SET
+        interval_days = u.interval_days::int,
+        next_due = u.next_due::date,
+        last_reviewed_at = u.last_reviewed_at::timestamptz,
+        consecutive_correct = u.consecutive_correct::int
+      FROM (
+        SELECT * FROM jsonb_to_recordset(${JSON.stringify(updates)}::jsonb)
+        AS x(id int, interval_days int, next_due date, last_reviewed_at text, consecutive_correct int)
+      ) AS u
+      WHERE rs.id = u.id AND rs.user_id = ${userId}
+    `;
+  }
+
+  if (inserts.length > 0) {
+    await sql`
+      INSERT INTO review_schedules (
+        question_id, quiz_set_id, interval_days, next_due, last_reviewed_at, consecutive_correct, user_id
+      )
+      SELECT
+        question_id, quiz_set_id, interval_days, next_due::date, last_reviewed_at::timestamptz, consecutive_correct, user_id
+      FROM jsonb_to_recordset(${JSON.stringify(inserts)}::jsonb) AS x(
+        question_id int,
+        quiz_set_id int,
+        interval_days int,
+        next_due text,
+        last_reviewed_at text,
+        consecutive_correct int,
+        user_id int
+      )
+    `;
+  }
+
+  return res.status(200).json({ success: true, updated: updates.length, inserted: inserts.length });
+}
+
+// ---- Single-schedule types ----
 type ReviewScheduleBody = {
   id?: number | string;
   questionId?: number | string;
@@ -36,6 +212,7 @@ type ReviewScheduleBody = {
   nextDue?: string;
   lastReviewedAt?: string | null;
   consecutiveCorrect?: number | string;
+  schedules?: unknown; // for bulk POST
 };
 
 type ParsedScheduleMutation = {
@@ -93,9 +270,19 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
   const sql = neon(databaseUrl);
 
   const { method } = req;
-  const { quizSetId, questionId } = req.query;
+  const { quizSetId, questionId, bulk } = req.query;
   const parsedQuestionId = parseQueryPositiveInt(questionId);
   const parsedQuizSetId = parseQueryPositiveInt(quizSetId);
+
+  // Handle bulk upsert via POST ?bulk=true
+  if (method === 'POST' && bulk === 'true') {
+    try {
+      return await handleBulkUpsert(sql, userId, req.body?.schedules, res);
+    } catch (err: unknown) {
+      console.error('reviewSchedules bulk API error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
 
   try {
     if (method === 'GET') {
@@ -122,7 +309,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
           quizSetId: s.quiz_set_id,
           intervalDays: s.interval_days,
           nextDue: s.next_due,
-          lastReviewedAt: s.last_reviewed_at ? new Date(s.last_reviewed_at).toISOString() : undefined,
+          lastReviewedAt: s.last_reviewed_at ? new Date(s.last_reviewed_at as string).toISOString() : undefined,
           consecutiveCorrect: s.consecutive_correct
         });
       }
@@ -158,8 +345,8 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
         questionId: s.question_id,
         quizSetId: s.quiz_set_id,
         intervalDays: s.interval_days,
-        nextDue: s.next_due ? new Date(s.next_due).toISOString().split('T')[0] : '',
-        lastReviewedAt: s.last_reviewed_at ? new Date(s.last_reviewed_at).toISOString() : undefined,
+        nextDue: s.next_due ? new Date(s.next_due as string).toISOString().split('T')[0] : '',
+        lastReviewedAt: s.last_reviewed_at ? new Date(s.last_reviewed_at as string).toISOString() : undefined,
         consecutiveCorrect: s.consecutive_correct
       }));
       return res.status(200).json(schedules);
@@ -207,7 +394,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
           }
 
           await sql`
-                    UPDATE review_schedules SET 
+                    UPDATE review_schedules SET
                         interval_days = ${parsedSchedule.value.intervalDays},
                         next_due = ${parsedSchedule.value.nextDue},
                         last_reviewed_at = ${parsedSchedule.value.lastReviewedAt},
@@ -238,7 +425,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
           const existing = await sql`SELECT id FROM review_schedules WHERE question_id = ${questionIdNum} AND user_id = ${userId}`;
           if (existing.length > 0) {
             await sql`
-                        UPDATE review_schedules SET 
+                        UPDATE review_schedules SET
                             interval_days = ${parsedSchedule.value.intervalDays},
                             next_due = ${parsedSchedule.value.nextDue},
                             last_reviewed_at = ${parsedSchedule.value.lastReviewedAt},
@@ -271,7 +458,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
         }
         return res.status(400).json({ error: 'Missing quizSetId for delete' });
       }
-    } // Close the extended 'else' block
+    }
 
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
     return res.status(405).end(`Method ${method} Not Allowed`);
