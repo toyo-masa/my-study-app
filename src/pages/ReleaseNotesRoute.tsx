@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.21.5',
+        date: '2026年2月28日 19:02',
+        improvements: [
+            '問題管理画面において、新しく追加したタグサジェスト入力候補表示の背景が、スマートフォンなどの一部端末で透明のように見えてしまう表示崩れを修正しました。',
+        ],
+        fixes: [
+            '一部端末におけるサジェスト背景色の重なり・透過問題を修正しました。',
+        ],
+    },
+    {
         version: '1.21.4',
         date: '2026年2月28日 18:47',
         improvements: [
