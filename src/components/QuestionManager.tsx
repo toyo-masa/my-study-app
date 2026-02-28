@@ -115,6 +115,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [manageOnboardingStep, setManageOnboardingStep] = useState<ManageOnboardingStep>('addQuestionButton');
     const [isManageOnboardingDismissedThisSession, setIsManageOnboardingDismissedThisSession] = useState(false);
     const [manageOnboardingHighlightRect, setManageOnboardingHighlightRect] = useState<DOMRect | null>(null);
+    const [isTagSuggestOpen, setIsTagSuggestOpen] = useState(false);
 
     // 全問題集から既存のタグを抽出し、重複を除去してソート
     const allExistingTags = React.useMemo(() => {
@@ -736,7 +737,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         autoFocus
                     />
                 ) : (
-                    <div>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
                         <h2 onDoubleClick={() => setIsEditingName(true)} title="ダブルクリックで名前を変更" className="editable-title" style={{ margin: 0 }}>
                             {quizSet.name} - 問題管理
                         </h2>
@@ -806,33 +807,92 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '400px', marginTop: '0.75rem' }}>
-                    <input
-                        type="text"
-                        value={newTagInput}
-                        onChange={(e) => setNewTagInput(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                                e.preventDefault();
-                                handleAddTag();
-                            }
-                        }}
-                        placeholder="新しいタグを入力..."
-                        list="existing-tags-list"
-                        style={{
-                            padding: '0.4rem 0.75rem',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '6px',
-                            background: 'var(--bg-primary)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.9rem',
-                            flex: 1
-                        }}
-                    />
-                    <datalist id="existing-tags-list">
-                        {allExistingTags.map(tag => (
-                            <option key={tag} value={tag} />
-                        ))}
-                    </datalist>
+                    <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+                        <input
+                            type="text"
+                            value={newTagInput}
+                            onChange={(e) => {
+                                setNewTagInput(e.target.value);
+                                setIsTagSuggestOpen(true);
+                            }}
+                            onFocus={() => setIsTagSuggestOpen(true)}
+                            onBlur={() => setTimeout(() => setIsTagSuggestOpen(false), 200)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                    e.preventDefault();
+                                    handleAddTag();
+                                    setIsTagSuggestOpen(false);
+                                } else if (e.key === 'Escape') {
+                                    setIsTagSuggestOpen(false);
+                                }
+                            }}
+                            placeholder="新しいタグを入力..."
+                            style={{
+                                padding: '0.4rem 0.75rem',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                background: 'var(--bg-primary)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.9rem',
+                                width: '100%'
+                            }}
+                        />
+                        {isTagSuggestOpen && allExistingTags.length > 0 && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                marginTop: '4px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                                maxHeight: '200px',
+                                overflowY: 'auto',
+                                zIndex: 10
+                            }}>
+                                {allExistingTags.filter(t => t.toLowerCase().includes(newTagInput.toLowerCase())).map((tag, index, arr) => (
+                                    <div
+                                        key={tag}
+                                        onMouseDown={(e) => {
+                                            e.preventDefault(); // prevent input blur
+                                            setNewTagInput('');
+                                            if (!currentTags.includes(tag)) {
+                                                const finalTags = [...currentTags, tag];
+                                                setCurrentTags(finalTags);
+                                                if (quizSet.id !== undefined) {
+                                                    updateQuizSet(quizSet.id, { tags: finalTags }).then(() => {
+                                                        showStatus(`タグ「${tag}」を追加しました`, 'success');
+                                                    }).catch(err => {
+                                                        // Fallback on error handled implicitly or could add complete rollback
+                                                        onCloudError(err, 'タグの追加に失敗しました');
+                                                    });
+                                                }
+                                            }
+                                            setIsTagSuggestOpen(false);
+                                        }}
+                                        style={{
+                                            padding: '0.5rem 0.75rem',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            borderBottom: index < arr.length - 1 ? '1px solid var(--border-color)' : 'none',
+                                            color: 'var(--text-primary)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        {tag}
+                                    </div>
+                                ))}
+                                {allExistingTags.filter(t => t.toLowerCase().includes(newTagInput.toLowerCase())).length === 0 && (
+                                    <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                        候補はありません
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     <button onClick={handleAddTag} className="nav-btn primary" style={{ padding: '0.4rem 0.75rem', background: 'var(--primary-color)', color: 'white' }}>
                         追加
                     </button>

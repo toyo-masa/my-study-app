@@ -12,6 +12,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.21.4',
+        date: '2026年2月28日 18:47',
+        improvements: [
+            '問題管理画面でのタグ入力時に、それまでに作成された問題集に付与されているすべての既存タグが、入力候補として表示される機能を追加しました。',
+            '一部画面のタイトルのレイアウトが崩れていた問題を修正しました。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.21.3',
         date: '2026年2月28日 18:37',
         improvements: [
