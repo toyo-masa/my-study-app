@@ -1,0 +1,84 @@
+{
+    "mcpServers": {
+        "github": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-github"
+            ],
+            "env": {
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+            },
+            "description": "GitHub integration for issues, PRs, and repo management"
+        },
+        "filesystem": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "./"
+            ],
+            "description": "Enhanced filesystem operations"
+        }
+    },
+    "_templates": {
+        "_slack": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-slack"
+            ],
+            "env": {
+                "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+                "SLACK_TEAM_ID": "${SLACK_TEAM_ID}"
+            },
+            "description": "Slack integration for notifications and messages"
+        },
+        "_sentry": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-sentry"
+            ],
+            "env": {
+                "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}",
+                "SENTRY_ORG": "${SENTRY_ORG}"
+            },
+            "description": "Sentry integration for error tracking"
+        },
+        "_postgres": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-postgres"
+            ],
+            "env": {
+                "DATABASE_URL": "${DATABASE_URL}"
+            },
+            "description": "PostgreSQL database access"
+        },
+        "_notion": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-notion"
+            ],
+            "env": {
+                "NOTION_API_KEY": "${NOTION_API_KEY}"
+            },
+            "description": "Notion integration for docs and tasks"
+        },
+        "_linear": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-linear"
+            ],
+            "env": {
+                "LINEAR_API_KEY": "${LINEAR_API_KEY}"
+            },
+            "description": "Linear integration for issue tracking"
+        }
+    },
+    "_instructions": "Remove the underscore prefix from any server you want to enable. Make sure to set the required environment variables."
+}

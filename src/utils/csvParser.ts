@@ -14,6 +14,25 @@ const restoreMathCommas = (text: string | undefined): string => {
     return text.replace(/___COMMA___/g, ',');
 };
 
+// Keep | inside math formulas as a literal (e.g. |x|), not as answer separator.
+const protectMathPipes = (text: string): string => {
+    return text.replace(/(\$\$?)([^$]+)\1/g, (_, p1, p2) => {
+        return p1 + p2.replace(/\|/g, '___PIPE___') + p1;
+    });
+};
+
+const restoreMathPipes = (text: string): string => {
+    return text.replace(/___PIPE___/g, '|');
+};
+
+const splitPipeSeparatedValues = (text: string | undefined): string[] => {
+    if (!text) return [];
+    return protectMathPipes(text)
+        .split('|')
+        .map(value => restoreMathPipes(value).trim())
+        .filter(value => value.length > 0);
+};
+
 interface RawQuestion {
     id: string;
     category: string;
@@ -61,9 +80,14 @@ const processRows = (data: any[]): ParsedQuestion[] => {
             let options: string[] = [];
             if (raw.options) {
                 try {
-                    options = JSON.parse(raw.options);
+                    const parsedOptions = JSON.parse(raw.options);
+                    if (Array.isArray(parsedOptions)) {
+                        options = parsedOptions
+                            .map((option) => restoreMathCommas(String(option)).trim())
+                            .filter((option) => option.length > 0);
+                    }
                 } catch {
-                    options = raw.options.split('|').map(o => o.trim());
+                    options = splitPipeSeparatedValues(restoreMathCommas(raw.options));
                 }
             }
 
@@ -72,11 +96,11 @@ const processRows = (data: any[]): ParsedQuestion[] => {
                 : [];
 
             return {
-                category: raw.category || 'General',
-                text: raw.text || '',
+                category: restoreMathCommas(raw.category) || 'General',
+                text: restoreMathCommas(raw.text) || '',
                 options,
                 correctAnswers,
-                explanation: raw.explanation || ''
+                explanation: restoreMathCommas(raw.explanation) || ''
             };
         }).filter(q => q.text && q.options.length > 0);
     } catch (error) {
@@ -112,7 +136,7 @@ interface RawMemorizationQuestion {
 const processMemorizationRows = (data: any[]): ParsedQuestion[] => {
     return data.map((row: any) => {
         const raw = row as RawMemorizationQuestion;
-        const answers = raw.answer ? restoreMathCommas(raw.answer).split('|').map(a => a.trim()).filter(a => a) : [];
+        const answers = splitPipeSeparatedValues(restoreMathCommas(raw.answer));
 
         return {
             category: restoreMathCommas(raw.category) || 'General',
