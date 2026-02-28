@@ -227,13 +227,11 @@ export const HomePage: React.FC<HomePageProps> = ({
         setMemoMenuOpen(false);
     }, [isTutorialActive, tutorialStep]);
 
-    const handleAddEmptyQuizSetClick = useCallback(async () => {
-        const success = await onAddEmptyQuizSet();
-        if (success) {
-            setSelectedTags([]);
-            setTutorialStep('openManage');
-        }
+    const handleAddEmptyQuizSetClick = useCallback(() => {
         setQuizMenuOpen(false);
+        setSelectedTags([]);
+        setTutorialStep('openManage');
+        void onAddEmptyQuizSet();
     }, [onAddEmptyQuizSet]);
 
     const handleManageQuizSetClick = useCallback(async (event: React.MouseEvent, qs: QuizSetWithMeta) => {
