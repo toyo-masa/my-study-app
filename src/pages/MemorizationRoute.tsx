@@ -117,35 +117,38 @@ export const MemorizationRoute: React.FC = () => {
     }, []);
 
     // Auto-save session when page is hidden or app is closed
-    useEffect(() => {
-        const doAutoSave = () => {
-            const s = autoSaveStateRef.current;
-            if (s.isTestCompleted || s.activeHistory !== null) return;
-            if (s.quizSetId === undefined || s.questions.length === 0) return;
-            const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
-            void saveSessionToStorage(s.quizSetId, {
-                questions: s.questions,
-                currentQuestionIndex: s.currentQuestionIndex,
-                answers: {},
-                memos: {},
-                answeredMap: s.answeredMap,
-                showAnswerMap: s.showAnswerMap,
-                pendingRevealQuestionIds: s.pendingRevealQuestionIds,
-                feedbackPhase: s.feedbackPhase,
-                feedbackTimingMode: s.feedbackTimingMode,
-                feedbackBlockSize: s.feedbackBlockSize,
-                markedQuestions: s.markedQuestions,
-                startTime: startTimeRef.current,
-                elapsedSeconds,
-                historyMode: s.historyMode,
-                type: 'memorization',
-                memorizationLogs: s.memorizationLogs,
-                memorizationInputsMap: s.memorizationInputsMap,
-            }).catch((err) => {
-                console.error('Failed to auto-save suspended session', err);
-            });
-        };
+    // Auto-save session when page is hidden or app is closed
+    const doAutoSaveRef = useRef(() => {
+        const s = autoSaveStateRef.current;
+        if (s.isTestCompleted || s.activeHistory !== null) return;
+        if (s.quizSetId === undefined || s.questions.length === 0) return;
+        const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
+        void saveSessionToStorage(s.quizSetId, {
+            questions: s.questions,
+            currentQuestionIndex: s.currentQuestionIndex,
+            answers: {},
+            memos: {},
+            answeredMap: s.answeredMap,
+            showAnswerMap: s.showAnswerMap,
+            pendingRevealQuestionIds: s.pendingRevealQuestionIds,
+            feedbackPhase: s.feedbackPhase,
+            feedbackTimingMode: s.feedbackTimingMode,
+            feedbackBlockSize: s.feedbackBlockSize,
+            markedQuestions: s.markedQuestions,
+            startTime: startTimeRef.current,
+            elapsedSeconds,
+            historyMode: s.historyMode,
+            type: 'memorization',
+            memorizationLogs: s.memorizationLogs,
+            memorizationInputsMap: s.memorizationInputsMap,
+        }).catch((err) => {
+            console.error('Failed to auto-save suspended session', err);
+        });
+    });
 
+
+    useEffect(() => {
+        const doAutoSave = () => doAutoSaveRef.current();
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 doAutoSave();

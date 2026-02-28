@@ -55,6 +55,8 @@ export const StudyRoute: React.FC = () => {
     const lastSessionKeyRef = useRef<string | null>(null);
     const sessionInlineNoticeTimeoutRef = useRef<number | null>(null);
     const sessionPointerNoticeTimeoutRef = useRef<number | null>(null);
+    const saveDebounceRef = useRef<number | null>(null);
+
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
     const autoSaveStateRef = useRef({
@@ -127,33 +129,45 @@ export const StudyRoute: React.FC = () => {
     }, []);
 
     // Auto-save session when page is hidden or app is closed
-    useEffect(() => {
-        const doAutoSave = () => {
-            const s = autoSaveStateRef.current;
-            if (s.isTestCompleted || s.activeHistory !== null) return;
-            if (s.quizSetId === undefined || s.questions.length === 0) return;
-            const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
-            void saveSessionToStorage(s.quizSetId, {
-                questions: s.questions,
-                currentQuestionIndex: s.currentQuestionIndex,
-                answers: s.answers,
-                answeredMap: s.answeredMap,
-                memos: s.memos,
-                showAnswerMap: s.showAnswerMap,
-                pendingRevealQuestionIds: s.pendingRevealQuestionIds,
-                feedbackPhase: s.feedbackPhase,
-                feedbackTimingMode: s.feedbackTimingMode,
-                feedbackBlockSize: s.feedbackBlockSize,
-                markedQuestions: s.markedQuestions,
-                startTime: startTimeRef.current,
-                elapsedSeconds,
-                historyMode: s.historyMode,
-                type: 'study',
-            }).catch((err) => {
-                console.error('Failed to auto-save suspended session', err);
-            });
-        };
+    const doAutoSaveRef = useRef(() => {
+        const s = autoSaveStateRef.current;
+        if (s.isTestCompleted || s.activeHistory !== null) return;
+        if (s.quizSetId === undefined || s.questions.length === 0) return;
+        const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
+        void saveSessionToStorage(s.quizSetId, {
+            questions: s.questions,
+            currentQuestionIndex: s.currentQuestionIndex,
+            answers: s.answers,
+            answeredMap: s.answeredMap,
+            memos: s.memos,
+            showAnswerMap: s.showAnswerMap,
+            pendingRevealQuestionIds: s.pendingRevealQuestionIds,
+            feedbackPhase: s.feedbackPhase,
+            feedbackTimingMode: s.feedbackTimingMode,
+            feedbackBlockSize: s.feedbackBlockSize,
+            markedQuestions: s.markedQuestions,
+            startTime: startTimeRef.current,
+            elapsedSeconds,
+            historyMode: s.historyMode,
+            type: 'study',
+        }).catch((err) => {
+            console.error('Failed to auto-save suspended session', err);
+        });
+    });
 
+    // Debounced save on each answer (1s for cloud, immediate for local)
+    const scheduleSaveSession = () => {
+        if (saveDebounceRef.current !== null) {
+            window.clearTimeout(saveDebounceRef.current);
+        }
+        saveDebounceRef.current = window.setTimeout(() => {
+            saveDebounceRef.current = null;
+            doAutoSaveRef.current();
+        }, 1000);
+    };
+
+    useEffect(() => {
+        const doAutoSave = () => doAutoSaveRef.current();
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'hidden') {
                 doAutoSave();
@@ -634,6 +648,7 @@ export const StudyRoute: React.FC = () => {
         if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
             setAnsweredMap(prev => ({ ...prev, [qId]: true }));
             setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
+            scheduleSaveSession();
             return;
         }
         const nextAnsweredMap = alreadyAnswered
@@ -661,11 +676,13 @@ export const StudyRoute: React.FC = () => {
 
         if (feedbackTimingMode === 'delayed_end' && allAnswered) {
             enterRevealPhase(getUnrevealedAnsweredQuestionIds(nextAnsweredMap));
+            scheduleSaveSession();
             return;
         }
 
         if (feedbackTimingMode === 'delayed_block' && shouldLockByDelayedBlock && remainingPendingCount > 0) {
             enterRevealPhase(nextPendingRevealQuestionIds);
+            scheduleSaveSession();
             return;
         }
 
@@ -673,6 +690,7 @@ export const StudyRoute: React.FC = () => {
         if (nextUnansweredIndex >= 0) {
             setCurrentQuestionIndex(nextUnansweredIndex);
         }
+        scheduleSaveSession();
     };
 
     const handleSidebarSelectQuestion = (targetIndex: number, clickPosition?: SidebarClickPosition) => {
@@ -791,12 +809,14 @@ export const StudyRoute: React.FC = () => {
             const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
             if (nextUnansweredIndex >= 0) {
                 setCurrentQuestionIndex(nextUnansweredIndex);
+                scheduleSaveSession();
                 return;
             }
 
             const unrevealedAnswered = getUnrevealedAnsweredQuestionIds();
             if (unrevealedAnswered.length > 0) {
                 enterRevealPhase(unrevealedAnswered);
+                scheduleSaveSession();
             }
             return;
         }
@@ -813,6 +833,7 @@ export const StudyRoute: React.FC = () => {
             if (nextIndex >= 0) {
                 setCurrentQuestionIndex(nextIndex);
             }
+            scheduleSaveSession();
             return;
         }
 
@@ -821,6 +842,7 @@ export const StudyRoute: React.FC = () => {
         if (feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0) {
             setFeedbackPhase('answering');
             setCurrentQuestionIndex(nextUnansweredIndex);
+            scheduleSaveSession();
             return;
         }
 

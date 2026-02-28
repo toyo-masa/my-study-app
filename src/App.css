@@ -668,13 +668,6 @@
   text-overflow: ellipsis;
 }
 
-.review-board-future-question-number {
-  width: 56px;
-  min-width: 56px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
 .review-board-future-question-text {
   min-width: 170px;
   max-width: 220px;
