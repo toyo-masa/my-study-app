@@ -14,6 +14,7 @@ export interface QuizSet {
     id?: number; // Auto-incremented by Dexie
     name: string;
     createdAt: Date;
+    updatedAt?: Date;
     type?: QuizSetType; // Default to 'quiz' if undefined
     isDeleted?: boolean; // Logical delete flag
     isArchived?: boolean; // Archive flag

@@ -125,6 +125,7 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                     id: row.id,
                     name: row.name,
                     createdAt: row.created_at,
+                    updatedAt: row.updated_at,
                     type: row.type,
                     isDeleted: row.is_deleted,
                     isArchived: row.is_archived,
@@ -153,8 +154,8 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                 const { name, type, questions } = req.body || {};
                 const createdAt = new Date().toISOString();
                 const insertSet = await sql`
-                INSERT INTO quiz_sets (name, type, created_at, is_deleted, is_archived, tags, user_id) 
-                VALUES (${name}, ${type || 'quiz'}, ${createdAt}, false, false, '[]'::jsonb, ${userId}) 
+                INSERT INTO quiz_sets (name, type, created_at, updated_at, is_deleted, is_archived, tags, user_id) 
+                VALUES (${name}, ${type || 'quiz'}, ${createdAt}, ${createdAt}, false, false, '[]'::jsonb, ${userId}) 
                 RETURNING id
             `;
                 const setId = insertSet[0].id;
@@ -200,9 +201,9 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                 const current = await sql`SELECT * FROM quiz_sets WHERE id = ${id} AND user_id = ${userId}`;
                 if (current.length === 0) return res.status(404).json({ error: 'Not found' });
 
-                if (name !== undefined) await sql`UPDATE quiz_sets SET name = ${name} WHERE id = ${id} AND user_id = ${userId}`;
-                if (isDeleted !== undefined) await sql`UPDATE quiz_sets SET is_deleted = ${isDeleted} WHERE id = ${id} AND user_id = ${userId}`;
-                if (isArchived !== undefined) await sql`UPDATE quiz_sets SET is_archived = ${isArchived} WHERE id = ${id} AND user_id = ${userId}`;
+                if (name !== undefined) await sql`UPDATE quiz_sets SET name = ${name}, updated_at = CURRENT_TIMESTAMP WHERE id = ${id} AND user_id = ${userId}`;
+                if (isDeleted !== undefined) await sql`UPDATE quiz_sets SET is_deleted = ${isDeleted}, updated_at = CURRENT_TIMESTAMP WHERE id = ${id} AND user_id = ${userId}`;
+                if (isArchived !== undefined) await sql`UPDATE quiz_sets SET is_archived = ${isArchived}, updated_at = CURRENT_TIMESTAMP WHERE id = ${id} AND user_id = ${userId}`;
                 if (isReviewExcluded !== undefined) {
                     try {
                         await sql`UPDATE quiz_sets SET exclude_from_review = ${isReviewExcluded} WHERE id = ${id} AND user_id = ${userId}`;
@@ -218,10 +219,10 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                             throw updateErr;
                         }
                         await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS exclude_from_review BOOLEAN DEFAULT FALSE`;
-                        await sql`UPDATE quiz_sets SET exclude_from_review = ${isReviewExcluded} WHERE id = ${id} AND user_id = ${userId}`;
+                        await sql`UPDATE quiz_sets SET exclude_from_review = ${isReviewExcluded}, updated_at = CURRENT_TIMESTAMP WHERE id = ${id} AND user_id = ${userId}`;
                     }
                 }
-                if (tags !== undefined) await sql`UPDATE quiz_sets SET tags = ${JSON.stringify(tags)}::jsonb WHERE id = ${id} AND user_id = ${userId}`;
+                if (tags !== undefined) await sql`UPDATE quiz_sets SET tags = ${JSON.stringify(tags)}::jsonb, updated_at = CURRENT_TIMESTAMP WHERE id = ${id} AND user_id = ${userId}`;
 
                 return res.status(200).json({ success: true });
             } else if (method === 'DELETE') {

@@ -108,7 +108,8 @@ export async function getQuestionsForQuizSet(quizSetId: number): Promise<Questio
 
 export async function addQuizSetWithQuestions(name: string, questions: Omit<Question, 'id' | 'quizSetId'>[], type: QuizSetType = 'quiz'): Promise<number> {
     if (isCloudSyncEnabled()) return cloudApi.addQuizSet(name, type, questions);
-    const quizSetId = await db.quizSets.add({ name, createdAt: new Date(), type });
+    const now = new Date();
+    const quizSetId = await db.quizSets.add({ name, createdAt: now, updatedAt: now, type });
     const questionsWithSetId = questions.map(q => ({ ...q, quizSetId: quizSetId as number }));
     await db.questions.bulkAdd(questionsWithSetId);
     return quizSetId as number;
@@ -116,22 +117,22 @@ export async function addQuizSetWithQuestions(name: string, questions: Omit<Ques
 
 export async function softDeleteQuizSet(quizSetId: number): Promise<number> {
     if (isCloudSyncEnabled()) { await cloudApi.updateQuizSet(quizSetId, { isDeleted: true }); return 1; }
-    return await db.quizSets.update(quizSetId, { isDeleted: true });
+    return await db.quizSets.update(quizSetId, { isDeleted: true, updatedAt: new Date() });
 }
 
 export async function restoreQuizSet(quizSetId: number): Promise<number> {
     if (isCloudSyncEnabled()) { await cloudApi.updateQuizSet(quizSetId, { isDeleted: false }); return 1; }
-    return await db.quizSets.update(quizSetId, { isDeleted: false });
+    return await db.quizSets.update(quizSetId, { isDeleted: false, updatedAt: new Date() });
 }
 
 export async function archiveQuizSet(quizSetId: number): Promise<number> {
     if (isCloudSyncEnabled()) { await cloudApi.updateQuizSet(quizSetId, { isArchived: true }); return 1; }
-    return await db.quizSets.update(quizSetId, { isArchived: true });
+    return await db.quizSets.update(quizSetId, { isArchived: true, updatedAt: new Date() });
 }
 
 export async function unarchiveQuizSet(quizSetId: number): Promise<number> {
     if (isCloudSyncEnabled()) { await cloudApi.updateQuizSet(quizSetId, { isArchived: false }); return 1; }
-    return await db.quizSets.update(quizSetId, { isArchived: false });
+    return await db.quizSets.update(quizSetId, { isArchived: false, updatedAt: new Date() });
 }
 
 export async function hardDeleteQuizSet(quizSetId: number): Promise<void> {
@@ -150,7 +151,7 @@ export async function updateQuestion(id: number, changes: Partial<Question>): Pr
 
 export async function updateQuizSet(id: number, changes: Partial<QuizSet>): Promise<void> {
     if (isCloudSyncEnabled()) return cloudApi.updateQuizSet(id, changes);
-    await db.quizSets.update(id, changes);
+    await db.quizSets.update(id, { ...changes, updatedAt: new Date() });
 }
 
 export async function addQuestion(question: Omit<Question, 'id'>): Promise<number> {

@@ -12,6 +12,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.21.3',
+        date: '2026年2月28日 18:37',
+        improvements: [
+            '問題集に追加・編集が行われた際、「更新日時」として保存するようにしました。',
+            '問題管理画面にて、タイトルすぐ下に「作成日時」と「更新日時」が表示されるようになりました。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.21.2',
         date: '2026年2月28日 18:27',
         improvements: [

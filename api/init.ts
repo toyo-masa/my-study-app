@@ -55,6 +55,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         type VARCHAR(50) DEFAULT 'quiz',
         is_deleted BOOLEAN DEFAULT FALSE,
         is_archived BOOLEAN DEFAULT FALSE,
@@ -158,6 +159,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS exclude_from_review BOOLEAN DEFAULT FALSE`;
+    await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS feedback_mode VARCHAR(30)`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS memorization_detail JSONB`;

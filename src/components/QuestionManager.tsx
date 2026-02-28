@@ -727,9 +727,15 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                         autoFocus
                     />
                 ) : (
-                    <h2 onDoubleClick={() => setIsEditingName(true)} title="ダブルクリックで名前を変更" className="editable-title">
-                        {quizSet.name} - 問題管理
-                    </h2>
+                    <div>
+                        <h2 onDoubleClick={() => setIsEditingName(true)} title="ダブルクリックで名前を変更" className="editable-title" style={{ margin: 0 }}>
+                            {quizSet.name} - 問題管理
+                        </h2>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                            作成: {quizSet.createdAt ? new Date(quizSet.createdAt).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '未設定'}
+                            {quizSet.updatedAt && ` (更新: ${new Date(quizSet.updatedAt).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })})`}
+                        </div>
+                    </div>
                 )}
                 <div className="manager-actions">
                     <button className="nav-btn" onClick={() => setIsPasteModalOpen(true)} disabled={isImporting}>
