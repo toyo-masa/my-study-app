@@ -1,18 +1,10 @@
 import { neon } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
+import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
+import { hasValue, isValidDateTime } from './_validation.js';
 
-type ApiRequest = {
-    method?: string;
-    body?: {
-        schedules?: unknown;
-    };
-};
-
-type ApiResponse = {
-    status: (statusCode: number) => ApiResponse;
-    json: (payload: unknown) => ApiResponse;
-    setHeader: (name: string, value: string[]) => void;
-    end: (payload?: string) => ApiResponse;
+type ReviewSchedulesBulkBody = {
+    schedules?: unknown;
 };
 
 type ParsedSchedule = {
@@ -46,6 +38,13 @@ function isValidDate(value: string): boolean {
     return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function nowMs(): number {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        return performance.now();
+    }
+    return Date.now();
+}
+
 function parseSchedule(raw: unknown): ParsedSchedule | null {
     if (!raw || typeof raw !== 'object') return null;
     const data = raw as Record<string, unknown>;
@@ -55,13 +54,20 @@ function parseSchedule(raw: unknown): ParsedSchedule | null {
     const intervalDays = Number(data.intervalDays);
     const consecutiveCorrect = Number(data.consecutiveCorrect ?? 0);
     const nextDue = typeof data.nextDue === 'string' ? data.nextDue : '';
-    const lastReviewedAt = typeof data.lastReviewedAt === 'string' ? data.lastReviewedAt : null;
+    const rawLastReviewedAt = data.lastReviewedAt;
+    const hasLastReviewedAt = hasValue(rawLastReviewedAt);
+    const lastReviewedAt = hasLastReviewedAt && typeof rawLastReviewedAt === 'string' ? rawLastReviewedAt : null;
 
     if (!Number.isInteger(questionId) || questionId <= 0) return null;
     if (!Number.isInteger(quizSetId) || quizSetId <= 0) return null;
     if (!Number.isInteger(intervalDays) || intervalDays <= 0) return null;
     if (!Number.isInteger(consecutiveCorrect) || consecutiveCorrect < 0) return null;
     if (!isValidDate(nextDue)) return null;
+    if (hasLastReviewedAt) {
+        if (typeof rawLastReviewedAt !== 'string' || !isValidDateTime(rawLastReviewedAt)) {
+            return null;
+        }
+    }
 
     return {
         questionId,
@@ -73,8 +79,8 @@ function parseSchedule(raw: unknown): ParsedSchedule | null {
     };
 }
 
-export default async function handler(req: ApiRequest, res: ApiResponse) {
-    const t0 = performance.now();
+export default async function handler(req: ApiHandlerRequest<ReviewSchedulesBulkBody>, res: ApiHandlerResponse) {
+    const t0 = nowMs();
     const userId = await getAuthenticatedUserId(req);
     if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -199,7 +205,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 `;
             }
 
-            const t1 = performance.now();
+            const t1 = nowMs();
             console.log(`[POST /api/reviewSchedulesBulk] Timing: ms_total=${t1 - t0}, updates=${updates.length}, inserts=${inserts.length}`);
 
             return res.status(200).json({ success: true, updated: updates.length, inserted: inserts.length });

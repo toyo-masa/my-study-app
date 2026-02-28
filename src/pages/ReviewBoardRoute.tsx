@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft,
     BookOpen,
     Brain,
     CalendarCheck2,
@@ -13,13 +12,14 @@ import type { Question, QuizSetType, ReviewSchedule } from '../types';
 import {
     getAllReviewSchedules,
     getDueReviews,
-    getQuestionsForQuizSet,
     getQuizSetsWithCounts,
     getTodayString,
     updateQuizSet,
 } from '../db';
 import { LoadingView } from '../components/LoadingView';
+import { BackButton } from '../components/BackButton';
 import { useAppContext } from '../contexts/AppContext';
+import { ApiError } from '../cloudApi';
 import { loadReviewIntervalSettings } from '../utils/spacedRepetition';
 import '../App.css';
 
@@ -48,7 +48,6 @@ interface UpcomingScheduleRow {
     quizSetName: string;
     questionId: number;
     questionNumber: number;
-    questionText: string;
     nextDue: string;
 }
 
@@ -63,13 +62,6 @@ function toLocalDateString(date: Date): string {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-}
-
-function toLocalDateStringFromIso(iso?: string): string | null {
-    if (!iso) return null;
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return null;
-    return toLocalDateString(date);
 }
 
 function parseLocalDate(dateString: string): Date | null {
@@ -99,8 +91,6 @@ export const ReviewBoardRoute: React.FC = () => {
     const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
     const [allReviewSchedules, setAllReviewSchedules] = useState<ReviewSchedule[]>([]);
     const [quizSetMetaById, setQuizSetMetaById] = useState<Record<number, QuizSetMeta>>({});
-    const [questionById, setQuestionById] = useState<Record<number, Question>>({});
-    const [questionNumberById, setQuestionNumberById] = useState<Record<number, number>>({});
     const [typeFilter, setTypeFilter] = useState<ReviewSetTypeFilter>('all');
     const [futureSetFilter, setFutureSetFilter] = useState<string>('all');
     const [togglingSetIds, setTogglingSetIds] = useState<Set<number>>(new Set());
@@ -140,43 +130,16 @@ export const ReviewBoardRoute: React.FC = () => {
                 }
             }
 
-            const targetQuizSetIds = [...new Set(schedules.map(schedule => schedule.quizSetId))]
-                .filter((quizSetId) => nextMetaById[quizSetId] !== undefined);
-            const questionLists = await Promise.all(
-                targetQuizSetIds.map(async (quizSetId) => ({
-                    quizSetId,
-                    questions: await getQuestionsForQuizSet(quizSetId),
-                }))
-            );
-            const nextQuestionById: Record<number, Question> = {};
-            const nextQuestionNumberById: Record<number, number> = {};
-            for (const { questions } of questionLists) {
-                const sortedQuestions = [...questions].sort((a, b) => {
-                    const aId = a.id ?? 0;
-                    const bId = b.id ?? 0;
-                    return aId - bId;
-                });
-                for (const [index, question] of sortedQuestions.entries()) {
-                    if (question.id !== undefined) {
-                        nextQuestionById[question.id] = question;
-                        nextQuestionNumberById[question.id] = index + 1;
-                    }
-                }
-            }
-
             setDueReviews(reviews);
             setAllReviewSchedules(schedules);
             setQuizSetMetaById(nextMetaById);
-            setQuestionById(nextQuestionById);
-            setQuestionNumberById(nextQuestionNumberById);
         } catch (error) {
             console.error('復習ボードの読み込みに失敗しました:', error);
-            const message = error instanceof Error ? error.message : '';
-            if (message === 'UNAUTHORIZED') {
+            if (error instanceof ApiError && error.status === 401) {
                 setErrorType('auth');
                 setErrorMessage('ログイン状態の有効期限が切れました。再ログインしてください。');
                 handleCloudError(error, '認証エラーが発生しました。');
-            } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+            } else if ((error instanceof Error && error.message.includes('Failed to fetch')) || (error instanceof Error && error.message.includes('NetworkError'))) {
                 setErrorType('network');
                 setErrorMessage('復習データの取得に失敗しました。ネットワーク接続を確認して再試行してください。');
             } else {
@@ -307,19 +270,11 @@ export const ReviewBoardRoute: React.FC = () => {
         [activeSchedules, today]
     );
 
-    const totalReviewedTodayQuestions = useMemo(
-        () => activeSchedules.filter(schedule => {
-            const reviewedDate = toLocalDateStringFromIso(schedule.lastReviewedAt);
-            return reviewedDate === today && schedule.nextDue > today;
-        }).length,
-        [activeSchedules, today]
-    );
-
     const nextWeekDateKeys = useMemo(() => {
         const startDate = parseLocalDate(today) ?? new Date();
         return Array.from({ length: 7 }, (_, index) => {
             const date = new Date(startDate);
-            date.setDate(startDate.getDate() + index + 1);
+            date.setDate(startDate.getDate() + index);
             return toLocalDateString(date);
         });
     }, [today]);
@@ -329,7 +284,7 @@ export const ReviewBoardRoute: React.FC = () => {
     const futureSetOptions = useMemo(() => {
         const setNameById = new Map<number, string>();
         for (const schedule of activeSchedules) {
-            if (schedule.nextDue <= today || schedule.nextDue > nextWeekLastDateKey) continue;
+            if (schedule.nextDue < today || schedule.nextDue > nextWeekLastDateKey) continue;
             const setName = quizSetMetaById[schedule.quizSetId]?.name;
             if (!setName) continue;
             if (!setNameById.has(schedule.quizSetId)) {
@@ -351,17 +306,14 @@ export const ReviewBoardRoute: React.FC = () => {
 
     const upcomingScheduleRows = useMemo<UpcomingScheduleRow[]>(
         () => activeSchedules
-            .filter((schedule) => schedule.nextDue > today && schedule.nextDue <= nextWeekLastDateKey)
+            .filter((schedule) => schedule.nextDue >= today && schedule.nextDue <= nextWeekLastDateKey)
             .map((schedule) => {
-                const question = questionById[schedule.questionId];
                 const quizSetName = quizSetMetaById[schedule.quizSetId]?.name || `セット #${schedule.quizSetId}`;
-                const questionNumber = questionNumberById[schedule.questionId] ?? schedule.questionId;
                 return {
                     quizSetId: schedule.quizSetId,
                     quizSetName,
                     questionId: schedule.questionId,
-                    questionNumber,
-                    questionText: question?.text || '(問題文を取得できませんでした)',
+                    questionNumber: schedule.questionId,
                     nextDue: schedule.nextDue,
                 };
             })
@@ -373,7 +325,7 @@ export const ReviewBoardRoute: React.FC = () => {
                 if (setCmp !== 0) return setCmp;
                 return a.questionNumber - b.questionNumber;
             }),
-        [activeSchedules, questionById, questionNumberById, quizSetMetaById, today, nextWeekLastDateKey, futureSetFilter]
+        [activeSchedules, quizSetMetaById, today, nextWeekLastDateKey, futureSetFilter]
     );
 
     const calendarColumns = useMemo<CalendarColumn[]>(
@@ -512,9 +464,7 @@ export const ReviewBoardRoute: React.FC = () => {
     return (
         <div className="review-board-page">
             <div className="detail-header review-board-header">
-                <button className="nav-btn" onClick={() => navigate('/')}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={() => navigate('/')} />
                 <h1 className="review-board-title">
                     <CalendarCheck2 size={24} />
                     復習ボード（試作）
@@ -556,10 +506,6 @@ export const ReviewBoardRoute: React.FC = () => {
                         <div className="review-board-stat-card">
                             <span className="review-board-stat-label">今日の未復習問題数</span>
                             <strong className="review-board-stat-value">{totalTodayUnreviewedQuestions}</strong>
-                        </div>
-                        <div className="review-board-stat-card">
-                            <span className="review-board-stat-label">今日の復習済み問題数</span>
-                            <strong className="review-board-stat-value">{totalReviewedTodayQuestions}</strong>
                         </div>
                         <div className="review-board-stat-card">
                             <span className="review-board-stat-label">期限切れ未復習の問題数</span>
@@ -665,7 +611,6 @@ export const ReviewBoardRoute: React.FC = () => {
                                             <tr>
                                                 <th>セット名</th>
                                                 <th>番号</th>
-                                                <th>問題文</th>
                                                 {calendarColumns.map((column) => (
                                                     <th key={`cal-head-${column.key}`} className="review-board-future-calendar-head">
                                                         <span>{column.label}</span>
@@ -679,7 +624,6 @@ export const ReviewBoardRoute: React.FC = () => {
                                                 <tr key={`future-${row.quizSetId}-${row.questionId}-${row.nextDue}`} className="table-row">
                                                     <td className="review-board-future-set-name">{row.quizSetName}</td>
                                                     <td className="review-board-future-question-number">{row.questionNumber}</td>
-                                                    <td className="text-cell review-board-future-question-text">{row.questionText}</td>
                                                     {calendarColumns.map((column) => {
                                                         const isDueDay = row.nextDue === column.key;
                                                         return (

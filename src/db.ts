@@ -1,9 +1,10 @@
 import Dexie, { type Table } from 'dexie';
 import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType, HomeOnboardingState, HomeOnboardingFlowStage } from './types';
 import { cloudApi } from './cloudApi';
+import { isCloudSyncEnabledInStorage } from './utils/settings';
 
 export function isCloudSyncEnabled(): boolean {
-    return localStorage.getItem('useCloudSync') === 'true';
+    return isCloudSyncEnabledInStorage();
 }
 
 type LocalAppSetting = {
@@ -39,7 +40,7 @@ class StudyAppDB extends Dexie {
             quizSets: '++id, name',
             questions: '++id, quizSetId, category',
             histories: '++id, quizSetId, date',
-            reviewSchedules: '++id, questionId, quizSetId, nextDue, [quizSetId+nextDue]',
+            reviewSchedules: '++id, questionId, quizSetId, nextDue, [quizSetId+nextDue], [quizSetId+questionId]',
             reviewLogs: '++id, questionId, quizSetId, reviewedAt',
             appSettings: '&key',
         });
@@ -322,7 +323,10 @@ export async function upsertReviewSchedulesBulk(schedules: (Omit<ReviewSchedule,
     let updated = 0;
     let inserted = 0;
     for (const s of schedules) {
-        const existing = await db.reviewSchedules.where('questionId').equals(s.questionId).first();
+        const existing = await db.reviewSchedules
+            .where('[quizSetId+questionId]')
+            .equals([s.quizSetId, s.questionId])
+            .first();
         if (existing) {
             await db.reviewSchedules.update(existing.id!, {
                 intervalDays: s.intervalDays,

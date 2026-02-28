@@ -1838,6 +1838,45 @@ input:checked+.slider svg {
   justify-content: flex-end;
 }
 
+.starter-guide {
+  margin: 1rem auto 0;
+  max-width: 760px;
+  text-align: left;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 1.15rem 1.2rem;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-color);
+}
+
+.starter-guide-title {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.starter-guide-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.starter-guide-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.starter-guide-actions .nav-btn {
+  flex: 1 1 210px;
+  justify-content: center;
+}
+
 .main-layout {
   display: flex;
   flex: 1;
@@ -2022,6 +2061,12 @@ input:checked+.slider svg {
 }
 
 .review-board-toggle-notice.is-success {
+  color: #dcfce7;
+  background: rgba(20, 83, 45, 0.92);
+  border: 1px solid rgba(74, 222, 128, 0.56);
+}
+
+.home-inline-notice.is-success {
   color: #dcfce7;
   background: rgba(20, 83, 45, 0.92);
   border: 1px solid rgba(74, 222, 128, 0.56);
@@ -4752,7 +4797,7 @@ input:checked+.slider svg {
 .review-btn {
   padding: 0.4rem 0.6rem;
   background: linear-gradient(135deg, #8b5cf6, #6366f1);
-  color: white;
+  color: #ffffff;
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -4760,6 +4805,8 @@ input:checked+.slider svg {
   display: flex;
   align-items: center;
   justify-content: center;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .review-btn:hover {
@@ -6566,6 +6613,18 @@ input:checked+.slider svg {
     font-size: 0.82rem;
   }
 
+  .starter-guide {
+    padding: 1rem;
+  }
+
+  .starter-guide-actions {
+    flex-direction: column;
+  }
+
+  .starter-guide-actions .nav-btn {
+    width: 100%;
+  }
+
   /* --- Home Actions (nav buttons) --- */
   .home-actions {
     flex-direction: column;
@@ -6946,7 +7005,7 @@ input:checked+.slider svg {
   .session-inline-notice {
     top: max(0.6rem, env(safe-area-inset-top));
     width: min(95vw, 760px);
-    padding: 0.42rem 0.75rem;
+    padding: 0.63rem 0.75rem;
     font-size: 0.74rem;
   }
 
@@ -7038,6 +7097,21 @@ input:checked+.slider svg {
   .home-onboarding-description {
     font-size: 0.8rem;
   }
+
+  .starter-guide {
+    margin-top: 0.85rem;
+    padding: 0.85rem;
+  }
+
+  .starter-guide-title {
+    font-size: 0.92rem;
+  }
+
+  .starter-guide-steps {
+    font-size: 0.84rem;
+    padding-left: 1.05rem;
+  }
+
 
   .start-btn {
     padding: 0.4rem 1rem;

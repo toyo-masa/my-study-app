@@ -13,6 +13,7 @@ export interface QuizSetWithMeta extends QuizSet {
 }
 
 interface HomePageProps {
+    homeNotice: { text: string; type: 'success' | 'error' } | null;
     quizSets: QuizSetWithMeta[];
     onAddQuizSet: (file: File) => void;
     onAddEmptyQuizSet: () => Promise<boolean>;
@@ -93,6 +94,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     deletedQuizSets,
     archivedQuizSets,
     onRefresh,
+    homeNotice,
     homeOnboardingState,
     onCompleteHomeOnboarding,
     onAdvanceHomeOnboardingToManage
@@ -502,7 +504,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                             onClick={() => setViewMode(viewMode === 'archive' ? 'active' : 'archive')}
                             style={{ background: viewMode === 'archive' ? 'var(--primary-color)' : 'var(--bg-secondary)', color: viewMode === 'archive' ? 'white' : 'var(--text-primary)' }}
                         >
-                            <FileText size={16} /> アーカイブ
+                            {viewMode === 'archive' ? <BookOpen size={16} /> : <Archive size={16} />} {viewMode === 'archive' ? '一覧に戻る' : 'アーカイブ'}
                         </button>
                         <button
                             className={`nav-btn ${viewMode === 'trash' ? 'active' : ''}`}
@@ -514,6 +516,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                         </button>
                     </div>
                 </div>
+
+
+
+                {homeNotice && (
+                    <div className={`session-inline-notice home-inline-notice ${homeNotice.type === 'success' ? 'is-success' : 'is-error'}`}>
+                        {homeNotice.text}
+                    </div>
+                )}
 
                 {viewMode === 'active' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -595,8 +605,30 @@ export const HomePage: React.FC<HomePageProps> = ({
                         ) : (
                             <div className="empty-hint">
                                 <p>{quizSets.length > 0 ? "条件に一致する問題集がありません" : "まだ問題集がありません"}</p>
-                                {quizSets.length === 0 && (
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>上のボタンから問題集や暗記カードを追加しましょう</p>
+                                {quizSets.length === 0 ? (
+                                    <div className="starter-guide">
+                                        <h3 className="starter-guide-title">はじめての方へ: 最初の3ステップ</h3>
+                                        <ol className="starter-guide-steps">
+                                            <li>まず「空の問題集を追加」または「空の暗記カードを追加」を押します。</li>
+                                            <li>作成したカードの「問題管理」で、問題や解説を追加します。</li>
+                                            <li>ホームに戻って「開始」を押すと学習を始められます。</li>
+                                        </ol>
+                                        <div className="starter-guide-actions">
+                                            <button className="nav-btn" onClick={onAddEmptyQuizSet}>
+                                                <Plus size={16} /> 空の問題集を追加
+                                            </button>
+                                            <button className="nav-btn" onClick={onAddEmptyMemorizationSet}>
+                                                <Brain size={16} /> 空の暗記カードを追加
+                                            </button>
+                                            <button className="nav-btn" onClick={() => setIsHelpOpen(true)}>
+                                                <HelpCircle size={16} /> CSVフォーマットを見る
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                                        タグ条件を見直すか、フィルタを外してください
+                                    </p>
                                 )}
                             </div>
                         )}
@@ -621,7 +653,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                                             <h3 className="quiz-card-title" style={{ color: 'var(--text-secondary)' }}>{qs.name}</h3>
                                             <p className="quiz-card-count">{qs.questionCount} 問</p>
                                             <div className="quiz-card-actions" style={{ position: 'relative', zIndex: 2, justifyContent: 'flex-end', width: '100%' }}>
-                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onRestoreQuizSet(qs.id!); }} data-tooltip="復元する" style={{ color: 'var(--primary-color)' }}>
+                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onRestoreQuizSet(qs.id!); }} data-tooltip="復元する">
                                                     <RotateCcw size={16} /> 元に戻す
                                                 </button>
                                                 <button className="delete-btn" onClick={(e) => {
@@ -661,7 +693,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                                             <h3 className="quiz-card-title" style={{ color: 'var(--text-secondary)' }}>{qs.name}</h3>
                                             <p className="quiz-card-count">{qs.questionCount} 問</p>
                                             <div className="quiz-card-actions" style={{ position: 'relative', zIndex: 2, justifyContent: 'flex-end', width: '100%' }}>
-                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onUnarchiveQuizSet(qs.id!); }} data-tooltip="アーカイブを解除" style={{ color: 'var(--primary-color)' }}>
+                                                <button className="review-btn" onClick={(e) => { e.stopPropagation(); onUnarchiveQuizSet(qs.id!); }} data-tooltip="アーカイブを解除">
                                                     <RotateCcw size={16} /> 元に戻す
                                                 </button>
                                                 <button className="delete-btn" onClick={(e) => {

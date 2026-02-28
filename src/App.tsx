@@ -13,6 +13,7 @@ import {
   saveReviewIntervalSettings,
   type ReviewIntervalSettings,
 } from './utils/spacedRepetition';
+import { getStoredAccentColor, getStoredThemeMode, setStoredAccentColor, setStoredThemeMode, type ThemeMode } from './utils/settings';
 
 // Routes
 import { HomeRoute } from './pages/HomeRoute';
@@ -106,8 +107,6 @@ const adjustColor = (hex: string, amount: number): string => {
   return `#${rr}${gg}${bb}`;
 };
 
-type ThemeMode = 'light' | 'dark' | 'monokai';
-
 const normalizeThemeMode = (value: string | null): ThemeMode => {
   if (value === 'light' || value === 'dark' || value === 'monokai') {
     return value;
@@ -121,7 +120,9 @@ function App() {
     isLoginModalOpen, setIsLoginModalOpen,
     isRegisterModalOpen, setIsRegisterModalOpen,
     isInitialized,
-    quizSets
+    quizSets,
+    setUseCloudSync,
+    loadQuizSets
   } = useAppContext();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -130,11 +131,11 @@ function App() {
 
   // Theme and Accent color
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    return normalizeThemeMode(localStorage.getItem('theme'));
+    return normalizeThemeMode(getStoredThemeMode());
   });
   const isDarkMode = themeMode !== 'light';
   const [accentColor, setAccentColor] = useState(() => {
-    return localStorage.getItem('accentColor') || '#3b82f6';
+    return getStoredAccentColor();
   });
   const [reviewIntervalSettings, setReviewIntervalSettings] = useState<ReviewIntervalSettings>(() => {
     return loadReviewIntervalSettings();
@@ -143,7 +144,7 @@ function App() {
   useEffect(() => {
     document.body.classList.toggle('dark-mode', isDarkMode);
     document.body.classList.toggle('theme-monokai', themeMode === 'monokai');
-    localStorage.setItem('theme', themeMode);
+    setStoredThemeMode(themeMode);
   }, [isDarkMode, themeMode]);
 
   useEffect(() => {
@@ -157,7 +158,7 @@ function App() {
     const secondaryColor = adjustColor(accentColor, isDarkMode ? 30 : -30);
     document.documentElement.style.setProperty('--secondary-color', secondaryColor);
 
-    localStorage.setItem('accentColor', accentColor);
+    setStoredAccentColor(accentColor);
   }, [accentColor, isDarkMode]);
 
   useEffect(() => {
@@ -199,8 +200,8 @@ function App() {
       setIsLoginModalOpen(false);
       setLoginUsername('');
       setLoginPassword('');
-      localStorage.setItem('useCloudSync', 'true');
-      window.location.reload();
+      setUseCloudSync(true);
+      await loadQuizSets();
     } catch (err: unknown) {
       setLoginError(err instanceof Error ? err.message : 'ログインに失敗しました');
     } finally {
@@ -224,8 +225,8 @@ function App() {
       setRegisterUsername('');
       setRegisterPassword('');
       setRegisterPasswordConfirm('');
-      localStorage.setItem('useCloudSync', 'true');
-      window.location.reload();
+      setUseCloudSync(true);
+      await loadQuizSets();
     } catch (err: unknown) {
       setRegisterError(err instanceof Error ? err.message : '登録に失敗しました');
     } finally {
@@ -240,15 +241,16 @@ function App() {
     } catch (err) {
       console.error('Logout error:', err);
     }
-    localStorage.setItem('useCloudSync', 'false');
-    window.location.reload();
+    setCurrentUser(null);
+    setUseCloudSync(false);
+    await loadQuizSets();
   };
 
   const continueOfflineMode = () => {
-    localStorage.setItem('useCloudSync', 'false');
+    setUseCloudSync(false);
     setIsLoginModalOpen(false);
     setIsRegisterModalOpen(false);
-    window.location.reload();
+    void loadQuizSets();
   };
 
   if (!isInitialized && !isReleaseNotesRoute) {

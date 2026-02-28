@@ -12,6 +12,11 @@ import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, up
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
 
+const isMobileViewport = () => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+};
+
 export const StudyRoute: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -38,7 +43,7 @@ export const StudyRoute: React.FC = () => {
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
     const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
     const [isTestCompleted, setIsTestCompleted] = useState(false);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
     const [endTime, setEndTime] = useState<Date>(new Date());
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
@@ -73,6 +78,7 @@ export const StudyRoute: React.FC = () => {
         setMarkedQuestions([]);
         setConfidences({});
         setIsTestCompleted(false);
+        setSidebarOpen(!isMobileViewport());
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyQuestionsModal(false);

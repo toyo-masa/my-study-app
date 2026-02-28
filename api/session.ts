@@ -21,7 +21,10 @@ type AdminUserRow = {
     id: number | string;
     username: string;
     created_at: string | Date;
+    last_login_at: string | Date | null;
     active_session_count: number | string;
+    quiz_set_count: number | string;
+    memorization_card_count: number | string;
 };
 
 type SessionRequestBody = {
@@ -208,10 +211,33 @@ async function handleAdminUsers(req: ApiHandlerRequest, res: ApiHandlerResponse)
                 u.id,
                 u.username,
                 u.created_at,
-                COALESCE(COUNT(s.id) FILTER (WHERE s.expires_at > NOW()), 0)::int AS active_session_count
+                activity.last_login_at,
+                activity.active_session_count,
+                sets.quiz_set_count,
+                cards.memorization_card_count
             FROM users u
-            LEFT JOIN sessions s ON s.user_id = u.id
-            GROUP BY u.id, u.username, u.created_at
+            LEFT JOIN LATERAL (
+                SELECT
+                    MAX(s.created_at) AS last_login_at,
+                    COALESCE(COUNT(s.id) FILTER (WHERE s.expires_at > NOW()), 0)::int AS active_session_count
+                FROM sessions s
+                WHERE s.user_id = u.id
+            ) AS activity ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT COALESCE(COUNT(*), 0)::int AS quiz_set_count
+                FROM quiz_sets qs
+                WHERE qs.user_id = u.id
+                  AND COALESCE(qs.is_deleted, FALSE) = FALSE
+                  AND COALESCE(qs.type, 'quiz') = 'quiz'
+            ) AS sets ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT COALESCE(COUNT(*), 0)::int AS memorization_card_count
+                FROM questions q
+                INNER JOIN quiz_sets qs ON qs.id = q.quiz_set_id
+                WHERE qs.user_id = u.id
+                  AND COALESCE(qs.is_deleted, FALSE) = FALSE
+                  AND COALESCE(qs.type, 'quiz') = 'memorization'
+            ) AS cards ON TRUE
             ORDER BY u.id ASC
         `;
 
@@ -220,7 +246,10 @@ async function handleAdminUsers(req: ApiHandlerRequest, res: ApiHandlerResponse)
                 id: toNumber(row.id),
                 username: row.username,
                 createdAt: toIsoDateString(row.created_at),
+                lastLoginAt: row.last_login_at ? toIsoDateString(row.last_login_at) : null,
                 activeSessionCount: toNumber(row.active_session_count),
+                quizSetCount: toNumber(row.quiz_set_count),
+                memorizationCardCount: toNumber(row.memorization_card_count),
                 isAdmin: isAdminIdentity(toNumber(row.id), row.username),
             })),
         });
@@ -287,6 +316,15 @@ async function handleAdminDeleteUser(req: ApiHandlerRequest<SessionRequestBody>,
 
     try {
         const sql = neon(databaseUrl);
+        await sql`
+            CREATE TABLE IF NOT EXISTS suspended_sessions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                quiz_set_id INTEGER REFERENCES quiz_sets(id) ON DELETE CASCADE,
+                session_data JSONB NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
         const targetUsers = await sql`SELECT id FROM users WHERE id = ${targetUserId} LIMIT 1`;
         if (targetUsers.length === 0) {
             return res.status(404).json({ error: '対象ユーザーが見つかりません' });
@@ -308,6 +346,8 @@ async function handleAdminDeleteUser(req: ApiHandlerRequest<SessionRequestBody>,
 }
 
 export default async function handler(req: ApiHandlerRequest<SessionRequestBody>, res: ApiHandlerResponse) {
+    res.setHeader('Cache-Control', 'no-store');
+
     const action = resolveAction(req);
 
     if (action === 'me' || (!action && req.method === 'GET')) {

@@ -1,12 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Lock, LogIn, RefreshCw, ShieldCheck, KeyRound, Trash2, CircleCheck, X } from 'lucide-react';
-import { cloudApi, type AdminSummary, type AdminUser } from '../cloudApi';
+import { ChevronLeft, ChevronRight, Lock, LogIn, RefreshCw, ShieldCheck, KeyRound, Trash2, CircleCheck, X } from 'lucide-react';
+import { ApiError, cloudApi, type AdminSummary, type AdminUser } from '../cloudApi';
 import { useAppContext } from '../contexts/AppContext';
+import { BackButton } from '../components/BackButton';
 import { LoadingView } from '../components/LoadingView';
 import '../App.css';
 
-function formatDateTime(value: string): string {
+function formatDateTime(value: string | null): string {
+    if (!value) {
+        return '-';
+    }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
         return '取得時刻不明';
@@ -34,6 +38,7 @@ export const AdminRoute: React.FC = () => {
     const [deleteUserConfirmInput, setDeleteUserConfirmInput] = useState('');
     const [deleteUserError, setDeleteUserError] = useState('');
     const [deleteUserSuccessMessage, setDeleteUserSuccessMessage] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
 
     const loadAdminData = useCallback(async () => {
         if (!useCloudSync) {
@@ -77,13 +82,12 @@ export const AdminRoute: React.FC = () => {
         } catch (error) {
             setSummary(null);
             setUsers([]);
-            const message = error instanceof Error ? error.message : '';
-            if (message === 'UNAUTHORIZED') {
+            if (error instanceof ApiError && error.status === 401) {
                 setErrorMessage('ログイン状態の有効期限が切れました。再ログインしてください。');
                 setIsLoginModalOpen(true);
                 return;
             }
-            if (message === 'Forbidden') {
+            if (error instanceof ApiError && error.status === 403) {
                 setIsForbidden(true);
                 setErrorMessage('この画面を開く権限がありません。');
                 return;
@@ -185,6 +189,18 @@ export const AdminRoute: React.FC = () => {
         }
     };
 
+
+    const USERS_PER_PAGE = 10;
+    const totalPages = Math.max(1, Math.ceil(users.length / USERS_PER_PAGE));
+    const paginatedUsers = useMemo(() => {
+        const start = (currentPage - 1) * USERS_PER_PAGE;
+        return users.slice(start, start + USERS_PER_PAGE);
+    }, [currentPage, users]);
+
+    useEffect(() => {
+        setCurrentPage(prev => Math.min(prev, totalPages));
+    }, [totalPages]);
+
     const cards = useMemo(() => {
         if (!summary) return [];
         return [
@@ -202,9 +218,7 @@ export const AdminRoute: React.FC = () => {
     return (
         <div className="review-board-page">
             <div className="detail-header review-board-header">
-                <button className="nav-btn" onClick={() => navigate('/')}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={() => navigate('/')} />
                 <h1 className="review-board-title">
                     <ShieldCheck size={24} />
                     管理コンソール
@@ -293,19 +307,22 @@ export const AdminRoute: React.FC = () => {
                             登録ユーザー一覧
                         </h2>
                         <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 12 }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
                                 <thead>
                                     <tr style={{ background: 'var(--bg-secondary)' }}>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>ID</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>ユーザー名</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>権限</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>作成日時</th>
+                                        <th style={{ textAlign: 'left', padding: '0.75rem' }}>最終ログイン</th>
+                                        <th style={{ textAlign: 'left', padding: '0.75rem' }}>問題集数</th>
+                                        <th style={{ textAlign: 'left', padding: '0.75rem' }}>暗記カード数</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>有効セッション</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {users.map(user => {
+                                    {paginatedUsers.map(user => {
                                         const isProcessing = activeUserActionId === user.id;
                                         return (
                                             <tr key={user.id} style={{ borderTop: '1px solid var(--border-color)' }}>
@@ -313,6 +330,9 @@ export const AdminRoute: React.FC = () => {
                                                 <td style={{ padding: '0.7rem 0.75rem', fontWeight: 600 }}>{user.username}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{user.isAdmin ? '管理者' : '一般ユーザー'}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{formatDateTime(user.createdAt)}</td>
+                                                <td style={{ padding: '0.7rem 0.75rem' }}>{formatDateTime(user.lastLoginAt)}</td>
+                                                <td style={{ padding: '0.7rem 0.75rem' }}>{user.quizSetCount.toLocaleString('ja-JP')}</td>
+                                                <td style={{ padding: '0.7rem 0.75rem' }}>{user.memorizationCardCount.toLocaleString('ja-JP')}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{user.activeSessionCount}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>
                                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -345,9 +365,9 @@ export const AdminRoute: React.FC = () => {
                                             </tr>
                                         );
                                     })}
-                                    {users.length === 0 && (
+                                    {paginatedUsers.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
+                                            <td colSpan={9} style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
                                                 登録ユーザーがありません。
                                             </td>
                                         </tr>
@@ -355,6 +375,36 @@ export const AdminRoute: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
+                        {users.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.75rem', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                                    {users.length}件中 {(currentPage - 1) * USERS_PER_PAGE + 1}〜{Math.min(currentPage * USERS_PER_PAGE, users.length)}件を表示
+                                </span>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <button
+                                        className="nav-btn"
+                                        type="button"
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                        style={{ padding: '0.35rem 0.55rem' }}
+                                    >
+                                        <ChevronLeft size={15} /> 前へ
+                                    </button>
+                                    <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                                        {currentPage} / {totalPages}
+                                    </span>
+                                    <button
+                                        className="nav-btn"
+                                        type="button"
+                                        disabled={currentPage >= totalPages}
+                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                        style={{ padding: '0.35rem 0.55rem' }}
+                                    >
+                                        次へ <ChevronRight size={15} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </section>
                 </>
             )}

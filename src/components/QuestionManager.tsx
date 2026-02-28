@@ -11,8 +11,9 @@ import {
     completeHomeOnboarding
 } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
-import { ArrowLeft, Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter } from 'lucide-react';
+import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
+import { BackButton } from './BackButton';
 import { useAppContext } from '../contexts/AppContext';
 
 interface QuestionManagerProps {
@@ -715,9 +716,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     return (
         <div className="manager-container">
             <div className="manager-header">
-                <button className="nav-btn" onClick={handleBack} ref={backButtonRef}>
-                    <ArrowLeft size={16} /> 戻る
-                </button>
+                <BackButton className="nav-btn" onClick={handleBack} ref={backButtonRef} />
                 {isEditingName ? (
                     <input
                         className="title-edit-input"
@@ -974,15 +973,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                     <p className="home-onboarding-description" style={{ display: 'none' }}>{currentManageOnboardingMeta.description}</p>
                                 </div>
                                 <div className="home-onboarding-actions" style={{ marginTop: 0, flexShrink: 0 }}>
-                                    {manageOnboardingStep !== 'tutorialComplete' && (
-                                        <button
-                                            className="nav-btn"
-                                            onClick={(e) => { e.stopPropagation(); void skipManageOnboarding(); }}
-                                            style={{ pointerEvents: 'auto', padding: '0.4rem 0.7rem', fontSize: '0.75rem' }}
-                                        >
-                                            スキップ
-                                        </button>
-                                    )}
+                                    <button
+                                        className="nav-btn"
+                                        onClick={(e) => { e.stopPropagation(); void skipManageOnboarding(); }}
+                                        style={{ pointerEvents: 'auto', padding: '0.4rem 0.7rem', fontSize: '0.75rem' }}
+                                    >
+                                        スキップ
+                                    </button>
                                 </div>
                             </>
                         ) : (
