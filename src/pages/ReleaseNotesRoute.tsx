@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.20.0',
+        date: '2026年2月28日 15:57',
+        improvements: [
+            '空の問題集・暗記カードの追加と、CSVからの追加が即時反映されるようになりました（表示のタイムラグを大幅に削減）。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.19.1',
         date: '2026年2月28日 07:40',
         improvements: [

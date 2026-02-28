@@ -57,8 +57,16 @@ export const HomeRoute: React.FC = () => {
         }, 3000);
     }, []);
 
-    // Add quiz set from uploaded CSV
+    // Helper: generate a guaranteed-unique temporary negative ID
+    const tempIdRef = useRef(-1);
+    const nextTempId = () => {
+        tempIdRef.current -= 1;
+        return tempIdRef.current;
+    };
+
+    // Add quiz set from uploaded CSV (optimistic)
     const handleAddQuizSet = async (file: File) => {
+        let tempId: number | undefined;
         try {
             const parsed = await parseQuestions(file);
             const name = file.name.replace(/\.csv$/i, '');
@@ -69,54 +77,91 @@ export const HomeRoute: React.FC = () => {
                 correctAnswers: q.correctAnswers,
                 explanation: q.explanation,
             }));
-            await addQuizSetWithQuestions(name, questionsForDB);
-            await loadQuizSets();
+            // Optimistic: show item immediately with temp id and question count
+            tempId = nextTempId();
+            const optimisticSet = {
+                id: tempId, name, type: 'quiz' as const,
+                createdAt: new Date(), isDeleted: false, isArchived: false,
+                questionCount: questionsForDB.length, categories: []
+            };
+            setQuizSets(prev => [optimisticSet, ...prev]);
             showHomeNotice(`${formatQuizSetLabel(name, 'quiz')}を追加しました。`, 'success');
+            // Background save + replace with real id
+            const realId = await addQuizSetWithQuestions(name, questionsForDB);
+            setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
         } catch {
+            if (tempId !== undefined) setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
             showHomeNotice('問題集の追加に失敗しました。', 'error');
         }
     };
 
-    // Add memorization set from uploaded CSV
+    // Add memorization set from uploaded CSV (optimistic)
     const handleAddMemorizationSet = async (file: File) => {
+        let tempId: number | undefined;
         try {
             const parsed = await parseMemorizationQuestions(file);
             const name = file.name.replace(/\.csv$/i, '');
-            await addQuizSetWithQuestions(name, parsed, 'memorization');
-            await loadQuizSets();
+            // Optimistic
+            tempId = nextTempId();
+            const optimisticSet = {
+                id: tempId, name, type: 'memorization' as const,
+                createdAt: new Date(), isDeleted: false, isArchived: false,
+                questionCount: parsed.length, categories: []
+            };
+            setQuizSets(prev => [optimisticSet, ...prev]);
             showHomeNotice(`${formatQuizSetLabel(name, 'memorization')}を追加しました。`, 'success');
+            const realId = await addQuizSetWithQuestions(name, parsed, 'memorization');
+            setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
         } catch {
+            if (tempId !== undefined) setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
             showHomeNotice('暗記カードの追加に失敗しました。', 'error');
         }
     };
 
-    // Add empty quiz set
+    // Add empty quiz set (optimistic)
     const handleAddEmptyQuizSet = async (): Promise<boolean> => {
         const quizSetName = '新しい問題集';
+        const tempId = nextTempId();
+        const optimisticSet = {
+            id: tempId, name: quizSetName, type: 'quiz' as const,
+            createdAt: new Date(), isDeleted: false, isArchived: false,
+            questionCount: 0, categories: []
+        };
+        setQuizSets(prev => [optimisticSet, ...prev]);
+        showHomeNotice(`${formatQuizSetLabel(quizSetName, 'quiz')}を追加しました。`, 'success');
         try {
-            await addQuizSetWithQuestions(quizSetName, []);
-            await loadQuizSets();
-            showHomeNotice(`${formatQuizSetLabel(quizSetName, 'quiz')}を追加しました。`, 'success');
+            const realId = await addQuizSetWithQuestions(quizSetName, []);
+            setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
             return true;
         } catch (err) {
+            setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
             showHomeNotice('問題集の追加に失敗しました。', 'error');
             return false;
         }
     };
 
-    // Add empty memorization set
+    // Add empty memorization set (optimistic)
     const handleAddEmptyMemorizationSet = async (): Promise<boolean> => {
         const quizSetName = '新しい暗記カード';
+        const tempId = nextTempId();
+        const optimisticSet = {
+            id: tempId, name: quizSetName, type: 'memorization' as const,
+            createdAt: new Date(), isDeleted: false, isArchived: false,
+            questionCount: 0, categories: []
+        };
+        setQuizSets(prev => [optimisticSet, ...prev]);
+        showHomeNotice(`${formatQuizSetLabel(quizSetName, 'memorization')}を追加しました。`, 'success');
         try {
-            await addQuizSetWithQuestions(quizSetName, [], 'memorization');
-            await loadQuizSets();
-            showHomeNotice(`${formatQuizSetLabel(quizSetName, 'memorization')}を追加しました。`, 'success');
+            const realId = await addQuizSetWithQuestions(quizSetName, [], 'memorization');
+            setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
             return true;
         } catch (err) {
+            setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
             showHomeNotice('暗記カードの追加に失敗しました。', 'error');
             return false;
         }
     };
+
 
     const handleCompleteHomeOnboarding = useCallback(async (): Promise<boolean> => {
         try {
