@@ -271,7 +271,7 @@ export const ReviewBoardRoute: React.FC = () => {
 
     const filteredTodayReviews = useMemo(
         () => dueReviews.filter((review) => {
-            if (review.nextDue !== today) return false;
+            if (review.nextDue > today) return false;
             if (typeFilter === 'all') return true;
             return quizSetMetaById[review.quizSetId]?.type === typeFilter;
         }),
@@ -293,7 +293,7 @@ export const ReviewBoardRoute: React.FC = () => {
     );
 
     const totalTodayUnreviewedQuestions = useMemo(
-        () => activeSchedules.filter(schedule => schedule.nextDue === today).length,
+        () => activeSchedules.filter(schedule => schedule.nextDue <= today).length,
         [activeSchedules, today]
     );
 
@@ -536,11 +536,11 @@ export const ReviewBoardRoute: React.FC = () => {
                 <>
                     <div className="review-board-stats">
                         <div className="review-board-stat-card">
-                            <span className="review-board-stat-label">今日の未復習問題数</span>
+                            <span className="review-board-stat-label">今日復習すべき問題数</span>
                             <strong className="review-board-stat-value">{totalTodayUnreviewedQuestions}</strong>
                         </div>
                         <div className="review-board-stat-card">
-                            <span className="review-board-stat-label">期限切れ未復習の問題数</span>
+                            <span className="review-board-stat-label">うち期限切れ</span>
                             <strong className="review-board-stat-value">{totalOverdueUnreviewedQuestions}</strong>
                         </div>
                     </div>
@@ -560,7 +560,7 @@ export const ReviewBoardRoute: React.FC = () => {
                                             </div>
                                             <div className="help-popover-body">
                                                 <ul className="review-board-help-list">
-                                                    <li>各問題には「次に復習する予定日」があり、その予定日が今日のものを表示します。</li>
+                                                    <li>各問題には「次に復習する予定日」があり、その予定日が今日（またはそれ以前の期限切れ）のものを表示します。</li>
                                                     <li>この予定日は問題を解くたびに更新され、初回は基準日数1日から始まります。</li>
                                                     <li>正解したとき: 基準日数に {reviewIntervalSettings.correctMultiplier} を掛けて四捨五入します。</li>
                                                     <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
