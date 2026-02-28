@@ -844,13 +844,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 left: 0,
                                 right: 0,
                                 marginTop: '4px',
-                                background: 'var(--bg-secondary)',
+                                background: 'var(--bg-primary)',
                                 border: '1px solid var(--border-color)',
                                 borderRadius: '6px',
-                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
                                 maxHeight: '200px',
                                 overflowY: 'auto',
-                                zIndex: 10
+                                zIndex: 50
                             }}>
                                 {allExistingTags.filter(t => t.toLowerCase().includes(newTagInput.toLowerCase())).map((tag, index, arr) => (
                                     <div
