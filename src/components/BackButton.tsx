@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 
@@ -6,11 +7,14 @@ type BackButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
     iconSize?: number;
 };
 
-export function BackButton({ label = '戻る', iconSize = 16, children, ...buttonProps }: BackButtonProps) {
-    return (
-        <button {...buttonProps}>
-            <ArrowLeft size={iconSize} /> {children ?? label}
-        </button>
-    );
-}
+export const BackButton = forwardRef<HTMLButtonElement, BackButtonProps>(
+    ({ label = '戻る', iconSize = 16, children, ...buttonProps }, ref) => {
+        return (
+            <button ref={ref} {...buttonProps}>
+                <ArrowLeft size={iconSize} /> {children ?? label}
+            </button>
+        );
+    }
+);
 
+BackButton.displayName = 'BackButton';
