@@ -33,7 +33,7 @@ export const HomeRoute: React.FC = () => {
     const homeNoticeTimeoutRef = useRef<number | null>(null);
 
     const formatQuizSetLabel = useCallback((name: string, type: QuizSetType) => {
-        const kind = type === 'memorization' ? '暗記カード' : '問題集';
+        const kind = type === 'memorization' ? '暗記カード' : type === 'mixed' ? '混合セット' : '問題集';
         return `${kind}「${name}」`;
     }, []);
 
@@ -119,10 +119,10 @@ export const HomeRoute: React.FC = () => {
         }
     };
 
-    // Shared helper: add empty quiz set or memorization set (optimistic)
-    const handleAddEmptySet = async (type: 'quiz' | 'memorization'): Promise<boolean> => {
-        const isQuiz = type === 'quiz';
-        const quizSetName = isQuiz ? '新しい問題集' : '新しい暗記カード';
+    // Shared helper: add empty quiz set or memorization set or mixed set (optimistic)
+    const handleAddEmptySet = async (type: 'quiz' | 'memorization' | 'mixed'): Promise<boolean> => {
+        const label = type === 'quiz' ? '問題集' : type === 'memorization' ? '暗記カード' : '混合セット';
+        const quizSetName = `新しい${label}`;
         const tempId = nextTempId();
         setQuizSets(prev => [{
             id: tempId, name: quizSetName, type,
@@ -136,13 +136,14 @@ export const HomeRoute: React.FC = () => {
             return true;
         } catch {
             setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
-            showHomeNotice(`${isQuiz ? '問題集' : '暗記カード'}の追加に失敗しました。`, 'error');
+            showHomeNotice(`${label}の追加に失敗しました。`, 'error');
             return false;
         }
     };
 
     const handleAddEmptyQuizSet = () => handleAddEmptySet('quiz');
     const handleAddEmptyMemorizationSet = () => handleAddEmptySet('memorization');
+    const handleAddEmptyMixedSet = () => handleAddEmptySet('mixed');
 
 
     const handleCompleteHomeOnboarding = useCallback(async (): Promise<boolean> => {
@@ -285,6 +286,7 @@ export const HomeRoute: React.FC = () => {
             onAddMemorizationSet={handleAddMemorizationSet}
             onAddEmptyQuizSet={handleAddEmptyQuizSet}
             onAddEmptyMemorizationSet={handleAddEmptyMemorizationSet}
+            onAddEmptyMixedSet={handleAddEmptyMixedSet}
             deletedQuizSets={deletedQuizSets}
             archivedQuizSets={archivedQuizSets}
             onArchiveQuizSet={handleArchiveQuizSet}

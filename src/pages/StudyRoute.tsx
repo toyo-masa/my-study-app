@@ -563,11 +563,13 @@ export const StudyRoute: React.FC = () => {
 
             let correctCount = 0;
             questions.forEach(q => {
-                const userAnswers = answers[String(q.id)] || [];
-                if (userAnswers.length === q.correctAnswers.length &&
-                    userAnswers.every(a => q.correctAnswers.includes(a))) {
-                    correctCount++;
-                }
+                const qKey = String(q.id);
+                const userAnswers = answers[qKey] || [];
+                const conf = confidences[qKey] || 'high';
+                const isCorrect = q.questionType === 'memorization'
+                    ? conf === 'high'
+                    : (userAnswers.length === q.correctAnswers.length && userAnswers.every(a => q.correctAnswers.includes(a)));
+                if (isCorrect) correctCount++;
             });
 
             const durationSeconds = Math.round((end.getTime() - startTimeRef.current.getTime()) / 1000);
@@ -598,9 +600,10 @@ export const StudyRoute: React.FC = () => {
             for (const q of questions) {
                 const qKey = String(q.id);
                 const userAnswers = answers[qKey] || [];
-                const isCorrect = userAnswers.length === q.correctAnswers.length &&
-                    userAnswers.every(a => q.correctAnswers.includes(a));
                 const confidence: ConfidenceLevel = confidences[qKey] || 'high';
+                const isCorrect = q.questionType === 'memorization'
+                    ? confidence === 'high'
+                    : (userAnswers.length === q.correctAnswers.length && userAnswers.every(a => q.correctAnswers.includes(a)));
                 const currentInterval = intervalByQuestionId.get(q.id!) ?? 1;
                 const currentConsecutive = consecutiveByQuestionId.get(q.id!) ?? 0;
                 const intervalDays = calculateNextInterval(isCorrect, confidence, currentInterval, reviewIntervalSettings);
@@ -640,7 +643,8 @@ export const StudyRoute: React.FC = () => {
                 return;
             }
         }
-        if (!alreadyAnswered && selectedCount === 0) {
+        const isMemoQuestion = currentQuestion.questionType === 'memorization';
+        if (!alreadyAnswered && selectedCount === 0 && !isMemoQuestion) {
             flashSessionInlineNotice('選択肢を1つ以上選んでから回答してください');
             return;
         }

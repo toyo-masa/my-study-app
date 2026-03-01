@@ -129,48 +129,52 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                     </h2>
                 </div>
                 <p className="instruction">
-                    {question.correctAnswers.length > 1
-                        ? `この要件を満たすアプローチは ${question.correctAnswers.length} つ どれですか。（${question.correctAnswers.length} つ選択してください）`
-                        : 'この要件を満たすアプローチはどれですか。（1つ選択してください）'
+                    {question.questionType === 'memorization'
+                        ? '解答を確認して自信度を選択してください。'
+                        : question.correctAnswers.length > 1
+                            ? `この要件を満たすアプローチは ${question.correctAnswers.length} つ どれですか。（${question.correctAnswers.length} つ選択してください）`
+                            : 'この要件を満たすアプローチはどれですか。（1つ選択してください）'
                     }
                 </p>
 
-                <div className="options-list">
-                    {question.options.map((option, idx) => {
-                        const isSelected = selectedOptions.includes(idx);
-                        const isCorrect = question.correctAnswers.includes(idx);
+                {question.questionType !== 'memorization' && (
+                    <div className="options-list">
+                        {question.options.map((option, idx) => {
+                            const isSelected = selectedOptions.includes(idx);
+                            const isCorrect = question.correctAnswers.includes(idx);
 
-                        let optionClass = `option-item ${isSelected ? 'selected' : ''}`;
-                        if (showAnswer) {
-                            if (isCorrect) optionClass += ' correct';
-                            if (isSelected && !isCorrect) optionClass += ' incorrect';
-                        }
+                            let optionClass = `option-item ${isSelected ? 'selected' : ''}`;
+                            if (showAnswer) {
+                                if (isCorrect) optionClass += ' correct';
+                                if (isSelected && !isCorrect) optionClass += ' incorrect';
+                            }
 
-                        const isSingleChoice = question.correctAnswers.length === 1;
+                            const isSingleChoice = question.correctAnswers.length === 1;
 
-                        return (
-                            <div
-                                key={idx}
-                                className={optionClass}
-                                onClick={() => !showAnswer && onToggleOption(idx)}
-                            >
-                                {isSingleChoice ? (
-                                    <div className={`radio-button ${isSelected ? 'checked' : ''}`}>
-                                        {isSelected && <div className="radio-inner" />}
+                            return (
+                                <div
+                                    key={idx}
+                                    className={optionClass}
+                                    onClick={() => !showAnswer && onToggleOption(idx)}
+                                >
+                                    {isSingleChoice ? (
+                                        <div className={`radio-button ${isSelected ? 'checked' : ''}`}>
+                                            {isSelected && <div className="radio-inner" />}
+                                        </div>
+                                    ) : (
+                                        <div className={`checkbox ${isSelected ? 'checked' : ''}`}>
+                                            {isSelected && <span className="check-mark">✓</span>}
+                                        </div>
+                                    )}
+                                    <div className="option-text" style={{ flex: 1 }}>
+                                        <MarkdownText content={option} />
                                     </div>
-                                ) : (
-                                    <div className={`checkbox ${isSelected ? 'checked' : ''}`}>
-                                        {isSelected && <span className="check-mark">✓</span>}
-                                    </div>
-                                )}
-                                <div className="option-text" style={{ flex: 1 }}>
-                                    <MarkdownText content={option} />
+                                    {!showAnswer && idx < 4 && <kbd className="option-kbd">{idx + 1}</kbd>}
                                 </div>
-                                {!showAnswer && idx < 4 && <kbd className="option-kbd">{idx + 1}</kbd>}
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                )}
 
                 {!showAnswer && (
                     <div className="navigation-buttons inline-nav">
@@ -216,6 +220,18 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                     <p className="instruction" style={{ marginTop: '0.75rem', color: 'var(--text-secondary)' }}>
                         この問題は回答済みです。正誤と解説は遅延表示モードでまとめて表示されます。
                     </p>
+                )}
+
+                {showAnswer && question.questionType === 'memorization' && question.options.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="memorization-answer"
+                        style={{ marginTop: '1rem', marginBottom: '1rem', padding: '1rem', backgroundColor: 'var(--surface-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}
+                    >
+                        <h3 style={{ marginTop: 0, marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>解答</h3>
+                        <MarkdownText content={question.options[0]} />
+                    </motion.div>
                 )}
 
                 {showAnswer && (

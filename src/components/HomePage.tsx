@@ -19,6 +19,7 @@ interface HomePageProps {
     onAddEmptyQuizSet: () => Promise<boolean>;
     onAddMemorizationSet: (file: File) => void;
     onAddEmptyMemorizationSet: () => Promise<boolean>;
+    onAddEmptyMixedSet: () => Promise<boolean>;
     onSelectQuizSet: (quizSet: QuizSetWithMeta) => void;
     onManageQuizSet: (quizSet: QuizSetWithMeta) => void;
     onDeleteQuizSet: (quizSetId: number) => void;
@@ -83,6 +84,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     onAddEmptyQuizSet,
     onAddMemorizationSet,
     onAddEmptyMemorizationSet,
+    onAddEmptyMixedSet,
     onSelectQuizSet,
     onManageQuizSet,
     onDeleteQuizSet,
@@ -454,6 +456,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                             <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '200px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                                 <button ref={addEmptyQuizButtonRef} className="dropdown-item" onClick={() => { void handleAddEmptyQuizSetClick(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
                                     <Plus size={14} /> 空の問題集を追加
+                                </button>
+                                <button className="dropdown-item" onClick={() => { void onAddEmptyMixedSet(); setQuizMenuOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
+                                    <Plus size={14} /> 空の混合セットを追加
                                 </button>
                                 <label className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
                                     <Upload size={14} /> CSVで追加
