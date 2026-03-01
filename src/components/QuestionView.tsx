@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import type { Question, ConfidenceLevel, FeedbackTimingMode } from '../types';
 import { motion } from 'framer-motion';
-import { Bookmark } from 'lucide-react';
+import { Bookmark, Check, X } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 
 interface QuestionViewProps {
@@ -178,25 +178,27 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
 
                 {!showAnswer && (
                     <div className="navigation-buttons inline-nav">
-                        <div className="confidence-select-section">
-                            <span className="confidence-prompt">自信度：</span>
-                            <div className="confidence-buttons-inline">
-                                <button
-                                    className={`confidence-btn-inline low ${confidence === 'low' ? 'active' : ''}`}
-                                    onClick={() => onConfidenceChange('low')}
-                                >
-                                    <span className="btn-label">😟 自信なし</span>
-                                    <kbd className="confidence-kbd">V</kbd>
-                                </button>
-                                <button
-                                    className={`confidence-btn-inline high ${confidence === 'high' ? 'active' : ''}`}
-                                    onClick={() => onConfidenceChange('high')}
-                                >
-                                    <span className="btn-label">😊 確信</span>
-                                    <kbd className="confidence-kbd">N</kbd>
-                                </button>
+                        {question.questionType !== 'memorization' && (
+                            <div className="confidence-select-section">
+                                <span className="confidence-prompt">自信度：</span>
+                                <div className="confidence-buttons-inline">
+                                    <button
+                                        className={`confidence-btn-inline low ${confidence === 'low' ? 'active' : ''}`}
+                                        onClick={() => onConfidenceChange('low')}
+                                    >
+                                        <span className="btn-label">😟 自信なし</span>
+                                        <kbd className="confidence-kbd">V</kbd>
+                                    </button>
+                                    <button
+                                        className={`confidence-btn-inline high ${confidence === 'high' ? 'active' : ''}`}
+                                        onClick={() => onConfidenceChange('high')}
+                                    >
+                                        <span className="btn-label">😊 確信</span>
+                                        <kbd className="confidence-kbd">N</kbd>
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
                         <div style={{ flex: 1 }} />
                         <div className="nav-right">
                             <button onClick={() => {
@@ -267,23 +269,42 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                 );
                             }
                         })()}
-                        <div className="nav-right answer-nav">
-                            {isLast ? (
-                                <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>
-                            ) : (
-                                <button onClick={onNext} className="nav-btn action-btn">
-                                    {useNextAnswerLabel ? '次の回答' : '次の質問'}
+                        {question.questionType === 'memorization' ? (
+                            <div className="judgement-buttons" style={{ width: '100%' }}>
+                                <button
+                                    className="judge-btn bad"
+                                    onClick={() => { onConfidenceChange('low'); (isLast ? onCompleteTest : onNext)(); }}
+                                >
+                                    <X size={20} />
+                                    <span>覚えていない</span>
                                 </button>
-                            )}
-                            <button
-                                className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
-                                onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
-                                title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
-                            >
-                                😟 {confidence === 'low' ? '復習対象' : '復習に回す'}
-                                <kbd className="confidence-kbd">M</kbd>
-                            </button>
-                        </div>
+                                <button
+                                    className="judge-btn good"
+                                    onClick={() => { onConfidenceChange('high'); (isLast ? onCompleteTest : onNext)(); }}
+                                >
+                                    <Check size={20} />
+                                    <span>完全に覚えた</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="nav-right answer-nav">
+                                {isLast ? (
+                                    <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>
+                                ) : (
+                                    <button onClick={onNext} className="nav-btn action-btn">
+                                        {useNextAnswerLabel ? '次の回答' : '次の質問'}
+                                    </button>
+                                )}
+                                <button
+                                    className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
+                                    onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
+                                    title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
+                                >
+                                    😟 {confidence === 'low' ? '復習対象' : '復習に回す'}
+                                    <kbd className="confidence-kbd">M</kbd>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 

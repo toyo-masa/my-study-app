@@ -650,7 +650,10 @@ export const StudyRoute: React.FC = () => {
         }
 
         if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
-            setAnsweredMap(prev => ({ ...prev, [qId]: true }));
+            // 暗記問題は「覚えた / 覚えていない」ボタンが押されるまで answeredMap をセットしない
+            if (!isMemoQuestion) {
+                setAnsweredMap(prev => ({ ...prev, [qId]: true }));
+            }
             setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
             scheduleSaveSession();
             return;
@@ -858,7 +861,14 @@ export const StudyRoute: React.FC = () => {
     };
 
     const handleConfidenceChange = (questionId: number, level: ConfidenceLevel) => {
-        setConfidences(prev => ({ ...prev, [String(questionId)]: level }));
+        const qId = String(questionId);
+        const question = questions.find(q => q.id === questionId);
+        setConfidences(prev => ({ ...prev, [qId]: level }));
+        // 暗記問題は自信度の選択時に answered 扱いにする
+        if (question?.questionType === 'memorization' && !answeredMap[qId]) {
+            setAnsweredMap(prev => ({ ...prev, [qId]: true }));
+            scheduleSaveSession();
+        }
     };
 
     const handleCompleteTest = async () => {

@@ -40,6 +40,8 @@ interface RawQuestion {
     options: string; // JSON array or pipe separated
     correct_answers: string; // comma separated indices like "1,2"
     explanation: string;
+    questiontype?: string;
+    question_type?: string;
 }
 
 export type ParsedQuestion = Omit<Question, 'id' | 'quizSetId'>;
@@ -91,19 +93,66 @@ const processRows = (data: any[]): ParsedQuestion[] => {
                 }
             }
 
-            const correctAnswers = raw.correct_answers
-                ? String(raw.correct_answers).split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n))
+            // Fallback for "option 1", "option 2", etc.
+            if (options.length === 0) {
+                for (let i = 1; i <= 10; i++) {
+                    const opt = row[`option ${i}`] || row[`option${i}`] || row[`選択肢${i}`] || row[`選択肢 ${i}`];
+                    if (opt) {
+                        options.push(restoreMathCommas(String(opt)).trim());
+                    }
+                }
+            }
+
+            const rawCorrectAnswers = raw.correct_answers || row['correct answer'] || row['correct answer (1-4)'] || row['正解'] || row['正解 (1-4)'];
+            const correctAnswers = rawCorrectAnswers
+                ? String(rawCorrectAnswers).split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n))
                 : [];
 
+            let qType: 'quiz' | 'memorization' = 'quiz';
+            const explicitType = String(raw.questiontype || raw.question_type || row['問題タイプ'] || row['タイプ'] || row['questiontype'] || '').toLowerCase().trim();
+            if (explicitType === 'memorization' || explicitType === '暗記') {
+                qType = 'memorization';
+            } else if (explicitType === 'quiz' || explicitType === '選択') {
+                qType = 'quiz';
+            } else {
+                // Infer based on provided columns
+                if (options.length <= 1 && correctAnswers.length === 0) {
+                    qType = 'memorization';
+                } else if (options.length >= 2) {
+                    qType = 'quiz';
+                } else {
+                    qType = options.length <= 1 ? 'memorization' : 'quiz';
+                }
+            }
+
+            const categoryText = restoreMathCommas(raw.category || row['カテゴリ'] || '') || 'General';
+            const questionText = restoreMathCommas(raw.text || row['問題文'] || row['question'] || '') || '';
+            let explanationText = restoreMathCommas(raw.explanation || row['解説'] || '') || '';
+
+            if (qType === 'memorization') {
+                const ansText = options.join('\n');
+                if (ansText) {
+                    explanationText = explanationText ? `${ansText}\n\n${explanationText}` : ansText;
+                }
+                return {
+                    category: categoryText,
+                    text: questionText,
+                    options: [],
+                    correctAnswers: [],
+                    explanation: explanationText,
+                    questionType: qType
+                };
+            }
+
             return {
-                category: restoreMathCommas(raw.category) || 'General',
-                text: restoreMathCommas(raw.text) || '',
+                category: categoryText,
+                text: questionText,
                 options,
                 correctAnswers,
-                explanation: restoreMathCommas(raw.explanation) || '',
-                questionType: 'quiz' as const
+                explanation: explanationText,
+                questionType: qType
             };
-        }).filter(q => q.text && q.options.length > 0);
+        }).filter(q => q.text && (q.questionType === 'memorization' ? q.explanation.length > 0 : q.options.length > 0));
     } catch (error) {
         console.error('Error processing rows:', error);
         return [];
