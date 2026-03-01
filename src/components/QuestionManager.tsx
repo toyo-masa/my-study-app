@@ -425,12 +425,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
         const isMemo = quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization');
 
-        if (isMemo) {
-            if (cleanOptions.length === 0) {
-                showStatus('暗記カードの裏面（解答）として、選択肢に最低1つはテキストを入力してください', 'error');
-                return;
-            }
-        } else {
+        if (!isMemo) {
             if (cleanOptions.length < 2) {
                 showStatus('選択肢は2つ以上必要です', 'error');
                 return;
@@ -442,7 +437,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             category: editing.category,
             text: editing.text,
             options: cleanOptions,
-            correctAnswers: isMemo ? [0] : editing.correctAnswers,
+            correctAnswers: isMemo ? (cleanOptions.length > 0 ? [0] : []) : editing.correctAnswers,
             explanation: editing.explanation,
             questionType: editing.questionType,
         };
@@ -1180,7 +1175,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                         onChange={e => updateOption(idx, e.target.value)}
                                         placeholder={(quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) ? `解答 ${idx + 1}` : `選択肢 ${idx + 1}`}
                                     />
-                                    {editing.options.length > ((quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) ? 1 : 2) && (
+                                    {editing.options.length > ((quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) ? 0 : 2) && (
                                         <button className="icon-btn danger" onClick={() => removeOptionField(idx)}>
                                             <Trash2 size={14} />
                                         </button>

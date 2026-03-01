@@ -12,6 +12,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.23.3',
+        date: '2026年3月1日 14:15',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '暗記問題の編集画面で、選択肢を0件まで削除できるようになりました。',
+            '暗記問題において選択肢がない状態でもエラーにならず、正常に保存・学習できるように修正しました。',
+        ],
+    },
+    {
         version: '1.23.2',
         date: '2026年3月1日 11:55',
         improvements: [
