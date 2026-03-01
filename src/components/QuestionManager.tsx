@@ -11,7 +11,7 @@ import {
     completeHomeOnboarding
 } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
-import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter } from 'lucide-react';
+import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter, Pencil } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 import { BackButton } from './BackButton';
 import { useAppContext } from '../contexts/AppContext';
@@ -438,42 +438,44 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         }
 
         setIsSaving(true);
-        let addedNewQuestion = false;
+        const updatedData = {
+            category: editing.category,
+            text: editing.text,
+            options: cleanOptions,
+            correctAnswers: isMemo ? [0] : editing.correctAnswers,
+            explanation: editing.explanation,
+            questionType: editing.questionType,
+        };
+
+        const isAddingNew = isNew;
+        const targetId = editing.id;
+
+        // Optimistic UI update
+        if (!isAddingNew && targetId !== undefined) {
+            setQuestions(prev => prev.map(q => q.id === targetId ? { ...q, ...updatedData } as Question : q));
+        } else {
+            updateGlobalQuestionCount(1);
+        }
+
+        setEditing(null); // Close modal instantly
+
         try {
-            if (isNew) {
-                // Optimistic UI for new question
-                updateGlobalQuestionCount(1);
-                await addQuestion({
-                    quizSetId: quizSet.id!,
-                    category: editing.category,
-                    text: editing.text,
-                    options: cleanOptions,
-                    correctAnswers: isMemo ? [0] : editing.correctAnswers,
-                    explanation: editing.explanation,
-                    questionType: editing.questionType,
-                });
-                addedNewQuestion = true;
+            if (isAddingNew) {
+                await addQuestion({ quizSetId: quizSet.id!, ...updatedData });
                 showStatus('問題を追加しました', 'success');
-            } else if (editing.id !== undefined) {
-                await updateQuestion(editing.id, {
-                    category: editing.category,
-                    text: editing.text,
-                    options: cleanOptions,
-                    correctAnswers: isMemo ? [0] : editing.correctAnswers,
-                    explanation: editing.explanation,
-                    questionType: editing.questionType,
-                });
+            } else if (targetId !== undefined) {
+                await updateQuestion(targetId, updatedData);
                 showStatus('問題を更新しました', 'success');
             }
 
-            setEditing(null);
             await loadQuestions();
             if (onQuizSetUpdated) onQuizSetUpdated();
-            if (addedNewQuestion && isManageOnboardingActive && manageOnboardingStep === 'fillAndSave') {
+            if (isAddingNew && isManageOnboardingActive && manageOnboardingStep === 'fillAndSave') {
                 setManageOnboardingStep('tutorialComplete');
             }
         } catch (err) {
             onCloudError(err, '保存エラー: ' + (err as Error).message);
+            if (isAddingNew) updateGlobalQuestionCount(-1);
             await loadQuestions();
             if (onQuizSetUpdated) onQuizSetUpdated();
         } finally {
@@ -780,6 +782,11 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
             {statusMessage && (
                 <div className={`status-message-banner ${statusMessage.type}`} style={{
+                    position: 'fixed',
+                    bottom: '24px',
+                    right: '24px',
+                    zIndex: 100000,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                     padding: '0.75rem 1rem',
                     marginBottom: '1rem',
                     borderRadius: '8px',
@@ -787,9 +794,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    backgroundColor: statusMessage.type === 'success' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                    color: statusMessage.type === 'success' ? '#22c55e' : '#ef4444',
-                    border: `1px solid ${statusMessage.type === 'success' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                    backgroundColor: statusMessage.type === 'success' ? 'rgba(34, 197, 94, 0.95)' : 'rgba(239, 68, 68, 0.95)',
+                    color: 'white',
+                    border: `1px solid ${statusMessage.type === 'success' ? 'rgba(34, 197, 94, 1)' : 'rgba(239, 68, 68, 1)'}`
                 }}>
                     {statusMessage.text}
                 </div>
@@ -1322,8 +1329,17 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                     <td>{(q.questionType === 'memorization' || quizSet.type === 'memorization') ? q.options[0] : q.correctAnswers.filter((i): i is number => typeof i === 'number').map(i => i + 1).join(', ')}</td>
                                     <td>
                                         <button
+                                            className="icon-btn"
+                                            onClick={e => { e.stopPropagation(); handleEdit(q); }}
+                                            style={{ marginRight: '0.5rem' }}
+                                            title="編集"
+                                        >
+                                            <Pencil size={14} />
+                                        </button>
+                                        <button
                                             className="icon-btn danger"
                                             onClick={e => { e.stopPropagation(); handleDeleteClick(q.id!); }}
+                                            title="削除"
                                         >
                                             <Trash2 size={14} />
                                         </button>
