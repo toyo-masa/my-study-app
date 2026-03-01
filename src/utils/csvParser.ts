@@ -100,7 +100,8 @@ const processRows = (data: any[]): ParsedQuestion[] => {
                 text: restoreMathCommas(raw.text) || '',
                 options,
                 correctAnswers,
-                explanation: restoreMathCommas(raw.explanation) || ''
+                explanation: restoreMathCommas(raw.explanation) || '',
+                questionType: 'quiz' as const
             };
         }).filter(q => q.text && q.options.length > 0);
     } catch (error) {
@@ -141,11 +142,12 @@ const processMemorizationRows = (data: any[]): ParsedQuestion[] => {
         return {
             category: restoreMathCommas(raw.category) || 'General',
             text: restoreMathCommas(raw.question) || '',
-            options: answers,
-            correctAnswers: [],
-            explanation: restoreMathCommas(raw.explanation) || ''
+            options: [],
+            correctAnswers: answers,
+            explanation: restoreMathCommas(raw.explanation) || '',
+            questionType: 'memorization' as const
         };
-    }).filter(q => q.text && q.options.length > 0);
+    }).filter(q => q.text && q.correctAnswers.length > 0);
 };
 
 export const parseMemorizationQuestions = (file: File): Promise<ParsedQuestion[]> => {

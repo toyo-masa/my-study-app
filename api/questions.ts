@@ -9,6 +9,7 @@ type QuestionBody = {
     options?: unknown;
     correctAnswers?: unknown;
     explanation?: string;
+    questionType?: string;
 };
 
 export default async function handler(req: ApiHandlerRequest<QuestionBody>, res: ApiHandlerResponse) {
@@ -49,7 +50,8 @@ export default async function handler(req: ApiHandlerRequest<QuestionBody>, res:
                     text: q.text,
                     options: q.options,
                     correctAnswers: q.correct_answers,
-                    explanation: q.explanation
+                    explanation: q.explanation,
+                    questionType: q.question_type ?? 'quiz'
                 };
                 const t3 = performance.now();
                 console.log(`[GET /api/questions?id=${id}] Timing:`, {
@@ -83,7 +85,8 @@ export default async function handler(req: ApiHandlerRequest<QuestionBody>, res:
                     text: q.text,
                     options: q.options,
                     correctAnswers: q.correct_answers,
-                    explanation: q.explanation
+                    explanation: q.explanation,
+                    questionType: q.question_type ?? 'quiz'
                 }));
                 const t3 = performance.now();
                 console.log(`[GET /api/questions?quizSetId=${quizSetId}] Timing:`, {
@@ -110,14 +113,15 @@ export default async function handler(req: ApiHandlerRequest<QuestionBody>, res:
                 if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found' });
 
                 const result = await sql`
-                INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation)
+                INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation, question_type)
                 VALUES (
                     ${q.quizSetId}, 
                     ${q.category}, 
                     ${q.text}, 
                     ${JSON.stringify(q.options)}::jsonb, 
                     ${JSON.stringify(q.correctAnswers)}::jsonb, 
-                    ${q.explanation || ''}
+                    ${q.explanation || ''},
+                    ${q.questionType ?? 'quiz'}
                 )
                 RETURNING id
             `;
@@ -139,6 +143,7 @@ export default async function handler(req: ApiHandlerRequest<QuestionBody>, res:
                 if (q.options !== undefined) await sql`UPDATE questions SET options = ${JSON.stringify(q.options)}::jsonb WHERE id = ${id}`;
                 if (q.correctAnswers !== undefined) await sql`UPDATE questions SET correct_answers = ${JSON.stringify(q.correctAnswers)}::jsonb WHERE id = ${id}`;
                 if (q.explanation !== undefined) await sql`UPDATE questions SET explanation = ${q.explanation} WHERE id = ${id}`;
+                if (q.questionType !== undefined) await sql`UPDATE questions SET question_type = ${q.questionType} WHERE id = ${id}`;
 
                 return res.status(200).json({ success: true });
             } else if (method === 'DELETE') {

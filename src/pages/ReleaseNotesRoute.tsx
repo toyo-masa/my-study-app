@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.22.0',
+        date: '2026年3月1日 10:00',
+        improvements: [
+            '暗記カードの正解データを内部的に整理し、将来の学習セット統合に向けた基盤を整備しました。ユーザー体験への変化はありません。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.21.5',
         date: '2026年2月28日 19:02',
         improvements: [

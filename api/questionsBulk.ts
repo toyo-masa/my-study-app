@@ -9,6 +9,7 @@ type QuestionInput = {
     options?: unknown;
     correctAnswers?: unknown;
     explanation?: string;
+    questionType?: string;
 };
 
 type QuestionsBulkBody = {
@@ -68,19 +69,21 @@ export default async function handler(req: ApiHandlerRequest<QuestionsBulkBody>,
                 text: q.text,
                 options: JSON.stringify(q.options),
                 correct_answers: JSON.stringify(q.correctAnswers),
-                explanation: q.explanation || ''
+                explanation: q.explanation || '',
+                question_type: q.questionType ?? 'quiz'
             }));
 
             const result = await sql`
-                INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation)
-                SELECT quiz_set_id, category, text, options::jsonb, correct_answers::jsonb, explanation
+                INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation, question_type)
+                SELECT quiz_set_id, category, text, options::jsonb, correct_answers::jsonb, explanation, question_type
                 FROM jsonb_to_recordset(${JSON.stringify(insertData)}::jsonb) AS x(
                     quiz_set_id int, 
                     category text, 
                     text text, 
                     options text, 
                     correct_answers text, 
-                    explanation text
+                    explanation text,
+                    question_type text
                 )
                 RETURNING id
             `;

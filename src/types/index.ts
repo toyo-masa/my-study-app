@@ -1,14 +1,17 @@
+export type QuestionType = 'quiz' | 'memorization';
+
 export interface Question {
     id?: number; // Auto-incremented by Dexie
     quizSetId: number;
     category: string;
     text: string;
     options: string[];
-    correctAnswers: number[]; // 0-based indices
+    correctAnswers: (number | string)[]; // quiz: 0-based indices, memorization: answer texts
     explanation: string;
+    questionType?: QuestionType; // undefined は 'quiz' として扱う
 }
 
-export type QuizSetType = 'quiz' | 'memorization';
+export type QuizSetType = 'quiz' | 'memorization' | 'mixed';
 
 export interface QuizSet {
     id?: number; // Auto-incremented by Dexie

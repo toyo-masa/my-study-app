@@ -44,6 +44,31 @@ class StudyAppDB extends Dexie {
             reviewLogs: '++id, questionId, quizSetId, reviewedAt',
             appSettings: '&key',
         });
+        // Phase 1: memorization 問題の options → correctAnswers データ移行
+        this.version(5).stores({
+            quizSets: '++id, name',
+            questions: '++id, quizSetId, category',
+            histories: '++id, quizSetId, date',
+            reviewSchedules: '++id, questionId, quizSetId, nextDue, [quizSetId+nextDue], [quizSetId+questionId]',
+            reviewLogs: '++id, questionId, quizSetId, reviewedAt',
+            appSettings: '&key',
+        }).upgrade(async tx => {
+            // memorization セットの ID を取得
+            const memSets = await tx.table('quizSets').filter((s: QuizSet) => s.type === 'memorization').toArray();
+            const memSetIds = new Set(memSets.map((s: QuizSet) => s.id as number));
+            if (memSetIds.size === 0) return;
+
+            // 対象問題の options → correctAnswers に移動
+            await tx.table('questions')
+                .filter((q: Question) => memSetIds.has(q.quizSetId))
+                .modify((q: Question) => {
+                    if (q.options && q.options.length > 0) {
+                        q.correctAnswers = q.options as (number | string)[];
+                        q.options = [];
+                    }
+                    q.questionType = 'memorization';
+                });
+        });
     }
 }
 

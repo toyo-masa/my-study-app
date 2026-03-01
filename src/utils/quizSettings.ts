@@ -141,7 +141,7 @@ const shuffleQuestionOptions = (q: Question): Question => {
         oldIndexToNewIndexMap[o.index] = newIndex;
     });
 
-    const newCorrectAnswers = q.correctAnswers.map(oldIdx => oldIndexToNewIndexMap[oldIdx]);
+    const newCorrectAnswers = (q.correctAnswers as number[]).map(oldIdx => oldIndexToNewIndexMap[oldIdx]);
 
     return {
         ...q,

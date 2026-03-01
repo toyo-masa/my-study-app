@@ -172,6 +172,31 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE`;
     await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
 
+    // Phase 1: question_type カラムを追加（混合学習セット対応の基盤）
+    await sql`ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_type VARCHAR(50) DEFAULT 'quiz'`;
+
+    // Phase 1: 既存 memorization セットの問題に question_type = 'memorization' をセット
+    await sql`
+      UPDATE questions
+      SET question_type = 'memorization'
+      WHERE question_type = 'quiz'
+        AND quiz_set_id IN (SELECT id FROM quiz_sets WHERE type = 'memorization')
+    `;
+
+    // Phase 1: memorization 問題の options の内容を correct_answers に移動し、options を空配列にする
+    // （既に移行済みのものは skip: correct_answers が配列で最初の要素が文字列かどうかで判定）
+    await sql`
+      UPDATE questions
+      SET correct_answers = options,
+          options = '[]'::jsonb
+      WHERE question_type = 'memorization'
+        AND jsonb_array_length(options) > 0
+        AND (
+          jsonb_array_length(correct_answers) = 0
+          OR jsonb_typeof(correct_answers->0) = 'number'
+        )
+    `;
+
     // Remove duplicated schedules before applying the unique index.
     await sql`
       WITH ranked AS (

@@ -13,6 +13,7 @@ import {
     advanceHomeOnboardingToManage
 } from '../db';
 import { parseQuestions, parseMemorizationQuestions } from '../utils/csvParser';
+import type { QuizSetType } from '../types';
 
 export const HomeRoute: React.FC = () => {
     const {
@@ -31,7 +32,7 @@ export const HomeRoute: React.FC = () => {
     const [homeNotice, setHomeNotice] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
     const homeNoticeTimeoutRef = useRef<number | null>(null);
 
-    const formatQuizSetLabel = useCallback((name: string, type: 'quiz' | 'memorization') => {
+    const formatQuizSetLabel = useCallback((name: string, type: QuizSetType) => {
         const kind = type === 'memorization' ? '暗記カード' : '問題集';
         return `${kind}「${name}」`;
     }, []);

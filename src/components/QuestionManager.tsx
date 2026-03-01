@@ -202,7 +202,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             category: question.category || '',
             text: question.text,
             options: [...question.options],
-            correctAnswers: [...question.correctAnswers],
+            correctAnswers: [...question.correctAnswers] as number[],
             explanation: question.explanation || '',
         });
         setIsNew(false);
@@ -1265,7 +1265,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                         <MarkdownText content={q.text} className="table-markdown" />
                                     </td>
                                     <td>{q.options.length}</td>
-                                    <td>{q.correctAnswers.map(i => i + 1).join(', ')}</td>
+                                    <td>{q.correctAnswers.filter((i): i is number => typeof i === 'number').map(i => i + 1).join(', ')}</td>
                                     <td>
                                         <button
                                             className="icon-btn danger"

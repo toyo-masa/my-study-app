@@ -79,7 +79,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                 </h2>
 
                 <div className="answer-inputs">
-                    {question.options.map((ans, idx) => (
+                    {question.correctAnswers.map((ans, idx) => (
                         <div key={idx} className="input-wrapper">
                             <div className="input-group">
                                 <span className="input-index">{idx + 1}.</span>
@@ -99,7 +99,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                                         <span className="answer-label">正解</span>
                                     </div>
                                     <div className="answer-text">
-                                        <MarkdownText content={ans} />
+                                        <MarkdownText content={String(ans)} />
                                     </div>
                                 </div>
                             )}
@@ -323,11 +323,11 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                                                         </div>
                                                         <div className="review-answer-compare-column">
                                                             <strong className="review-answer-compare-title">正解</strong>
-                                                            {q.options.map((opt, i) => (
+                                                            {q.correctAnswers.map((opt, i) => (
                                                                 <div key={i} className="review-option correct review-option-multiline">
                                                                     <span style={{ flexShrink: 0 }}>{i + 1}.</span>
                                                                     <div className="review-option-text-block">
-                                                                        <MarkdownText content={opt} />
+                                                                        <MarkdownText content={String(opt)} />
                                                                     </div>
                                                                 </div>
                                                             ))}
