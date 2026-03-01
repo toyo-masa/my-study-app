@@ -1335,14 +1335,6 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 <tr key={q.id} className="table-row" onClick={() => handleEdit(q)}>
                                     <td>{originalIdx + 1}</td>
                                     <td>
-                                        <span className="tag" style={{
-                                            background: (q.questionType === 'memorization' || quizSet.type === 'memorization') ? 'rgba(236, 72, 153, 0.1)' : 'rgba(56, 189, 248, 0.1)',
-                                            color: (q.questionType === 'memorization' || quizSet.type === 'memorization') ? '#ec4899' : '#38bdf8',
-                                            border: `1px solid ${(q.questionType === 'memorization' || quizSet.type === 'memorization') ? 'rgba(236, 72, 153, 0.2)' : 'rgba(56, 189, 248, 0.2)'}`,
-                                            marginRight: '0.4rem'
-                                        }}>
-                                            {(q.questionType === 'memorization' || quizSet.type === 'memorization') ? '暗記' : '選択'}
-                                        </span>
                                         <span className="tag">{q.category || 'General'}</span>
                                     </td>
                                     <td className="text-cell">
