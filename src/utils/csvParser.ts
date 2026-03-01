@@ -138,16 +138,23 @@ const processMemorizationRows = (data: any[]): ParsedQuestion[] => {
     return data.map((row: any) => {
         const raw = row as RawMemorizationQuestion;
         const answers = splitPipeSeparatedValues(restoreMathCommas(raw.answer));
+        const ansText = answers.join('\n');
+        const expText = restoreMathCommas(raw.explanation) || '';
+
+        let mergedExplanation = expText;
+        if (ansText) {
+            mergedExplanation = expText ? `${ansText}\n\n${expText}` : ansText;
+        }
 
         return {
             category: restoreMathCommas(raw.category) || 'General',
             text: restoreMathCommas(raw.question) || '',
             options: [],
-            correctAnswers: answers,
-            explanation: restoreMathCommas(raw.explanation) || '',
+            correctAnswers: [],
+            explanation: mergedExplanation,
             questionType: 'memorization' as const
         };
-    }).filter(q => q.text && q.correctAnswers.length > 0);
+    }).filter(q => q.text && q.explanation.length > 0);
 };
 
 export const parseMemorizationQuestions = (file: File): Promise<ParsedQuestion[]> => {

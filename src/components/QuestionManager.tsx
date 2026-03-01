@@ -198,14 +198,33 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     };
 
     const handleEdit = (question: Question) => {
+        let mergedExplanation = question.explanation || '';
+        const qType = question.questionType || (quizSet.type === 'memorization' ? 'memorization' : 'quiz');
+
+        if (qType === 'memorization') {
+            const ansTexts: string[] = [];
+            if (question.options?.length > 0) {
+                ansTexts.push(...question.options);
+            } else if (question.correctAnswers?.length > 0) {
+                const strAnswers = question.correctAnswers.filter(a => typeof a === 'string');
+                ansTexts.push(...(strAnswers as any as string[]));
+            }
+            if (ansTexts.length > 0) {
+                const combinedAns = ansTexts.join('\n');
+                if (!mergedExplanation.includes(combinedAns)) {
+                    mergedExplanation = mergedExplanation ? `${combinedAns}\n\n${mergedExplanation}` : combinedAns;
+                }
+            }
+        }
+
         setEditing({
             id: question.id,
             category: question.category || '',
             text: question.text,
-            options: [...question.options],
-            correctAnswers: [...question.correctAnswers] as number[],
-            explanation: question.explanation || '',
-            questionType: question.questionType || (quizSet.type === 'memorization' ? 'memorization' : 'quiz')
+            options: qType === 'memorization' ? [] : [...question.options],
+            correctAnswers: qType === 'memorization' ? [] : [...question.correctAnswers] as number[],
+            explanation: mergedExplanation,
+            questionType: qType
         });
         setIsNew(false);
     };
@@ -213,7 +232,11 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const handleNew = () => {
         if (isManageOnboardingActive && manageOnboardingStep === 'addQuestionButton') {
             const autoQuestion = buildManageOnboardingAutoQuestion(quizSet.type);
-            setEditing(autoQuestion);
+            setEditing({
+                ...autoQuestion,
+                options: autoQuestion.questionType === 'memorization' ? [] : autoQuestion.options,
+                correctAnswers: autoQuestion.questionType === 'memorization' ? [] : autoQuestion.correctAnswers
+            });
             setIsNew(true);
             setManageOnboardingStep('fillAndSave');
             showStatus('チュートリアル用のサンプルを自動入力しました。内容を確認して保存してください。', 'success');
@@ -222,7 +245,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
         setEditing({
             ...emptyQuestion,
-            questionType: quizSet.type === 'memorization' ? 'memorization' : 'quiz'
+            questionType: quizSet.type === 'memorization' ? 'memorization' : 'quiz',
+            options: [],
+            correctAnswers: []
         });
         setIsNew(true);
     };
@@ -436,8 +461,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         const updatedData = {
             category: editing.category,
             text: editing.text,
-            options: cleanOptions,
-            correctAnswers: isMemo ? (cleanOptions.length > 0 ? [0] : []) : editing.correctAnswers,
+            options: isMemo ? [] : cleanOptions,
+            correctAnswers: isMemo ? [] : editing.correctAnswers,
             explanation: editing.explanation,
             questionType: editing.questionType,
         };
@@ -1145,7 +1170,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             )}
 
                             <label className="field-label">
-                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '裏面（表側の問題文に対する解答）' : '問題文'}
+                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '表面（問題文）' : '問題文'}
                             </label>
                             <textarea
                                 className="field-textarea"
@@ -1155,44 +1180,47 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '暗記カードの表側に表示するテキストを入力...' : '問題文を入力...'}
                             />
 
-                            <label className="field-label">
-                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '裏面（解答）' : '選択肢（✓で正解をマーク）'}
-                            </label>
-                            {editing.options.map((opt, idx) => (
-                                <div key={idx} className="option-edit-row">
-                                    {(quizSet.type !== 'memorization' && !(quizSet.type === 'mixed' && editing.questionType === 'memorization')) && (
-                                        <button
-                                            className={`correct-toggle ${editing.correctAnswers.includes(idx) ? 'active' : ''}`}
-                                            onClick={() => toggleCorrectAnswer(idx)}
-                                            title="正解にする"
-                                        >
-                                            ✓
-                                        </button>
-                                    )}
-                                    <input
-                                        className="field-input option-input"
-                                        value={opt}
-                                        onChange={e => updateOption(idx, e.target.value)}
-                                        placeholder={(quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) ? `解答 ${idx + 1}` : `選択肢 ${idx + 1}`}
-                                    />
-                                    {editing.options.length > ((quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) ? 0 : 2) && (
-                                        <button className="icon-btn danger" onClick={() => removeOptionField(idx)}>
-                                            <Trash2 size={14} />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                            <button className="add-option-btn" onClick={addOptionField}>
-                                <Plus size={14} /> {(quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) ? '解答を追加' : '選択肢を追加'}
-                            </button>
+                            {/* 選択肢（暗記モードの時は完全に非表示） */}
+                            {!(quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) && (
+                                <>
+                                    <label className="field-label">選択肢（✓で正解をマーク）</label>
+                                    {editing.options.map((opt, idx) => (
+                                        <div key={idx} className="option-edit-row">
+                                            <button
+                                                className={`correct-toggle ${editing.correctAnswers.includes(idx) ? 'active' : ''}`}
+                                                onClick={() => toggleCorrectAnswer(idx)}
+                                                title="正解にする"
+                                            >
+                                                ✓
+                                            </button>
+                                            <input
+                                                className="field-input option-input"
+                                                value={opt}
+                                                onChange={e => updateOption(idx, e.target.value)}
+                                                placeholder={`選択肢 ${idx + 1}`}
+                                            />
+                                            {editing.options.length > 2 && (
+                                                <button className="icon-btn danger" onClick={() => removeOptionField(idx)}>
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button className="add-option-btn" onClick={addOptionField}>
+                                        <Plus size={14} /> 選択肢を追加
+                                    </button>
+                                </>
+                            )}
 
-                            <label className="field-label">解説</label>
+                            <label className="field-label">
+                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '裏面（解答・解説）' : '解説'}
+                            </label>
                             <textarea
                                 className="field-textarea"
                                 value={editing.explanation}
                                 onChange={e => setEditing({ ...editing, explanation: e.target.value })}
                                 rows={3}
-                                placeholder="解説を入力..."
+                                placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '暗記カードの裏面に表示する解答や解説を入力...' : '解説を入力...'}
                             />
                         </div>
 

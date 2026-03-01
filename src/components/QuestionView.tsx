@@ -222,30 +222,51 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                     </p>
                 )}
 
-                {showAnswer && question.questionType === 'memorization' && question.options.length > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="memorization-answer"
-                        style={{ marginTop: '1rem', marginBottom: '1rem', padding: '1rem', backgroundColor: 'var(--surface-color)', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                    >
-                        <h3 style={{ marginTop: 0, marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>解答</h3>
-                        <MarkdownText content={question.options[0]} />
-                    </motion.div>
-                )}
-
                 {showAnswer && (
                     <div className="answer-row">
-                        {question.explanation && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="explanation-box"
-                            >
-                                <h3>解説</h3>
-                                <MarkdownText content={question.explanation?.replace(/\\n/g, '\n')} />
-                            </motion.div>
-                        )}
+                        {(() => {
+                            if (question.questionType === 'memorization') {
+                                const legacyAnswers: string[] = [];
+                                if (question.options?.length > 0) legacyAnswers.push(...question.options);
+                                else if (question.correctAnswers?.length > 0) {
+                                    const strAns = question.correctAnswers.filter(a => typeof a === 'string');
+                                    strAns.forEach(a => legacyAnswers.push(String(a)));
+                                }
+
+                                let backContent = question.explanation || '';
+                                if (legacyAnswers.length > 0) {
+                                    const combinedLegacy = legacyAnswers.join('\n');
+                                    if (!backContent.includes(combinedLegacy)) {
+                                        backContent = backContent ? `${combinedLegacy}\n\n${backContent}` : combinedLegacy;
+                                    }
+                                }
+
+                                if (!backContent) return null;
+
+                                return (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="explanation-box"
+                                    >
+                                        <h3>裏面（解答・解説）</h3>
+                                        <MarkdownText content={backContent.replace(/\\n/g, '\n')} />
+                                    </motion.div>
+                                );
+                            } else {
+                                if (!question.explanation) return null;
+                                return (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="explanation-box"
+                                    >
+                                        <h3>解説</h3>
+                                        <MarkdownText content={question.explanation?.replace(/\\n/g, '\n')} />
+                                    </motion.div>
+                                );
+                            }
+                        })()}
                         <div className="nav-right answer-nav">
                             {isLast ? (
                                 <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>

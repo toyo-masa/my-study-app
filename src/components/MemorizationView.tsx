@@ -78,45 +78,53 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                     <MarkdownText content={question.text} />
                 </h2>
 
-                <div className="answer-inputs">
-                    {question.correctAnswers.map((ans, idx) => (
-                        <div key={idx} className="input-wrapper">
-                            <div className="input-group">
-                                <span className="input-index">{idx + 1}.</span>
-                                <textarea
-                                    className="memorization-input"
-                                    placeholder="回答を入力..."
-                                    value={userInputs[idx] || ''}
-                                    onChange={(e) => handleInputChange(idx, e.target.value)}
-                                    disabled={showAnswer}
-                                    rows={2}
-                                />
-                            </div>
-                            {showAnswer && (
-                                <div className="correct-answer-card">
-                                    <div className="answer-header">
-                                        <Check size={14} className="check-icon" />
-                                        <span className="answer-label">正解</span>
-                                    </div>
-                                    <div className="answer-text">
-                                        <MarkdownText content={String(ans)} />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
+                {(() => {
+                    const legacyAnswers: string[] = [];
+                    if (question.options?.length > 0) legacyAnswers.push(...question.options);
+                    else if (question.correctAnswers?.length > 0) {
+                        const strAns = question.correctAnswers.filter(a => typeof a === 'string');
+                        strAns.forEach(a => legacyAnswers.push(String(a)));
+                    }
 
-                {showAnswer && question.explanation && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="explanation-box"
-                    >
-                        <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>解説</h4>
-                        <MarkdownText content={question.explanation} />
-                    </motion.div>
-                )}
+                    let backContent = question.explanation || '';
+                    if (legacyAnswers.length > 0) {
+                        const combinedLegacy = legacyAnswers.join('\n');
+                        if (!backContent.includes(combinedLegacy)) {
+                            backContent = backContent ? `${combinedLegacy}\n\n${backContent}` : combinedLegacy;
+                        }
+                    }
+
+                    return (
+                        <>
+                            <div className="answer-inputs">
+                                <div className="input-wrapper">
+                                    <div className="input-group">
+                                        <textarea
+                                            className="memorization-input"
+                                            placeholder="回答を入力（メモ用）..."
+                                            value={userInputs[0] || ''}
+                                            onChange={(e) => handleInputChange(0, e.target.value)}
+                                            disabled={showAnswer}
+                                            rows={2}
+                                            style={{ minHeight: '60px' }}
+                                        />
+                                    </div>
+                                    {showAnswer && backContent && (
+                                        <div className="correct-answer-card">
+                                            <div className="answer-header">
+                                                <Check size={14} className="check-icon" />
+                                                <span className="answer-label">裏面（解答・解説）</span>
+                                            </div>
+                                            <div className="answer-text" style={{ padding: '0.5rem 0 0 0' }}>
+                                                <MarkdownText content={backContent} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    );
+                })()}
             </div>
 
             <div className="control-bar">
