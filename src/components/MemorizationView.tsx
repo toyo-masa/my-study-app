@@ -113,7 +113,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                                         <div className="correct-answer-card">
                                             <div className="answer-header">
                                                 <Check size={14} className="check-icon" />
-                                                <span className="answer-label">裏面（解答・解説）</span>
+                                                <span className="answer-label">解答・解説</span>
                                             </div>
                                             <div className="answer-text" style={{ padding: '0.5rem 0 0 0' }}>
                                                 <MarkdownText content={backContent} />

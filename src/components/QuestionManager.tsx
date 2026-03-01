@@ -1170,14 +1170,14 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             )}
 
                             <label className="field-label">
-                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '表面（問題文）' : '問題文'}
+                                問題文
                             </label>
                             <textarea
                                 className="field-textarea"
                                 value={editing.text}
                                 onChange={e => setEditing({ ...editing, text: e.target.value })}
                                 rows={4}
-                                placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '暗記カードの表側に表示するテキストを入力...' : '問題文を入力...'}
+                                placeholder="問題文を入力..."
                             />
 
                             {/* 選択肢（暗記モードの時は完全に非表示） */}
@@ -1213,14 +1213,14 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             )}
 
                             <label className="field-label">
-                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '裏面（解答・解説）' : '解説'}
+                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答・解説' : '解説'}
                             </label>
                             <textarea
                                 className="field-textarea"
                                 value={editing.explanation}
                                 onChange={e => setEditing({ ...editing, explanation: e.target.value })}
                                 rows={3}
-                                placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '暗記カードの裏面に表示する解答や解説を入力...' : '解説を入力...'}
+                                placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答や解説を入力...' : '解説を入力...'}
                             />
                         </div>
 

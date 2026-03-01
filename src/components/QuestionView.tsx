@@ -249,7 +249,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         animate={{ opacity: 1, height: 'auto' }}
                                         className="explanation-box"
                                     >
-                                        <h3>裏面（解答・解説）</h3>
+                                        <h3>解答・解説</h3>
                                         <MarkdownText content={backContent.replace(/\\n/g, '\n')} />
                                     </motion.div>
                                 );
