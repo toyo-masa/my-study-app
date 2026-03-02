@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Question } from '../types';
+import type { Question, ConfidenceLevel } from '../types';
 import { CheckCircle, Circle, Bookmark, XCircle, Clock3, Lock } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 // Wait, I didn't install clsx. I'll just use standard string concat or template literals.
@@ -21,6 +21,8 @@ interface SidebarProps {
     mode?: 'normal' | 'memorization';
     memorizationStatus?: Record<number, 'memorized' | 'not_memorized' | 'unanswered'>;
     lockedQuestionIds?: number[];
+    /** 暗記問題の覚えた/覚えていない判定結果をサイドバーアイコンに反映するため */
+    confidences?: Record<string, ConfidenceLevel>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     mode = 'normal',
     memorizationStatus = {},
     lockedQuestionIds = [],
+    confidences = {},
 }) => {
     const lockedQuestionIdSet = new Set(lockedQuestionIds);
 
@@ -71,20 +74,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         const isRevealed = isAnswered && showAnswerMap[qIdStr];
                         isTemporarilyAnswered = isAnswered && !isRevealed;
 
-                        const isCorrect = isAnswered &&
-                            userAnswers.length === q.correctAnswers.length &&
-                            userAnswers.every(val => q.correctAnswers.includes(val));
-
-                        if (isRevealed) {
-                            icon = isCorrect ? (
-                                <CheckCircle size={16} className="icon-correct" />
-                            ) : (
-                                <XCircle size={16} className="icon-incorrect" />
-                            );
-                        } else if (isAnswered) {
-                            icon = <Clock3 size={16} className="icon-pending" />;
+                        // 暗記問題は confidence で正誤判定（覚えた=緑 / 覚えていない=赤）
+                        if (q.questionType === 'memorization') {
+                            const conf = confidences[qIdStr];
+                            if (conf === 'high') {
+                                icon = <CheckCircle size={16} className="icon-correct" />;
+                            } else if (conf === 'low') {
+                                icon = <XCircle size={16} className="icon-incorrect" />;
+                            } else if (showAnswerMap[qIdStr]) {
+                                // 解答表示中だがまだ判定前
+                                icon = <Clock3 size={16} className="icon-pending" />;
+                            } else {
+                                icon = <Circle size={16} className="icon-unanswered" />;
+                            }
                         } else {
-                            icon = <Circle size={16} className="icon-unanswered" />;
+                            const isCorrect = isAnswered &&
+                                userAnswers.length === q.correctAnswers.length &&
+                                userAnswers.every(val => q.correctAnswers.includes(val));
+
+                            if (isRevealed) {
+                                icon = isCorrect ? (
+                                    <CheckCircle size={16} className="icon-correct" />
+                                ) : (
+                                    <XCircle size={16} className="icon-incorrect" />
+                                );
+                            } else if (isAnswered) {
+                                icon = <Clock3 size={16} className="icon-pending" />;
+                            } else {
+                                icon = <Circle size={16} className="icon-unanswered" />;
+                            }
                         }
                     }
 

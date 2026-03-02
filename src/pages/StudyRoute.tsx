@@ -496,13 +496,18 @@ export const StudyRoute: React.FC = () => {
     };
 
     const findNextUnansweredIndex = (fromIndex: number, targetAnsweredMap: Record<string, boolean> = answeredMap): number => {
+        // answeredMap=true または showAnswerMap=true の問題は「完了済み」とみなす
+        const isDone = (idx: number) =>
+            targetAnsweredMap[String(questions[idx].id)] ||
+            showAnswerMap[String(questions[idx].id)];
+
         for (let i = fromIndex + 1; i < questions.length; i++) {
-            if (!targetAnsweredMap[String(questions[i].id)]) {
+            if (!isDone(i)) {
                 return i;
             }
         }
         for (let i = 0; i <= fromIndex; i++) {
-            if (!targetAnsweredMap[String(questions[i].id)]) {
+            if (!isDone(i)) {
                 return i;
             }
         }
@@ -884,18 +889,22 @@ export const StudyRoute: React.FC = () => {
         setAnsweredMap(newAnsweredMap);
         scheduleSaveSession();
 
-        // 即時モード: 全問回答済みなら完了
         if (feedbackTimingMode === 'immediate') {
-            const allAnswered = questions.every(q => newAnsweredMap[String(q.id)] === true);
-            if (allAnswered) {
+            // 全問の answeredMap または showAnswerMap が埋まれていれば完了
+            const allDone = questions.every(q => {
+                const id = String(q.id);
+                return newAnsweredMap[id] || showAnswerMap[id];
+            });
+            if (allDone) {
                 void finalizeTestCompletion(newConfidences);
                 return;
             }
+            // 次の未完了問题へ（findNextUnansweredIndex は showAnswerMap も考慮済み）
             const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
             if (nextIdx >= 0) setCurrentQuestionIndex(nextIdx);
             return;
         }
-        // 遅延モード: 次の未回答へ移動
+        // 遅延モード
         const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
         if (nextIdx >= 0) setCurrentQuestionIndex(nextIdx);
     };
@@ -1136,6 +1145,7 @@ export const StudyRoute: React.FC = () => {
                     markedQuestionIds={markedQuestions}
                     onToggleMark={handleToggleMark}
                     lockedQuestionIds={sidebarLockedQuestionIds}
+                    confidences={confidences}
                 />
             }
         >
