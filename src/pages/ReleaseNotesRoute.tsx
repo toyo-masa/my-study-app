@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.2',
+        date: '2026年3月3日 00:00',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '混合セットで「覚えた/覚えていない」をタップしても次の問題に進まないバグを根本修正しました。すべての回答タイミング設定（即時・遅延・遅延ブロック）で正しく進むようになりました。',
+        ],
+    },
+    {
         version: '1.24.1',
         date: '2026年3月2日 22:38',
         improvements: [

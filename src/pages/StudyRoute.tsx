@@ -899,15 +899,55 @@ export const StudyRoute: React.FC = () => {
                 void finalizeTestCompletion(newConfidences);
                 return;
             }
-            // 次の未完了問题へ（findNextUnansweredIndex は showAnswerMap も考慮済み）
             const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
             if (nextIdx >= 0) setCurrentQuestionIndex(nextIdx);
             return;
         }
-        // 遅延モード
+
+        // ------- 遅延モード -------
+        if (feedbackPhase === 'revealing') {
+            // handleNext の revealing フェーズと同じロジックで次の pending へ進む
+            const currentPos = pendingRevealQuestionIds.indexOf(questionId);
+            const nextPendingId = currentPos >= 0
+                ? pendingRevealQuestionIds[currentPos + 1]
+                : pendingRevealQuestionIds[0];
+
+            if (nextPendingId !== undefined) {
+                // 次の pending 問題の答えを表示して移動
+                setShowAnswerMap(prev => ({ ...prev, [String(nextPendingId)]: true }));
+                const nextIndex = findQuestionIndexById(nextPendingId);
+                if (nextIndex >= 0) setCurrentQuestionIndex(nextIndex);
+                return;
+            }
+
+            // pending がすべて確認済み
+            setPendingRevealQuestionIds([]);
+            const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
+            if (feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0) {
+                // delayed_block: まだ回答していない問題が残っている
+                setFeedbackPhase('answering');
+                setCurrentQuestionIndex(nextUnansweredIndex);
+                return;
+            }
+            // delayed_end or 全問完了 → テスト終了
+            void finalizeTestCompletion(newConfidences);
+            return;
+        }
+
+        // answering フェーズ: 次の未回答問題へ移動、なければ reveal 開始
         const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
-        if (nextIdx >= 0) setCurrentQuestionIndex(nextIdx);
+        if (nextIdx >= 0) {
+            setCurrentQuestionIndex(nextIdx);
+        } else {
+            const unrevealedAnswered = getUnrevealedAnsweredQuestionIds(newAnsweredMap);
+            if (unrevealedAnswered.length > 0) {
+                enterRevealPhase(unrevealedAnswered);
+            } else {
+                void finalizeTestCompletion(newConfidences);
+            }
+        }
     };
+
 
     const handleCompleteTest = async () => {
         const answeredCount = Object.values(answeredMap).filter(Boolean).length;
