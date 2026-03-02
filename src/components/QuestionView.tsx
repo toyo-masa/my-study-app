@@ -21,6 +21,11 @@ interface QuestionViewProps {
     onMemoChange: (value: string) => void;
     confidence: ConfidenceLevel | null;
     onConfidenceChange: (level: ConfidenceLevel) => void;
+    /** 暗記問題専用: 覚えた(true) / 覚えていない(false) 判定 */
+    onMemorizationJudge: (isRemembered: boolean) => void;
+    /** 暗記問題の回答記述欄の値 */
+    memorizationAnswer: string;
+    onMemorizationAnswerChange: (value: string) => void;
     feedbackTimingMode: FeedbackTimingMode;
     isAnswerLocked: boolean;
     revealReadyCount?: number | null;
@@ -43,19 +48,24 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     onMemoChange,
     confidence,
     onConfidenceChange,
+    onMemorizationJudge,
+    memorizationAnswer,
+    onMemorizationAnswerChange,
     feedbackTimingMode,
     isAnswerLocked,
     revealReadyCount = null,
     useNextAnswerLabel = false,
 }) => {
+    const isMemoQuestion = question.questionType === 'memorization';
+
     // キーボードショートカット
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         // メモ入力中（textarea/input にフォーカス）はショートカット無効
         const tag = (e.target as HTMLElement).tagName;
         if (tag === 'TEXTAREA' || tag === 'INPUT') return;
 
-        // 1-4: 選択肢トグル（解答確認前のみ）
-        if (!showAnswer && e.key >= '1' && e.key <= '4') {
+        // 1-4: 選択肢トグル（クイズ問題・解答確認前のみ）
+        if (!isMemoQuestion && !showAnswer && e.key >= '1' && e.key <= '4') {
             const idx = parseInt(e.key) - 1;
             if (idx < question.options.length) {
                 e.preventDefault();
@@ -64,8 +74,8 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             return;
         }
 
-        // スペース: 解答確認 or 次の問題
-        if (e.key === ' ' || e.code === 'Space') {
+        // スペース: 解答確認 or 次の問題（クイズ問題のみ）
+        if (!isMemoQuestion && (e.key === ' ' || e.code === 'Space')) {
             e.preventDefault();
             if (!showAnswer) {
                 const shouldAutoSetConfidence = !confidence && !isAnswerLocked && selectedOptions.length > 0;
@@ -79,8 +89,8 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             return;
         }
 
-        // V, B, N: 自信度（解答確認前のみ）
-        if (!showAnswer) {
+        // V, N: 自信度（クイズ問題・解答確認前のみ）
+        if (!isMemoQuestion && !showAnswer) {
             if (e.key.toLowerCase() === 'v') {
                 e.preventDefault();
                 onConfidenceChange('low');
@@ -90,22 +100,48 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             }
         }
 
-        // M: 復習フラグトグル（解答確認後のみ）
-        if (showAnswer && e.key.toLowerCase() === 'm') {
+        // M: 復習フラグトグル（クイズ問題・解答確認後のみ）
+        if (!isMemoQuestion && showAnswer && e.key.toLowerCase() === 'm') {
             e.preventDefault();
             onConfidenceChange(confidence === 'low' ? 'high' : 'low');
         }
-    }, [showAnswer, question.options.length, onToggleOption, onShowAnswer, onNext, onCompleteTest, isLast, confidence, onConfidenceChange, isAnswerLocked, selectedOptions.length]);
+    }, [isMemoQuestion, showAnswer, question.options.length, onToggleOption, onShowAnswer, onNext, onCompleteTest, isLast, confidence, onConfidenceChange, isAnswerLocked, selectedOptions.length]);
 
     useEffect(() => {
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [handleKeyDown]);
 
+    // 問題の指示テキスト（複数選択時のみ個数を表示）
+    const instructionText = (() => {
+        if (isMemoQuestion) return null;
+        if (question.correctAnswers.length > 1) {
+            return `${question.correctAnswers.length} つ選択してください`;
+        }
+        return null;
+    })();
+
+    // 暗記問題の解答・解説コンテンツ
+    const memorizationBackContent = (() => {
+        if (!isMemoQuestion) return '';
+        const legacyAnswers: string[] = [];
+        if (question.options?.length > 0) legacyAnswers.push(...question.options);
+        else if (question.correctAnswers?.length > 0) {
+            const strAns = question.correctAnswers.filter(a => typeof a === 'string');
+            strAns.forEach(a => legacyAnswers.push(String(a)));
+        }
+        let backContent = question.explanation || '';
+        if (legacyAnswers.length > 0) {
+            const combined = legacyAnswers.join('\n');
+            if (!backContent.includes(combined)) {
+                backContent = backContent ? `${combined}\n\n${backContent}` : combined;
+            }
+        }
+        return backContent;
+    })();
+
     return (
         <div className="question-view">
-
-
             <motion.div
                 key={question.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -128,16 +164,33 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         </div>
                     </h2>
                 </div>
-                <p className="instruction">
-                    {question.questionType === 'memorization'
-                        ? '解答を確認して自信度を選択してください。'
-                        : question.correctAnswers.length > 1
-                            ? `この要件を満たすアプローチは ${question.correctAnswers.length} つ どれですか。（${question.correctAnswers.length} つ選択してください）`
-                            : 'この要件を満たすアプローチはどれですか。（1つ選択してください）'
-                    }
-                </p>
 
-                {question.questionType !== 'memorization' && (
+                {/* 複数選択時のみ個数を案内 */}
+                {instructionText && (
+                    <p className="instruction">{instructionText}</p>
+                )}
+
+                {/* 暗記問題: 回答記述欄 */}
+                {isMemoQuestion && (
+                    <div className="answer-inputs" style={{ marginBottom: '1rem' }}>
+                        <div className="input-wrapper">
+                            <div className="input-group">
+                                <textarea
+                                    className="memorization-input"
+                                    placeholder="回答を入力（メモ用）..."
+                                    value={memorizationAnswer}
+                                    onChange={(e) => onMemorizationAnswerChange(e.target.value)}
+                                    disabled={showAnswer}
+                                    rows={2}
+                                    style={{ minHeight: '60px' }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* クイズ問題: 選択肢リスト */}
+                {!isMemoQuestion && (
                     <div className="options-list">
                         {question.options.map((option, idx) => {
                             const isSelected = selectedOptions.includes(idx);
@@ -176,9 +229,11 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                     </div>
                 )}
 
+                {/* 解答確認前ナビゲーション */}
                 {!showAnswer && (
                     <div className="navigation-buttons inline-nav">
-                        {question.questionType !== 'memorization' && (
+                        {/* クイズ問題のみ自信度ボタンを表示 */}
+                        {!isMemoQuestion && (
                             <div className="confidence-select-section">
                                 <span className="confidence-prompt">自信度：</span>
                                 <div className="confidence-buttons-inline">
@@ -202,8 +257,10 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         <div style={{ flex: 1 }} />
                         <div className="nav-right">
                             <button onClick={() => {
-                                const shouldAutoSetConfidence = !confidence && !isAnswerLocked && selectedOptions.length > 0;
-                                if (shouldAutoSetConfidence) onConfidenceChange('high');
+                                if (!isMemoQuestion) {
+                                    const shouldAutoSetConfidence = !confidence && !isAnswerLocked && selectedOptions.length > 0;
+                                    if (shouldAutoSetConfidence) onConfidenceChange('high');
+                                }
                                 onShowAnswer();
                             }} className="nav-btn action-btn">
                                 {(revealReadyCount !== null && revealReadyCount > 0)
@@ -224,40 +281,43 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                     </p>
                 )}
 
+                {/* 解答確認後 */}
                 {showAnswer && (
                     <div className="answer-row">
-                        {(() => {
-                            if (question.questionType === 'memorization') {
-                                const legacyAnswers: string[] = [];
-                                if (question.options?.length > 0) legacyAnswers.push(...question.options);
-                                else if (question.correctAnswers?.length > 0) {
-                                    const strAns = question.correctAnswers.filter(a => typeof a === 'string');
-                                    strAns.forEach(a => legacyAnswers.push(String(a)));
-                                }
-
-                                let backContent = question.explanation || '';
-                                if (legacyAnswers.length > 0) {
-                                    const combinedLegacy = legacyAnswers.join('\n');
-                                    if (!backContent.includes(combinedLegacy)) {
-                                        backContent = backContent ? `${combinedLegacy}\n\n${backContent}` : combinedLegacy;
-                                    }
-                                }
-
-                                if (!backContent) return null;
-
-                                return (
+                        {/* 暗記問題: 解答・解説表示 → 覚えた/覚えていないで判定 */}
+                        {isMemoQuestion ? (
+                            <>
+                                {memorizationBackContent ? (
                                     <motion.div
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
                                         className="explanation-box"
                                     >
                                         <h3>解答・解説</h3>
-                                        <MarkdownText content={backContent.replace(/\\n/g, '\n')} />
+                                        <MarkdownText content={memorizationBackContent.replace(/\\n/g, '\n')} />
                                     </motion.div>
-                                );
-                            } else {
-                                if (!question.explanation) return null;
-                                return (
+                                ) : null}
+                                <div className="judgement-buttons" style={{ width: '100%' }}>
+                                    <button
+                                        className="judge-btn bad"
+                                        onClick={() => onMemorizationJudge(false)}
+                                    >
+                                        <X size={20} />
+                                        <span>覚えていない</span>
+                                    </button>
+                                    <button
+                                        className="judge-btn good"
+                                        onClick={() => onMemorizationJudge(true)}
+                                    >
+                                        <Check size={20} />
+                                        <span>完全に覚えた</span>
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            /* クイズ問題: 解説 + 次へ/復習フラグ */
+                            <>
+                                {question.explanation ? (
                                     <motion.div
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
@@ -266,44 +326,25 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         <h3>解説</h3>
                                         <MarkdownText content={question.explanation?.replace(/\\n/g, '\n')} />
                                     </motion.div>
-                                );
-                            }
-                        })()}
-                        {question.questionType === 'memorization' ? (
-                            <div className="judgement-buttons" style={{ width: '100%' }}>
-                                <button
-                                    className="judge-btn bad"
-                                    onClick={() => { onConfidenceChange('low'); (isLast ? onCompleteTest : onNext)(); }}
-                                >
-                                    <X size={20} />
-                                    <span>覚えていない</span>
-                                </button>
-                                <button
-                                    className="judge-btn good"
-                                    onClick={() => { onConfidenceChange('high'); (isLast ? onCompleteTest : onNext)(); }}
-                                >
-                                    <Check size={20} />
-                                    <span>完全に覚えた</span>
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="nav-right answer-nav">
-                                {isLast ? (
-                                    <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>
-                                ) : (
-                                    <button onClick={onNext} className="nav-btn action-btn">
-                                        {useNextAnswerLabel ? '次の回答' : '次の質問'}
+                                ) : null}
+                                <div className="nav-right answer-nav">
+                                    {isLast ? (
+                                        <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>
+                                    ) : (
+                                        <button onClick={onNext} className="nav-btn action-btn">
+                                            {useNextAnswerLabel ? '次の回答' : '次の質問'}
+                                        </button>
+                                    )}
+                                    <button
+                                        className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
+                                        onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
+                                        title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
+                                    >
+                                        😟 {confidence === 'low' ? '復習対象' : '復習に回す'}
+                                        <kbd className="confidence-kbd">M</kbd>
                                     </button>
-                                )}
-                                <button
-                                    className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
-                                    onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
-                                    title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
-                                >
-                                    😟 {confidence === 'low' ? '復習対象' : '復習に回す'}
-                                    <kbd className="confidence-kbd">M</kbd>
-                                </button>
-                            </div>
+                                </div>
+                            </>
                         )}
                     </div>
                 )}

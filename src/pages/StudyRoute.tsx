@@ -42,6 +42,7 @@ export const StudyRoute: React.FC = () => {
     const [feedbackBlockSize, setFeedbackBlockSize] = useState(5);
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
     const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
+    const [memorizationAnswers, setMemorizationAnswers] = useState<Record<string, string>>({});
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
     const [endTime, setEndTime] = useState<Date>(new Date());
@@ -553,7 +554,7 @@ export const StudyRoute: React.FC = () => {
         }, 1800);
     };
 
-    const finalizeTestCompletion = async () => {
+    const finalizeTestCompletion = async (overrideConfidences?: Record<string, ConfidenceLevel>) => {
         const end = new Date();
         setEndTime(end);
         setIsTestCompleted(true);
@@ -561,11 +562,14 @@ export const StudyRoute: React.FC = () => {
         if (activeQuizSet?.id !== undefined) {
             await clearSessionFromStorage(activeQuizSet.id);
 
+            // overrideConfidences: 暗記問題の最後判定直後は state が未反映のため引数で渡す
+            const effectiveConfidences = overrideConfidences ?? confidences;
+
             let correctCount = 0;
             questions.forEach(q => {
                 const qKey = String(q.id);
                 const userAnswers = answers[qKey] || [];
-                const conf = confidences[qKey] || 'high';
+                const conf = effectiveConfidences[qKey] || 'high';
                 const isCorrect = q.questionType === 'memorization'
                     ? conf === 'high'
                     : (userAnswers.length === q.correctAnswers.length && userAnswers.every(a => q.correctAnswers.includes(a)));
@@ -583,7 +587,7 @@ export const StudyRoute: React.FC = () => {
                 answers,
                 markedQuestionIds: markedQuestions,
                 memos,
-                confidences,
+                confidences: effectiveConfidences,
                 questionIds: questions.map(q => q.id!),
                 mode: historyMode,
                 feedbackTimingMode,
@@ -600,7 +604,7 @@ export const StudyRoute: React.FC = () => {
             for (const q of questions) {
                 const qKey = String(q.id);
                 const userAnswers = answers[qKey] || [];
-                const confidence: ConfidenceLevel = confidences[qKey] || 'high';
+                const confidence: ConfidenceLevel = effectiveConfidences[qKey] || 'high';
                 const isCorrect = q.questionType === 'memorization'
                     ? confidence === 'high'
                     : (userAnswers.length === q.correctAnswers.length && userAnswers.every(a => q.correctAnswers.includes(a)));
@@ -650,7 +654,7 @@ export const StudyRoute: React.FC = () => {
         }
 
         if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
-            // 暗記問題は「覚えた / 覚えていない」ボタンが押されるまで answeredMap をセットしない
+            // 暗記問題は answeredMap を即セットしない（onMemorizationJudge で判定後にセット）
             if (!isMemoQuestion) {
                 setAnsweredMap(prev => ({ ...prev, [qId]: true }));
             }
@@ -861,14 +865,39 @@ export const StudyRoute: React.FC = () => {
     };
 
     const handleConfidenceChange = (questionId: number, level: ConfidenceLevel) => {
+        setConfidences(prev => ({ ...prev, [String(questionId)]: level }));
+    };
+
+    /**
+     * 混合セット内の暗記問題用判定ハンドラ。
+     * 「覚えた（isRemembered=true）」→ confidence='high'（正解）
+     * 「覚えていない（isRemembered=false）」→ confidence='low'（不正解）
+     * 最後の問題の場合は overrideConfidences を直接 finalizeTestCompletion に渡して
+     * React state の非同期更新タイミング問題を回避する。
+     */
+    const handleMemorizationJudge = (questionId: number, isRemembered: boolean) => {
+        const level: ConfidenceLevel = isRemembered ? 'high' : 'low';
         const qId = String(questionId);
-        const question = questions.find(q => q.id === questionId);
-        setConfidences(prev => ({ ...prev, [qId]: level }));
-        // 暗記問題は自信度の選択時に answered 扱いにする
-        if (question?.questionType === 'memorization' && !answeredMap[qId]) {
-            setAnsweredMap(prev => ({ ...prev, [qId]: true }));
-            scheduleSaveSession();
+        const newConfidences = { ...confidences, [qId]: level };
+        const newAnsweredMap = { ...answeredMap, [qId]: true };
+        setConfidences(newConfidences);
+        setAnsweredMap(newAnsweredMap);
+        scheduleSaveSession();
+
+        // 即時モード: 全問回答済みなら完了
+        if (feedbackTimingMode === 'immediate') {
+            const allAnswered = questions.every(q => newAnsweredMap[String(q.id)] === true);
+            if (allAnswered) {
+                void finalizeTestCompletion(newConfidences);
+                return;
+            }
+            const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
+            if (nextIdx >= 0) setCurrentQuestionIndex(nextIdx);
+            return;
         }
+        // 遅延モード: 次の未回答へ移動
+        const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
+        if (nextIdx >= 0) setCurrentQuestionIndex(nextIdx);
     };
 
     const handleCompleteTest = async () => {
@@ -1172,6 +1201,9 @@ export const StudyRoute: React.FC = () => {
                         onMemoChange={(val) => handleMemoChange(currentQuestion.id!, val)}
                         confidence={confidences[qId] || null}
                         onConfidenceChange={(level) => handleConfidenceChange(currentQuestion.id!, level)}
+                        onMemorizationJudge={(isRemembered) => handleMemorizationJudge(currentQuestion.id!, isRemembered)}
+                        memorizationAnswer={memorizationAnswers[qId] || ''}
+                        onMemorizationAnswerChange={(val) => setMemorizationAnswers(prev => ({ ...prev, [qId]: val }))}
                         feedbackTimingMode={feedbackTimingMode}
                         isAnswerLocked={isAnswerLocked}
                         revealReadyCount={revealReadyCount}
