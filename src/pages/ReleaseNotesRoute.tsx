@@ -12,9 +12,10 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
-        version: '1.24.4',
+        version: '1.24.5',
         date: new Date().toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
         improvements: [
+            'トップページのヘルプ画面に、統合問題（混合セット）用のAI指示文を追加しました。選択問題と暗記問題が混ざった問題集をAIに作成させやすくなりました。',
             'テスト結果画面で不要なメニューボタン（ハンバーガーメニュー）を非表示にしました。',
             '問題詳細画面の「中断から再開」ボタン内に、いつ中断したデータなのか日時を表示するようにしました。',
         ],

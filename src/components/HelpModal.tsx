@@ -81,13 +81,47 @@ question,answer,category,explanation
 【変換対象の内容】
 `;
 
+const MIXED_HEADER = `category,text,options,correct_answers,explanation,question_type`;
+const MIXED_EXAMPLE = `General,日本の首都は?,東京|大阪|京都,1,東京です,quiz
+一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します,memorization`;
+const MIXED_AI_INSTRUCTION = `以下の内容を、指定のCSVフォーマットに変換し、CSVファイルで出力してください。
+
+【CSVフォーマット仕様】
+ヘッダー行: category,text,options,correct_answers,explanation,question_type
+
+各カラムの説明:
+- category: カテゴリ名（例: General, 日常）
+- text: 問題文
+- options: 選択問題の場合は選択肢を | 区切りで記述。暗記問題の場合は正解を | 区切りで記述。
+- correct_answers: 選択問題の場合、正解番号（1始まり）をカンマ区切りで記述。暗記問題の場合は空欄。
+- explanation: 解説文
+- question_type: 選択問題なら quiz、暗記問題なら memorization を指定
+
+記述例:
+category,text,options,correct_answers,explanation,question_type
+General,日本の首都は?,東京|大阪|京都,1,東京です,quiz
+一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します,memorization
+
+【注意事項】
+- 1行目はヘッダー行にしてください
+- 選択肢や暗記の正解は | で区切ってください
+- 正解番号は1始まりです
+- テキスト中にカンマが含まれる場合はダブルクォートで囲んでください
+- 選択問題（quiz）と暗記問題（memorization）をバランスよく混ぜて作成してください
+- 問題の順番は作成後にランダムに入れ替えてください
+- 数式を表す場合は必ずKaTeX記法を使用し、インライン数式は $...$、ブロック数式は $$...$$ のように囲んでください
+- 解説は「その1行だけ読めば理解できる」粒度で、2〜5文程度で具体例も1つ入れてください
+
+【変換対象の内容】
+`;
+
 interface HelpModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
-    const [activeTab, setActiveTab] = useState<'quiz' | 'memorization'>('quiz');
+    const [activeTab, setActiveTab] = useState<'quiz' | 'memorization' | 'mixed'>('quiz');
     const [copied, setCopied] = useState<string | null>(null);
 
     const handleCopy = async (text: string, label: string) => {
@@ -112,6 +146,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                         <div className="help-tabs">
                             <button className={activeTab === 'quiz' ? 'active' : ''} onClick={() => setActiveTab('quiz')}>通常問題集</button>
                             <button className={activeTab === 'memorization' ? 'active' : ''} onClick={() => setActiveTab('memorization')}>暗記カード</button>
+                            <button className={activeTab === 'mixed' ? 'active' : ''} onClick={() => setActiveTab('mixed')}>混合セット</button>
                         </div>
                         <button className="help-close-btn" onClick={onClose}>
                             <X size={16} />
@@ -154,7 +189,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                                     </button>
                                 </div>
                             </>
-                        ) : (
+                        ) : activeTab === 'memorization' ? (
                             <>
                                 <p className="help-section-title">ヘッダー行（必須）</p>
                                 <div className="help-code-block">
@@ -185,6 +220,42 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                                 <div className="help-ai-instruction">
                                     <button className="help-ai-copy-btn" onClick={() => handleCopy(MEMO_AI_INSTRUCTION, 'ai_memo')}>
                                         {copied === 'ai_memo' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="help-section-title">ヘッダー行（必須）</p>
+                                <div className="help-code-block">
+                                    <code>{MIXED_HEADER}</code>
+                                    <button className="help-copy-btn" onClick={() => handleCopy(MIXED_HEADER, 'header_mixed')}>
+                                        {copied === 'header_mixed' ? <Check size={14} /> : <Copy size={14} />}
+                                    </button>
+                                </div>
+
+                                <p className="help-section-title">各カラムの説明</p>
+                                <table className="help-table">
+                                    <tbody>
+                                        <tr><td><code>category</code></td><td>カテゴリ名</td></tr>
+                                        <tr><td><code>text</code></td><td>問題文</td></tr>
+                                        <tr><td><code>options</code></td><td>選択肢 / 暗記の正解 (<code>|</code> 区切り)</td></tr>
+                                        <tr><td><code>correct_answers</code></td><td>正解番号 (quiz用)</td></tr>
+                                        <tr><td><code>explanation</code></td><td>解説文</td></tr>
+                                        <tr><td><code>question_type</code></td><td><code>quiz</code> または <code>memorization</code></td></tr>
+                                    </tbody>
+                                </table>
+
+                                <p className="help-section-title">記述例</p>
+                                <div className="help-code-block">
+                                    <code>{MIXED_EXAMPLE}</code>
+                                    <button className="help-copy-btn" onClick={() => handleCopy(MIXED_HEADER + '\n' + MIXED_EXAMPLE, 'example_mixed')}>
+                                        {copied === 'example_mixed' ? <Check size={14} /> : <Copy size={14} />}
+                                    </button>
+                                </div>
+
+                                <div className="help-ai-instruction">
+                                    <button className="help-ai-copy-btn" onClick={() => handleCopy(MIXED_AI_INSTRUCTION, 'ai_mixed')}>
+                                        {copied === 'ai_mixed' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
                                     </button>
                                 </div>
                             </>
