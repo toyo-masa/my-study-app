@@ -241,14 +241,14 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         className={`confidence-btn-inline low ${confidence === 'low' ? 'active' : ''}`}
                                         onClick={() => onConfidenceChange('low')}
                                     >
-                                        <span className="btn-label">😟 自信なし</span>
+                                        <span className="btn-label">自信なし</span>
                                         <kbd className="confidence-kbd">V</kbd>
                                     </button>
                                     <button
                                         className={`confidence-btn-inline high ${confidence === 'high' ? 'active' : ''}`}
                                         onClick={() => onConfidenceChange('high')}
                                     >
-                                        <span className="btn-label">😊 確信</span>
+                                        <span className="btn-label">確信</span>
                                         <kbd className="confidence-kbd">N</kbd>
                                     </button>
                                 </div>
@@ -340,7 +340,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
                                         title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
                                     >
-                                        😟 {confidence === 'low' ? '復習対象' : '復習に回す'}
+                                        {confidence === 'low' ? '復習対象' : '復習に回す'}
                                         <kbd className="confidence-kbd">M</kbd>
                                     </button>
                                 </div>

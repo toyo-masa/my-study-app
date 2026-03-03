@@ -284,7 +284,7 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
                                             <span className={`review-result-badge ${isCorrect ? 'correct' : 'incorrect'}`}>
                                                 {isCorrect ? '○' : '✗'}
                                             </span>
-                                            {isLow && <span className="review-low-badge">😟</span>}
+                                            {isLow && <span className="review-low-badge">復習対象</span>}
                                             <span className="review-question-num">Q{originalIndex + 1}</span>
                                         </div>
                                         <div className="review-question-text"><MarkdownText content={q.text} /></div>
