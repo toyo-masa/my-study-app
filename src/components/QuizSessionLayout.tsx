@@ -10,6 +10,7 @@ interface QuizSessionLayoutProps {
     showSidebar: boolean;
     onBack: () => void;
     sessionBadge?: string;
+    hideMenuButton?: boolean;
     onToggleSidebar: () => void;
     onCloseSidebar: () => void;
     sidebarContent: React.ReactNode;
@@ -23,6 +24,7 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
     showSidebar,
     onBack,
     sessionBadge,
+    hideMenuButton,
     onToggleSidebar,
     onCloseSidebar,
     sidebarContent,
@@ -41,9 +43,11 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
                         <ArrowLeft size={16} />
                         戻る
                     </button>
-                    <button className="menu-btn" onClick={onToggleSidebar}>
-                        <Menu />
-                    </button>
+                    {!hideMenuButton && (
+                        <button className="menu-btn" onClick={onToggleSidebar}>
+                            <Menu />
+                        </button>
+                    )}
                     <div className="header-title-wrap">
                         <h1>{title}</h1>
                         {sessionBadge && <span className="session-mode-badge">{sessionBadge}</span>}

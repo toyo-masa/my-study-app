@@ -207,7 +207,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 ansTexts.push(...question.options);
             } else if (question.correctAnswers?.length > 0) {
                 const strAnswers = question.correctAnswers.filter(a => typeof a === 'string');
-                ansTexts.push(...(strAnswers as any as string[]));
+                ansTexts.push(...(strAnswers as unknown as string[]));
             }
             if (ansTexts.length > 0) {
                 const combinedAns = ansTexts.join('\n');
@@ -482,7 +482,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         try {
             if (isAddingNew) {
                 await addQuestion({ quizSetId: quizSet.id!, ...updatedData });
-                showStatus('問題を追加しました', 'success');
+                const nowStr = new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                showStatus(`問題を追加しました（追加日時：${nowStr}）`, 'success');
             } else if (targetId !== undefined) {
                 await updateQuestion(targetId, updatedData);
                 showStatus('問題を更新しました', 'success');

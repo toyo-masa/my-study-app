@@ -1170,6 +1170,7 @@ export const StudyRoute: React.FC = () => {
             isLoading={isLoading}
             sidebarOpen={sidebarOpen}
             showSidebar={!isTestCompleted}
+            hideMenuButton={isTestCompleted}
             onBack={handleBackToDetail}
             sessionBadge={!isTestCompleted ? reviewHeaderBadge : undefined}
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}

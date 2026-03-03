@@ -91,7 +91,8 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
         const categoryMap = new Map<string, { total: number; correct: number; incorrect: number; skipped: number }>();
 
         questions.forEach(q => {
-            const userAnswers = answers[String(q.id)] || [];
+            const qKey = String(q.id);
+            const userAnswers = answers[qKey] || [];
             const cat = q.category || 'General';
 
             if (!categoryMap.has(cat)) {
@@ -100,19 +101,37 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
             const catStats = categoryMap.get(cat)!;
             catStats.total++;
 
-            if (userAnswers.length === 0) {
-                skipped++;
-                catStats.skipped++;
-            } else {
-                const isCorrect =
-                    userAnswers.length === q.correctAnswers.length &&
-                    userAnswers.every((a: number) => q.correctAnswers.includes(a));
-                if (isCorrect) {
-                    correct++;
-                    catStats.correct++;
+            if (q.questionType === 'memorization') {
+                // 暗記問題の場合、confidences に値があれば回答済みとして扱う（初期値なし仕様に変更されたため、解答完了時に何らかがセットされる前提）
+                // ただし、もし回答途中でまだセットされていなければスキップ扱いにする
+                if (confidences[qKey]) {
+                    const isCorrect = confidences[qKey] === 'high';
+                    if (isCorrect) {
+                        correct++;
+                        catStats.correct++;
+                    } else {
+                        incorrect++;
+                        catStats.incorrect++;
+                    }
                 } else {
-                    incorrect++;
-                    catStats.incorrect++;
+                    skipped++;
+                    catStats.skipped++;
+                }
+            } else {
+                if (userAnswers.length === 0) {
+                    skipped++;
+                    catStats.skipped++;
+                } else {
+                    const isCorrect =
+                        userAnswers.length === q.correctAnswers.length &&
+                        userAnswers.every((a: number) => q.correctAnswers.includes(a));
+                    if (isCorrect) {
+                        correct++;
+                        catStats.correct++;
+                    } else {
+                        incorrect++;
+                        catStats.incorrect++;
+                    }
                 }
             }
         });
@@ -139,17 +158,25 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
         }) + ' ' + endTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
         return { correct, incorrect, skipped, totalQuestions, correctPct, timeStr, dateStr, categoryMap };
-    }, [questions, answers, startTime, endTime, props.historyOverrides]);
+    }, [questions, answers, startTime, endTime, props.historyOverrides, confidences]);
 
     // Filtered questions
     const filteredQuestions = useMemo(() => {
         return questions.map((q, i) => ({ question: q, originalIndex: i })).filter(({ question: q }) => {
             const qKey = String(q.id);
             const userAnswers = answers[qKey] || [];
-            const isCorrect = userAnswers.length > 0 &&
-                userAnswers.length === q.correctAnswers.length &&
-                userAnswers.every((a: number) => q.correctAnswers.includes(a));
-            const isAnswered = userAnswers.length > 0;
+            let isCorrect = false;
+            let isAnswered = false;
+
+            if (q.questionType === 'memorization') {
+                isAnswered = !!confidences[qKey];
+                isCorrect = isAnswered && confidences[qKey] === 'high';
+            } else {
+                isAnswered = userAnswers.length > 0;
+                isCorrect = isAnswered &&
+                    userAnswers.length === q.correctAnswers.length &&
+                    userAnswers.every((a: number) => q.correctAnswers.includes(a));
+            }
             const isLowConfidence = confidences[qKey] === 'low';
 
             switch (filter) {
@@ -169,10 +196,18 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
         questions.forEach(q => {
             const qKey = String(q.id);
             const userAnswers = answers[qKey] || [];
-            const isCorrect = userAnswers.length > 0 &&
-                userAnswers.length === q.correctAnswers.length &&
-                userAnswers.every((a: number) => q.correctAnswers.includes(a));
-            const isAnswered = userAnswers.length > 0;
+            let isCorrect = false;
+            let isAnswered = false;
+
+            if (q.questionType === 'memorization') {
+                isAnswered = !!confidences[qKey];
+                isCorrect = isAnswered && confidences[qKey] === 'high';
+            } else {
+                isAnswered = userAnswers.length > 0;
+                isCorrect = isAnswered &&
+                    userAnswers.length === q.correctAnswers.length &&
+                    userAnswers.every((a: number) => q.correctAnswers.includes(a));
+            }
             const isLow = confidences[qKey] === 'low';
             if (isAnswered && !isCorrect) wrong++;
             if (isLow) low++;
@@ -271,9 +306,15 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
                         {filteredQuestions.map(({ question: q, originalIndex }) => {
                             const qKey = String(q.id);
                             const userAnswers = answers[qKey] || [];
-                            const isCorrect = userAnswers.length > 0 &&
-                                userAnswers.length === q.correctAnswers.length &&
-                                userAnswers.every((a: number) => q.correctAnswers.includes(a));
+                            let isCorrect = false;
+
+                            if (q.questionType === 'memorization') {
+                                isCorrect = !!confidences[qKey] && confidences[qKey] === 'high';
+                            } else {
+                                isCorrect = userAnswers.length > 0 &&
+                                    userAnswers.length === q.correctAnswers.length &&
+                                    userAnswers.every((a: number) => q.correctAnswers.includes(a));
+                            }
                             const isLow = confidences[qKey] === 'low';
                             const isExpanded = expandedIds.has(qKey);
 

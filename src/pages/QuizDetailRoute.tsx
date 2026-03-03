@@ -21,6 +21,7 @@ export const QuizDetailRoute: React.FC = () => {
     const expectSuspendedSession = location.state?.expectSuspendedSession === true;
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
     const [hasSuspendedSession, setHasSuspendedSession] = useState(expectSuspendedSession);
+    const [suspendedDate, setSuspendedDate] = useState<Date | null>(null);
     const [showStartConfirmation, setShowStartConfirmation] = useState(false);
     const [, setSettingsRevision] = useState(0);
     const quizSetSettings = activeQuizSet?.id ? loadQuizSetSettings(activeQuizSet.id) : DEFAULT_QUIZ_SET_SETTINGS;
@@ -43,6 +44,7 @@ export const QuizDetailRoute: React.FC = () => {
 
             if (session) {
                 setHasSuspendedSession(true);
+                setSuspendedDate(session.updatedAt || session.startTime);
                 return;
             }
 
@@ -120,6 +122,7 @@ export const QuizDetailRoute: React.FC = () => {
                 onSelectHistory={handleSelectHistory}
                 onOpenHistoryTable={handleOpenHistoryTable}
                 hasSuspendedSession={effectiveHasSuspendedSession}
+                suspendedDate={suspendedDate}
                 onResume={handleResumeStudy}
                 settings={quizSetSettings}
                 onSettingsChange={(s) => {

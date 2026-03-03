@@ -28,6 +28,7 @@ export interface SuspendedSession {
     type: 'study' | 'memorization';
     memorizationLogs?: MemorizationLog[];
     memorizationInputsMap?: Record<string, string[]>;
+    updatedAt?: Date;
 }
 
 export const loadSessionFromStorage = async (quizSetId: number): Promise<SuspendedSession | null> => {
@@ -38,6 +39,7 @@ export const loadSessionFromStorage = async (quizSetId: number): Promise<Suspend
             return {
                 ...cloudSession,
                 startTime: new Date(cloudSession.startTime),
+                updatedAt: cloudSession.updatedAt ? new Date(cloudSession.updatedAt) : undefined,
             };
         }
 
@@ -48,6 +50,7 @@ export const loadSessionFromStorage = async (quizSetId: number): Promise<Suspend
             return {
                 ...session,
                 startTime: new Date(session.startTime),
+                updatedAt: session.updatedAt ? new Date(session.updatedAt) : undefined,
             };
         }
     } catch (e) {
@@ -57,11 +60,12 @@ export const loadSessionFromStorage = async (quizSetId: number): Promise<Suspend
 };
 
 export const saveSessionToStorage = async (quizSetId: number, session: SuspendedSession) => {
+    const sessionToSave = { ...session, updatedAt: new Date() };
     if (isCloudSyncEnabled()) {
-        await cloudApi.upsertSuspendedSession(quizSetId, session);
+        await cloudApi.upsertSuspendedSession(quizSetId, sessionToSave);
         return;
     }
-    localStorage.setItem(`suspendedSession_${quizSetId}`, JSON.stringify(session));
+    localStorage.setItem(`suspendedSession_${quizSetId}`, JSON.stringify(sessionToSave));
 };
 
 export const clearSessionFromStorage = async (quizSetId: number) => {

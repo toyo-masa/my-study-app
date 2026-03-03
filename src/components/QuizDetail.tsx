@@ -17,6 +17,7 @@ interface QuizDetailProps {
     onSelectHistory: (history: QuizHistory) => void;
     onOpenHistoryTable: () => void;
     hasSuspendedSession: boolean;
+    suspendedDate?: Date | null;
     onResume: () => void;
     settings: QuizSetSettings;
     onSettingsChange: (settings: QuizSetSettings) => void;
@@ -29,6 +30,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
     onSelectHistory,
     onOpenHistoryTable,
     hasSuspendedSession,
+    suspendedDate,
     onResume,
     settings,
     onSettingsChange,
@@ -298,8 +300,13 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
 
                     <div className="quiz-start-actions">
                         {hasSuspendedSession && (
-                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ backgroundColor: 'var(--success-color, #10b981)' }}>
-                                <RotateCw size={20} /> 中断から再開
+                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ backgroundColor: 'var(--success-color, #10b981)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.5rem' }}>
+                                <span><RotateCw size={18} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> 中断から再開</span>
+                                {suspendedDate && (
+                                    <span style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '2px', fontWeight: 'normal' }}>
+                                        {suspendedDate.toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}の中断データ
+                                    </span>
+                                )}
                             </button>
                         )}
                         <button className="start-test-btn-large" onClick={onStart}>

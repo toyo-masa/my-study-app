@@ -12,6 +12,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.4',
+        date: new Date().toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        improvements: [
+            'テスト結果画面で不要なメニューボタン（ハンバーガーメニュー）を非表示にしました。',
+            '問題詳細画面の「中断から再開」ボタン内に、いつ中断したデータなのか日時を表示するようにしました。',
+        ],
+        fixes: [
+            '複数選択問題で「解説を見る/解説を閉じる」ボタンを切り替えた際に、選択中だった枠のハイライトが消えてしまう不具合を修正しました。',
+        ],
+    },
+    {
         version: '1.24.3',
         date: '2026年3月3日 08:30',
         improvements: [

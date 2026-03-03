@@ -328,13 +328,6 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                     </motion.div>
                                 ) : null}
                                 <div className="nav-right answer-nav">
-                                    {isLast ? (
-                                        <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>
-                                    ) : (
-                                        <button onClick={onNext} className="nav-btn action-btn">
-                                            {useNextAnswerLabel ? '次の回答' : '次の質問'}
-                                        </button>
-                                    )}
                                     <button
                                         className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
                                         onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
@@ -343,6 +336,13 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         {confidence === 'low' ? '復習対象' : '復習に回す'}
                                         <kbd className="confidence-kbd">M</kbd>
                                     </button>
+                                    {isLast ? (
+                                        <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn">テストを完了する</button>
+                                    ) : (
+                                        <button onClick={onNext} className="nav-btn action-btn">
+                                            {useNextAnswerLabel ? '次の回答' : '次の質問'}
+                                        </button>
+                                    )}
                                 </div>
                             </>
                         )}

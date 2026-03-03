@@ -2265,6 +2265,7 @@ input:checked+.slider svg {
   flex-shrink: 0;
 }
 
+.checkbox.checked,
 .option-item.selected .checkbox {
   background: var(--primary-color);
   border-color: var(--primary-color);
@@ -5654,9 +5655,11 @@ input:checked+.slider svg {
   white-space: nowrap;
 }
 
-.confidence-btn-inline:hover {
-  transform: translateY(-1px);
-  border-color: var(--primary-color);
+@media (hover: hover) {
+  .confidence-btn-inline:hover {
+    transform: translateY(-1px);
+    border-color: var(--primary-color);
+  }
 }
 
 .confidence-kbd {
@@ -5675,21 +5678,38 @@ input:checked+.slider svg {
   margin-left: 0.25rem;
 }
 
-.confidence-btn-inline.low:hover,
+@media (hover: hover) {
+  .confidence-btn-inline.low:hover {
+    border-color: #f59e0b;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  .confidence-btn-inline.normal:hover {
+    border-color: #6366f1;
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.08);
+  }
+
+  .confidence-btn-inline.high:hover {
+    border-color: #10b981;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.08);
+  }
+}
+
 .confidence-btn-inline.low.active {
   border-color: #f59e0b;
   color: #f59e0b;
   background: rgba(245, 158, 11, 0.08);
 }
 
-.confidence-btn-inline.normal:hover,
 .confidence-btn-inline.normal.active {
   border-color: #6366f1;
   color: #6366f1;
   background: rgba(99, 102, 241, 0.08);
 }
 
-.confidence-btn-inline.high:hover,
 .confidence-btn-inline.high.active {
   border-color: #10b981;
   color: #10b981;
