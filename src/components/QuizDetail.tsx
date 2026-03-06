@@ -300,7 +300,7 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
 
                     <div className="quiz-start-actions">
                         {hasSuspendedSession && (
-                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ backgroundColor: 'var(--success-color, #10b981)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.5rem' }}>
+                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ backgroundColor: 'var(--success-color, #10b981)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.6rem 1rem' }}>
                                 <span><RotateCw size={18} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> 中断から再開</span>
                                 {suspendedDate && (
                                     <span style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '2px', fontWeight: 'normal' }}>

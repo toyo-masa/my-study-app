@@ -3878,6 +3878,9 @@ input:checked+.slider svg {
 
 .quiz-start-actions .start-test-btn-large {
   margin-top: 0;
+  flex: 1;
+  min-width: 220px;
+  justify-content: center;
 }
 
 .start-test-btn-large {
@@ -6913,6 +6916,7 @@ input:checked+.slider svg {
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -7415,6 +7419,7 @@ input:checked+.slider svg {
   .quiz-result-view .review-question-text {
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     font-size: 0.78rem;
     line-height: 1.35;
