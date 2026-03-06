@@ -10,7 +10,15 @@ import { parseQuestions } from '../utils/csvParser';
 import type { HomeOnboardingState } from '../types';
 import { isCloudSyncEnabledInStorage, setCloudSyncEnabledInStorage } from '../utils/settings';
 
+export interface GlobalNotice {
+    text: string;
+    type: 'success' | 'error';
+}
+
 interface AppContextType {
+    globalNotice: GlobalNotice | null;
+    showGlobalNotice: (text: string, type: 'success' | 'error') => void;
+
     currentUser: AuthUser | null;
     setCurrentUser: (user: AuthUser | null) => void;
     quizSets: QuizSetWithMeta[];
@@ -53,6 +61,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [isInitialized, setIsInitialized] = useState(false);
 
     const [useCloudSync, setUseCloudSyncState] = useState(() => isCloudSyncEnabledInStorage());
+
+    const [globalNotice, setGlobalNotice] = useState<GlobalNotice | null>(null);
+    const globalNoticeTimeoutRef = React.useRef<number | null>(null);
+
+    const showGlobalNotice = useCallback((text: string, type: 'success' | 'error') => {
+        if (globalNoticeTimeoutRef.current !== null) {
+            window.clearTimeout(globalNoticeTimeoutRef.current);
+            globalNoticeTimeoutRef.current = null;
+        }
+        setGlobalNotice({ text, type });
+        globalNoticeTimeoutRef.current = window.setTimeout(() => {
+            setGlobalNotice(null);
+            globalNoticeTimeoutRef.current = null;
+        }, 3000);
+    }, []);
 
     const setUseCloudSync = useCallback((enabled: boolean) => {
         setCloudSyncEnabledInStorage(enabled);
@@ -155,6 +178,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     return (
         <AppContext.Provider value={{
+            globalNotice, showGlobalNotice,
             currentUser, setCurrentUser,
             quizSets, setQuizSets,
             deletedQuizSets, setDeletedQuizSets,

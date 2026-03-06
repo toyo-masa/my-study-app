@@ -359,11 +359,9 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
                                                     })}
                                                 </div>
                                                 {q.explanation && (
-                                                    <div className="review-explanation review-question-explanation">
-                                                        <strong className="review-question-explanation-title">解説:</strong>
-                                                        <div className="review-question-explanation-content">
-                                                            <MarkdownText content={q.explanation?.replace(/\\n/g, '\n')} />
-                                                        </div>
+                                                    <div className="explanation-box" style={{ marginTop: '1rem' }}>
+                                                        <h3>解説</h3>
+                                                        <MarkdownText content={q.explanation?.replace(/\\n/g, '\n')} />
                                                     </div>
                                                 )}
                                             </motion.div>

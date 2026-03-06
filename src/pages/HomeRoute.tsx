@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { HomePage } from '../components/HomePage';
 import { useAppContext } from '../contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -26,36 +26,14 @@ export const HomeRoute: React.FC = () => {
         loadQuizSets,
         handleCloudError,
         homeOnboardingState,
-        setHomeOnboardingState
+        setHomeOnboardingState,
+        showGlobalNotice
     } = useAppContext();
     const navigate = useNavigate();
-    const [homeNotice, setHomeNotice] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-    const homeNoticeTimeoutRef = useRef<number | null>(null);
 
     const formatQuizSetLabel = useCallback((name: string, type: QuizSetType) => {
         const kind = type === 'memorization' ? '暗記カード' : type === 'mixed' ? '混合セット' : '問題集';
         return `${kind}「${name}」`;
-    }, []);
-
-    useEffect(() => {
-        return () => {
-            if (homeNoticeTimeoutRef.current !== null) {
-                window.clearTimeout(homeNoticeTimeoutRef.current);
-                homeNoticeTimeoutRef.current = null;
-            }
-        };
-    }, []);
-
-    const showHomeNotice = useCallback((text: string, type: 'success' | 'error') => {
-        if (homeNoticeTimeoutRef.current !== null) {
-            window.clearTimeout(homeNoticeTimeoutRef.current);
-            homeNoticeTimeoutRef.current = null;
-        }
-        setHomeNotice({ text, type });
-        homeNoticeTimeoutRef.current = window.setTimeout(() => {
-            setHomeNotice(null);
-            homeNoticeTimeoutRef.current = null;
-        }, 3000);
     }, []);
 
     // Helper: generate a guaranteed-unique temporary negative ID
@@ -86,13 +64,13 @@ export const HomeRoute: React.FC = () => {
                 questionCount: questionsForDB.length, categories: []
             };
             setQuizSets(prev => [optimisticSet, ...prev]);
-            showHomeNotice(`${formatQuizSetLabel(name, 'quiz')}を追加しました。`, 'success');
+            showGlobalNotice(`${formatQuizSetLabel(name, 'quiz')}を追加しました。`, 'success');
             // Background save + replace with real id
             const realId = await addQuizSetWithQuestions(name, questionsForDB);
             setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
         } catch {
             if (tempId !== undefined) setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
-            showHomeNotice('問題集の追加に失敗しました。', 'error');
+            showGlobalNotice('問題集の追加に失敗しました。', 'error');
         }
     };
 
@@ -110,12 +88,12 @@ export const HomeRoute: React.FC = () => {
                 questionCount: parsed.length, categories: []
             };
             setQuizSets(prev => [optimisticSet, ...prev]);
-            showHomeNotice(`${formatQuizSetLabel(name, 'memorization')}を追加しました。`, 'success');
+            showGlobalNotice(`${formatQuizSetLabel(name, 'memorization')}を追加しました。`, 'success');
             const realId = await addQuizSetWithQuestions(name, parsed, 'memorization');
             setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
         } catch {
             if (tempId !== undefined) setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
-            showHomeNotice('暗記カードの追加に失敗しました。', 'error');
+            showGlobalNotice('暗記カードの追加に失敗しました。', 'error');
         }
     };
 
@@ -129,14 +107,14 @@ export const HomeRoute: React.FC = () => {
             createdAt: new Date(), isDeleted: false, isArchived: false,
             questionCount: 0, categories: []
         }, ...prev]);
-        showHomeNotice(`${formatQuizSetLabel(quizSetName, type)}を追加しました。`, 'success');
+        showGlobalNotice(`${formatQuizSetLabel(quizSetName, type)}を追加しました。`, 'success');
         try {
             const realId = await addQuizSetWithQuestions(quizSetName, [], type);
             setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
             return true;
         } catch {
             setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
-            showHomeNotice(`${label}の追加に失敗しました。`, 'error');
+            showGlobalNotice(`${label}の追加に失敗しました。`, 'error');
             return false;
         }
     };
@@ -177,17 +155,17 @@ export const HomeRoute: React.FC = () => {
         try {
             await softDeleteQuizSet(quizSetId);
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をゴミ箱に移動しました。`, 'success');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をゴミ箱に移動しました。`, 'success');
             } else {
-                showHomeNotice('問題集をゴミ箱に移動しました。', 'success');
+                showGlobalNotice('問題集をゴミ箱に移動しました。', 'success');
             }
         } catch (error) {
             handleCloudError(error, '削除に失敗しました。');
             await loadQuizSets();
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をゴミ箱に移動できませんでした。`, 'error');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をゴミ箱に移動できませんでした。`, 'error');
             } else {
-                showHomeNotice('問題集をゴミ箱に移動できませんでした。', 'error');
+                showGlobalNotice('問題集をゴミ箱に移動できませんでした。', 'error');
             }
         }
     };
@@ -201,17 +179,17 @@ export const HomeRoute: React.FC = () => {
         try {
             await restoreQuizSet(id);
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
             } else {
-                showHomeNotice('問題集を一覧に戻しました。', 'success');
+                showGlobalNotice('問題集を一覧に戻しました。', 'success');
             }
         } catch (error) {
             handleCloudError(error, '復元に失敗しました。');
             await loadQuizSets();
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻せませんでした。`, 'error');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻せませんでした。`, 'error');
             } else {
-                showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
+                showGlobalNotice('問題集を一覧に戻せませんでした。', 'error');
             }
         }
     };
@@ -235,17 +213,17 @@ export const HomeRoute: React.FC = () => {
         try {
             await archiveQuizSet(quizSetId);
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をアーカイブしました。`, 'success');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をアーカイブしました。`, 'success');
             } else {
-                showHomeNotice('問題集をアーカイブしました。', 'success');
+                showGlobalNotice('問題集をアーカイブしました。', 'success');
             }
         } catch (error) {
             handleCloudError(error, 'アーカイブに失敗しました。');
             await loadQuizSets();
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をアーカイブできませんでした。`, 'error');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}をアーカイブできませんでした。`, 'error');
             } else {
-                showHomeNotice('問題集をアーカイブできませんでした。', 'error');
+                showGlobalNotice('問題集をアーカイブできませんでした。', 'error');
             }
         }
     };
@@ -259,17 +237,17 @@ export const HomeRoute: React.FC = () => {
         try {
             await unarchiveQuizSet(quizSetId);
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻しました。`, 'success');
             } else {
-                showHomeNotice('問題集を一覧に戻しました。', 'success');
+                showGlobalNotice('問題集を一覧に戻しました。', 'success');
             }
         } catch (error) {
             handleCloudError(error, 'アーカイブ解除に失敗しました。');
             await loadQuizSets();
             if (targetSet) {
-                showHomeNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻せませんでした。`, 'error');
+                showGlobalNotice(`${formatQuizSetLabel(targetSet.name, targetSet.type ?? 'quiz')}を一覧に戻せませんでした。`, 'error');
             } else {
-                showHomeNotice('問題集を一覧に戻せませんでした。', 'error');
+                showGlobalNotice('問題集を一覧に戻せませんでした。', 'error');
             }
         }
     };
@@ -293,7 +271,6 @@ export const HomeRoute: React.FC = () => {
             onUnarchiveQuizSet={handleUnarchiveQuizSet}
             onOpenApp={(appId) => navigate(`/${appId}`)}
             onRefresh={() => loadQuizSets()}
-            homeNotice={homeNotice}
             homeOnboardingState={homeOnboardingState}
             onCompleteHomeOnboarding={handleCompleteHomeOnboarding}
             onAdvanceHomeOnboardingToManage={handleAdvanceHomeOnboardingToManage}

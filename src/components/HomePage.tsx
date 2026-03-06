@@ -13,7 +13,6 @@ export interface QuizSetWithMeta extends QuizSet {
 }
 
 interface HomePageProps {
-    homeNotice: { text: string; type: 'success' | 'error' } | null;
     quizSets: QuizSetWithMeta[];
     onAddQuizSet: (file: File) => void;
     onAddEmptyQuizSet: () => Promise<boolean>;
@@ -96,7 +95,6 @@ export const HomePage: React.FC<HomePageProps> = ({
     deletedQuizSets,
     archivedQuizSets,
     onRefresh,
-    homeNotice,
     homeOnboardingState,
     onCompleteHomeOnboarding,
     onAdvanceHomeOnboardingToManage
@@ -521,12 +519,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </div>
 
 
-
-                {homeNotice && (
-                    <div className={`session-inline-notice home-inline-notice ${homeNotice.type === 'success' ? 'is-success' : 'is-error'}`}>
-                        {homeNotice.text}
-                    </div>
-                )}
 
                 {viewMode === 'active' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

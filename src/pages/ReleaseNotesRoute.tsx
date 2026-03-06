@@ -12,8 +12,28 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.7',
+        date: '2026年3月7日 00:30',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '統合セット（混合セット）において、暗記問題の回答を確認した後にサイドバーから別の問題へ移動し、再度戻ってきた際に「覚えた/覚えていない」の判定ボタンや解説が消えてしまう不具合を修正しました。',
+        ],
+    },
+    {
+        version: '1.24.6',
+        date: '2026年3月6日 23:45',
+        improvements: [
+            '暗記問題の回答確認画面で、「解答」と「解説」を別々のカードに分けて表示するようにしました。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.24.5',
-        date: new Date().toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        date: '2026年3月6日 14:00',
         improvements: [
             'トップページのヘルプ画面に、統合問題（混合セット）用のAI指示文を追加しました。選択問題と暗記問題が混ざった問題集をAIに作成させやすくなりました。',
             'テスト結果画面で不要なメニューボタン（ハンバーガーメニュー）を非表示にしました。',

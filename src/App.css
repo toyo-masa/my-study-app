@@ -2288,6 +2288,11 @@ input:checked+.slider svg {
   margin-top: 1.5rem;
 }
 
+.answer-row>.explanation-box {
+  flex: 1;
+  min-width: 0;
+}
+
 .answer-nav {
   flex-shrink: 0;
   align-self: flex-start;
@@ -6749,8 +6754,9 @@ input:checked+.slider svg {
   }
 
   .answer-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
   }
 
   .navigation-buttons {

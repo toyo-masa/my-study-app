@@ -122,7 +122,8 @@ function App() {
     isInitialized,
     quizSets,
     setUseCloudSync,
-    loadQuizSets
+    loadQuizSets,
+    globalNotice
   } = useAppContext();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -265,6 +266,14 @@ function App() {
   // We keep the old layout logic for App
   return (
     <div className={`app-container ${isStudyOrMemRoute ? 'study-mode-active' : ''}`}>
+      {globalNotice && (
+        <div style={{ position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999 }}>
+          <div className={`session-inline-notice home-inline-notice ${globalNotice.type === 'success' ? 'is-success' : 'is-error'}`}>
+            {globalNotice.text}
+          </div>
+        </div>
+      )}
+
       {!isStudyOrMemRoute && (
         <button className="global-settings-btn" onClick={() => setIsSettingsOpen(true)} data-tooltip="ページ設定">
           <Settings size={20} />

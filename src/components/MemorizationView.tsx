@@ -86,13 +86,10 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                         strAns.forEach(a => legacyAnswers.push(String(a)));
                     }
 
-                    let backContent = question.explanation || '';
-                    if (legacyAnswers.length > 0) {
-                        const combinedLegacy = legacyAnswers.join('\n');
-                        if (!backContent.includes(combinedLegacy)) {
-                            backContent = backContent ? `${combinedLegacy}\n\n${backContent}` : combinedLegacy;
-                        }
-                    }
+                    // 解答として表示する文字列: correctAnswers 優先、なければ legacyAnswers
+                    const answerText: string = question.correctAnswers?.length > 0
+                        ? question.correctAnswers.map(a => String(a)).join('\n')
+                        : legacyAnswers.join('\n');
 
                     return (
                         <>
@@ -109,15 +106,21 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                                             style={{ minHeight: '60px' }}
                                         />
                                     </div>
-                                    {showAnswer && backContent && (
+                                    {showAnswer && answerText && (
                                         <div className="correct-answer-card">
                                             <div className="answer-header">
                                                 <Check size={14} className="check-icon" />
-                                                <span className="answer-label">解答・解説</span>
+                                                <span className="answer-label">解答</span>
                                             </div>
-                                            <div className="answer-text" style={{ padding: '0.5rem 0 0 0' }}>
-                                                <MarkdownText content={backContent} />
+                                            <div className="answer-text">
+                                                <MarkdownText content={answerText} />
                                             </div>
+                                        </div>
+                                    )}
+                                    {showAnswer && question.explanation && (
+                                        <div className="explanation-box" style={{ marginTop: '0.5rem' }}>
+                                            <h3>解説</h3>
+                                            <MarkdownText content={question.explanation} />
                                         </div>
                                     )}
                                 </div>
@@ -343,11 +346,9 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
                                                     </div>
 
                                                     {q.explanation && (
-                                                        <div className="review-question-explanation">
-                                                            <strong className="review-question-explanation-title">解説</strong>
-                                                            <div className="review-question-explanation-content">
-                                                                <MarkdownText content={q.explanation} />
-                                                            </div>
+                                                        <div className="explanation-box" style={{ marginTop: '1rem' }}>
+                                                            <h3>解説</h3>
+                                                            <MarkdownText content={q.explanation} />
                                                         </div>
                                                     )}
                                                 </div>

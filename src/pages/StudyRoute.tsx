@@ -635,6 +635,16 @@ export const StudyRoute: React.FC = () => {
         }
     };
 
+    const isQuestionFullyConfirmed = (questionId: number) => {
+        const qIdStr = String(questionId);
+        if (!showAnswerMap[qIdStr]) return false;
+        const q = questions.find(question => question.id === questionId);
+        if (q?.questionType === 'memorization') {
+            return !!confidences[qIdStr];
+        }
+        return true;
+    };
+
     const handleShowAnswer = () => {
         const currentQuestion = questions[currentQuestionIndex];
         if (!currentQuestion) return;
@@ -686,8 +696,8 @@ export const StudyRoute: React.FC = () => {
         const allAnswered = questions.every(q => nextAnsweredMap[String(q.id)] === true);
         const shouldLockByDelayedBlock = feedbackTimingMode === 'delayed_block' &&
             (nextPendingRevealQuestionIds.length >= feedbackBlockSize || allAnswered);
-        const remainingPendingCount = nextPendingRevealQuestionIds.filter(
-            questionId => !showAnswerMap[String(questionId)]
+        const unconfirmedPendingCount = nextPendingRevealQuestionIds.filter(
+            questionId => !isQuestionFullyConfirmed(questionId)
         ).length;
 
         if (feedbackTimingMode === 'delayed_end' && allAnswered) {
@@ -696,7 +706,7 @@ export const StudyRoute: React.FC = () => {
             return;
         }
 
-        if (feedbackTimingMode === 'delayed_block' && shouldLockByDelayedBlock && remainingPendingCount > 0) {
+        if (feedbackTimingMode === 'delayed_block' && shouldLockByDelayedBlock && unconfirmedPendingCount > 0) {
             enterRevealPhase(nextPendingRevealQuestionIds);
             scheduleSaveSession();
             return;
@@ -723,17 +733,17 @@ export const StudyRoute: React.FC = () => {
         const targetQuestionId = questions[targetIndex].id!;
 
         if (feedbackTimingMode !== 'immediate' && feedbackPhase === 'revealing') {
-            const remainingPendingCount = pendingRevealQuestionIds.filter(
-                questionId => !showAnswerMap[String(questionId)]
+            const unconfirmedPendingCount = pendingRevealQuestionIds.filter(
+                questionId => !isQuestionFullyConfirmed(questionId)
             ).length;
             const isTargetPending = pendingRevealQuestionIds.includes(targetQuestionId);
             const isTargetAlreadyConfirmed = showAnswerMap[String(targetQuestionId)] === true;
-            if (remainingPendingCount > 0 && !isTargetPending && !isTargetAlreadyConfirmed) {
-                flashSessionPointerNotice(`残り${remainingPendingCount}件の回答確認後に移動できます`, clickPosition);
+            if (unconfirmedPendingCount > 0 && !isTargetPending && !isTargetAlreadyConfirmed) {
+                flashSessionPointerNotice(`残り${unconfirmedPendingCount}件の回答確認・判定後に移動できます`, clickPosition);
                 return;
             }
 
-            if (remainingPendingCount === 0 && feedbackTimingMode === 'delayed_block') {
+            if (unconfirmedPendingCount === 0 && feedbackTimingMode === 'delayed_block') {
                 setPendingRevealQuestionIds([]);
                 setFeedbackPhase('answering');
                 setCurrentQuestionIndex(targetIndex);
@@ -840,14 +850,30 @@ export const StudyRoute: React.FC = () => {
         const currentQuestionId = questions[currentQuestionIndex]?.id;
         if (currentQuestionId === undefined) return;
 
-        const currentPos = pendingRevealQuestionIds.indexOf(currentQuestionId);
-        const nextPendingId = currentPos >= 0 ? pendingRevealQuestionIds[currentPos + 1] : pendingRevealQuestionIds[0];
+        const unconfirmedPendingIds = pendingRevealQuestionIds.filter(id => !isQuestionFullyConfirmed(id));
+
+        let nextPendingId: number | undefined;
+        if (unconfirmedPendingIds.length > 0) {
+            const currentPos = pendingRevealQuestionIds.indexOf(currentQuestionId);
+            for (let i = 1; i < pendingRevealQuestionIds.length; i++) {
+                const checkPos = (currentPos + i) % pendingRevealQuestionIds.length;
+                const checkId = pendingRevealQuestionIds[checkPos];
+                if (!isQuestionFullyConfirmed(checkId)) {
+                    nextPendingId = checkId;
+                    break;
+                }
+            }
+        }
 
         if (nextPendingId !== undefined) {
             setShowAnswerMap(prev => ({ ...prev, [String(nextPendingId)]: true }));
             const nextIndex = findQuestionIndexById(nextPendingId);
             if (nextIndex >= 0) {
                 setCurrentQuestionIndex(nextIndex);
+            }
+            const q = questions.find(question => question.id === nextPendingId);
+            if (q?.questionType === 'memorization' && showAnswerMap[String(nextPendingId)]) {
+                flashSessionInlineNotice('未判定の暗記問題があります');
             }
             scheduleSaveSession();
             return;
@@ -906,17 +932,31 @@ export const StudyRoute: React.FC = () => {
 
         // ------- 遅延モード -------
         if (feedbackPhase === 'revealing') {
-            // handleNext の revealing フェーズと同じロジックで次の pending へ進む
-            const currentPos = pendingRevealQuestionIds.indexOf(questionId);
-            const nextPendingId = currentPos >= 0
-                ? pendingRevealQuestionIds[currentPos + 1]
-                : pendingRevealQuestionIds[0];
+            const unconfirmedPendingIds = pendingRevealQuestionIds.filter(id => !isQuestionFullyConfirmed(id));
+            let nextPendingId: number | undefined;
+            if (unconfirmedPendingIds.length > 0) {
+                const currentPos = pendingRevealQuestionIds.indexOf(questionId);
+                for (let i = 1; i < pendingRevealQuestionIds.length; i++) {
+                    const checkPos = (currentPos + i) % pendingRevealQuestionIds.length;
+                    const checkId = pendingRevealQuestionIds[checkPos];
+                    if (!isQuestionFullyConfirmed(checkId)) {
+                        nextPendingId = checkId;
+                        break;
+                    }
+                }
+            }
 
             if (nextPendingId !== undefined) {
                 // 次の pending 問題の答えを表示して移動
                 setShowAnswerMap(prev => ({ ...prev, [String(nextPendingId)]: true }));
                 const nextIndex = findQuestionIndexById(nextPendingId);
-                if (nextIndex >= 0) setCurrentQuestionIndex(nextIndex);
+                if (nextIndex >= 0) {
+                    setCurrentQuestionIndex(nextIndex);
+                }
+                const q = questions.find(question => question.id === nextPendingId);
+                if (q?.questionType === 'memorization' && showAnswerMap[String(nextPendingId)]) {
+                    flashSessionInlineNotice('未判定の暗記問題があります');
+                }
                 return;
             }
 
@@ -1055,9 +1095,7 @@ export const StudyRoute: React.FC = () => {
     const currentQuestion = questions[currentQuestionIndex];
     const qId = currentQuestion ? String(currentQuestion.id) : '';
     const showAnswerForCurrent = currentQuestion
-        ? (feedbackTimingMode === 'immediate'
-            ? showAnswerMap[qId] === true
-            : feedbackPhase === 'revealing' && answeredMap[qId] === true)
+        ? (showAnswerMap[qId] === true || (feedbackTimingMode !== 'immediate' && feedbackPhase === 'revealing' && answeredMap[qId] === true))
         : false;
     const isAnswerLocked =
         feedbackTimingMode !== 'immediate' &&
@@ -1138,16 +1176,16 @@ export const StudyRoute: React.FC = () => {
         if (blockState.locked && blockState.remainingCount > 0) {
             const allowedSet = new Set(blockState.pendingIds);
             return questions
-                .filter(q => !allowedSet.has(q.id!) && !showAnswerMap[String(q.id)])
+                .filter(q => !allowedSet.has(q.id!) && !isQuestionFullyConfirmed(q.id!))
                 .map(q => q.id!);
         }
 
         if (feedbackPhase === 'revealing') {
-            const remainingPendingCount = pendingRevealQuestionIds.filter(questionId => !showAnswerMap[String(questionId)]).length;
-            if (remainingPendingCount > 0) {
+            const unconfirmedPendingCount = pendingRevealQuestionIds.filter(questionId => !isQuestionFullyConfirmed(questionId)).length;
+            if (unconfirmedPendingCount > 0) {
                 const allowedSet = new Set(pendingRevealQuestionIds);
                 return questions
-                    .filter(q => !allowedSet.has(q.id!) && !showAnswerMap[String(q.id)])
+                    .filter(q => !allowedSet.has(q.id!) && !isQuestionFullyConfirmed(q.id!))
                     .map(q => q.id!);
             }
         }
