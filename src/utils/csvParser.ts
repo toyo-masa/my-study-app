@@ -116,12 +116,10 @@ const processRows = (data: any[]): ParsedQuestion[] => {
                 qType = 'quiz';
             } else {
                 // Infer based on provided columns
-                if (options.length <= 1 && correctAnswers.length === 0) {
+                if (correctAnswers.length === 0) {
                     qType = 'memorization';
-                } else if (options.length >= 2) {
-                    qType = 'quiz';
                 } else {
-                    qType = options.length <= 1 ? 'memorization' : 'quiz';
+                    qType = 'quiz';
                 }
             }
 

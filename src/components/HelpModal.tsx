@@ -81,26 +81,25 @@ question,answer,category,explanation
 【変換対象の内容】
 `;
 
-const MIXED_HEADER = `category,text,options,correct_answers,explanation,question_type`;
-const MIXED_EXAMPLE = `General,日本の首都は?,東京|大阪|京都,1,東京です,quiz
-一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します,memorization`;
+const MIXED_HEADER = `category,text,options,correct_answers,explanation`;
+const MIXED_EXAMPLE = `General,日本の首都は?,東京|大阪|京都,1,東京です
+一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します`;
 const MIXED_AI_INSTRUCTION = `以下の内容を、指定のCSVフォーマットに変換し、CSVファイルで出力してください。
 
 【CSVフォーマット仕様】
-ヘッダー行: category,text,options,correct_answers,explanation,question_type
+ヘッダー行: category,text,options,correct_answers,explanation
 
 各カラムの説明:
 - category: カテゴリ名（例: General, 日常）
 - text: 問題文
 - options: 選択問題の場合は選択肢を | 区切りで記述。暗記問題の場合は正解を | 区切りで記述。
-- correct_answers: 選択問題の場合、正解番号（1始まり）をカンマ区切りで記述。暗記問題の場合は空欄。
+- correct_answers: 選択問題の場合、正解番号（1始まり）をカンマ区切りで記述。暗記問題の場合は必ず空欄にしてください。（空欄によりシステムが自動で暗記問題として認識します）
 - explanation: 解説文
-- question_type: 選択問題なら quiz、暗記問題なら memorization を指定
 
 記述例:
-category,text,options,correct_answers,explanation,question_type
-General,日本の首都は?,東京|大阪|京都,1,東京です,quiz
-一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します,memorization
+category,text,options,correct_answers,explanation
+General,日本の首都は?,東京|大阪|京都,1,東京です
+一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します
 
 【注意事項】
 - 1行目はヘッダー行にしてください
@@ -241,7 +240,6 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                                         <tr><td><code>options</code></td><td>選択肢 / 暗記の正解 (<code>|</code> 区切り)</td></tr>
                                         <tr><td><code>correct_answers</code></td><td>正解番号 (quiz用)</td></tr>
                                         <tr><td><code>explanation</code></td><td>解説文</td></tr>
-                                        <tr><td><code>question_type</code></td><td><code>quiz</code> または <code>memorization</code></td></tr>
                                     </tbody>
                                 </table>
 
