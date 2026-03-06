@@ -300,16 +300,16 @@ export const QuizDetail: React.FC<QuizDetailProps> = ({
 
                     <div className="quiz-start-actions">
                         {hasSuspendedSession && (
-                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ backgroundColor: 'var(--success-color, #10b981)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.6rem 1rem' }}>
-                                <span><RotateCw size={18} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> 中断から再開</span>
+                            <button className="start-test-btn-large secondary" onClick={onResume} style={{ backgroundColor: 'var(--success-color, #10b981)', marginTop: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
+                                <span><RotateCw size={18} style={{ verticalAlign: 'middle', marginRight: '4px' }} />中断から再開</span>
                                 {suspendedDate && (
-                                    <span style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '2px', fontWeight: 'normal' }}>
+                                    <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: 'normal', marginTop: '2px' }}>
                                         {suspendedDate.toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}の中断データ
                                     </span>
                                 )}
                             </button>
                         )}
-                        <button className="start-test-btn-large" onClick={onStart}>
+                        <button className="start-test-btn-large" onClick={onStart} style={{ marginTop: 0 }}>
                             <Play size={20} fill="currentColor" /> {hasSuspendedSession ? '新しく始める' : 'テストを開始する'}
                         </button>
                     </div>
