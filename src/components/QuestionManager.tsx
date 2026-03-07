@@ -455,6 +455,11 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 showStatus('選択肢は2つ以上必要です', 'error');
                 return;
             }
+        } else {
+            if (!editing.explanation.trim()) {
+                showStatus('暗記問題の解答（解説）を入力してください', 'error');
+                return;
+            }
         }
 
         setIsSaving(true);

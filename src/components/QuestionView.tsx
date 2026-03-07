@@ -296,7 +296,16 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         <h3>解答・解説</h3>
                                         <MarkdownText content={memorizationBackContent.replace(/\\n/g, '\n')} />
                                     </motion.div>
-                                ) : null}
+                                ) : (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="explanation-box"
+                                    >
+                                        <h3>解答・解説</h3>
+                                        <p style={{ color: 'var(--text-secondary)' }}>(解答が登録されていません)</p>
+                                    </motion.div>
+                                )}
                                 <div className="judgement-buttons" style={{ width: '100%' }}>
                                     <button
                                         className="judge-btn bad"
