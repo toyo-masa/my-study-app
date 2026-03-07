@@ -5663,6 +5663,8 @@ input:checked+.slider svg {
   color: var(--text-color);
   transition: all 0.2s;
   white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (hover: hover) {
@@ -5708,22 +5710,29 @@ input:checked+.slider svg {
   }
 }
 
-.confidence-btn-inline.low.active {
-  border-color: #f59e0b;
-  color: #f59e0b;
+.confidence-btn-inline.low.active,
+.confidence-btn-inline.low:active {
+  border-color: var(--warning-color, #f59e0b);
+  color: var(--warning-color, #f59e0b);
   background: rgba(245, 158, 11, 0.08);
 }
 
-.confidence-btn-inline.normal.active {
-  border-color: #6366f1;
-  color: #6366f1;
+.confidence-btn-inline.normal.active,
+.confidence-btn-inline.normal:active {
+  border-color: var(--primary-color, #6366f1);
+  color: var(--primary-color, #6366f1);
   background: rgba(99, 102, 241, 0.08);
 }
 
-.confidence-btn-inline.high.active {
-  border-color: #10b981;
-  color: #10b981;
+.confidence-btn-inline.high.active,
+.confidence-btn-inline.high:active {
+  border-color: var(--success-color, #10b981);
+  color: var(--success-color, #10b981);
   background: rgba(16, 185, 129, 0.08);
+}
+
+.confidence-btn-inline:active {
+  transition: none;
 }
 
 .confidence-btn-inline.active .confidence-kbd {
@@ -6058,6 +6067,8 @@ input:checked+.slider svg {
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .judge-btn.bad {
@@ -6066,9 +6077,17 @@ input:checked+.slider svg {
   color: var(--error-color);
 }
 
-.judge-btn.bad:hover {
+@media (hover: hover) {
+  .judge-btn.bad:hover {
+    background: var(--error-color);
+    color: white;
+  }
+}
+
+.judge-btn.bad:active {
   background: var(--error-color);
   color: white;
+  transition: none;
 }
 
 .judge-btn.good {
@@ -6077,9 +6096,17 @@ input:checked+.slider svg {
   color: var(--success-color);
 }
 
-.judge-btn.good:hover {
+@media (hover: hover) {
+  .judge-btn.good:hover {
+    background: var(--success-color);
+    color: white;
+  }
+}
+
+.judge-btn.good:active {
   background: var(--success-color);
   color: white;
+  transition: none;
 }
 
 /* Results View */
