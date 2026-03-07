@@ -877,7 +877,7 @@ body.theme-monokai {
   background: #2d2d2d;
 }
 
-.dark-mode .option-item:hover {
+.dark-mode .option-item:not(.selected):not(.correct):not(.incorrect):hover {
   border-color: #454545;
 }
 
@@ -912,6 +912,7 @@ body.theme-monokai {
 }
 
 .dark-mode .option-item.selected {
+  border-color: var(--primary-color);
   background: rgba(99, 102, 241, 0.15);
 }
 
@@ -2184,7 +2185,7 @@ input:checked+.slider svg {
   /* Ensure options also wrap */
 }
 
-.option-item:hover {
+.option-item:not(.selected):not(.correct):not(.incorrect):hover {
   border-color: #cbd5e1;
 }
 
@@ -2266,7 +2267,9 @@ input:checked+.slider svg {
 }
 
 .checkbox.checked,
-.option-item.selected .checkbox {
+.radio-button.checked,
+.option-item.selected .checkbox,
+.option-item.selected .radio-button {
   background: var(--primary-color);
   border-color: var(--primary-color);
 }
