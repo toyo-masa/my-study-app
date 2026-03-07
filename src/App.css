@@ -916,12 +916,16 @@ body.theme-monokai {
   background: rgba(99, 102, 241, 0.15);
 }
 
-.dark-mode .option-item.correct {
+.dark-mode .option-item.correct,
+.dark-mode .option-item.selected.correct {
   background: rgba(34, 197, 94, 0.15);
+  border-color: var(--success-color);
 }
 
-.dark-mode .option-item.incorrect {
+.dark-mode .option-item.incorrect,
+.dark-mode .option-item.selected.incorrect {
   background: rgba(239, 68, 68, 0.15);
+  border-color: var(--error-color);
 }
 
 .dark-mode .radio-button,
@@ -2194,12 +2198,14 @@ input:checked+.slider svg {
   background: #f5f3ff;
 }
 
-.option-item.correct {
+.option-item.correct,
+.option-item.selected.correct {
   border-color: var(--success-color);
   background: #f0fdf4;
 }
 
-.option-item.incorrect {
+.option-item.incorrect,
+.option-item.selected.incorrect {
   border-color: var(--error-color);
   background: #fef2f2;
 }

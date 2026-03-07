@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.8',
+        date: '2026年3月7日 19:55',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '一部の問題形式（複数選択など）で回答を確認する際、選択済みの選択肢の枠線が正解・不正解の色（緑・赤）にならずテーマカラーのままになってしまう不具合を修正しました。',
+        ],
+    },
+    {
         version: '1.24.7',
         date: '2026年3月7日 00:30',
         improvements: [
