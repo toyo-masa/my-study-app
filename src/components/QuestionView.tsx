@@ -336,14 +336,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         <MarkdownText content={question.explanation?.replace(/\\n/g, '\n')} />
                                     </motion.div>
                                 ) : null}
-                                <div className="nav-right answer-nav" style={{
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    justifyContent: 'space-between',
-                                    gap: '1rem',
-                                    width: '100%',
-                                    flexWrap: 'wrap'
-                                }}>
+                                <div className="nav-right answer-nav">
                                     <button
                                         className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
                                         onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}

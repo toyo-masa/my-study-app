@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.9',
+        date: '2026年3月7日 20:00',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            'PC環境で回答を確認した際、解説の文章が縦長に潰れて表示されるレイアウト崩れを修正しました。',
+        ],
+    },
+    {
         version: '1.24.8',
         date: '2026年3月7日 19:55',
         improvements: [

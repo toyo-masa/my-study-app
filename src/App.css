@@ -2338,12 +2338,11 @@ input:checked+.slider svg {
 }
 
 .review-flag-btn:hover {
-  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
   color: #f59e0b;
 }
 
 .review-flag-btn.active {
-  border-color: #f59e0b;
   background: rgba(245, 158, 11, 0.1);
   color: #f59e0b;
   font-weight: 600;
@@ -2356,13 +2355,12 @@ input:checked+.slider svg {
 }
 
 .dark-mode .review-flag-btn:hover {
-  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
   color: #f59e0b;
 }
 
 .dark-mode .review-flag-btn.active {
   background: rgba(245, 158, 11, 0.15);
-  border-color: #f59e0b;
   color: #f59e0b;
 }
 
@@ -6815,9 +6813,12 @@ input:checked+.slider svg {
   }
 
   .answer-nav {
-    flex-direction: column;
-    align-items: stretch;
-    flex-wrap: nowrap;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
 
   .navigation-buttons {
