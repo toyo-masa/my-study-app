@@ -2274,6 +2274,19 @@ input:checked+.slider svg {
   border-color: var(--primary-color);
 }
 
+/* 正解・不正解時は緑・赤を優先（selectedより後に記述することで上書き） */
+.option-item.correct .checkbox,
+.option-item.correct .radio-button {
+  background: var(--success-color);
+  border-color: var(--success-color);
+}
+
+.option-item.incorrect .checkbox,
+.option-item.incorrect .radio-button {
+  background: var(--error-color);
+  border-color: var(--error-color);
+}
+
 .explanation-box {
   padding: 1.5rem;
   background: var(--surface-color);
