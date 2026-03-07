@@ -2346,6 +2346,18 @@ input:checked+.slider svg {
 .dark-mode .review-flag-btn {
   background: #2d2d2d;
   border-color: #454545;
+  color: #e0e0e0;
+}
+
+.dark-mode .review-flag-btn:hover {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.dark-mode .review-flag-btn.active {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #f59e0b;
 }
 
 .navigation-buttons {
