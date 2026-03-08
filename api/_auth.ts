@@ -60,12 +60,13 @@ export async function getAuthenticatedUser(req: ApiHandlerRequest): Promise<Auth
     try {
         const sql = neon(databaseUrl);
         const rows = await sql`
-            SELECT u.id, u.username
-            FROM sessions s
-            JOIN users u ON u.id = s.user_id
-            WHERE s.token = ${sessionToken}
-              AND s.expires_at > NOW()
-            LIMIT 1
+            UPDATE users
+            SET last_accessed_at = NOW()
+            FROM sessions
+            WHERE users.id = sessions.user_id
+              AND sessions.token = ${sessionToken}
+              AND sessions.expires_at > NOW()
+            RETURNING users.id, users.username
         `;
         if (rows.length === 0) return null;
 

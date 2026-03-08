@@ -22,6 +22,7 @@ type AdminUserRow = {
     username: string;
     created_at: string | Date;
     last_login_at: string | Date | null;
+    last_accessed_at: string | Date | null;
     active_session_count: number | string;
     quiz_set_count: number | string;
     memorization_card_count: number | string;
@@ -211,6 +212,7 @@ async function handleAdminUsers(req: ApiHandlerRequest, res: ApiHandlerResponse)
                 u.id,
                 u.username,
                 u.created_at,
+                u.last_accessed_at,
                 activity.last_login_at,
                 activity.active_session_count,
                 sets.quiz_set_count,
@@ -247,6 +249,7 @@ async function handleAdminUsers(req: ApiHandlerRequest, res: ApiHandlerResponse)
                 username: row.username,
                 createdAt: toIsoDateString(row.created_at),
                 lastLoginAt: row.last_login_at ? toIsoDateString(row.last_login_at) : null,
+                lastAccessedAt: row.last_accessed_at ? toIsoDateString(row.last_accessed_at) : null,
                 activeSessionCount: toNumber(row.active_session_count),
                 quizSetCount: toNumber(row.quiz_set_count),
                 memorizationCardCount: toNumber(row.memorization_card_count),

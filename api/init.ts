@@ -156,6 +156,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     `;
 
     // Add columns to existing tables if they don't exist
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP WITH TIME ZONE`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
     await sql`ALTER TABLE quiz_sets ADD COLUMN IF NOT EXISTS exclude_from_review BOOLEAN DEFAULT FALSE`;

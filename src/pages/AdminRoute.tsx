@@ -314,7 +314,7 @@ export const AdminRoute: React.FC = () => {
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>ユーザー名</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>権限</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>作成日時</th>
-                                        <th style={{ textAlign: 'left', padding: '0.75rem' }}>最終ログイン</th>
+                                        <th style={{ textAlign: 'left', padding: '0.75rem' }}>最終アクセス</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>問題集数</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>暗記カード数</th>
                                         <th style={{ textAlign: 'left', padding: '0.75rem' }}>有効セッション</th>
@@ -330,7 +330,7 @@ export const AdminRoute: React.FC = () => {
                                                 <td style={{ padding: '0.7rem 0.75rem', fontWeight: 600 }}>{user.username}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{user.isAdmin ? '管理者' : '一般ユーザー'}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{formatDateTime(user.createdAt)}</td>
-                                                <td style={{ padding: '0.7rem 0.75rem' }}>{formatDateTime(user.lastLoginAt)}</td>
+                                                <td style={{ padding: '0.7rem 0.75rem' }}>{formatDateTime(user.lastAccessedAt)}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{user.quizSetCount.toLocaleString('ja-JP')}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{user.memorizationCardCount.toLocaleString('ja-JP')}</td>
                                                 <td style={{ padding: '0.7rem 0.75rem' }}>{user.activeSessionCount}</td>

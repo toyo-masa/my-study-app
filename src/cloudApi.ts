@@ -60,6 +60,7 @@ export interface AdminUser {
     username: string;
     createdAt: string;
     lastLoginAt: string | null;
+    lastAccessedAt: string | null;
     activeSessionCount: number;
     quizSetCount: number;
     memorizationCardCount: number;

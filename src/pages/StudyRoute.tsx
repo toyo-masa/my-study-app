@@ -1130,29 +1130,26 @@ export const StudyRoute: React.FC = () => {
     })();
     const canCompleteAfterCurrent = (() => {
         if (!currentQuestion) return false;
+
+        const allAnsweredNow = questions.every(q => answeredMap[String(q.id)] === true);
+
         if (feedbackTimingMode === 'immediate') {
-            return currentQuestionIndex === questions.length - 1;
+            // immediateモードなら最終問題、または全問回答後に戻ってきた任意のタイミングで完了ボタンを出せる
+            return currentQuestionIndex === questions.length - 1 || allAnsweredNow;
         }
+
         if (!showAnswerForCurrent || feedbackPhase !== 'revealing') {
             return false;
         }
 
-        const currentQuestionId = currentQuestion.id!;
-        const currentPos = pendingRevealQuestionIds.indexOf(currentQuestionId);
-        const nextPendingId = currentPos >= 0
-            ? pendingRevealQuestionIds[currentPos + 1]
-            : pendingRevealQuestionIds[0];
-
-        if (nextPendingId !== undefined) {
-            return false;
+        // 遅延モード時は「すべての問題が確認済み」であれば完了ボタンを出す
+        const unconfirmed = pendingRevealQuestionIds.filter(id => !isQuestionFullyConfirmed(id));
+        if (unconfirmed.length === 0) {
+            return true;
         }
 
-        if (feedbackTimingMode === 'delayed_block') {
-            const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
-            return nextUnansweredIndex < 0;
-        }
-
-        return true;
+        // それ以外の場合、未確認問題が残っているのでボタンは「次の回答」になる
+        return false;
     })();
     const useNextAnswerLabel = (() => {
         if (!currentQuestion) return false;
