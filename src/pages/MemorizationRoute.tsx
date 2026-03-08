@@ -1,20 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarClickPosition } from '../components/Sidebar';
-import { MemorizationResultView, MemorizationQuestionView, type MemorizationLog } from '../components/MemorizationView';
+import { MemorizationResultView, MemorizationQuestionView } from '../components/MemorizationView';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
+import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { getQuestionsForQuizSet, addHistory, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
-import type { Question, QuizHistory, HistoryMode, FeedbackTimingMode, ReviewSchedule } from '../types';
+import type { Question, QuizHistory, HistoryMode, FeedbackTimingMode, ReviewSchedule, MemorizationLog } from '../types';
 import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
 import { calculateNextDue, calculateNextInterval, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
-
-const isMobileViewport = () => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(max-width: 768px)').matches;
-};
+import { buildQuizSessionKey, buildResumedStartTime, calculateElapsedSeconds, clearWindowTimeout, filterExistingSessionQuestions, isMobileViewport } from '../utils/quizSession';
 
 export const MemorizationRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -73,10 +70,13 @@ export const MemorizationRoute: React.FC = () => {
     });
 
     // Unique key for the current session
-    const reviewQuestionIdsKey = reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0
-        ? reviewQuestionIdsFromState.join(',')
-        : 'all';
-    const sessionKey = `${quizSetId}-${startNewFromState}-${historyFromState?.id || 'new'}-${reviewQuestionIdsKey}-${location.key}`;
+    const sessionKey = buildQuizSessionKey({
+        quizSetId,
+        startNew: startNewFromState,
+        historyId: historyFromState?.id,
+        reviewQuestionIds: reviewQuestionIdsFromState,
+        locationKey: location.key,
+    });
 
     // Synchronous state reset to prevent flickering
     const [renderedSessionKey, setRenderedSessionKey] = useState<string | null>(null);
@@ -105,14 +105,8 @@ export const MemorizationRoute: React.FC = () => {
 
     useEffect(() => {
         return () => {
-            if (sessionInlineNoticeTimeoutRef.current !== null) {
-                window.clearTimeout(sessionInlineNoticeTimeoutRef.current);
-                sessionInlineNoticeTimeoutRef.current = null;
-            }
-            if (sessionPointerNoticeTimeoutRef.current !== null) {
-                window.clearTimeout(sessionPointerNoticeTimeoutRef.current);
-                sessionPointerNoticeTimeoutRef.current = null;
-            }
+            clearWindowTimeout(sessionInlineNoticeTimeoutRef);
+            clearWindowTimeout(sessionPointerNoticeTimeoutRef);
         };
     }, []);
 
@@ -122,7 +116,7 @@ export const MemorizationRoute: React.FC = () => {
         const s = autoSaveStateRef.current;
         if (s.isTestCompleted || s.activeHistory !== null) return;
         if (s.quizSetId === undefined || s.questions.length === 0) return;
-        const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
+        const elapsedSeconds = calculateElapsedSeconds(startTimeRef.current);
         void saveSessionToStorage(s.quizSetId, {
             questions: s.questions,
             currentQuestionIndex: s.currentQuestionIndex,
@@ -146,22 +140,7 @@ export const MemorizationRoute: React.FC = () => {
         });
     });
 
-
-    useEffect(() => {
-        const doAutoSave = () => doAutoSaveRef.current();
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                doAutoSave();
-            }
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('pagehide', doAutoSave);
-        return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('pagehide', doAutoSave);
-        };
-    }, []);
+    useSessionAutoSaveOnPageHide(doAutoSaveRef);
 
     // Keep autoSaveStateRef in sync with current state so event listeners always have fresh data
     useEffect(() => {
@@ -283,8 +262,7 @@ export const MemorizationRoute: React.FC = () => {
                 const suspendedSession = !startNewFromState ? await loadSessionFromStorage(quizSetId) : null;
 
                 if (suspendedSession && suspendedSession.type === 'memorization') {
-                    const validOptionIds = new Set(qs.map(q => q.id));
-                    const filteredQuestions = suspendedSession.questions.filter((q: Question) => q.id !== undefined && validOptionIds.has(q.id));
+                    const filteredQuestions = filterExistingSessionQuestions(suspendedSession.questions, qs);
 
                     if (filteredQuestions.length === 0) {
                         alert('中断していた問題はすべて削除されました。');
@@ -305,8 +283,7 @@ export const MemorizationRoute: React.FC = () => {
                         setMarkedQuestions(suspendedSession.markedQuestions || []);
 
                         // Restore startTimeRef by subtracting previously spent time from NOW
-                        const resumedStartTime = new Date(Date.now() - (suspendedSession.elapsedSeconds || 0) * 1000);
-                        startTimeRef.current = resumedStartTime;
+                        startTimeRef.current = buildResumedStartTime(suspendedSession.elapsedSeconds);
 
                         setIsTestCompleted(false);
                         setActiveHistory(null);
@@ -341,7 +318,7 @@ export const MemorizationRoute: React.FC = () => {
             questions.length > 0;
 
         if (shouldSaveSuspendedSession) {
-            const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
+            const elapsedSeconds = calculateElapsedSeconds(startTimeRef.current);
             void saveSessionToStorage(quizSetIdForSave, {
                 questions,
                 currentQuestionIndex,
@@ -426,9 +403,7 @@ export const MemorizationRoute: React.FC = () => {
     };
 
     const flashSessionInlineNotice = (message: string) => {
-        if (sessionInlineNoticeTimeoutRef.current !== null) {
-            window.clearTimeout(sessionInlineNoticeTimeoutRef.current);
-        }
+        clearWindowTimeout(sessionInlineNoticeTimeoutRef);
         setSessionInlineNotice(message);
         sessionInlineNoticeTimeoutRef.current = window.setTimeout(() => {
             setSessionInlineNotice(null);
@@ -440,9 +415,7 @@ export const MemorizationRoute: React.FC = () => {
         if (!clickPosition) {
             return;
         }
-        if (sessionPointerNoticeTimeoutRef.current !== null) {
-            window.clearTimeout(sessionPointerNoticeTimeoutRef.current);
-        }
+        clearWindowTimeout(sessionPointerNoticeTimeoutRef);
         const maxNoticeWidth = 320;
         const x = Math.min(Math.max(clickPosition.x + 14, 8), window.innerWidth - maxNoticeWidth - 8);
         const y = Math.min(Math.max(clickPosition.y + 14, 72), window.innerHeight - 44);

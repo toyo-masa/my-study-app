@@ -1,5 +1,4 @@
-import type { Question, HistoryMode, FeedbackTimingMode } from '../types';
-import type { MemorizationLog } from '../components/MemorizationView';
+import type { Question, FeedbackTimingMode, SuspendedSession } from '../types';
 import { isCloudSyncEnabled } from '../db';
 import { cloudApi } from '../cloudApi';
 
@@ -8,27 +7,6 @@ export interface QuizSetSettings {
     shuffleOptions: boolean;
     feedbackTimingMode: FeedbackTimingMode;
     feedbackBlockSize: number;
-}
-
-export interface SuspendedSession {
-    questions: Question[];
-    currentQuestionIndex: number;
-    answers: Record<string, number[]>;
-    memos: Record<string, string>;
-    answeredMap?: Record<string, boolean>;
-    showAnswerMap: Record<string, boolean>;
-    pendingRevealQuestionIds?: number[];
-    feedbackPhase?: 'answering' | 'revealing';
-    feedbackTimingMode?: FeedbackTimingMode;
-    feedbackBlockSize?: number;
-    markedQuestions: number[];
-    startTime: Date;
-    elapsedSeconds: number; // The amount of time already spent in the session before this suspension
-    historyMode: HistoryMode;
-    type: 'study' | 'memorization';
-    memorizationLogs?: MemorizationLog[];
-    memorizationInputsMap?: Record<string, string[]>;
-    updatedAt?: Date;
 }
 
 export const loadSessionFromStorage = async (quizSetId: number): Promise<SuspendedSession | null> => {

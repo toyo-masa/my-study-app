@@ -25,6 +25,12 @@ export interface QuizSet {
     tags?: string[]; // ユーザー設定タグ
 }
 
+export interface MemorizationLog {
+    questionId: number;
+    userInputs: string[];
+    isMemorized: boolean; // true = "完全に覚えた", false = "覚えられていない"
+}
+
 export interface QuizHistory {
     id?: number; // Auto-incremented
     quizSetId: number;
@@ -40,15 +46,32 @@ export interface QuizHistory {
     mode?: HistoryMode;
     feedbackTimingMode?: FeedbackTimingMode;
     // Memorization specific
-    memorizationDetail?: {
-        questionId: number;
-        userInputs: string[];
-        isMemorized: boolean; // true = "完全に覚えた", false = "覚えられていない"
-    }[];
+    memorizationDetail?: MemorizationLog[];
 }
 
 export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict' | 'review_due';
 export type FeedbackTimingMode = 'immediate' | 'delayed_block' | 'delayed_end';
+
+export interface SuspendedSession {
+    questions: Question[];
+    currentQuestionIndex: number;
+    answers: Record<string, number[]>;
+    memos: Record<string, string>;
+    answeredMap?: Record<string, boolean>;
+    showAnswerMap: Record<string, boolean>;
+    pendingRevealQuestionIds?: number[];
+    feedbackPhase?: 'answering' | 'revealing';
+    feedbackTimingMode?: FeedbackTimingMode;
+    feedbackBlockSize?: number;
+    markedQuestions: number[];
+    startTime: Date;
+    elapsedSeconds: number;
+    historyMode: HistoryMode;
+    type: 'study' | 'memorization';
+    memorizationLogs?: MemorizationLog[];
+    memorizationInputsMap?: Record<string, string[]>;
+    updatedAt?: Date;
+}
 
 // === 復習スケジューラ（間隔反復）用の型 ===
 

@@ -1,5 +1,4 @@
-import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType, HomeOnboardingState, HomeOnboardingFlowStage } from './types';
-import type { SuspendedSession } from './utils/quizSettings';
+import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType, HomeOnboardingState, HomeOnboardingFlowStage, SuspendedSession } from './types';
 
 export class ApiError extends Error {
     status: number;

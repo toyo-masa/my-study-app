@@ -1,14 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Bookmark, Check, X, RotateCcw, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Question, FeedbackTimingMode } from '../types';
+import type { Question, FeedbackTimingMode, MemorizationLog } from '../types';
 import { MarkdownText } from './MarkdownText';
-
-export interface MemorizationLog {
-    questionId: number;
-    userInputs: string[];
-    isMemorized: boolean;
-}
 
 interface QuestionViewProps {
     question: Question;

@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.13',
+        date: '2026年3月8日 12:44',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.24.12',
         date: '2026年3月8日 12:28',
         improvements: [
@@ -29,16 +39,6 @@ const releaseNotes: ReleaseNote[] = [
         ],
         fixes: [
             '変更なし',
-        ],
-    },
-    {
-        version: '1.24.10',
-        date: '2026年3月7日 20:30',
-        improvements: [
-            'システム内部で最終アクセス日時を記録し、管理画面から各ユーザーの最終アクセス日時を確認できるようにしました。',
-        ],
-        fixes: [
-            '統合問題セットでのテスト完了時に、他の問題に戻ってから再度最終問題を開いた際、正しく「テストを完了する」ボタンが表示されない不具合を修正しました。',
         ],
     },
     {
