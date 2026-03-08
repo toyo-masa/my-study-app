@@ -1131,24 +1131,42 @@ export const StudyRoute: React.FC = () => {
     const canCompleteAfterCurrent = (() => {
         if (!currentQuestion) return false;
 
+        // 全問題に回答したか
         const allAnsweredNow = questions.every(q => answeredMap[String(q.id)] === true);
+        // 全問題の回答（解説）を見た、または暗記問題の判定を完了したか
+        const allRevealedAndConfirmed = questions.every(q => isQuestionFullyConfirmed(q.id!));
 
+        if (allRevealedAndConfirmed) {
+            // すべて回答し、すべて確認済みであれば現在どの問題を見ていても「完了」できる
+            return true;
+        }
+
+        // --- immediateモードの特別扱い（順次解答・確認していくため） ---
         if (feedbackTimingMode === 'immediate') {
-            // immediateモードなら最終問題、または全問回答後に戻ってきた任意のタイミングで完了ボタンを出せる
-            return currentQuestionIndex === questions.length - 1 || allAnsweredNow;
+            // 確認済みでなくても、最後の問題に到達しており、かつ最後の問題に回答した瞬間なら
+            // showAnswerMap がまだ更新されていなくても完了できる（直後のクリックで完了へ進むため）
+            // ただし、解説を見る前に別問題に移動してしまった場合は、本来の「すべて確認済み」を満たさないと完了できない
+            // issue報告より、単に currentQuestionIndex === questions.length - 1 だけで true にしてはならない
+            const isLastQuestionIndex = currentQuestionIndex === questions.length - 1;
+            const isLastQuestionAnswered = answeredMap[String(questions[questions.length - 1].id)] === true;
+
+            // 「すべて回答済み」かつ「現在最後の問題を開いている状態」
+            if (allAnsweredNow && isLastQuestionIndex && isLastQuestionAnswered) {
+                return true;
+            }
         }
 
         if (!showAnswerForCurrent || feedbackPhase !== 'revealing') {
             return false;
         }
 
-        // 遅延モード時は「すべての問題が確認済み」であれば完了ボタンを出す
+        // --- 遅延モード（delayed_end, delayed_block） ---
+        // 確認フェーズ中は未確認の問題がなければ完了ボタン
         const unconfirmed = pendingRevealQuestionIds.filter(id => !isQuestionFullyConfirmed(id));
         if (unconfirmed.length === 0) {
             return true;
         }
 
-        // それ以外の場合、未確認問題が残っているのでボタンは「次の回答」になる
         return false;
     })();
     const useNextAnswerLabel = (() => {

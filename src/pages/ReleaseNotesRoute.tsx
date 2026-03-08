@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.12',
+        date: '2026年3月8日 12:28',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '統合セットの最終問題で解説を閲覧した後、別の問題に移動そして再度戻ってきた際に「テストを完了する」ボタンが消えてしまう不具合を修正しました。',
+        ],
+    },
+    {
         version: '1.24.11',
         date: '2026年3月8日 11:58',
         improvements: [
