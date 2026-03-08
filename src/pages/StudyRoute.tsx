@@ -8,11 +8,12 @@ import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
+import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
-import { buildQuizSessionKey, buildResumedStartTime, calculateElapsedSeconds, clearWindowTimeout, filterExistingSessionQuestions, isMobileViewport } from '../utils/quizSession';
+import { buildQuizSessionKey, buildResumedStartTime, buildStudySuspendedSession, filterExistingSessionQuestions, isMobileViewport } from '../utils/quizSession';
 
 export const StudyRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -46,13 +47,16 @@ export const StudyRoute: React.FC = () => {
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
     const [showEmptyQuestionsModal, setShowEmptyQuestionsModal] = useState(false);
-    const [sessionInlineNotice, setSessionInlineNotice] = useState<string | null>(null);
-    const [sessionPointerNotice, setSessionPointerNotice] = useState<{ message: string; x: number; y: number } | null>(null);
+    const {
+        sessionInlineNotice,
+        sessionPointerNotice,
+        resetSessionNotices,
+        flashSessionInlineNotice,
+        flashSessionPointerNotice,
+    } = useSessionNotices();
 
     const startTimeRef = useRef<Date>(new Date());
     const lastSessionKeyRef = useRef<string | null>(null);
-    const sessionInlineNoticeTimeoutRef = useRef<number | null>(null);
-    const sessionPointerNoticeTimeoutRef = useRef<number | null>(null);
     const saveDebounceRef = useRef<number | null>(null);
 
 
@@ -104,26 +108,15 @@ export const StudyRoute: React.FC = () => {
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyQuestionsModal(false);
-        setSessionInlineNotice(null);
-        setSessionPointerNotice(null);
-        clearWindowTimeout(sessionInlineNoticeTimeoutRef);
-        clearWindowTimeout(sessionPointerNoticeTimeoutRef);
-    }, [sessionKey]);
-
-    useEffect(() => {
-        return () => {
-            clearWindowTimeout(sessionInlineNoticeTimeoutRef);
-            clearWindowTimeout(sessionPointerNoticeTimeoutRef);
-        };
-    }, []);
+        resetSessionNotices();
+    }, [sessionKey, resetSessionNotices]);
 
     // Auto-save session when page is hidden or app is closed
     const doAutoSaveRef = useRef(() => {
         const s = autoSaveStateRef.current;
         if (s.isTestCompleted || s.activeHistory !== null) return;
         if (s.quizSetId === undefined || s.questions.length === 0) return;
-        const elapsedSeconds = calculateElapsedSeconds(startTimeRef.current);
-        void saveSessionToStorage(s.quizSetId, {
+        void saveSessionToStorage(s.quizSetId, buildStudySuspendedSession({
             questions: s.questions,
             currentQuestionIndex: s.currentQuestionIndex,
             answers: s.answers,
@@ -136,10 +129,8 @@ export const StudyRoute: React.FC = () => {
             feedbackBlockSize: s.feedbackBlockSize,
             markedQuestions: s.markedQuestions,
             startTime: startTimeRef.current,
-            elapsedSeconds,
             historyMode: s.historyMode,
-            type: 'study',
-        }).catch((err) => {
+        })).catch((err) => {
             console.error('Failed to auto-save suspended session', err);
         });
     });
@@ -356,8 +347,7 @@ export const StudyRoute: React.FC = () => {
             questions.length > 0;
 
         if (shouldSaveSuspendedSession) {
-            const elapsedSeconds = calculateElapsedSeconds(startTimeRef.current);
-            void saveSessionToStorage(quizSetIdForSave, {
+            void saveSessionToStorage(quizSetIdForSave, buildStudySuspendedSession({
                 questions,
                 currentQuestionIndex,
                 answers,
@@ -370,10 +360,8 @@ export const StudyRoute: React.FC = () => {
                 feedbackBlockSize,
                 markedQuestions,
                 startTime: startTimeRef.current,
-                elapsedSeconds,
                 historyMode,
-                type: 'study',
-            }).catch((err) => {
+            })).catch((err) => {
                 console.error('Failed to save suspended session', err);
             });
 
@@ -501,30 +489,6 @@ export const StudyRoute: React.FC = () => {
         if (nextIndex >= 0) {
             setCurrentQuestionIndex(nextIndex);
         }
-    };
-
-    const flashSessionInlineNotice = (message: string) => {
-        clearWindowTimeout(sessionInlineNoticeTimeoutRef);
-        setSessionInlineNotice(message);
-        sessionInlineNoticeTimeoutRef.current = window.setTimeout(() => {
-            setSessionInlineNotice(null);
-            sessionInlineNoticeTimeoutRef.current = null;
-        }, 1800);
-    };
-
-    const flashSessionPointerNotice = (message: string, clickPosition?: SidebarClickPosition) => {
-        if (!clickPosition) {
-            return;
-        }
-        clearWindowTimeout(sessionPointerNoticeTimeoutRef);
-        const maxNoticeWidth = 320;
-        const x = Math.min(Math.max(clickPosition.x + 14, 8), window.innerWidth - maxNoticeWidth - 8);
-        const y = Math.min(Math.max(clickPosition.y + 14, 72), window.innerHeight - 44);
-        setSessionPointerNotice({ message, x, y });
-        sessionPointerNoticeTimeoutRef.current = window.setTimeout(() => {
-            setSessionPointerNotice(null);
-            sessionPointerNoticeTimeoutRef.current = null;
-        }, 1800);
     };
 
     const finalizeTestCompletion = async (overrideConfidences?: Record<string, ConfidenceLevel>) => {

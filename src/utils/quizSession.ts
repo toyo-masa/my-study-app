@@ -1,4 +1,4 @@
-import type { Question } from '../types';
+import type { FeedbackTimingMode, HistoryMode, MemorizationLog, Question, SuspendedSession } from '../types';
 
 type BuildQuizSessionKeyParams = {
     quizSetId: number | undefined;
@@ -32,6 +32,101 @@ export function buildQuizSessionKey({
 
 export function calculateElapsedSeconds(startTime: Date): number {
     return Math.floor((Date.now() - startTime.getTime()) / 1000);
+}
+
+type BuildSuspendedSessionBaseParams = {
+    questions: Question[];
+    currentQuestionIndex: number;
+    answeredMap: Record<string, boolean>;
+    showAnswerMap: Record<string, boolean>;
+    pendingRevealQuestionIds: number[];
+    feedbackPhase: 'answering' | 'revealing';
+    feedbackTimingMode: FeedbackTimingMode;
+    feedbackBlockSize: number;
+    markedQuestions: number[];
+    startTime: Date;
+    historyMode: HistoryMode;
+};
+
+type BuildStudySuspendedSessionParams = BuildSuspendedSessionBaseParams & {
+    answers: Record<string, number[]>;
+    memos: Record<string, string>;
+};
+
+type BuildMemorizationSuspendedSessionParams = BuildSuspendedSessionBaseParams & {
+    memorizationLogs: MemorizationLog[];
+    memorizationInputsMap: Record<string, string[]>;
+};
+
+function buildSuspendedSessionBase({
+    questions,
+    currentQuestionIndex,
+    answeredMap,
+    showAnswerMap,
+    pendingRevealQuestionIds,
+    feedbackPhase,
+    feedbackTimingMode,
+    feedbackBlockSize,
+    markedQuestions,
+    startTime,
+    historyMode,
+}: BuildSuspendedSessionBaseParams): Pick<
+    SuspendedSession,
+    | 'questions'
+    | 'currentQuestionIndex'
+    | 'answeredMap'
+    | 'showAnswerMap'
+    | 'pendingRevealQuestionIds'
+    | 'feedbackPhase'
+    | 'feedbackTimingMode'
+    | 'feedbackBlockSize'
+    | 'markedQuestions'
+    | 'startTime'
+    | 'elapsedSeconds'
+    | 'historyMode'
+> {
+    return {
+        questions,
+        currentQuestionIndex,
+        answeredMap,
+        showAnswerMap,
+        pendingRevealQuestionIds,
+        feedbackPhase,
+        feedbackTimingMode,
+        feedbackBlockSize,
+        markedQuestions,
+        startTime,
+        elapsedSeconds: calculateElapsedSeconds(startTime),
+        historyMode,
+    };
+}
+
+export function buildStudySuspendedSession({
+    answers,
+    memos,
+    ...baseParams
+}: BuildStudySuspendedSessionParams): SuspendedSession {
+    return {
+        ...buildSuspendedSessionBase(baseParams),
+        answers,
+        memos,
+        type: 'study',
+    };
+}
+
+export function buildMemorizationSuspendedSession({
+    memorizationLogs,
+    memorizationInputsMap,
+    ...baseParams
+}: BuildMemorizationSuspendedSessionParams): SuspendedSession {
+    return {
+        ...buildSuspendedSessionBase(baseParams),
+        answers: {},
+        memos: {},
+        type: 'memorization',
+        memorizationLogs,
+        memorizationInputsMap,
+    };
 }
 
 export function buildResumedStartTime(elapsedSeconds?: number): Date {
