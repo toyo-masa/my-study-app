@@ -25,6 +25,11 @@ export interface QuizSet {
     tags?: string[]; // ユーザー設定タグ
 }
 
+export interface QuizSetWithMeta extends QuizSet {
+    questionCount: number;
+    categories: string[];
+}
+
 export interface MemorizationLog {
     questionId: number;
     userInputs: string[];

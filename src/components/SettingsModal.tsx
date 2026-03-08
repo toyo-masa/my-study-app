@@ -3,8 +3,7 @@ import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info, SlidersH
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
-
-type ThemeMode = 'light' | 'dark' | 'monokai';
+import type { ThemeMode } from '../utils/settings';
 
 interface SettingsModalProps {
     isOpen: boolean;

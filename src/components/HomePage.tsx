@@ -2,15 +2,10 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLauncher } from './AppLauncher';
-import type { HomeOnboardingState, QuizSet } from '../types';
+import type { HomeOnboardingState, QuizSetWithMeta } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { HelpModal } from './HelpModal';
 import '../App.css';
-
-export interface QuizSetWithMeta extends QuizSet {
-    questionCount: number;
-    categories: string[];
-}
 
 interface HomePageProps {
     quizSets: QuizSetWithMeta[];

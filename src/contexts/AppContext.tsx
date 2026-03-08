@@ -1,19 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { QuizSetWithMeta } from '../components/HomePage';
-import { ApiError, cloudApi, type AuthUser } from '../cloudApi';
-import {
-    getAllQuizSets,
-    addQuizSetWithQuestions,
-    getHomeOnboardingState
-} from '../db';
-import { parseQuestions } from '../utils/csvParser';
-import type { HomeOnboardingState } from '../types';
+import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { ApiError, type AuthUser } from '../cloudApi';
+import { getAllQuizSets } from '../db';
+import type { HomeOnboardingState, QuizSetWithMeta } from '../types';
+import { useAppBootstrap } from '../hooks/useAppBootstrap';
+import { useGlobalNotice, type GlobalNotice } from '../hooks/useGlobalNotice';
 import { isCloudSyncEnabledInStorage, setCloudSyncEnabledInStorage } from '../utils/settings';
-
-export interface GlobalNotice {
-    text: string;
-    type: 'success' | 'error';
-}
 
 interface AppContextType {
     globalNotice: GlobalNotice | null;
@@ -61,21 +52,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [isInitialized, setIsInitialized] = useState(false);
 
     const [useCloudSync, setUseCloudSyncState] = useState(() => isCloudSyncEnabledInStorage());
-
-    const [globalNotice, setGlobalNotice] = useState<GlobalNotice | null>(null);
-    const globalNoticeTimeoutRef = React.useRef<number | null>(null);
-
-    const showGlobalNotice = useCallback((text: string, type: 'success' | 'error') => {
-        if (globalNoticeTimeoutRef.current !== null) {
-            window.clearTimeout(globalNoticeTimeoutRef.current);
-            globalNoticeTimeoutRef.current = null;
-        }
-        setGlobalNotice({ text, type });
-        globalNoticeTimeoutRef.current = window.setTimeout(() => {
-            setGlobalNotice(null);
-            globalNoticeTimeoutRef.current = null;
-        }, 3000);
-    }, []);
+    const { globalNotice, showGlobalNotice } = useGlobalNotice();
 
     const setUseCloudSync = useCallback((enabled: boolean) => {
         setCloudSyncEnabledInStorage(enabled);
@@ -115,66 +92,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, []);
 
-    useEffect(() => {
-        const init = async () => {
-            try {
-                if (useCloudSync) {
-                    const user = await cloudApi.getCurrentUser();
-                    if (user) {
-                        setCurrentUser(user);
-                    } else {
-                        setIsLoginModalOpen(true);
-                        setIsInitialized(true);
-                        return;
-                    }
-                }
-
-                // First loading of all sets. Replaces `isDBSeeded()`.
-                const allLoadedSets = await loadQuizSets();
-
-                try {
-                    const os = await getHomeOnboardingState();
-                    setHomeOnboardingState(os);
-                } catch (err) {
-                    console.error('Failed to load onboarding state:', err);
-                }
-
-                // If the user truly has 0 sets (or local IndexedDB is completely empty), seed sample questions.
-                if (allLoadedSets.length === 0) {
-                    try {
-                        const response = await fetch('/sample_questions.csv');
-                        const blob = await response.blob();
-                        const file = new File([blob], 'sample_questions.csv', { type: 'text/csv' });
-                        const parsed = await parseQuestions(file);
-                        const questionsForDB = parsed.map(q => ({
-                            category: q.category,
-                            text: q.text,
-                            options: q.options,
-                            correctAnswers: q.correctAnswers,
-                            explanation: q.explanation,
-                        }));
-                        await addQuizSetWithQuestions('sample_questions', questionsForDB);
-
-                        // Reload state with the seeded data
-                        await loadQuizSets();
-                    } catch (err) {
-                        if (err instanceof ApiError && err.status === 401) throw err;
-                        console.error('Failed to seed DB:', err);
-                    }
-                }
-
-                setIsInitialized(true);
-            } catch (err) {
-                if (err instanceof ApiError && err.status === 401) {
-                    setIsLoginModalOpen(true);
-                } else {
-                    console.error('Failed to initialize app:', err);
-                }
-                setIsInitialized(true);
-            }
-        };
-        init();
-    }, [useCloudSync, loadQuizSets]);
+    useAppBootstrap({
+        useCloudSync,
+        loadQuizSets,
+        setCurrentUser,
+        setIsLoginModalOpen,
+        setHomeOnboardingState,
+        setIsInitialized,
+    });
 
     return (
         <AppContext.Provider value={{

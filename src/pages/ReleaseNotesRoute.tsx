@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.15',
+        date: '2026年3月8日 14:23',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.24.14',
         date: '2026年3月8日 13:52',
         improvements: [
