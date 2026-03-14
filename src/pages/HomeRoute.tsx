@@ -55,6 +55,7 @@ export const HomeRoute: React.FC = () => {
                 options: q.options,
                 correctAnswers: q.correctAnswers,
                 explanation: q.explanation,
+                questionType: q.questionType,
             }));
             // Optimistic: show item immediately with temp id and question count
             tempId = nextTempId();
@@ -133,7 +134,7 @@ export const HomeRoute: React.FC = () => {
             handleCloudError(error, 'オンボーディング状態の保存に失敗しました。');
             return false;
         }
-    }, [handleCloudError]);
+    }, [handleCloudError, setHomeOnboardingState]);
 
     const handleAdvanceHomeOnboardingToManage = useCallback(async (quizSetId: number): Promise<boolean> => {
         try {
@@ -144,7 +145,7 @@ export const HomeRoute: React.FC = () => {
             handleCloudError(error, 'オンボーディング状態の更新に失敗しました。');
             return false;
         }
-    }, [handleCloudError]);
+    }, [handleCloudError, setHomeOnboardingState]);
 
     const handleDeleteQuizSet = async (quizSetId: number) => {
         const targetSet = quizSets.find(qs => qs.id === quizSetId);

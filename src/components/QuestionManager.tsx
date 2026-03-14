@@ -359,6 +359,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     options: q.options,
                     correctAnswers: q.correctAnswers,
                     explanation: q.explanation,
+                    questionType: q.questionType,
                 }));
 
                 await addQuestionsBulk(bulkData);
@@ -422,6 +423,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 options: q.options,
                 correctAnswers: q.correctAnswers,
                 explanation: q.explanation,
+                questionType: q.questionType,
             }));
             await addQuestionsBulk(bulkData);
 

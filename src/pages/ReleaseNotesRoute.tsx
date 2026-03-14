@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.16',
+        date: '2026年3月14日 16:54',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '混合セットでCSVやテキストから問題をまとめて追加した際、暗記問題が選択問題として保存されてしまい、学習中に正しく回答確認できない不具合を修正しました。',
+        ],
+    },
+    {
         version: '1.24.15',
         date: '2026年3月8日 14:23',
         improvements: [

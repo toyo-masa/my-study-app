@@ -9,6 +9,7 @@ type BulkQuestionRow = {
     options: string;
     correct_answers: string;
     explanation: string;
+    question_type: 'quiz' | 'memorization';
 };
 
 type QuizSetQuestionInput = {
@@ -17,6 +18,7 @@ type QuizSetQuestionInput = {
     options?: unknown;
     correctAnswers?: unknown;
     explanation?: string;
+    questionType?: 'quiz' | 'memorization';
 };
 
 type QuizSetMutationBody = {
@@ -177,19 +179,21 @@ export default async function handler(req: ApiHandlerRequest<QuizSetMutationBody
                             options: JSON.stringify(raw.options),
                             correct_answers: JSON.stringify(raw.correctAnswers),
                             explanation,
+                            question_type: raw.questionType === 'memorization' ? 'memorization' : 'quiz',
                         });
                     }
 
                     await sql`
-                        INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation)
-                        SELECT quiz_set_id, category, text, options::jsonb, correct_answers::jsonb, explanation
+                        INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation, question_type)
+                        SELECT quiz_set_id, category, text, options::jsonb, correct_answers::jsonb, explanation, question_type
                         FROM jsonb_to_recordset(${JSON.stringify(bulkRows)}::jsonb) AS x(
                             quiz_set_id int,
                             category text,
                             text text,
                             options text,
                             correct_answers text,
-                            explanation text
+                            explanation text,
+                            question_type text
                         )
                     `;
                 }
