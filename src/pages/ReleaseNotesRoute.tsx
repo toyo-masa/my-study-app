@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.17',
+        date: '2026年3月14日 17:02',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '正解確認間隔を「3問ごと」などの遅延ブロック表示にしている場合、まだ未回答の問題が残っていても確認ブロックの最後で「テストを完了する」ボタンが出てしまう不具合を修正しました。',
+        ],
+    },
+    {
         version: '1.24.16',
         date: '2026年3月14日 16:54',
         improvements: [

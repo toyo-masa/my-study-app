@@ -1093,9 +1093,9 @@ export const StudyRoute: React.FC = () => {
         }
 
         // --- 遅延モード（delayed_end, delayed_block） ---
-        // 確認フェーズ中は未確認の問題がなければ完了ボタン
+        // 確認フェーズ中は、未確認がなく、かつ未回答も残っていない場合のみ完了ボタン
         const unconfirmed = pendingRevealQuestionIds.filter(id => !isQuestionFullyConfirmed(id));
-        if (unconfirmed.length === 0) {
+        if (unconfirmed.length === 0 && (feedbackTimingMode !== 'delayed_block' || allAnsweredNow)) {
             return true;
         }
 
