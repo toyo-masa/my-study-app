@@ -2315,6 +2315,13 @@ input:checked+.slider svg {
   min-width: 0;
 }
 
+.memorization-answer-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 1rem;
+}
+
 .answer-nav {
   flex-shrink: 0;
   align-self: flex-start;

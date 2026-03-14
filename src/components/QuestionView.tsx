@@ -283,10 +283,9 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
 
                 {/* 解答確認後 */}
                 {showAnswer && (
-                    <div className="answer-row">
-                        {/* 暗記問題: 解答・解説表示 → 覚えた/覚えていないで判定 */}
-                        {isMemoQuestion ? (
-                            <>
+                    isMemoQuestion ? (
+                        <>
+                            <div className="answer-row">
                                 {memorizationBackContent ? (
                                     <motion.div
                                         initial={{ opacity: 0, height: 0 }}
@@ -306,7 +305,9 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         <p style={{ color: 'var(--text-secondary)' }}>(解答が登録されていません)</p>
                                     </motion.div>
                                 )}
-                                <div className="judgement-buttons" style={{ width: '100%' }}>
+                            </div>
+                            <div className="memorization-answer-actions">
+                                <div className="judgement-buttons">
                                     <button
                                         className="judge-btn bad"
                                         onClick={() => onMemorizationJudge(false)}
@@ -322,40 +323,39 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                         <span>完全に覚えた</span>
                                     </button>
                                 </div>
-                            </>
-                        ) : (
-                            /* クイズ問題: 解説 + 次へ/復習フラグ */
-                            <>
-                                {question.explanation ? (
-                                    <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: 'auto' }}
-                                        className="explanation-box"
-                                    >
-                                        <h3>解説</h3>
-                                        <MarkdownText content={question.explanation?.replace(/\\n/g, '\n')} />
-                                    </motion.div>
-                                ) : null}
-                                <div className="nav-right answer-nav">
-                                    <button
-                                        className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
-                                        onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
-                                        title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
-                                    >
-                                        {confidence === 'low' ? '🤔 復習対象' : '🤔 復習に回す'}
-                                        <kbd className="confidence-kbd">M</kbd>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="answer-row">
+                            {question.explanation ? (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="explanation-box"
+                                >
+                                    <h3>解説</h3>
+                                    <MarkdownText content={question.explanation?.replace(/\\n/g, '\n')} />
+                                </motion.div>
+                            ) : null}
+                            <div className="nav-right answer-nav">
+                                <button
+                                    className={`review-flag-btn ${confidence === 'low' ? 'active' : ''}`}
+                                    onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
+                                    title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
+                                >
+                                    {confidence === 'low' ? '🤔 復習対象' : '🤔 復習に回す'}
+                                    <kbd className="confidence-kbd">M</kbd>
+                                </button>
+                                {isLast ? (
+                                    <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn" style={{ marginLeft: 'auto' }}>テストを完了する</button>
+                                ) : (
+                                    <button onClick={onNext} className="nav-btn action-btn" style={{ marginLeft: 'auto' }}>
+                                        {useNextAnswerLabel ? '次の回答' : '次の質問'}
                                     </button>
-                                    {isLast ? (
-                                        <button onClick={onCompleteTest} className="nav-btn action-btn complete-btn" style={{ marginLeft: 'auto' }}>テストを完了する</button>
-                                    ) : (
-                                        <button onClick={onNext} className="nav-btn action-btn" style={{ marginLeft: 'auto' }}>
-                                            {useNextAnswerLabel ? '次の回答' : '次の質問'}
-                                        </button>
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )
                 )}
 
                 <div className="memo-section">

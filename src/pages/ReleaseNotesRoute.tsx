@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.20',
+        date: '2026年3月14日 18:59',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '統合セットの暗記問題で、解答・解説の下に「覚えていない」「完全に覚えた」ボタンを表示するようにし、解説を読みやすくしました。',
+        ],
+    },
+    {
         version: '1.24.19',
         date: '2026年3月14日 18:52',
         improvements: [
