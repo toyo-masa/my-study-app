@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.19',
+        date: '2026年3月14日 18:52',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            'テスト結果画面で復習ボタンや問題一覧が右側にはみ出し、画面端で見切れてしまう不具合を修正しました。',
+        ],
+    },
+    {
         version: '1.24.18',
         date: '2026年3月14日 17:53',
         improvements: [

@@ -64,7 +64,7 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
                             key="content"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            style={{ flex: 1, display: 'flex', minHeight: 0 }}
+                            style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}
                         >
                             <AnimatePresence>
                                 {sidebarOpen && showSidebar && (

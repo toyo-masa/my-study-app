@@ -2568,8 +2568,8 @@ input:checked+.slider svg {
 }
 
 .result-info-section {
-  flex: 1;
-  min-width: 250px;
+  flex: 1 1 320px;
+  min-width: 0;
   max-width: 100%;
 }
 
@@ -2619,6 +2619,13 @@ input:checked+.slider svg {
   cursor: pointer;
   font-weight: 600;
   font-size: 1rem;
+  line-height: 1.4;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   transition: background 0.2s;
 }
 
@@ -2630,10 +2637,17 @@ input:checked+.slider svg {
 .result-actions {
   display: flex;
   justify-content: center;
+  align-items: stretch;
   gap: 1rem;
   flex-wrap: wrap;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 1rem;
+}
+
+.result-actions .review-btn {
+  flex: 0 1 auto;
 }
 
 .memorization-result-actions {
@@ -2762,7 +2776,9 @@ input:checked+.slider svg {
   margin-top: 1rem;
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .result-question-review h2 {
@@ -2925,6 +2941,9 @@ input:checked+.slider svg {
 .review-question-body {
   overflow: hidden;
   border-top: 1px solid var(--border-color);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .review-options {
@@ -2961,6 +2980,16 @@ input:checked+.slider svg {
   min-width: 0;
   display: flex;
   align-items: center;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.review-question-text .katex-display,
+.review-question-text .katex,
+.review-option-text-block .katex-display,
+.review-option-text-block .katex {
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .review-question-explanation {
