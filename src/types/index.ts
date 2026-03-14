@@ -62,6 +62,8 @@ export interface SuspendedSession {
     currentQuestionIndex: number;
     answers: Record<string, number[]>;
     memos: Record<string, string>;
+    confidences?: Record<string, ConfidenceLevel>;
+    memorizationAnswers?: Record<string, string>;
     answeredMap?: Record<string, boolean>;
     showAnswerMap: Record<string, boolean>;
     pendingRevealQuestionIds?: number[];
@@ -78,10 +80,10 @@ export interface SuspendedSession {
     updatedAt?: Date;
 }
 
-// === 復習スケジューラ（間隔反復）用の型 ===
-
 /** 自信度レベル */
 export type ConfidenceLevel = 'low' | 'high'; // 自信なし / 確信
+
+// === 復習スケジューラ（間隔反復）用の型 ===
 
 /** 問題ごとの復習スケジュール */
 export interface ReviewSchedule {

@@ -1,4 +1,4 @@
-import type { FeedbackTimingMode, HistoryMode, MemorizationLog, Question, SuspendedSession } from '../types';
+import type { ConfidenceLevel, FeedbackTimingMode, HistoryMode, MemorizationLog, Question, SuspendedSession } from '../types';
 
 type BuildQuizSessionKeyParams = {
     quizSetId: number | undefined;
@@ -51,6 +51,8 @@ type BuildSuspendedSessionBaseParams = {
 type BuildStudySuspendedSessionParams = BuildSuspendedSessionBaseParams & {
     answers: Record<string, number[]>;
     memos: Record<string, string>;
+    confidences: Record<string, ConfidenceLevel>;
+    memorizationAnswers: Record<string, string>;
 };
 
 type BuildMemorizationSuspendedSessionParams = BuildSuspendedSessionBaseParams & {
@@ -104,12 +106,16 @@ function buildSuspendedSessionBase({
 export function buildStudySuspendedSession({
     answers,
     memos,
+    confidences,
+    memorizationAnswers,
     ...baseParams
 }: BuildStudySuspendedSessionParams): SuspendedSession {
     return {
         ...buildSuspendedSessionBase(baseParams),
         answers,
         memos,
+        confidences,
+        memorizationAnswers,
         type: 'study',
     };
 }

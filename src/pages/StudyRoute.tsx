@@ -68,6 +68,8 @@ export const StudyRoute: React.FC = () => {
         answers,
         answeredMap,
         memos,
+        confidences,
+        memorizationAnswers,
         showAnswerMap,
         pendingRevealQuestionIds,
         feedbackPhase,
@@ -103,6 +105,7 @@ export const StudyRoute: React.FC = () => {
         setFeedbackBlockSize(5);
         setMarkedQuestions([]);
         setConfidences({});
+        setMemorizationAnswers({});
         setIsTestCompleted(false);
         setSidebarOpen(!isMobileViewport());
         setActiveHistory(null);
@@ -122,6 +125,8 @@ export const StudyRoute: React.FC = () => {
             answers: s.answers,
             answeredMap: s.answeredMap,
             memos: s.memos,
+            confidences: s.confidences,
+            memorizationAnswers: s.memorizationAnswers,
             showAnswerMap: s.showAnswerMap,
             pendingRevealQuestionIds: s.pendingRevealQuestionIds,
             feedbackPhase: s.feedbackPhase,
@@ -157,6 +162,8 @@ export const StudyRoute: React.FC = () => {
             answers,
             answeredMap,
             memos,
+            confidences,
+            memorizationAnswers,
             showAnswerMap,
             pendingRevealQuestionIds,
             feedbackPhase,
@@ -212,6 +219,7 @@ export const StudyRoute: React.FC = () => {
                     const allAnswered: Record<string, boolean> = {};
                     setMemos(historyFromState.memos || {});
                     setConfidences(historyFromState.confidences || {});
+                    setMemorizationAnswers({});
                     setMarkedQuestions(historyFromState.markedQuestionIds || []);
                     setHistoryMode(historyFromState.mode || 'normal');
                     setPendingRevealQuestionIds([]);
@@ -259,6 +267,8 @@ export const StudyRoute: React.FC = () => {
                         setAnswers(suspendedSession.answers || {});
                         setAnsweredMap(suspendedSession.answeredMap || suspendedSession.showAnswerMap || {});
                         setMemos(suspendedSession.memos || {});
+                        setConfidences(suspendedSession.confidences || {});
+                        setMemorizationAnswers(suspendedSession.memorizationAnswers || {});
                         setShowAnswerMap(suspendedSession.showAnswerMap || {});
                         setPendingRevealQuestionIds(suspendedSession.pendingRevealQuestionIds || []);
                         setFeedbackPhase(suspendedSession.feedbackPhase || 'answering');
@@ -318,6 +328,7 @@ export const StudyRoute: React.FC = () => {
             setAnswers({});
             setAnsweredMap({});
             setMemos({});
+            setMemorizationAnswers({});
             setShowAnswerMap({});
             setPendingRevealQuestionIds([]);
             setFeedbackPhase('answering');
@@ -353,6 +364,8 @@ export const StudyRoute: React.FC = () => {
                 answers,
                 answeredMap,
                 memos,
+                confidences,
+                memorizationAnswers,
                 showAnswerMap,
                 pendingRevealQuestionIds,
                 feedbackPhase,
@@ -972,6 +985,7 @@ export const StudyRoute: React.FC = () => {
         setAnswers({});
         setAnsweredMap({});
         setMemos({});
+        setMemorizationAnswers({});
         setShowAnswerMap({});
         setPendingRevealQuestionIds([]);
         setFeedbackPhase('answering');
@@ -986,9 +1000,13 @@ export const StudyRoute: React.FC = () => {
         const wrongQuestions = questions.filter(q => {
             const qKey = String(q.id);
             const userAnswers = answers[qKey] || [];
-            const isCorrect = userAnswers.length > 0 && userAnswers.length === q.correctAnswers.length &&
-                userAnswers.every(a => q.correctAnswers.includes(a));
-            const isAnswered = userAnswers.length > 0;
+            const isAnswered = q.questionType === 'memorization'
+                ? !!confidences[qKey]
+                : userAnswers.length > 0;
+            const isCorrect = q.questionType === 'memorization'
+                ? confidences[qKey] === 'high'
+                : (userAnswers.length > 0 && userAnswers.length === q.correctAnswers.length &&
+                    userAnswers.every(a => q.correctAnswers.includes(a)));
             return isAnswered && !isCorrect;
         });
 
@@ -1003,9 +1021,13 @@ export const StudyRoute: React.FC = () => {
         const targetQuestions = questions.filter(q => {
             const qKey = String(q.id);
             const userAnswers = answers[qKey] || [];
-            const isCorrect = userAnswers.length > 0 && userAnswers.length === q.correctAnswers.length &&
-                userAnswers.every(a => q.correctAnswers.includes(a));
-            const isAnswered = userAnswers.length > 0;
+            const isAnswered = q.questionType === 'memorization'
+                ? !!confidences[qKey]
+                : userAnswers.length > 0;
+            const isCorrect = q.questionType === 'memorization'
+                ? confidences[qKey] === 'high'
+                : (userAnswers.length > 0 && userAnswers.length === q.correctAnswers.length &&
+                    userAnswers.every(a => q.correctAnswers.includes(a)));
             const confidence = confidences[qKey];
             const isLowConfidence = confidence === 'low';
             return (isAnswered && !isCorrect) || (isAnswered && isCorrect && isLowConfidence);
