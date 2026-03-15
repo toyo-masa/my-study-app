@@ -320,7 +320,7 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
 
                             return (
                                 <div key={qKey} className={`review-question-card ${isCorrect ? 'correct' : 'incorrect'}`}>
-                                    <div className="review-question-header" onClick={() => toggleExpand(qKey)}>
+                                    <div className={`review-question-header ${isExpanded ? 'expanded' : ''}`} onClick={() => toggleExpand(qKey)}>
                                         <div className="review-question-meta">
                                             <span className={`review-result-badge ${isCorrect ? 'correct' : 'incorrect'}`}>
                                                 {isCorrect ? '○' : '✗'}
@@ -328,7 +328,7 @@ export const TestResult: React.FC<TestResultProps> = (props) => {
                                             {isLow && <span className="review-low-badge">復習対象</span>}
                                             <span className="review-question-num">Q{originalIndex + 1}</span>
                                         </div>
-                                        <div className="review-question-text"><MarkdownText content={q.text} /></div>
+                                        <div className={`review-question-text ${isExpanded ? 'expanded' : ''}`}><MarkdownText content={q.text} /></div>
                                         <ChevronDown size={18} className={`review-chevron ${isExpanded ? 'expanded' : ''}`} />
                                     </div>
                                     <AnimatePresence>

@@ -2871,6 +2871,10 @@ input:checked+.slider svg {
   overflow: hidden;
 }
 
+.review-question-header.expanded {
+  align-items: flex-start;
+}
+
 .review-question-header:hover {
   background: rgba(99, 102, 241, 0.04);
 }
@@ -2928,11 +2932,24 @@ input:checked+.slider svg {
   white-space: nowrap;
 }
 
+.review-question-text.expanded {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .review-question-text .markdown-body,
 .review-question-text .markdown-body p {
   margin: 0;
   display: inline;
   max-width: 100%;
+}
+
+.review-question-text.expanded .markdown-body,
+.review-question-text.expanded .markdown-body p {
+  display: block;
 }
 
 .review-chevron {
@@ -7017,6 +7034,11 @@ input:checked+.slider svg {
     gap: 0.55rem;
   }
 
+  .memorization-result-view .review-question-header.expanded,
+  .quiz-result-view .review-question-header.expanded {
+    align-items: flex-start;
+  }
+
   .memorization-result-view .review-question-text,
   .quiz-result-view .review-question-text {
     white-space: normal;
@@ -7031,6 +7053,17 @@ input:checked+.slider svg {
     font-size: 0.8rem;
   }
 
+  .memorization-result-view .review-question-text.expanded,
+  .quiz-result-view .review-question-text.expanded {
+    display: block;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    -webkit-box-orient: initial;
+  }
+
   .memorization-result-view .review-question-text .markdown-body,
   .quiz-result-view .review-question-text .markdown-body,
   .memorization-result-view .review-question-text .markdown-body p,
@@ -7038,6 +7071,13 @@ input:checked+.slider svg {
     display: block;
     margin: 0;
     max-width: 100%;
+  }
+
+  .memorization-result-view .review-question-text.expanded .markdown-body,
+  .quiz-result-view .review-question-text.expanded .markdown-body,
+  .memorization-result-view .review-question-text.expanded .markdown-body p,
+  .quiz-result-view .review-question-text.expanded .markdown-body p {
+    display: block;
   }
 
   .memorization-result-view .review-question-text .katex-display,
@@ -7531,6 +7571,17 @@ input:checked+.slider svg {
     -webkit-box-orient: vertical;
     font-size: 0.78rem;
     line-height: 1.35;
+  }
+
+  .memorization-result-view .review-question-text.expanded,
+  .quiz-result-view .review-question-text.expanded {
+    display: block;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    -webkit-box-orient: initial;
   }
 
   .memorization-result-view .review-options,

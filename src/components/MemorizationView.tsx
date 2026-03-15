@@ -296,14 +296,14 @@ export const MemorizationResultView: React.FC<ResultViewProps> = ({
 
                             return (
                                 <div key={q.id!} className={`review-question-card ${log.isMemorized ? 'correct' : 'incorrect'}`}>
-                                    <div className="review-question-header" onClick={() => toggleExpand(q.id!)}>
+                                    <div className={`review-question-header ${isExpanded ? 'expanded' : ''}`} onClick={() => toggleExpand(q.id!)}>
                                         <div className="review-question-meta">
                                             <span className={`review-result-badge ${log.isMemorized ? 'correct' : 'incorrect'}`}>
                                                 {log.isMemorized ? <Check size={14} /> : <X size={14} />}
                                             </span>
                                             <span className="review-question-num">Q{index + 1}</span>
                                         </div>
-                                        <div className="review-question-text"><MarkdownText content={q.text} /></div>
+                                        <div className={`review-question-text ${isExpanded ? 'expanded' : ''}`}><MarkdownText content={q.text} /></div>
                                         <ChevronDown size={18} className={`review-chevron ${isExpanded ? 'expanded' : ''}`} />
                                     </div>
                                     <AnimatePresence>

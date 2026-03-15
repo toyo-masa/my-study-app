@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.24',
+        date: '2026年3月15日 17:38',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '結果画面の問題一覧で、長い問題文もカードを開いたときに改行しながら最後まで読めるようにしました。',
+        ],
+    },
+    {
         version: '1.24.23',
         date: '2026年3月15日 11:33',
         improvements: [
