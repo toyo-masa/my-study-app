@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.23',
+        date: '2026年3月15日 11:33',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            'ヘルプ画面のAI用変換指示で、解説文の改行方法をより具体的に案内し、段落ごとに読みやすく出力しやすくしました。',
+        ],
+    },
+    {
         version: '1.24.22',
         date: '2026年3月15日 11:00',
         improvements: [
