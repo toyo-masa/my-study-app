@@ -110,9 +110,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const backButtonRef = useRef<HTMLButtonElement>(null);
 
     const [isImporting, setIsImporting] = useState(false);
-    const [statusMessage, setStatusMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>(''); // Category filter state
-    const { quizSets, setQuizSets, homeOnboardingState: onboardingState, setHomeOnboardingState: setOnboardingState } = useAppContext();
+    const { quizSets, setQuizSets, homeOnboardingState: onboardingState, setHomeOnboardingState: setOnboardingState, showGlobalNotice } = useAppContext();
     const [manageOnboardingStep, setManageOnboardingStep] = useState<ManageOnboardingStep>('addQuestionButton');
     const [isManageOnboardingDismissedThisSession, setIsManageOnboardingDismissedThisSession] = useState(false);
     const [manageOnboardingHighlightRect, setManageOnboardingHighlightRect] = useState<DOMRect | null>(null);
@@ -127,16 +126,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         return Array.from(tagSet).sort();
     }, [quizSets]);
 
-    useEffect(() => {
-        if (statusMessage) {
-            const timer = setTimeout(() => setStatusMessage(null), 5000);
-            return () => clearTimeout(timer);
-        }
-    }, [statusMessage]);
-
-    const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
-        setStatusMessage({ text, type });
-    };
+    const showStatus = useCallback((text: string, type: 'success' | 'error' = 'success') => {
+        showGlobalNotice(text, type);
+    }, [showGlobalNotice]);
 
     const isManageOnboardingActive =
         onboardingState !== null &&
@@ -807,28 +799,6 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     </button>
                 </div>
             </div>
-
-            {statusMessage && (
-                <div className={`status-message-banner ${statusMessage.type}`} style={{
-                    position: 'fixed',
-                    bottom: '24px',
-                    right: '24px',
-                    zIndex: 100000,
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                    padding: '0.75rem 1rem',
-                    marginBottom: '1rem',
-                    borderRadius: '8px',
-                    fontSize: '0.9rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    backgroundColor: statusMessage.type === 'success' ? 'rgba(34, 197, 94, 0.95)' : 'rgba(239, 68, 68, 0.95)',
-                    color: 'white',
-                    border: `1px solid ${statusMessage.type === 'success' ? 'rgba(34, 197, 94, 1)' : 'rgba(239, 68, 68, 1)'}`
-                }}>
-                    {statusMessage.text}
-                </div>
-            )}
 
             <div className="tags-management-section" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>

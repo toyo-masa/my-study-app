@@ -64,7 +64,7 @@ export const HistoryTableRoute: React.FC = () => {
             setHistories(loadedHistories);
         } catch (error) {
             console.error('回答履歴テーブルの読み込みに失敗しました:', error);
-            handleCloudError(error, '回答履歴の読み込みに失敗しました。');
+            handleCloudError(error, '回答履歴の読み込みに失敗しました。', { suppressGlobalNotice: true });
             setErrorMessage('回答履歴の読み込みに失敗しました。時間をおいて再試行してください。');
             setQuestions([]);
             setHistories([]);

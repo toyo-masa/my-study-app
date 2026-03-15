@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     BookOpen,
@@ -88,7 +88,7 @@ function buildCalendarLabel(dateString: string): CalendarColumn {
 
 export const ReviewBoardRoute: React.FC = () => {
     const navigate = useNavigate();
-    const { handleCloudError, setIsLoginModalOpen } = useAppContext();
+    const { handleCloudError, setIsLoginModalOpen, showGlobalNotice } = useAppContext();
     const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
     const [allReviewSchedules, setAllReviewSchedules] = useState<ReviewSchedule[]>([]);
     const [quizSetMetaById, setQuizSetMetaById] = useState<Record<number, QuizSetMeta>>({});
@@ -96,8 +96,6 @@ export const ReviewBoardRoute: React.FC = () => {
     const [futureSetFilter, setFutureSetFilter] = useState<string>('all');
     const [questionsById, setQuestionsById] = useState<Record<number, string>>({});
     const [togglingSetIds, setTogglingSetIds] = useState<Set<number>>(new Set());
-    const [targetToggleNotice, setTargetToggleNotice] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-    const targetToggleNoticeTimeoutRef = useRef<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
     const [errorType, setErrorType] = useState<ReviewBoardErrorType>('none');
@@ -170,7 +168,7 @@ export const ReviewBoardRoute: React.FC = () => {
             if (error instanceof ApiError && error.status === 401) {
                 setErrorType('auth');
                 setErrorMessage('ログイン状態の有効期限が切れました。再ログインしてください。');
-                handleCloudError(error, '認証エラーが発生しました。');
+                handleCloudError(error, '認証エラーが発生しました。', { suppressGlobalNotice: true });
             } else if ((error instanceof Error && error.message.includes('Failed to fetch')) || (error instanceof Error && error.message.includes('NetworkError'))) {
                 setErrorType('network');
                 setErrorMessage('復習データの取得に失敗しました。ネットワーク接続を確認して再試行してください。');
@@ -183,32 +181,11 @@ export const ReviewBoardRoute: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [handleCloudError]);
+    }, [handleCloudError, today]);
 
     useEffect(() => {
         void loadData();
     }, [loadData]);
-
-    useEffect(() => {
-        return () => {
-            if (targetToggleNoticeTimeoutRef.current !== null) {
-                window.clearTimeout(targetToggleNoticeTimeoutRef.current);
-                targetToggleNoticeTimeoutRef.current = null;
-            }
-        };
-    }, []);
-
-    const showTargetToggleNotice = useCallback((text: string, type: 'success' | 'error' = 'success') => {
-        if (targetToggleNoticeTimeoutRef.current !== null) {
-            window.clearTimeout(targetToggleNoticeTimeoutRef.current);
-            targetToggleNoticeTimeoutRef.current = null;
-        }
-        setTargetToggleNotice({ text, type });
-        targetToggleNoticeTimeoutRef.current = window.setTimeout(() => {
-            setTargetToggleNotice(null);
-            targetToggleNoticeTimeoutRef.current = null;
-        }, 3000);
-    }, []);
 
     const buildSetSummaries = useCallback((reviews: DueReviewItem[]): ReviewSetSummary[] => {
         const grouped = new Map<number, {
@@ -407,7 +384,7 @@ export const ReviewBoardRoute: React.FC = () => {
         try {
             await updateQuizSet(quizSetId, { isReviewExcluded: nextExcluded });
             await loadData({ silent: true });
-            showTargetToggleNotice(
+            showGlobalNotice(
                 nextExcluded
                     ? `「${targetSetName}」を復習対象外にしました。`
                     : `「${targetSetName}」を復習対象に戻しました。`,
@@ -425,7 +402,6 @@ export const ReviewBoardRoute: React.FC = () => {
                     },
                 };
             });
-            showTargetToggleNotice('復習設定の更新に失敗しました。', 'error');
             handleCloudError(error, '復習設定の更新に失敗しました。');
         } finally {
             setTogglingSetIds((prev) => {
@@ -434,7 +410,7 @@ export const ReviewBoardRoute: React.FC = () => {
                 return next;
             });
         }
-    }, [quizSetMetaById, loadData, handleCloudError, showTargetToggleNotice]);
+    }, [quizSetMetaById, loadData, handleCloudError, showGlobalNotice]);
 
     const openReviewSession = (summary: ReviewSetSummary) => {
         if (summary.reviewQuestionIds.length === 0) {
@@ -511,12 +487,6 @@ export const ReviewBoardRoute: React.FC = () => {
                     </button>
                 )}
             </div>
-
-            {targetToggleNotice && (
-                <div className={`session-inline-notice review-board-toggle-notice ${targetToggleNotice.type === 'success' ? 'is-success' : 'is-error'}`}>
-                    {targetToggleNotice.text}
-                </div>
-            )}
 
             {loading ? (
                 <LoadingView message="復習データを読み込み中..." />

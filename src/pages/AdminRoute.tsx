@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Lock, LogIn, RefreshCw, ShieldCheck, KeyRound, Trash2, CircleCheck, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Lock, LogIn, RefreshCw, ShieldCheck, KeyRound, Trash2 } from 'lucide-react';
 import { ApiError, cloudApi, type AdminSummary, type AdminUser } from '../cloudApi';
 import { useAppContext } from '../contexts/AppContext';
 import { BackButton } from '../components/BackButton';
@@ -24,7 +24,7 @@ const DELETE_BUTTON_BORDER = '#ef4444';
 
 export const AdminRoute: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, useCloudSync, setIsLoginModalOpen } = useAppContext();
+    const { currentUser, useCloudSync, setIsLoginModalOpen, showGlobalNotice } = useAppContext();
     const [summary, setSummary] = useState<AdminSummary | null>(null);
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -37,7 +37,6 @@ export const AdminRoute: React.FC = () => {
     const [deleteUserTarget, setDeleteUserTarget] = useState<AdminUser | null>(null);
     const [deleteUserConfirmInput, setDeleteUserConfirmInput] = useState('');
     const [deleteUserError, setDeleteUserError] = useState('');
-    const [deleteUserSuccessMessage, setDeleteUserSuccessMessage] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
 
     const loadAdminData = useCallback(async () => {
@@ -133,7 +132,7 @@ export const AdminRoute: React.FC = () => {
         setActiveUserActionId(passwordResetTarget.id);
         try {
             await cloudApi.resetAdminUserPassword(passwordResetTarget.id, newPassword);
-            window.alert(`ユーザー「${passwordResetTarget.username}」のパスワードを更新しました。既存セッションは無効化されています。`);
+            showGlobalNotice(`ユーザー「${passwordResetTarget.username}」のパスワードを更新しました。既存セッションは無効化されています。`, 'success');
             setPasswordResetTarget(null);
             setNewPasswordInput('');
             await loadAdminData();
@@ -147,7 +146,7 @@ export const AdminRoute: React.FC = () => {
 
     const openDeleteUserModal = (target: AdminUser) => {
         if (currentUser && currentUser.id === target.id) {
-            window.alert('自分自身は削除できません。');
+            showGlobalNotice('自分自身は削除できません。', 'error');
             return;
         }
         setDeleteUserTarget(target);
@@ -177,7 +176,7 @@ export const AdminRoute: React.FC = () => {
         setActiveUserActionId(deleteUserTarget.id);
         try {
             await cloudApi.deleteAdminUser(deleteUserTarget.id);
-            setDeleteUserSuccessMessage(`ユーザー「${deleteUserTarget.username}」を削除しました。`);
+            showGlobalNotice(`ユーザー「${deleteUserTarget.username}」を削除しました。`, 'success');
             setDeleteUserTarget(null);
             setDeleteUserConfirmInput('');
             await loadAdminData();
@@ -226,37 +225,6 @@ export const AdminRoute: React.FC = () => {
             </div>
 
             <p className="review-board-subtitle">管理者のみが参照できる運用メトリクスを表示します。</p>
-
-            {deleteUserSuccessMessage && (
-                <div
-                    style={{
-                        marginBottom: '1rem',
-                        border: '1px solid #14532d',
-                        background: '#0f1f16',
-                        color: '#bbf7d0',
-                        borderRadius: 12,
-                        padding: '0.65rem 0.8rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.8rem',
-                    }}
-                >
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.9rem' }}>
-                        <CircleCheck size={16} />
-                        {deleteUserSuccessMessage}
-                    </span>
-                    <button
-                        type="button"
-                        className="icon-btn"
-                        onClick={() => setDeleteUserSuccessMessage('')}
-                        style={{ color: '#86efac' }}
-                        aria-label="通知を閉じる"
-                    >
-                        <X size={16} />
-                    </button>
-                </div>
-            )}
 
             {isLoading ? (
                 <LoadingView message="管理情報を読み込み中..." />

@@ -6,6 +6,10 @@ import { useAppBootstrap } from '../hooks/useAppBootstrap';
 import { useGlobalNotice, type GlobalNotice } from '../hooks/useGlobalNotice';
 import { isCloudSyncEnabledInStorage, setCloudSyncEnabledInStorage } from '../utils/settings';
 
+type HandleCloudErrorOptions = {
+    suppressGlobalNotice?: boolean;
+};
+
 interface AppContextType {
     globalNotice: GlobalNotice | null;
     showGlobalNotice: (text: string, type: 'success' | 'error') => void;
@@ -31,7 +35,7 @@ interface AppContextType {
     setUseCloudSync: (enabled: boolean) => void;
 
     loadQuizSets: () => Promise<QuizSetWithMeta[]>;
-    handleCloudError: (err: unknown, fallbackMessage: string) => void;
+    handleCloudError: (err: unknown, fallbackMessage: string, options?: HandleCloudErrorOptions) => void;
 
     isInitialized: boolean;
 }
@@ -59,15 +63,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setUseCloudSyncState(enabled);
     }, []);
 
-    const handleCloudError = useCallback((err: unknown, fallbackMessage: string) => {
+    const handleCloudError = useCallback((err: unknown, fallbackMessage: string, options?: HandleCloudErrorOptions) => {
         if (err instanceof ApiError && err.status === 401) {
             setCurrentUser(null);
             setIsLoginModalOpen(true);
         } else {
             console.error(fallbackMessage, err);
-            alert(fallbackMessage);
+            if (!options?.suppressGlobalNotice) {
+                showGlobalNotice(fallbackMessage, 'error');
+            }
         }
-    }, []);
+    }, [showGlobalNotice]);
 
     const loadQuizSets = useCallback(async () => {
         try {

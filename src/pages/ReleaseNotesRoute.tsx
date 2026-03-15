@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.21',
+        date: '2026年3月15日 10:53',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '問題管理画面・復習ボード・管理画面などの通知表示を見直し、ホーム画面と同じ上部固定トーストで一貫して確認できるようにしました。',
+        ],
+    },
+    {
         version: '1.24.20',
         date: '2026年3月14日 18:59',
         improvements: [
