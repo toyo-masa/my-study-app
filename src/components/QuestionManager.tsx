@@ -800,7 +800,18 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 </div>
             </div>
 
-            <div className="tags-management-section" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <div
+                className="tags-management-section"
+                style={{
+                    position: 'relative',
+                    zIndex: isTagSuggestOpen ? 30 : 1,
+                    marginBottom: '1rem',
+                    padding: '0.75rem 1rem',
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)'
+                }}
+            >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                     <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
                         <Tag size={14} /> タグ
@@ -822,7 +833,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '400px', marginTop: '0.75rem' }}>
-                    <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+                    <div style={{ position: 'relative', zIndex: 2, flex: 1, display: 'flex' }}>
                         <input
                             type="text"
                             value={newTagInput}
@@ -846,8 +857,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 padding: '0.4rem 0.75rem',
                                 border: '1px solid var(--border-color)',
                                 borderRadius: '6px',
-                                background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)',
+                                background: 'var(--surface-color)',
+                                color: 'var(--text-color)',
                                 fontSize: '0.9rem',
                                 width: '100%'
                             }}
@@ -859,13 +870,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 left: 0,
                                 right: 0,
                                 marginTop: '4px',
-                                background: 'var(--bg-primary)',
+                                background: 'var(--surface-color)',
                                 border: '1px solid var(--border-color)',
                                 borderRadius: '6px',
                                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
                                 maxHeight: '200px',
                                 overflowY: 'auto',
-                                zIndex: 50
+                                zIndex: 200
                             }}>
                                 {allExistingTags.filter(t => t.toLowerCase().includes(newTagInput.toLowerCase())).map((tag, index, arr) => (
                                     <div
@@ -892,9 +903,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                             cursor: 'pointer',
                                             fontSize: '0.85rem',
                                             borderBottom: index < arr.length - 1 ? '1px solid var(--border-color)' : 'none',
-                                            color: 'var(--text-primary)'
+                                            color: 'var(--text-color)'
                                         }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-color-rgb, 99, 102, 241), 0.08)'}
                                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                                     >
                                         {tag}
