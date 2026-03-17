@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.24.25',
+        date: '2026年3月18日 00:01',
+        improvements: [
+            '変更なし',
+        ],
+        fixes: [
+            '統合セットのテスト完了画面で、円グラフの集計がスキップ扱いに見えてしまう不具合を修正しました。',
+        ],
+    },
+    {
         version: '1.24.24',
         date: '2026年3月15日 17:38',
         improvements: [

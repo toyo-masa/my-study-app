@@ -24,44 +24,41 @@ const DonutChart: React.FC<{ correct: number; incorrect: number; skipped: number
     const total = correct + incorrect + skipped;
     if (total === 0) return null;
 
-    const correctPct = (correct / total) * 100;
-    const incorrectPct = (incorrect / total) * 100;
-
     const radius = 80;
     const circumference = 2 * Math.PI * radius;
+    const segments = [
+        { value: correct, stroke: '#22c55e' },
+        { value: incorrect, stroke: '#ef4444' },
+        { value: skipped, stroke: '#94a3b8' },
+    ].filter(segment => segment.value > 0);
 
-    const correctDash = (correctPct / 100) * circumference;
-    const incorrectDash = (incorrectPct / 100) * circumference;
-    const skippedDash = circumference - correctDash - incorrectDash;
+    let consumedDash = 0;
 
     return (
         <div className="donut-chart-container">
             <svg width="200" height="200" viewBox="0 0 200 200">
                 <circle cx="100" cy="100" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="24" />
-                <circle
-                    cx="100" cy="100" r={radius} fill="none"
-                    stroke="#22c55e" strokeWidth="24"
-                    strokeDasharray={`${correctDash} ${circumference - correctDash}`}
-                    strokeDashoffset={circumference * 0.25}
-                    strokeLinecap="butt"
-                    className="donut-segment"
-                />
-                <circle
-                    cx="100" cy="100" r={radius} fill="none"
-                    stroke="#ef4444" strokeWidth="24"
-                    strokeDasharray={`${incorrectDash} ${circumference - incorrectDash}`}
-                    strokeDashoffset={circumference * 0.25 - correctDash}
-                    strokeLinecap="butt"
-                    className="donut-segment"
-                />
-                <circle
-                    cx="100" cy="100" r={radius} fill="none"
-                    stroke="#94a3b8" strokeWidth="24"
-                    strokeDasharray={`${skippedDash} ${circumference - skippedDash}`}
-                    strokeDashoffset={circumference * 0.25 - correctDash - incorrectDash}
-                    strokeLinecap="butt"
-                    className="donut-segment"
-                />
+                {segments.map((segment, index) => {
+                    const dashLength = Math.max(0, Math.min(circumference, (segment.value / total) * circumference));
+                    const dashOffset = circumference * 0.25 - consumedDash;
+                    consumedDash += dashLength;
+
+                    return (
+                        <circle
+                            key={`${segment.stroke}-${index}`}
+                            cx="100"
+                            cy="100"
+                            r={radius}
+                            fill="none"
+                            stroke={segment.stroke}
+                            strokeWidth="24"
+                            strokeDasharray={`${dashLength} ${Math.max(0, circumference - dashLength)}`}
+                            strokeDashoffset={dashOffset}
+                            strokeLinecap="butt"
+                            className="donut-segment"
+                        />
+                    );
+                })}
             </svg>
         </div>
     );
