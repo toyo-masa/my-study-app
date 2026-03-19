@@ -11,9 +11,19 @@ import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageH
 import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
-import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode } from '../types';
+import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode, SuspendedSession } from '../types';
 import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
-import { buildQuizSessionKey, buildResumedStartTime, buildStudySuspendedSession, filterExistingSessionQuestions, isMobileViewport } from '../utils/quizSession';
+import {
+    buildQuizSessionKey,
+    buildResumedStartTime,
+    buildReviewDueResumeSession,
+    buildStudySuspendedSession,
+    clearWindowTimeout,
+    DEFAULT_SUSPENDED_SESSION_SLOT_KEY,
+    filterExistingSessionQuestions,
+    isMobileViewport,
+    REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
+} from '../utils/quizSession';
 
 export const StudyRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -24,6 +34,9 @@ export const StudyRoute: React.FC = () => {
     const reviewQuestionIdsFromState = Array.isArray(location.state?.reviewQuestionIds)
         ? location.state.reviewQuestionIds as number[]
         : undefined;
+    const sessionSlotKey = fromReviewBoardFromState
+        ? REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY
+        : DEFAULT_SUSPENDED_SESSION_SLOT_KEY;
 
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
 
@@ -92,6 +105,7 @@ export const StudyRoute: React.FC = () => {
 
     // Reset session state before paint when navigation/session key changes.
     useLayoutEffect(() => {
+        clearWindowTimeout(saveDebounceRef);
         setIsLoading(true);
         setQuestions([]);
         setCurrentQuestionIndex(0);
@@ -135,7 +149,7 @@ export const StudyRoute: React.FC = () => {
             markedQuestions: s.markedQuestions,
             startTime: startTimeRef.current,
             historyMode: s.historyMode,
-        })).catch((err) => {
+        }), sessionSlotKey).catch((err) => {
             console.error('Failed to auto-save suspended session', err);
         });
     });
@@ -187,9 +201,42 @@ export const StudyRoute: React.FC = () => {
             try {
                 const qs = await getQuestionsForQuizSet(quizSetId);
                 const quizSetSettings = loadQuizSetSettings(quizSetId);
+                const shouldLoadSuspendedSession = fromReviewBoardFromState ? true : !startNewFromState;
+                const suspendedSession = shouldLoadSuspendedSession
+                    ? await loadSessionFromStorage(quizSetId, sessionSlotKey)
+                    : null;
+
+                const restoreSuspendedSession = (session: SuspendedSession) => {
+                    const filteredQuestions = filterExistingSessionQuestions(session.questions, qs);
+
+                    if (filteredQuestions.length === 0) {
+                        return false;
+                    }
+
+                    const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
+                    setQuestions(filteredQuestions);
+                    setCurrentQuestionIndex(Math.max(0, nextIndex));
+                    setAnswers(session.answers || {});
+                    setAnsweredMap(session.answeredMap || session.showAnswerMap || {});
+                    setMemos(session.memos || {});
+                    setConfidences(session.confidences || {});
+                    setMemorizationAnswers(session.memorizationAnswers || {});
+                    setShowAnswerMap(session.showAnswerMap || {});
+                    setPendingRevealQuestionIds(session.pendingRevealQuestionIds || []);
+                    setFeedbackPhase(session.feedbackPhase || 'answering');
+                    setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
+                    setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
+                    setMarkedQuestions(session.markedQuestions || []);
+                    startTimeRef.current = buildResumedStartTime(session.elapsedSeconds);
+                    setHistoryMode(session.historyMode || 'normal');
+                    setIsTestCompleted(false);
+                    setActiveHistory(null);
+                    setIsLoading(false);
+                    return true;
+                };
 
                 if (!historyFromState && !reviewQuestionIdsFromState && qs.length === 0) {
-                    await clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
+                    await clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
                     setQuestions([]);
                     setShowEmptyQuestionsModal(true);
                     setIsLoading(false);
@@ -243,46 +290,32 @@ export const StudyRoute: React.FC = () => {
                     return;
                 }
 
+                if (fromReviewBoardFromState && reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0) {
+                    if (suspendedSession && suspendedSession.type !== 'memorization') {
+                        const reviewResumeSession = buildReviewDueResumeSession(suspendedSession, qs, reviewQuestionIdsFromState);
+                        if (restoreSuspendedSession(reviewResumeSession)) {
+                            return;
+                        }
+
+                        await clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
+                    }
+
+                    startNew(qs, reviewQuestionIdsFromState, 'review_due');
+                    return;
+                }
+
                 if (reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0) {
                     startNew(qs, reviewQuestionIdsFromState, 'review_due');
                     return;
                 }
 
-                // Check if resuming session
-                const suspendedSession = !startNewFromState ? await loadSessionFromStorage(quizSetId) : null;
-
                 if (suspendedSession && suspendedSession.type !== 'memorization') {
-                    // Resume logic
-                    const filteredQuestions = filterExistingSessionQuestions(suspendedSession.questions, qs);
-
-                    if (filteredQuestions.length === 0) {
+                    if (!restoreSuspendedSession(suspendedSession)) {
                         alert('中断していた問題はすべて削除されました。新規開始します。');
-                        await clearSessionFromStorage(quizSetId);
+                        await clearSessionFromStorage(quizSetId, sessionSlotKey);
                         startNew(qs);
                     } else {
-                        const nextIndex = Math.min(suspendedSession.currentQuestionIndex, filteredQuestions.length - 1);
-                        setIsLoading(false);
-                        setQuestions(filteredQuestions);
-                        setCurrentQuestionIndex(nextIndex);
-                        setAnswers(suspendedSession.answers || {});
-                        setAnsweredMap(suspendedSession.answeredMap || suspendedSession.showAnswerMap || {});
-                        setMemos(suspendedSession.memos || {});
-                        setConfidences(suspendedSession.confidences || {});
-                        setMemorizationAnswers(suspendedSession.memorizationAnswers || {});
-                        setShowAnswerMap(suspendedSession.showAnswerMap || {});
-                        setPendingRevealQuestionIds(suspendedSession.pendingRevealQuestionIds || []);
-                        setFeedbackPhase(suspendedSession.feedbackPhase || 'answering');
-                        setFeedbackTimingMode(suspendedSession.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
-                        setFeedbackBlockSize(suspendedSession.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
-                        setMarkedQuestions(suspendedSession.markedQuestions || []);
-
-                        // Restore startTimeRef by subtracting previously spent time from NOW
-                        startTimeRef.current = buildResumedStartTime(suspendedSession.elapsedSeconds);
-
-                        setHistoryMode(suspendedSession.historyMode || 'normal');
-                        setIsTestCompleted(false);
-                        setActiveHistory(null);
-                        setIsLoading(false);
+                        return;
                     }
                 } else {
                     // Start new logic
@@ -318,7 +351,7 @@ export const StudyRoute: React.FC = () => {
             if (quizSetId) {
                 const settings = loadQuizSetSettings(quizSetId);
                 studyQuestions = applyShuffleSettings(studyQuestions, settings);
-                clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
+                clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
                 setFeedbackTimingMode(settings.feedbackTimingMode);
                 setFeedbackBlockSize(settings.feedbackBlockSize);
             }
@@ -341,14 +374,11 @@ export const StudyRoute: React.FC = () => {
             setIsLoading(false);
         };
 
-        initStudy();
-    }, [sessionKey, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, navigate, fromReviewBoardFromState]);
+        void initStudy();
+    }, [sessionKey, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, navigate, fromReviewBoardFromState, sessionSlotKey]);
 
     const handleBackToDetail = () => {
-        if (fromReviewBoardFromState) {
-            navigate('/review-board');
-            return;
-        }
+        clearWindowTimeout(saveDebounceRef);
 
         const quizSetIdForSave = activeQuizSet?.id;
         const shouldSaveSuspendedSession =
@@ -356,6 +386,32 @@ export const StudyRoute: React.FC = () => {
             !activeHistory &&
             quizSetIdForSave !== undefined &&
             questions.length > 0;
+
+        if (fromReviewBoardFromState) {
+            if (shouldSaveSuspendedSession && quizSetIdForSave !== undefined) {
+                void saveSessionToStorage(quizSetIdForSave, buildStudySuspendedSession({
+                    questions,
+                    currentQuestionIndex,
+                    answers,
+                    answeredMap,
+                    memos,
+                    confidences,
+                    memorizationAnswers,
+                    showAnswerMap,
+                    pendingRevealQuestionIds,
+                    feedbackPhase,
+                    feedbackTimingMode,
+                    feedbackBlockSize,
+                    markedQuestions,
+                    startTime: startTimeRef.current,
+                    historyMode,
+                }), sessionSlotKey).catch((err) => {
+                    console.error('Failed to save suspended session', err);
+                });
+            }
+            navigate('/review-board');
+            return;
+        }
 
         if (shouldSaveSuspendedSession) {
             void saveSessionToStorage(quizSetIdForSave, buildStudySuspendedSession({
@@ -374,7 +430,7 @@ export const StudyRoute: React.FC = () => {
                 markedQuestions,
                 startTime: startTimeRef.current,
                 historyMode,
-            })).catch((err) => {
+            }), sessionSlotKey).catch((err) => {
                 console.error('Failed to save suspended session', err);
             });
 
@@ -506,11 +562,12 @@ export const StudyRoute: React.FC = () => {
 
     const finalizeTestCompletion = async (overrideConfidences?: Record<string, ConfidenceLevel>) => {
         const end = new Date();
+        clearWindowTimeout(saveDebounceRef);
         setEndTime(end);
         setIsTestCompleted(true);
 
         if (activeQuizSet?.id !== undefined) {
-            await clearSessionFromStorage(activeQuizSet.id);
+            await clearSessionFromStorage(activeQuizSet.id, sessionSlotKey);
 
             // overrideConfidences: 暗記問題の最後判定直後は state が未反映のため引数で渡す
             const effectiveConfidences = overrideConfidences ?? confidences;

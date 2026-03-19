@@ -9,10 +9,28 @@ import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
-import type { Question, QuizHistory, HistoryMode, FeedbackTimingMode, ReviewSchedule, MemorizationLog } from '../types';
+import type {
+    Question,
+    QuizHistory,
+    HistoryMode,
+    FeedbackTimingMode,
+    ReviewSchedule,
+    MemorizationLog,
+    SuspendedSession,
+} from '../types';
 import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
 import { calculateNextDue, calculateNextInterval, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
-import { buildMemorizationSuspendedSession, buildQuizSessionKey, buildResumedStartTime, filterExistingSessionQuestions, isMobileViewport } from '../utils/quizSession';
+import {
+    buildMemorizationSuspendedSession,
+    buildQuizSessionKey,
+    buildResumedStartTime,
+    buildReviewDueResumeSession,
+    clearWindowTimeout,
+    DEFAULT_SUSPENDED_SESSION_SLOT_KEY,
+    filterExistingSessionQuestions,
+    isMobileViewport,
+    REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
+} from '../utils/quizSession';
 
 export const MemorizationRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -23,6 +41,9 @@ export const MemorizationRoute: React.FC = () => {
     const reviewQuestionIdsFromState = Array.isArray(location.state?.reviewQuestionIds)
         ? location.state.reviewQuestionIds as number[]
         : undefined;
+    const sessionSlotKey = fromReviewBoardFromState
+        ? REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY
+        : DEFAULT_SUSPENDED_SESSION_SLOT_KEY;
 
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
 
@@ -53,6 +74,7 @@ export const MemorizationRoute: React.FC = () => {
     const startTimeRef = useRef<Date>(new Date());
 
     const lastSessionKeyRef = useRef<string | null>(null);
+    const saveDebounceRef = useRef<number | null>(null);
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
     const autoSaveStateRef = useRef({
@@ -106,6 +128,10 @@ export const MemorizationRoute: React.FC = () => {
         resetSessionNotices();
     }
 
+    useEffect(() => {
+        clearWindowTimeout(saveDebounceRef);
+    }, [sessionKey]);
+
     // Auto-save session when page is hidden or app is closed
     // Auto-save session when page is hidden or app is closed
     const doAutoSaveRef = useRef(() => {
@@ -126,10 +152,18 @@ export const MemorizationRoute: React.FC = () => {
             historyMode: s.historyMode,
             memorizationLogs: s.memorizationLogs,
             memorizationInputsMap: s.memorizationInputsMap,
-        })).catch((err) => {
+        }), sessionSlotKey).catch((err) => {
             console.error('Failed to auto-save suspended session', err);
         });
     });
+
+    const scheduleSaveSession = () => {
+        clearWindowTimeout(saveDebounceRef);
+        saveDebounceRef.current = window.setTimeout(() => {
+            saveDebounceRef.current = null;
+            doAutoSaveRef.current();
+        }, 1000);
+    };
 
     useSessionAutoSaveOnPageHide(doAutoSaveRef);
 
@@ -175,7 +209,7 @@ export const MemorizationRoute: React.FC = () => {
         if (quizSetId) {
             const settings = loadQuizSetSettings(quizSetId);
             studyQuestions = applyShuffleSettings(studyQuestions, settings);
-            clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
+            clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
             setFeedbackTimingMode(settings.feedbackTimingMode);
             setFeedbackBlockSize(settings.feedbackBlockSize);
         }
@@ -196,7 +230,7 @@ export const MemorizationRoute: React.FC = () => {
         // Mark as initialized to prevent useEffect from re-shuffling
         lastSessionKeyRef.current = sessionKey;
         setIsLoading(false);
-    }, [navigate, quizSetId, sessionKey, fromReviewBoardFromState]);
+    }, [navigate, quizSetId, sessionKey, fromReviewBoardFromState, sessionSlotKey]);
 
     useEffect(() => {
         const initMem = async () => {
@@ -209,9 +243,40 @@ export const MemorizationRoute: React.FC = () => {
             try {
                 const qs = await getQuestionsForQuizSet(quizSetId);
                 const quizSetSettings = loadQuizSetSettings(quizSetId);
+                const shouldLoadSuspendedSession = fromReviewBoardFromState ? true : !startNewFromState;
+                const suspendedSession = shouldLoadSuspendedSession
+                    ? await loadSessionFromStorage(quizSetId, sessionSlotKey)
+                    : null;
+
+                const restoreSuspendedSession = (session: SuspendedSession) => {
+                    const filteredQuestions = filterExistingSessionQuestions(session.questions, qs);
+
+                    if (filteredQuestions.length === 0) {
+                        return false;
+                    }
+
+                    const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
+                    setQuestions(filteredQuestions);
+                    setMemorizationLogs(session.memorizationLogs || []);
+                    setMemorizationInputsMap(session.memorizationInputsMap || {});
+                    setAnsweredMap(session.answeredMap || {});
+                    setShowAnswerMap(session.showAnswerMap || {});
+                    setPendingRevealQuestionIds(session.pendingRevealQuestionIds || []);
+                    setFeedbackPhase(session.feedbackPhase || 'answering');
+                    setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
+                    setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
+                    setCurrentQuestionIndex(Math.max(0, nextIndex));
+                    setMarkedQuestions(session.markedQuestions || []);
+                    startTimeRef.current = buildResumedStartTime(session.elapsedSeconds);
+                    setIsTestCompleted(false);
+                    setActiveHistory(null);
+                    setHistoryMode(session.historyMode || 'normal');
+                    setIsLoading(false);
+                    return true;
+                };
 
                 if (!historyFromState && !reviewQuestionIdsFromState && qs.length === 0) {
-                    await clearSessionFromStorage(quizSetId).catch(err => console.error('Failed to clear suspended session', err));
+                    await clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
                     setQuestions([]);
                     setShowEmptyCardsModal(true);
                     setIsLoading(false);
@@ -245,41 +310,32 @@ export const MemorizationRoute: React.FC = () => {
                     return;
                 }
 
+                if (fromReviewBoardFromState && reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0) {
+                    if (suspendedSession && suspendedSession.type === 'memorization') {
+                        const reviewResumeSession = buildReviewDueResumeSession(suspendedSession, qs, reviewQuestionIdsFromState);
+                        if (restoreSuspendedSession(reviewResumeSession)) {
+                            return;
+                        }
+
+                        await clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
+                    }
+
+                    startNew(qs, reviewQuestionIdsFromState, 'review_due');
+                    return;
+                }
+
                 if (reviewQuestionIdsFromState && reviewQuestionIdsFromState.length > 0) {
                     startNew(qs, reviewQuestionIdsFromState, 'review_due');
                     return;
                 }
 
-                const suspendedSession = !startNewFromState ? await loadSessionFromStorage(quizSetId) : null;
-
                 if (suspendedSession && suspendedSession.type === 'memorization') {
-                    const filteredQuestions = filterExistingSessionQuestions(suspendedSession.questions, qs);
-
-                    if (filteredQuestions.length === 0) {
+                    if (!restoreSuspendedSession(suspendedSession)) {
                         alert('中断していた問題はすべて削除されました。');
-                        await clearSessionFromStorage(quizSetId);
+                        await clearSessionFromStorage(quizSetId, sessionSlotKey);
                         startNew(qs);
                     } else {
-                        const nextIndex = Math.min(suspendedSession.currentQuestionIndex, filteredQuestions.length - 1);
-                        setQuestions(filteredQuestions);
-                        setMemorizationLogs(suspendedSession.memorizationLogs || []);
-                        setMemorizationInputsMap(suspendedSession.memorizationInputsMap || {});
-                        setAnsweredMap(suspendedSession.answeredMap || {});
-                        setShowAnswerMap(suspendedSession.showAnswerMap || {});
-                        setPendingRevealQuestionIds(suspendedSession.pendingRevealQuestionIds || []);
-                        setFeedbackPhase(suspendedSession.feedbackPhase || 'answering');
-                        setFeedbackTimingMode(suspendedSession.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
-                        setFeedbackBlockSize(suspendedSession.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
-                        setCurrentQuestionIndex(nextIndex);
-                        setMarkedQuestions(suspendedSession.markedQuestions || []);
-
-                        // Restore startTimeRef by subtracting previously spent time from NOW
-                        startTimeRef.current = buildResumedStartTime(suspendedSession.elapsedSeconds);
-
-                        setIsTestCompleted(false);
-                        setActiveHistory(null);
-                        setHistoryMode(suspendedSession.historyMode || 'normal');
-                        setIsLoading(false);
+                        return;
                     }
                 } else {
                     startNew(qs);
@@ -293,13 +349,10 @@ export const MemorizationRoute: React.FC = () => {
         };
 
         initMem();
-    }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState]);
+    }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, fromReviewBoardFromState, sessionSlotKey]);
 
     const handleBackToDetail = () => {
-        if (fromReviewBoardFromState) {
-            navigate('/review-board');
-            return;
-        }
+        clearWindowTimeout(saveDebounceRef);
 
         const quizSetIdForSave = activeQuizSet?.id;
         const shouldSaveSuspendedSession =
@@ -307,6 +360,30 @@ export const MemorizationRoute: React.FC = () => {
             !activeHistory &&
             quizSetIdForSave !== undefined &&
             questions.length > 0;
+
+        if (fromReviewBoardFromState) {
+            if (shouldSaveSuspendedSession && quizSetIdForSave !== undefined) {
+                void saveSessionToStorage(quizSetIdForSave, buildMemorizationSuspendedSession({
+                    questions,
+                    currentQuestionIndex,
+                    answeredMap,
+                    showAnswerMap,
+                    pendingRevealQuestionIds,
+                    feedbackPhase,
+                    feedbackTimingMode,
+                    feedbackBlockSize,
+                    markedQuestions,
+                    startTime: startTimeRef.current,
+                    historyMode,
+                    memorizationLogs,
+                    memorizationInputsMap,
+                }), sessionSlotKey).catch((err) => {
+                    console.error('Failed to save suspended session', err);
+                });
+            }
+            navigate('/review-board');
+            return;
+        }
 
         if (shouldSaveSuspendedSession) {
             void saveSessionToStorage(quizSetIdForSave, buildMemorizationSuspendedSession({
@@ -323,7 +400,7 @@ export const MemorizationRoute: React.FC = () => {
                 historyMode,
                 memorizationLogs,
                 memorizationInputsMap,
-            })).catch((err) => {
+            }), sessionSlotKey).catch((err) => {
                 console.error('Failed to save suspended session', err);
             });
 
@@ -468,6 +545,7 @@ export const MemorizationRoute: React.FC = () => {
         const nextInputsMap = { ...memorizationInputsMap, [qId]: nextInputs };
 
         setMemorizationInputsMap(nextInputsMap);
+        scheduleSaveSession();
     };
 
     const handleRevealAnswer = () => {
@@ -484,6 +562,7 @@ export const MemorizationRoute: React.FC = () => {
         if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
             setAnsweredMap(prev => ({ ...prev, [qId]: true }));
             setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
+            scheduleSaveSession();
             return;
         }
 
@@ -510,11 +589,13 @@ export const MemorizationRoute: React.FC = () => {
 
         if (feedbackTimingMode === 'delayed_end' && allAnswered) {
             enterRevealPhase(getUnjudgedAnsweredQuestionIds(nextAnsweredMap));
+            scheduleSaveSession();
             return;
         }
 
         if (shouldLockByDelayedBlock) {
             enterRevealPhase(nextPendingRevealQuestionIds);
+            scheduleSaveSession();
             return;
         }
 
@@ -522,6 +603,7 @@ export const MemorizationRoute: React.FC = () => {
         if (nextUnansweredIndex >= 0) {
             setCurrentQuestionIndex(nextUnansweredIndex);
         }
+        scheduleSaveSession();
     };
 
     const handleSidebarSelectQuestion = (targetIndex: number, clickPosition?: SidebarClickPosition) => {
@@ -532,6 +614,7 @@ export const MemorizationRoute: React.FC = () => {
         const currentQ = questions[currentQuestionIndex];
         if (!currentQ) {
             setCurrentQuestionIndex(targetIndex);
+            scheduleSaveSession();
             return;
         }
 
@@ -553,6 +636,7 @@ export const MemorizationRoute: React.FC = () => {
                 setPendingRevealQuestionIds([]);
                 setFeedbackPhase('answering');
                 setCurrentQuestionIndex(targetIndex);
+                scheduleSaveSession();
                 return;
             }
 
@@ -560,11 +644,13 @@ export const MemorizationRoute: React.FC = () => {
                 setShowAnswerMap(prev => ({ ...prev, [String(targetQuestionId)]: true }));
             }
             setCurrentQuestionIndex(targetIndex);
+            scheduleSaveSession();
             return;
         }
 
         if (feedbackTimingMode === 'immediate' || feedbackPhase !== 'answering') {
             setCurrentQuestionIndex(targetIndex);
+            scheduleSaveSession();
             return;
         }
 
@@ -613,12 +699,14 @@ export const MemorizationRoute: React.FC = () => {
         }
 
         setCurrentQuestionIndex(targetIndex);
+        scheduleSaveSession();
     };
 
     const handleMoveNext = () => {
         if (feedbackTimingMode === 'immediate') {
             if (currentQuestionIndex < questions.length - 1) {
                 setCurrentQuestionIndex(prev => prev + 1);
+                scheduleSaveSession();
             }
             return;
         }
@@ -627,12 +715,14 @@ export const MemorizationRoute: React.FC = () => {
             const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
             if (nextUnansweredIndex >= 0) {
                 setCurrentQuestionIndex(nextUnansweredIndex);
+                scheduleSaveSession();
                 return;
             }
 
             const unjudgedAnswered = getUnjudgedAnsweredQuestionIds();
             if (unjudgedAnswered.length > 0) {
                 enterRevealPhase(unjudgedAnswered);
+                scheduleSaveSession();
             }
             return;
         }
@@ -650,6 +740,7 @@ export const MemorizationRoute: React.FC = () => {
             if (nextIndex >= 0) {
                 setCurrentQuestionIndex(nextIndex);
             }
+            scheduleSaveSession();
             return;
         }
 
@@ -659,6 +750,7 @@ export const MemorizationRoute: React.FC = () => {
             setFeedbackPhase('answering');
             setCurrentQuestionIndex(nextUnansweredIndex);
         }
+        scheduleSaveSession();
     };
 
     const handleMemorizationJudge = (inputs: string[], isMemorized: boolean) => {
@@ -679,6 +771,7 @@ export const MemorizationRoute: React.FC = () => {
         };
         const newLogs = [...filteredLogs, log];
         setMemorizationLogs(newLogs);
+        scheduleSaveSession();
 
         if (feedbackTimingMode === 'immediate') {
             if (currentQuestionIndex < questions.length - 1) {
@@ -711,6 +804,7 @@ export const MemorizationRoute: React.FC = () => {
     };
 
     const handleCompleteMemorization = async (finalLogs: MemorizationLog[]) => {
+        clearWindowTimeout(saveDebounceRef);
         setIsTestCompleted(true);
         if (activeHistory) return;
 
@@ -732,7 +826,7 @@ export const MemorizationRoute: React.FC = () => {
         };
 
         if (activeQuizSet?.id !== undefined) {
-            await clearSessionFromStorage(activeQuizSet.id);
+            await clearSessionFromStorage(activeQuizSet.id, sessionSlotKey);
         }
 
         try {

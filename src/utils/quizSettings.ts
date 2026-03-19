@@ -1,4 +1,4 @@
-import type { Question, FeedbackTimingMode, SuspendedSession } from '../types';
+import type { Question, FeedbackTimingMode, SuspendedSession, SuspendedSessionSlotKey } from '../types';
 import { isCloudSyncEnabled } from '../db';
 import { cloudApi } from '../cloudApi';
 
@@ -9,10 +9,20 @@ export interface QuizSetSettings {
     feedbackBlockSize: number;
 }
 
-export const loadSessionFromStorage = async (quizSetId: number): Promise<SuspendedSession | null> => {
+function getSuspendedSessionStorageKey(quizSetId: number, slotKey: SuspendedSessionSlotKey): string {
+    if (slotKey === 'default') {
+        return `suspendedSession_${quizSetId}`;
+    }
+    return `suspendedSession_${slotKey}_${quizSetId}`;
+}
+
+export const loadSessionFromStorage = async (
+    quizSetId: number,
+    slotKey: SuspendedSessionSlotKey = 'default'
+): Promise<SuspendedSession | null> => {
     try {
         if (isCloudSyncEnabled()) {
-            const cloudSession = await cloudApi.getSuspendedSession(quizSetId);
+            const cloudSession = await cloudApi.getSuspendedSession(quizSetId, slotKey);
             if (!cloudSession) return null;
             return {
                 ...cloudSession,
@@ -21,7 +31,7 @@ export const loadSessionFromStorage = async (quizSetId: number): Promise<Suspend
             };
         }
 
-        const stored = localStorage.getItem(`suspendedSession_${quizSetId}`);
+        const stored = localStorage.getItem(getSuspendedSessionStorageKey(quizSetId, slotKey));
         if (stored) {
             const session = JSON.parse(stored);
             // Date strings need to be converted back to Date objects
@@ -37,21 +47,28 @@ export const loadSessionFromStorage = async (quizSetId: number): Promise<Suspend
     return null;
 };
 
-export const saveSessionToStorage = async (quizSetId: number, session: SuspendedSession) => {
+export const saveSessionToStorage = async (
+    quizSetId: number,
+    session: SuspendedSession,
+    slotKey: SuspendedSessionSlotKey = 'default'
+) => {
     const sessionToSave = { ...session, updatedAt: new Date() };
     if (isCloudSyncEnabled()) {
-        await cloudApi.upsertSuspendedSession(quizSetId, sessionToSave);
+        await cloudApi.upsertSuspendedSession(quizSetId, sessionToSave, slotKey);
         return;
     }
-    localStorage.setItem(`suspendedSession_${quizSetId}`, JSON.stringify(sessionToSave));
+    localStorage.setItem(getSuspendedSessionStorageKey(quizSetId, slotKey), JSON.stringify(sessionToSave));
 };
 
-export const clearSessionFromStorage = async (quizSetId: number) => {
+export const clearSessionFromStorage = async (
+    quizSetId: number,
+    slotKey: SuspendedSessionSlotKey = 'default'
+) => {
     if (isCloudSyncEnabled()) {
-        await cloudApi.clearSuspendedSession(quizSetId);
+        await cloudApi.clearSuspendedSession(quizSetId, slotKey);
         return;
     }
-    localStorage.removeItem(`suspendedSession_${quizSetId}`);
+    localStorage.removeItem(getSuspendedSessionStorageKey(quizSetId, slotKey));
 };
 
 // Quiz set settings helpers (localStorage)

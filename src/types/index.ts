@@ -56,6 +56,7 @@ export interface QuizHistory {
 
 export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict' | 'review_due';
 export type FeedbackTimingMode = 'immediate' | 'delayed_block' | 'delayed_end';
+export type SuspendedSessionSlotKey = 'default' | 'review_due';
 
 export interface SuspendedSession {
     questions: Question[];

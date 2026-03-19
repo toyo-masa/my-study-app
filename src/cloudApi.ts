@@ -1,4 +1,15 @@
-import type { Question, QuizSet, QuizHistory, ReviewSchedule, ReviewLog, QuizSetType, HomeOnboardingState, HomeOnboardingFlowStage, SuspendedSession } from './types';
+import type {
+    Question,
+    QuizSet,
+    QuizHistory,
+    ReviewSchedule,
+    ReviewLog,
+    QuizSetType,
+    HomeOnboardingState,
+    HomeOnboardingFlowStage,
+    SuspendedSession,
+    SuspendedSessionSlotKey,
+} from './types';
 
 export class ApiError extends Error {
     status: number;
@@ -230,22 +241,39 @@ export const cloudApi = {
     },
 
     // Suspended Sessions
-    async getSuspendedSession(quizSetId: number): Promise<SuspendedSession | null> {
+    async getSuspendedSession(
+        quizSetId: number,
+        slotKey: SuspendedSessionSlotKey = 'default'
+    ): Promise<SuspendedSession | null> {
         const params = new URLSearchParams({ quizSetId: quizSetId.toString() });
+        if (slotKey !== 'default') {
+            params.append('slotKey', slotKey);
+        }
         return fetchApi(`/api/suspendedSession?${params.toString()}`, { cache: 'no-store' });
     },
 
-    async upsertSuspendedSession(quizSetId: number, session: SuspendedSession): Promise<void> {
+    async upsertSuspendedSession(
+        quizSetId: number,
+        session: SuspendedSession,
+        slotKey: SuspendedSessionSlotKey = 'default'
+    ): Promise<void> {
         await fetchApi('/api/suspendedSession', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ quizSetId, session }),
+            body: JSON.stringify({ quizSetId, session, slotKey }),
             keepalive: true
         });
     },
 
-    async clearSuspendedSession(quizSetId: number): Promise<void> {
-        await fetchApi(`/api/suspendedSession?quizSetId=${quizSetId}`, {
+    async clearSuspendedSession(
+        quizSetId: number,
+        slotKey: SuspendedSessionSlotKey = 'default'
+    ): Promise<void> {
+        const params = new URLSearchParams({ quizSetId: quizSetId.toString() });
+        if (slotKey !== 'default') {
+            params.append('slotKey', slotKey);
+        }
+        await fetchApi(`/api/suspendedSession?${params.toString()}`, {
             method: 'DELETE',
             keepalive: true
         });

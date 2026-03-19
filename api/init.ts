@@ -137,6 +137,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         quiz_set_id INTEGER REFERENCES quiz_sets(id) ON DELETE CASCADE,
+        session_key VARCHAR(50) DEFAULT 'default',
         session_data JSONB NOT NULL,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
@@ -166,6 +167,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS memorization_detail JSONB`;
     await sql`ALTER TABLE review_schedules ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE review_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
+    await sql`ALTER TABLE suspended_sessions ADD COLUMN IF NOT EXISTS session_key VARCHAR(50) DEFAULT 'default'`;
     await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`;
     await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS home_tutorial_completed BOOLEAN DEFAULT FALSE`;
     await sql`ALTER TABLE user_onboarding_states ADD COLUMN IF NOT EXISTS flow_stage VARCHAR(32) DEFAULT 'home'`;
@@ -261,8 +263,14 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
       ON user_onboarding_states (user_id)
     `;
     await sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS suspended_sessions_user_quiz_unique_idx
-      ON suspended_sessions (user_id, quiz_set_id)
+      UPDATE suspended_sessions
+      SET session_key = 'default'
+      WHERE session_key IS NULL OR session_key = ''
+    `;
+    await sql`DROP INDEX IF EXISTS suspended_sessions_user_quiz_unique_idx`;
+    await sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS suspended_sessions_user_quiz_session_unique_idx
+      ON suspended_sessions (user_id, quiz_set_id, session_key)
     `;
 
     return res.status(200).json({ message: 'Database tables initialized successfully' });

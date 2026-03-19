@@ -8,7 +8,7 @@ import {
     PlayCircle,
     RefreshCw,
 } from 'lucide-react';
-import type { Question, QuizSetType, ReviewSchedule } from '../types';
+import type { Question, QuizSetType, ReviewSchedule, SuspendedSession } from '../types';
 import {
     getAllReviewSchedules,
     getDueReviews,
@@ -21,6 +21,8 @@ import { LoadingView } from '../components/LoadingView';
 import { BackButton } from '../components/BackButton';
 import { useAppContext } from '../contexts/AppContext';
 import { ApiError } from '../cloudApi';
+import { loadSessionFromStorage } from '../utils/quizSettings';
+import { getCompletedQuestionIdsFromSuspendedSession, REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY } from '../utils/quizSession';
 import { loadReviewIntervalSettings } from '../utils/spacedRepetition';
 import '../App.css';
 
@@ -91,6 +93,7 @@ export const ReviewBoardRoute: React.FC = () => {
     const { handleCloudError, setIsLoginModalOpen, showGlobalNotice } = useAppContext();
     const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
     const [allReviewSchedules, setAllReviewSchedules] = useState<ReviewSchedule[]>([]);
+    const [reviewDueSessionsByQuizSet, setReviewDueSessionsByQuizSet] = useState<Record<number, SuspendedSession>>({});
     const [quizSetMetaById, setQuizSetMetaById] = useState<Record<number, QuizSetMeta>>({});
     const [typeFilter, setTypeFilter] = useState<ReviewSetTypeFilter>('all');
     const [futureSetFilter, setFutureSetFilter] = useState<string>('all');
@@ -118,6 +121,13 @@ export const ReviewBoardRoute: React.FC = () => {
                 getQuizSetsWithCounts(),
                 getAllReviewSchedules(),
             ]);
+            const dueQuizSetIds = [...new Set(reviews.map((review) => review.quizSetId))];
+            const suspendedSessionEntries = await Promise.all(
+                dueQuizSetIds.map(async (quizSetId) => {
+                    const session = await loadSessionFromStorage(quizSetId, REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY);
+                    return [quizSetId, session] as const;
+                })
+            );
 
             const nextMetaById: Record<number, QuizSetMeta> = {};
             for (const quizSet of quizSets) {
@@ -129,9 +139,16 @@ export const ReviewBoardRoute: React.FC = () => {
                     };
                 }
             }
+            const nextReviewDueSessionsByQuizSet: Record<number, SuspendedSession> = {};
+            for (const [quizSetId, session] of suspendedSessionEntries) {
+                if (session) {
+                    nextReviewDueSessionsByQuizSet[quizSetId] = session;
+                }
+            }
 
             setDueReviews(reviews);
             setAllReviewSchedules(schedules);
+            setReviewDueSessionsByQuizSet(nextReviewDueSessionsByQuizSet);
             setQuizSetMetaById(nextMetaById);
 
             // Fetch question text for future schedules (next 7 days)
@@ -246,13 +263,26 @@ export const ReviewBoardRoute: React.FC = () => {
             });
     }, [quizSetMetaById]);
 
+    const completedQuestionIdsByQuizSet = useMemo(() => {
+        const result: Record<number, Set<number>> = {};
+        for (const [quizSetId, session] of Object.entries(reviewDueSessionsByQuizSet)) {
+            result[Number(quizSetId)] = new Set(getCompletedQuestionIdsFromSuspendedSession(session));
+        }
+        return result;
+    }, [reviewDueSessionsByQuizSet]);
+
+    const effectiveDueReviews = useMemo(
+        () => dueReviews.filter((review) => !completedQuestionIdsByQuizSet[review.quizSetId]?.has(review.questionId)),
+        [dueReviews, completedQuestionIdsByQuizSet]
+    );
+
     const filteredTodayReviews = useMemo(
-        () => dueReviews.filter((review) => {
+        () => effectiveDueReviews.filter((review) => {
             if (review.nextDue > today) return false;
             if (typeFilter === 'all') return true;
             return quizSetMetaById[review.quizSetId]?.type === typeFilter;
         }),
-        [dueReviews, today, typeFilter, quizSetMetaById]
+        [effectiveDueReviews, today, typeFilter, quizSetMetaById]
     );
 
     const todaySetSummaries = useMemo(
@@ -264,9 +294,10 @@ export const ReviewBoardRoute: React.FC = () => {
         () => allReviewSchedules.filter(schedule => {
             const setMeta = quizSetMetaById[schedule.quizSetId];
             if (!setMeta) return false;
+            if (completedQuestionIdsByQuizSet[schedule.quizSetId]?.has(schedule.questionId)) return false;
             return true;
         }),
-        [allReviewSchedules, quizSetMetaById]
+        [allReviewSchedules, quizSetMetaById, completedQuestionIdsByQuizSet]
     );
 
     const totalTodayUnreviewedQuestions = useMemo(
@@ -418,7 +449,6 @@ export const ReviewBoardRoute: React.FC = () => {
         }
 
         const navigationState = {
-            startNew: true,
             reviewQuestionIds: summary.reviewQuestionIds,
             fromReviewBoard: true,
         };

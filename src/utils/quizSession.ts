@@ -1,4 +1,12 @@
-import type { ConfidenceLevel, FeedbackTimingMode, HistoryMode, MemorizationLog, Question, SuspendedSession } from '../types';
+import type {
+    ConfidenceLevel,
+    FeedbackTimingMode,
+    HistoryMode,
+    MemorizationLog,
+    Question,
+    SuspendedSession,
+    SuspendedSessionSlotKey,
+} from '../types';
 
 type BuildQuizSessionKeyParams = {
     quizSetId: number | undefined;
@@ -7,6 +15,9 @@ type BuildQuizSessionKeyParams = {
     reviewQuestionIds?: number[];
     locationKey: string;
 };
+
+export const DEFAULT_SUSPENDED_SESSION_SLOT_KEY: SuspendedSessionSlotKey = 'default';
+export const REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY: SuspendedSessionSlotKey = 'review_due';
 
 export function isMobileViewport(): boolean {
     if (typeof window === 'undefined') return false;
@@ -166,4 +177,135 @@ export function clearWindowTimeout(timeoutRef: { current: number | null }): void
         window.clearTimeout(timeoutRef.current);
     }
     timeoutRef.current = null;
+}
+
+function filterObjectByQuestionIds<T>(
+    record: Record<string, T> | undefined,
+    targetQuestionIdSet: Set<number>
+): Record<string, T> {
+    if (!record) {
+        return {};
+    }
+
+    return Object.fromEntries(
+        Object.entries(record).filter(([questionId]) => targetQuestionIdSet.has(Number(questionId)))
+    );
+}
+
+function filterMemorizationLogsByQuestionIds(
+    logs: MemorizationLog[] | undefined,
+    targetQuestionIdSet: Set<number>
+): MemorizationLog[] {
+    if (!logs) {
+        return [];
+    }
+
+    return logs.filter((log) => targetQuestionIdSet.has(log.questionId));
+}
+
+export function getCompletedQuestionIdsFromSuspendedSession(session: SuspendedSession): number[] {
+    if (session.type === 'memorization') {
+        return [...new Set((session.memorizationLogs || []).map((log) => log.questionId))];
+    }
+
+    return session.questions
+        .map((question) => question.id)
+        .filter((questionId): questionId is number => typeof questionId === 'number')
+        .filter((questionId) => {
+            const questionKey = String(questionId);
+            const question = session.questions.find((item) => item.id === questionId);
+            if (!question) {
+                return false;
+            }
+
+            if (question.questionType === 'memorization') {
+                return session.showAnswerMap[questionKey] === true && Boolean(session.confidences?.[questionKey]);
+            }
+
+            return session.showAnswerMap[questionKey] === true;
+        });
+}
+
+export function getIncompleteQuestionIdsFromSuspendedSession(session: SuspendedSession): number[] {
+    const completedQuestionIdSet = new Set(getCompletedQuestionIdsFromSuspendedSession(session));
+
+    return session.questions
+        .map((question) => question.id)
+        .filter((questionId): questionId is number => typeof questionId === 'number')
+        .filter((questionId) => !completedQuestionIdSet.has(questionId));
+}
+
+export function filterSuspendedSessionByQuestionIds(
+    session: SuspendedSession,
+    targetQuestions: Question[],
+    currentQuestionId?: number
+): SuspendedSession {
+    const targetQuestionIds = targetQuestions
+        .map((question) => question.id)
+        .filter((questionId): questionId is number => typeof questionId === 'number');
+    const targetQuestionIdSet = new Set(targetQuestionIds);
+
+    const nextCurrentQuestionIndex = currentQuestionId !== undefined
+        ? targetQuestionIds.indexOf(currentQuestionId)
+        : -1;
+
+    return {
+        ...session,
+        questions: targetQuestions,
+        currentQuestionIndex: nextCurrentQuestionIndex >= 0 ? nextCurrentQuestionIndex : 0,
+        answers: filterObjectByQuestionIds(session.answers, targetQuestionIdSet),
+        memos: filterObjectByQuestionIds(session.memos, targetQuestionIdSet),
+        confidences: filterObjectByQuestionIds(session.confidences, targetQuestionIdSet),
+        memorizationAnswers: filterObjectByQuestionIds(session.memorizationAnswers, targetQuestionIdSet),
+        answeredMap: filterObjectByQuestionIds(session.answeredMap, targetQuestionIdSet),
+        showAnswerMap: filterObjectByQuestionIds(session.showAnswerMap, targetQuestionIdSet),
+        pendingRevealQuestionIds: (session.pendingRevealQuestionIds || []).filter((questionId) => targetQuestionIdSet.has(questionId)),
+        markedQuestions: (session.markedQuestions || []).filter((questionId) => targetQuestionIdSet.has(questionId)),
+        memorizationLogs: filterMemorizationLogsByQuestionIds(session.memorizationLogs, targetQuestionIdSet),
+        memorizationInputsMap: filterObjectByQuestionIds(session.memorizationInputsMap, targetQuestionIdSet),
+    };
+}
+
+export function buildReviewDueResumeSession(
+    session: SuspendedSession,
+    availableQuestions: Question[],
+    currentReviewQuestionIds: number[]
+): SuspendedSession {
+    const availableQuestionById = new Map(
+        availableQuestions
+            .filter((question): question is Question & { id: number } => typeof question.id === 'number')
+            .map((question) => [question.id, question])
+    );
+    const savedQuestions = filterExistingSessionQuestions(session.questions, availableQuestions);
+    const savedQuestionById = new Map(savedQuestions.map((question) => [question.id!, question]));
+    const completedQuestionIdSet = new Set(
+        getCompletedQuestionIdsFromSuspendedSession(session).filter((questionId) => availableQuestionById.has(questionId))
+    );
+    const savedIncompleteQuestionIds = savedQuestions
+        .map((question) => question.id!)
+        .filter((questionId) => !completedQuestionIdSet.has(questionId));
+
+    const mergedQuestionIds: number[] = [];
+    const mergedQuestionIdSet = new Set<number>();
+    const appendQuestionId = (questionId: number) => {
+        if (!availableQuestionById.has(questionId) || completedQuestionIdSet.has(questionId) || mergedQuestionIdSet.has(questionId)) {
+            return;
+        }
+        mergedQuestionIds.push(questionId);
+        mergedQuestionIdSet.add(questionId);
+    };
+
+    savedIncompleteQuestionIds.forEach(appendQuestionId);
+    currentReviewQuestionIds.forEach(appendQuestionId);
+
+    const mergedQuestions = mergedQuestionIds
+        .map((questionId) => savedQuestionById.get(questionId) || availableQuestionById.get(questionId))
+        .filter((question): question is Question => Boolean(question));
+
+    const savedCurrentQuestionId = savedQuestions[Math.min(session.currentQuestionIndex, Math.max(savedQuestions.length - 1, 0))]?.id;
+    const currentQuestionId = savedCurrentQuestionId !== undefined && mergedQuestionIdSet.has(savedCurrentQuestionId)
+        ? savedCurrentQuestionId
+        : mergedQuestionIds[0];
+
+    return filterSuspendedSessionByQuestionIds(session, mergedQuestions, currentQuestionId);
 }
