@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { RotateCcw, RotateCw } from 'lucide-react';
 
 type HandwritingPoint = {
     x: number;
@@ -10,13 +11,7 @@ type HandwritingStroke = {
     lineWidth: number;
 };
 
-type HandwritingLineWidthMode = 'thin' | 'thick';
-type HandwritingBackgroundMode = 'plain' | 'lines' | 'grid';
-
-const LINE_WIDTHS: Record<HandwritingLineWidthMode, number> = {
-    thin: 2.5,
-    thick: 5,
-};
+const DEFAULT_LINE_WIDTH = 2.5;
 
 export const HandwritingPad: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,8 +22,6 @@ export const HandwritingPad: React.FC = () => {
     const currentStrokeRef = useRef<HandwritingStroke | null>(null);
     const [strokes, setStrokes] = useState<HandwritingStroke[]>([]);
     const [redoStrokes, setRedoStrokes] = useState<HandwritingStroke[]>([]);
-    const [lineWidthMode, setLineWidthMode] = useState<HandwritingLineWidthMode>('thin');
-    const [backgroundMode, setBackgroundMode] = useState<HandwritingBackgroundMode>('lines');
     const [hasPreviewStroke, setHasPreviewStroke] = useState(false);
 
     const applyContextStyle = useCallback((ctx: CanvasRenderingContext2D, lineWidth: number) => {
@@ -172,10 +165,9 @@ export const HandwritingPad: React.FC = () => {
         }
 
         event.preventDefault();
-        const lineWidth = LINE_WIDTHS[lineWidthMode];
         const nextStroke: HandwritingStroke = {
             points: [point],
-            lineWidth,
+            lineWidth: DEFAULT_LINE_WIDTH,
         };
 
         activePointerIdRef.current = event.pointerId;
@@ -184,7 +176,7 @@ export const HandwritingPad: React.FC = () => {
         canvas.setPointerCapture(event.pointerId);
         drawStroke(ctx, nextStroke);
         setHasPreviewStroke(true);
-    }, [drawStroke, getCanvasPoint, lineWidthMode]);
+    }, [drawStroke, getCanvasPoint]);
 
     const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
         if (!isDrawingRef.current || activePointerIdRef.current !== event.pointerId) {
@@ -293,19 +285,23 @@ export const HandwritingPad: React.FC = () => {
                 <div className="handwriting-pad-actions">
                     <button
                         type="button"
-                        className="nav-btn handwriting-pad-clear-btn"
+                        className="icon-btn handwriting-pad-icon-btn"
                         onClick={handleUndo}
                         disabled={strokes.length === 0}
+                        aria-label="元に戻す"
+                        title="元に戻す"
                     >
-                        元に戻す
+                        <RotateCcw size={16} />
                     </button>
                     <button
                         type="button"
-                        className="nav-btn handwriting-pad-clear-btn"
+                        className="icon-btn handwriting-pad-icon-btn"
                         onClick={handleRedo}
                         disabled={redoStrokes.length === 0}
+                        aria-label="やり直し"
+                        title="やり直し"
                     >
-                        やり直し
+                        <RotateCw size={16} />
                     </button>
                     <button
                         type="button"
@@ -317,52 +313,9 @@ export const HandwritingPad: React.FC = () => {
                     </button>
                 </div>
             </div>
-            <div className="handwriting-pad-toolbar" aria-label="手書きメモの設定">
-                <div className="handwriting-tool-group">
-                    <span className="handwriting-tool-label">太さ</span>
-                    <button
-                        type="button"
-                        className={`handwriting-tool-btn ${lineWidthMode === 'thin' ? 'active' : ''}`}
-                        onClick={() => setLineWidthMode('thin')}
-                    >
-                        細字
-                    </button>
-                    <button
-                        type="button"
-                        className={`handwriting-tool-btn ${lineWidthMode === 'thick' ? 'active' : ''}`}
-                        onClick={() => setLineWidthMode('thick')}
-                    >
-                        太字
-                    </button>
-                </div>
-                <div className="handwriting-tool-group">
-                    <span className="handwriting-tool-label">背景</span>
-                    <button
-                        type="button"
-                        className={`handwriting-tool-btn ${backgroundMode === 'plain' ? 'active' : ''}`}
-                        onClick={() => setBackgroundMode('plain')}
-                    >
-                        無地
-                    </button>
-                    <button
-                        type="button"
-                        className={`handwriting-tool-btn ${backgroundMode === 'lines' ? 'active' : ''}`}
-                        onClick={() => setBackgroundMode('lines')}
-                    >
-                        罫線
-                    </button>
-                    <button
-                        type="button"
-                        className={`handwriting-tool-btn ${backgroundMode === 'grid' ? 'active' : ''}`}
-                        onClick={() => setBackgroundMode('grid')}
-                    >
-                        方眼
-                    </button>
-                </div>
-            </div>
             <div
                 ref={surfaceRef}
-                className={`handwriting-pad-surface is-${backgroundMode}`}
+                className="handwriting-pad-surface is-grid"
             >
                 {!hasStroke && (
                     <div className="handwriting-pad-empty">

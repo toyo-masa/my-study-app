@@ -4567,51 +4567,27 @@ input:checked+.slider svg {
 .handwriting-pad-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
 }
 
-.handwriting-pad-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.handwriting-tool-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.handwriting-tool-label {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.handwriting-tool-btn {
-  appearance: none;
+.handwriting-pad-icon-btn {
   border: 1px solid var(--border-color);
-  background: var(--surface-color);
-  color: var(--text-color);
   border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.84rem;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  padding: 0.45rem;
 }
 
-.handwriting-tool-btn:hover {
+.handwriting-pad-icon-btn:hover:not(:disabled) {
   background: var(--bg-secondary);
+  color: var(--text-color);
 }
 
-.handwriting-tool-btn.active {
-  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.14);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+.handwriting-pad-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .handwriting-pad-surface {
