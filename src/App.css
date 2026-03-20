@@ -2412,8 +2412,9 @@ input:checked+.slider svg {
 }
 
 .review-flag-btn:hover {
-  background: rgba(245, 158, 11, 0.05);
-  color: #f59e0b;
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.16);
+  color: var(--text-primary);
 }
 
 .review-flag-btn.active {
@@ -2430,8 +2431,9 @@ input:checked+.slider svg {
 }
 
 .dark-mode .review-flag-btn:hover {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
+  background: #353535;
+  border-color: #5a5a5a;
+  color: #f5f5f5;
 }
 
 .dark-mode .review-flag-btn.active {

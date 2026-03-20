@@ -168,7 +168,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </section>
 
                             <section className="settings-section">
-                                <details className="settings-collapsible" open>
+                                <details className="settings-collapsible">
                                     <summary className="section-title settings-collapsible-summary">
                                         <span className="settings-collapsible-title">
                                             <Monitor size={18} />
@@ -247,41 +247,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </section>
 
                             <section className="settings-section">
-                                <div className="section-title">
-                                    <Pencil size={18} />
-                                    <span>手書きメモ</span>
-                                </div>
-                                <div className="review-settings-card">
-                                    <div className="setting-control">
-                                        <span>指でも描く</span>
-                                        <label className="toggle-switch">
-                                            <input
-                                                type="checkbox"
-                                                checked={handwritingSettings.allowTouchDrawing}
-                                                onChange={(event) => onHandwritingSettingsChange({
-                                                    ...handwritingSettings,
-                                                    allowTouchDrawing: event.target.checked,
-                                                })}
-                                            />
-                                            <span className="slider"></span>
-                                        </label>
+                                <details className="settings-collapsible">
+                                    <summary className="section-title settings-collapsible-summary">
+                                        <span className="settings-collapsible-title">
+                                            <Pencil size={18} />
+                                            <span>手書き設定</span>
+                                        </span>
+                                        <ChevronDown size={16} className="settings-collapsible-chevron" />
+                                    </summary>
+                                    <div className="settings-collapsible-body">
+                                        <div className="review-settings-card">
+                                            <h4 className="review-settings-card-title">入力方法</h4>
+                                            <div className="setting-control">
+                                                <span>指でも描く</span>
+                                                <label className="toggle-switch">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={handwritingSettings.allowTouchDrawing}
+                                                        onChange={(event) => onHandwritingSettingsChange({
+                                                            ...handwritingSettings,
+                                                            allowTouchDrawing: event.target.checked,
+                                                        })}
+                                                    />
+                                                    <span className="slider"></span>
+                                                </label>
+                                            </div>
+                                            <p className="review-settings-note" style={{ margin: 0 }}>
+                                                オフのときは Apple Pencil とマウスを優先し、指では描画しません。必要なときだけオンにできます。
+                                            </p>
+                                            <button
+                                                type="button"
+                                                className="nav-btn"
+                                                onClick={onResetHandwritingSettings}
+                                                style={{ marginTop: '0.9rem' }}
+                                            >
+                                                手書き設定を初期値に戻す
+                                            </button>
+                                        </div>
                                     </div>
-                                    <p className="review-settings-note" style={{ margin: 0 }}>
-                                        オフのときは Apple Pencil とマウスを優先し、指では描画しません。必要なときだけオンにできます。
-                                    </p>
-                                    <button
-                                        type="button"
-                                        className="nav-btn"
-                                        onClick={onResetHandwritingSettings}
-                                        style={{ marginTop: '0.9rem' }}
-                                    >
-                                        手書き設定を初期値に戻す
-                                    </button>
-                                </div>
+                                </details>
                             </section>
 
                             <section className="settings-section">
-                                <details className="settings-collapsible" open>
+                                <details className="settings-collapsible">
                                     <summary className="section-title settings-collapsible-summary">
                                         <span className="settings-collapsible-title">
                                             <SlidersHorizontal size={18} />
