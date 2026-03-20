@@ -3,6 +3,7 @@ import { Bookmark, Check, X, RotateCcw, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Question, FeedbackTimingMode, MemorizationLog } from '../types';
 import { MarkdownText } from './MarkdownText';
+import { HandwritingPad } from './HandwritingPad';
 
 interface QuestionViewProps {
     question: Question;
@@ -117,6 +118,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                                             <MarkdownText content={question.explanation} />
                                         </div>
                                     )}
+                                    <HandwritingPad key={question.id ?? `${index}-${question.text}`} />
                                 </div>
                             </div>
                         </>

@@ -4564,6 +4564,56 @@ input:checked+.slider svg {
   white-space: nowrap;
 }
 
+.handwriting-pad-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.handwriting-pad-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.handwriting-tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.handwriting-tool-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.handwriting-tool-btn {
+  appearance: none;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-color);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.84rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.handwriting-tool-btn:hover {
+  background: var(--bg-secondary);
+}
+
+.handwriting-tool-btn.active {
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.14);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
 .handwriting-pad-surface {
   position: relative;
   width: 100%;
@@ -4571,9 +4621,28 @@ input:checked+.slider svg {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
-  background:
+  --handwriting-guide-color: rgba(148, 163, 184, 0.22);
+  background-color: var(--bg-color);
+}
+
+.handwriting-pad-surface.is-plain {
+  background-image:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.06), rgba(148, 163, 184, 0.02));
+}
+
+.handwriting-pad-surface.is-lines {
+  background-image:
     linear-gradient(180deg, rgba(148, 163, 184, 0.06), rgba(148, 163, 184, 0.02)),
-    var(--bg-color);
+    linear-gradient(to bottom, transparent 31px, var(--handwriting-guide-color) 32px);
+  background-size: auto, 100% 32px;
+}
+
+.handwriting-pad-surface.is-grid {
+  background-image:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.06), rgba(148, 163, 184, 0.02)),
+    linear-gradient(to right, var(--handwriting-guide-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--handwriting-guide-color) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
 }
 
 .handwriting-pad-canvas {
@@ -4600,10 +4669,27 @@ input:checked+.slider svg {
 }
 
 .dark-mode .handwriting-pad-surface {
-  background:
-    linear-gradient(180deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.03)),
-    #1e1e1e;
+  --handwriting-guide-color: rgba(148, 163, 184, 0.2);
+  background-color: #1e1e1e;
   border-color: #333333;
+}
+
+.dark-mode .handwriting-pad-surface.is-plain {
+  background-image:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.03));
+}
+
+.dark-mode .handwriting-pad-surface.is-lines {
+  background-image:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.03)),
+    linear-gradient(to bottom, transparent 31px, var(--handwriting-guide-color) 32px);
+}
+
+.dark-mode .handwriting-pad-surface.is-grid {
+  background-image:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.03)),
+    linear-gradient(to right, var(--handwriting-guide-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--handwriting-guide-color) 1px, transparent 1px);
 }
 
 /* ===== Inline Name Edit ===== */
