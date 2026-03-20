@@ -27,6 +27,7 @@ interface QuestionViewProps {
     revealReadyCount?: number | null;
     handwritingState?: HandwritingPadState;
     onHandwritingStateChange?: (value: HandwritingPadState) => void;
+    allowTouchDrawing: boolean;
 }
 
 export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
@@ -51,6 +52,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
     revealReadyCount = null,
     handwritingState,
     onHandwritingStateChange,
+    allowTouchDrawing,
 }) => {
     const handleInputChange = (idx: number, value: string) => {
         onInputChange(idx, value);
@@ -126,6 +128,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                                         key={question.id ?? `${index}-${question.text}`}
                                         value={handwritingState}
                                         onChange={onHandwritingStateChange}
+                                        allowTouchDrawing={allowTouchDrawing}
                                     />
                                 </div>
                             </div>

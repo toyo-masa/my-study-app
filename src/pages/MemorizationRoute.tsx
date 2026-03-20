@@ -43,7 +43,11 @@ import {
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
 
-export const MemorizationRoute: React.FC = () => {
+interface MemorizationRouteProps {
+    allowTouchDrawing: boolean;
+}
+
+export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouchDrawing }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
@@ -1172,6 +1176,7 @@ export const MemorizationRoute: React.FC = () => {
                             revealReadyCount={revealReadyCount}
                             handwritingState={handwritingMap[currentQuestionKey]}
                             onHandwritingStateChange={(value) => setHandwritingMap((prev) => ({ ...prev, [currentQuestionKey]: value }))}
+                            allowTouchDrawing={allowTouchDrawing}
                         />
                     </>
                 )

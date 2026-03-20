@@ -7,10 +7,15 @@ import {
     type ReviewIntervalSettings,
 } from '../utils/spacedRepetition';
 import {
+    DEFAULT_HANDWRITING_SETTINGS,
     getStoredAccentColor,
     getStoredThemeMode,
+    loadHandwritingSettings,
+    normalizeHandwritingSettings,
+    saveHandwritingSettings,
     setStoredAccentColor,
     setStoredThemeMode,
+    type HandwritingSettings,
     type ThemeMode,
 } from '../utils/settings';
 import {
@@ -121,6 +126,9 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const [reviewBoardSettings, setReviewBoardSettings] = useState<ReviewBoardSettings>(() => {
         return loadReviewBoardSettings();
     });
+    const [handwritingSettings, setHandwritingSettings] = useState<HandwritingSettings>(() => {
+        return loadHandwritingSettings();
+    });
 
     useEffect(() => {
         document.body.classList.toggle('dark-mode', isDarkMode);
@@ -150,6 +158,10 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     }, [reviewBoardSettings]);
 
     useEffect(() => {
+        saveHandwritingSettings(handwritingSettings);
+    }, [handwritingSettings]);
+
+    useEffect(() => {
         document.title = resolvePageTitle(pathname, quizSets);
     }, [pathname, quizSets]);
 
@@ -166,6 +178,12 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const handleResetReviewBoardSettings = () => {
         setReviewBoardSettings({ ...DEFAULT_REVIEW_BOARD_SETTINGS });
     };
+    const handleHandwritingSettingsChange = (settings: HandwritingSettings) => {
+        setHandwritingSettings(normalizeHandwritingSettings(settings));
+    };
+    const handleResetHandwritingSettings = () => {
+        setHandwritingSettings({ ...DEFAULT_HANDWRITING_SETTINGS });
+    };
 
     return {
         themeMode,
@@ -175,10 +193,13 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
         setAccentColor,
         reviewIntervalSettings,
         reviewBoardSettings,
+        handwritingSettings,
         toggleDarkMode,
         handleReviewIntervalSettingsChange,
         handleResetReviewIntervalSettings,
         handleReviewBoardSettingsChange,
         handleResetReviewBoardSettings,
+        handleHandwritingSettingsChange,
+        handleResetHandwritingSettings,
     };
 }

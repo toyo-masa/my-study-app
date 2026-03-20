@@ -28,11 +28,13 @@ const DEFAULT_ERASER_WIDTH = 12;
 interface HandwritingPadProps {
     value?: HandwritingPadState;
     onChange?: (nextValue: HandwritingPadState) => void;
+    allowTouchDrawing?: boolean;
 }
 
 export const HandwritingPad: React.FC<HandwritingPadProps> = ({
     value = EMPTY_HANDWRITING_PAD_STATE,
     onChange,
+    allowTouchDrawing = false,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const surfaceRef = useRef<HTMLDivElement>(null);
@@ -64,6 +66,13 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
 
         selection.removeAllRanges();
     }, []);
+
+    const isPointerTypeAllowed = useCallback((pointerType: string) => {
+        if (pointerType === 'touch') {
+            return allowTouchDrawing;
+        }
+        return pointerType === '' || pointerType === 'pen' || pointerType === 'mouse';
+    }, [allowTouchDrawing]);
 
     const applyContextStyle = useCallback((ctx: CanvasRenderingContext2D, stroke: HandwritingStroke) => {
         const canvas = canvasRef.current;
@@ -201,7 +210,7 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
         const point = getCanvasPoint(event);
-        if (!canvas || !ctx || !point || activePointerIdRef.current !== null) {
+        if (!canvas || !ctx || !point || activePointerIdRef.current !== null || !isPointerTypeAllowed(event.pointerType)) {
             return;
         }
 
@@ -218,7 +227,7 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
         canvas.setPointerCapture(event.pointerId);
         drawStroke(ctx, nextStroke);
         setHasPreviewStroke(true);
-    }, [drawStroke, getCanvasPoint, toolMode]);
+    }, [drawStroke, getCanvasPoint, isPointerTypeAllowed, toolMode]);
 
     const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
         if (!isDrawingRef.current || activePointerIdRef.current !== event.pointerId) {

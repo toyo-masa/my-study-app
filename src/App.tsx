@@ -44,9 +44,12 @@ function App() {
     isDarkMode,
     accentColor,
     setAccentColor,
+    handwritingSettings,
     reviewIntervalSettings,
     reviewBoardSettings,
     toggleDarkMode,
+    handleHandwritingSettingsChange,
+    handleResetHandwritingSettings,
     handleReviewIntervalSettingsChange,
     handleResetReviewIntervalSettings,
     handleReviewBoardSettingsChange,
@@ -96,8 +99,11 @@ function App() {
         onThemeModeChange={setThemeMode}
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
+        handwritingSettings={handwritingSettings}
         reviewIntervalSettings={reviewIntervalSettings}
         reviewBoardSettings={reviewBoardSettings}
+        onHandwritingSettingsChange={handleHandwritingSettingsChange}
+        onResetHandwritingSettings={handleResetHandwritingSettings}
         onReviewIntervalSettingsChange={handleReviewIntervalSettingsChange}
         onResetReviewIntervalSettings={handleResetReviewIntervalSettings}
         onReviewBoardSettingsChange={handleReviewBoardSettingsChange}
@@ -126,8 +132,8 @@ function App() {
           <Route path="/tutorial" element={<TutorialHubRoute />} />
           {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
           <Route path="/quiz/:id/manage" element={<ManageRoute />} />
-          <Route path="/quiz/:id/study" element={<StudyRoute />} />
-          <Route path="/quiz/:id/memorization" element={<MemorizationRoute />} />
+          <Route path="/quiz/:id/study" element={<StudyRoute allowTouchDrawing={handwritingSettings.allowTouchDrawing} />} />
+          <Route path="/quiz/:id/memorization" element={<MemorizationRoute allowTouchDrawing={handwritingSettings.allowTouchDrawing} />} />
           <Route path="/quiz/:id/history-table" element={<HistoryTableRoute />} />
           <Route path="/quiz/:id" element={<QuizDetailRoute />} />
           <Route path="/release-notes" element={<ReleaseNotesRoute />} />

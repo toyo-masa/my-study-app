@@ -34,6 +34,7 @@ interface QuestionViewProps {
     showHandwritingPad: boolean;
     handwritingState?: HandwritingPadState;
     onHandwritingStateChange?: (value: HandwritingPadState) => void;
+    allowTouchDrawing: boolean;
 }
 
 export const QuestionView: React.FC<QuestionViewProps> = ({
@@ -62,6 +63,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     showHandwritingPad,
     handwritingState,
     onHandwritingStateChange,
+    allowTouchDrawing,
 }) => {
     const isMemoQuestion = question.questionType === 'memorization';
 
@@ -381,6 +383,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                             key={question.id ?? `${questionIndex}-${question.text}`}
                             value={handwritingState}
                             onChange={onHandwritingStateChange}
+                            allowTouchDrawing={allowTouchDrawing}
                         />
                     )}
                 </div>

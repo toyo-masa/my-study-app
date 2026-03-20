@@ -1,9 +1,9 @@
 import React from 'react';
-import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
-import type { ThemeMode } from '../utils/settings';
+import type { HandwritingSettings, ThemeMode } from '../utils/settings';
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 
@@ -16,8 +16,11 @@ interface SettingsModalProps {
     onThemeModeChange: (theme: ThemeMode) => void;
     accentColor: string;
     onAccentColorChange: (color: string) => void;
+    handwritingSettings: HandwritingSettings;
     reviewIntervalSettings: ReviewIntervalSettings;
     reviewBoardSettings: ReviewBoardSettings;
+    onHandwritingSettingsChange: (settings: HandwritingSettings) => void;
+    onResetHandwritingSettings: () => void;
     onReviewIntervalSettingsChange: (settings: ReviewIntervalSettings) => void;
     onResetReviewIntervalSettings: () => void;
     onReviewBoardSettingsChange: (settings: ReviewBoardSettings) => void;
@@ -45,8 +48,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onThemeModeChange,
     accentColor,
     onAccentColorChange,
+    handwritingSettings,
     reviewIntervalSettings,
     reviewBoardSettings,
+    onHandwritingSettingsChange,
+    onResetHandwritingSettings,
     onReviewIntervalSettingsChange,
     onResetReviewIntervalSettings,
     onReviewBoardSettingsChange,
@@ -233,6 +239,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             title="カスタムカラーを選択"
                                         />
                                     </div>
+                                </div>
+                            </section>
+
+                            <section className="settings-section">
+                                <div className="section-title">
+                                    <Pencil size={18} />
+                                    <span>手書きメモ</span>
+                                </div>
+                                <div className="review-settings-card">
+                                    <div className="setting-control">
+                                        <span>指でも描く</span>
+                                        <label className="toggle-switch">
+                                            <input
+                                                type="checkbox"
+                                                checked={handwritingSettings.allowTouchDrawing}
+                                                onChange={(event) => onHandwritingSettingsChange({
+                                                    ...handwritingSettings,
+                                                    allowTouchDrawing: event.target.checked,
+                                                })}
+                                            />
+                                            <span className="slider"></span>
+                                        </label>
+                                    </div>
+                                    <p className="review-settings-note" style={{ margin: 0 }}>
+                                        オフのときは Apple Pencil とマウスを優先し、指では描画しません。必要なときだけオンにできます。
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="nav-btn"
+                                        onClick={onResetHandwritingSettings}
+                                        style={{ marginTop: '0.9rem' }}
+                                    >
+                                        手書き設定を初期値に戻す
+                                    </button>
                                 </div>
                             </section>
 
