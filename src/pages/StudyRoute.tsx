@@ -1397,6 +1397,7 @@ export const StudyRoute: React.FC = () => {
                         isAnswerLocked={isAnswerLocked}
                         revealReadyCount={revealReadyCount}
                         useNextAnswerLabel={useNextAnswerLabel}
+                        showHandwritingPad={activeQuizSet?.type === 'mixed'}
                     />
                 </>
             ) : (
