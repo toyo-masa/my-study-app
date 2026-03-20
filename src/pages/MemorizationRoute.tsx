@@ -275,7 +275,9 @@ export const MemorizationRoute: React.FC = () => {
         if (quizSetId) {
             const settings = loadQuizSetSettings(quizSetId);
             studyQuestions = applyShuffleSettings(studyQuestions, settings);
-            clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
+            if (sessionSlotKey === DEFAULT_SUSPENDED_SESSION_SLOT_KEY) {
+                clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
+            }
             setFeedbackTimingMode(settings.feedbackTimingMode);
             setFeedbackBlockSize(settings.feedbackBlockSize);
         }
