@@ -37,6 +37,7 @@ const buildPageTitle = (...segments: string[]): string => {
 function resolvePageTitle(pathname: string, quizSets: QuizSetWithMeta[]): string {
     if (pathname === '/') return buildPageTitle(APP_TITLE_PREFIX, 'ホーム');
     if (pathname === '/distribution-sim') return buildPageTitle(APP_TITLE_PREFIX, '分布シミュレーター');
+    if (pathname === '/distribution-tables') return buildPageTitle(APP_TITLE_PREFIX, '統計分布表');
     if (pathname === '/review-board') return buildPageTitle(APP_TITLE_PREFIX, '復習ボード');
     if (pathname === '/tutorial') return buildPageTitle(APP_TITLE_PREFIX, 'チュートリアル');
     if (pathname === '/release-notes') return buildPageTitle(APP_TITLE_PREFIX, 'リリースノート');

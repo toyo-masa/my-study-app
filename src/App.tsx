@@ -16,6 +16,7 @@ import { StudyRoute } from './pages/StudyRoute';
 import { MemorizationRoute } from './pages/MemorizationRoute';
 import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
+import { DistributionTablesRoute } from './pages/DistributionTablesRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 import { AdminRoute } from './pages/AdminRoute';
@@ -128,6 +129,7 @@ function App() {
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<HomeRoute />} />
           <Route path="/distribution-sim" element={<DistributionRoute />} />
+          <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
           <Route path="/review-board" element={<ReviewBoardRoute />} />
           <Route path="/tutorial" element={<TutorialHubRoute />} />
           {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}

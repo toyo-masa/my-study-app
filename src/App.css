@@ -143,6 +143,155 @@
   line-height: 1.5;
 }
 
+/* ===== Distribution Tables ===== */
+.distribution-tables-page {
+  max-width: 1280px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--page-padding-top) var(--page-padding-inline) var(--page-padding-bottom);
+  min-height: 100vh;
+  color: var(--text-color);
+}
+
+.distribution-tables-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.distribution-tables-title {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.distribution-tables-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.distribution-tables-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.distribution-tables-switch-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  padding: 0.6rem 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+.distribution-tables-switch-btn.active {
+  border-color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.12);
+  color: var(--primary-color);
+}
+
+.distribution-table-card {
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1rem 1.1rem;
+}
+
+.distribution-table-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.distribution-table-card-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.distribution-table-card-head p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.distribution-table-badge {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--primary-color-rgb, 99, 102, 241), 0.26);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.08);
+  color: var(--primary-color);
+  padding: 0.32rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.distribution-table-note {
+  margin: 0.8rem 0 1rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.distribution-table-wrapper {
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+}
+
+.distribution-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+  background: var(--surface-color);
+}
+
+.distribution-data-table th,
+.distribution-data-table td {
+  padding: 0.65rem 0.7rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: right;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.distribution-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--surface-color) 92%, var(--primary-color) 8%);
+  color: var(--text-color);
+}
+
+.distribution-data-table th:first-child,
+.distribution-data-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: center;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--surface-color) 96%, var(--primary-color) 4%);
+}
+
+.distribution-data-table thead th:first-child {
+  z-index: 2;
+}
+
+.distribution-data-table tbody tr:last-child th,
+.distribution-data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .tutorial-hub-select-label {
   font-size: 0.83rem;
   font-weight: 600;
@@ -7115,6 +7264,25 @@ input:checked+.slider svg {
     width: 100%;
   }
 
+  .distribution-tables-header {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .distribution-tables-title {
+    font-size: 1.35rem;
+  }
+
+  .distribution-table-card {
+    padding: 0.85rem;
+  }
+
+  .distribution-data-table th,
+  .distribution-data-table td {
+    padding: 0.55rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
   /* --- Home Actions (nav buttons) --- */
   .home-actions {
     flex-direction: column;
@@ -7632,6 +7800,19 @@ input:checked+.slider svg {
   .starter-guide-steps {
     font-size: 0.84rem;
     padding-left: 1.05rem;
+  }
+
+  .distribution-tables-switch-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .distribution-table-note {
+    font-size: 0.84rem;
+  }
+
+  .distribution-data-table {
+    min-width: 640px;
   }
 
 
