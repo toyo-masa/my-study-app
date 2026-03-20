@@ -203,7 +203,17 @@ function filterMemorizationLogsByQuestionIds(
     return logs.filter((log) => targetQuestionIdSet.has(log.questionId));
 }
 
-export function getCompletedQuestionIdsFromSuspendedSession(session: SuspendedSession): number[] {
+function normalizeCompletedQuestionIds(questionIds: number[] | undefined): number[] {
+    if (!questionIds) {
+        return [];
+    }
+
+    return [...new Set(
+        questionIds.filter((questionId): questionId is number => Number.isInteger(questionId) && questionId > 0)
+    )];
+}
+
+function inferCompletedQuestionIdsFromSuspendedSession(session: SuspendedSession): number[] {
     if (session.type === 'memorization') {
         return [...new Set((session.memorizationLogs || []).map((log) => log.questionId))];
     }
@@ -224,6 +234,18 @@ export function getCompletedQuestionIdsFromSuspendedSession(session: SuspendedSe
 
             return session.showAnswerMap[questionKey] === true;
         });
+}
+
+export function getCompletedQuestionIdsFromSuspendedSession(session: SuspendedSession): number[] {
+    if (session.completedQuestionIds !== undefined) {
+        return normalizeCompletedQuestionIds(session.completedQuestionIds);
+    }
+
+    return inferCompletedQuestionIdsFromSuspendedSession(session);
+}
+
+export function mergeCompletedQuestionIds(...questionIdLists: Array<number[] | undefined>): number[] {
+    return normalizeCompletedQuestionIds(questionIdLists.flatMap((questionIds) => questionIds || []));
 }
 
 export function getIncompleteQuestionIdsFromSuspendedSession(session: SuspendedSession): number[] {

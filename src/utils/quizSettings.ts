@@ -16,35 +16,38 @@ function getSuspendedSessionStorageKey(quizSetId: number, slotKey: SuspendedSess
     return `suspendedSession_${slotKey}_${quizSetId}`;
 }
 
+function hydrateSuspendedSession(raw: SuspendedSession): SuspendedSession {
+    return {
+        ...raw,
+        startTime: new Date(raw.startTime),
+        updatedAt: raw.updatedAt ? new Date(raw.updatedAt) : undefined,
+    };
+}
+
 export const loadSessionFromStorage = async (
     quizSetId: number,
     slotKey: SuspendedSessionSlotKey = 'default'
 ): Promise<SuspendedSession | null> => {
-    try {
-        if (isCloudSyncEnabled()) {
-            const cloudSession = await cloudApi.getSuspendedSession(quizSetId, slotKey);
-            if (!cloudSession) return null;
-            return {
-                ...cloudSession,
-                startTime: new Date(cloudSession.startTime),
-                updatedAt: cloudSession.updatedAt ? new Date(cloudSession.updatedAt) : undefined,
-            };
+    if (!isCloudSyncEnabled()) {
+        try {
+            const stored = localStorage.getItem(getSuspendedSessionStorageKey(quizSetId, slotKey));
+            if (!stored) {
+                return null;
+            }
+            return hydrateSuspendedSession(JSON.parse(stored));
+        } catch (e) {
+            console.error('Failed to load local suspended session', e);
+            return null;
         }
-
-        const stored = localStorage.getItem(getSuspendedSessionStorageKey(quizSetId, slotKey));
-        if (stored) {
-            const session = JSON.parse(stored);
-            // Date strings need to be converted back to Date objects
-            return {
-                ...session,
-                startTime: new Date(session.startTime),
-                updatedAt: session.updatedAt ? new Date(session.updatedAt) : undefined,
-            };
-        }
-    } catch (e) {
-        console.error('Failed to load suspended session', e);
     }
-    return null;
+
+    try {
+        const rawCloudSession = await cloudApi.getSuspendedSession(quizSetId, slotKey);
+        return rawCloudSession ? hydrateSuspendedSession(rawCloudSession) : null;
+    } catch (e) {
+        console.error('Failed to load cloud suspended session', e);
+        return null;
+    }
 };
 
 export const saveSessionToStorage = async (

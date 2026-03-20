@@ -78,6 +78,7 @@ export interface SuspendedSession {
     type: 'study' | 'memorization';
     memorizationLogs?: MemorizationLog[];
     memorizationInputsMap?: Record<string, string[]>;
+    completedQuestionIds?: number[];
     updatedAt?: Date;
 }
 

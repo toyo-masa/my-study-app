@@ -28,9 +28,13 @@ import {
     clearWindowTimeout,
     DEFAULT_SUSPENDED_SESSION_SLOT_KEY,
     filterExistingSessionQuestions,
+    getCompletedQuestionIdsFromSuspendedSession,
     isMobileViewport,
+    mergeCompletedQuestionIds,
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
+
+const SAVE_BEFORE_NAVIGATION_GRACE_MS = 400;
 
 export const MemorizationRoute: React.FC = () => {
     const navigate = useNavigate();
@@ -75,6 +79,7 @@ export const MemorizationRoute: React.FC = () => {
 
     const lastSessionKeyRef = useRef<string | null>(null);
     const saveDebounceRef = useRef<number | null>(null);
+    const completedQuestionIdsRef = useRef<number[]>([]);
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
     const autoSaveStateRef = useRef({
@@ -130,31 +135,92 @@ export const MemorizationRoute: React.FC = () => {
 
     useEffect(() => {
         clearWindowTimeout(saveDebounceRef);
+        completedQuestionIdsRef.current = [];
     }, [sessionKey]);
 
-    // Auto-save session when page is hidden or app is closed
-    // Auto-save session when page is hidden or app is closed
-    const doAutoSaveRef = useRef(() => {
-        const s = autoSaveStateRef.current;
-        if (s.isTestCompleted || s.activeHistory !== null) return;
-        if (s.quizSetId === undefined || s.questions.length === 0) return;
-        void saveSessionToStorage(s.quizSetId, buildMemorizationSuspendedSession({
-            questions: s.questions,
-            currentQuestionIndex: s.currentQuestionIndex,
-            answeredMap: s.answeredMap,
-            showAnswerMap: s.showAnswerMap,
-            pendingRevealQuestionIds: s.pendingRevealQuestionIds,
-            feedbackPhase: s.feedbackPhase,
-            feedbackTimingMode: s.feedbackTimingMode,
-            feedbackBlockSize: s.feedbackBlockSize,
-            markedQuestions: s.markedQuestions,
+    const buildMemorizationSessionForSave = ({
+        questions: targetQuestions,
+        currentQuestionIndex: targetCurrentQuestionIndex,
+        answeredMap: targetAnsweredMap,
+        showAnswerMap: targetShowAnswerMap,
+        pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+        feedbackPhase: targetFeedbackPhase,
+        feedbackTimingMode: targetFeedbackTimingMode,
+        feedbackBlockSize: targetFeedbackBlockSize,
+        markedQuestions: targetMarkedQuestions,
+        historyMode: targetHistoryMode,
+        memorizationLogs: targetMemorizationLogs,
+        memorizationInputsMap: targetMemorizationInputsMap,
+    }: {
+        questions: Question[];
+        currentQuestionIndex: number;
+        answeredMap: Record<string, boolean>;
+        showAnswerMap: Record<string, boolean>;
+        pendingRevealQuestionIds: number[];
+        feedbackPhase: 'answering' | 'revealing';
+        feedbackTimingMode: FeedbackTimingMode;
+        feedbackBlockSize: number;
+        markedQuestions: number[];
+        historyMode: HistoryMode;
+        memorizationLogs: MemorizationLog[];
+        memorizationInputsMap: Record<string, string[]>;
+    }): SuspendedSession => {
+        const session = buildMemorizationSuspendedSession({
+            questions: targetQuestions,
+            currentQuestionIndex: targetCurrentQuestionIndex,
+            answeredMap: targetAnsweredMap,
+            showAnswerMap: targetShowAnswerMap,
+            pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+            feedbackPhase: targetFeedbackPhase,
+            feedbackTimingMode: targetFeedbackTimingMode,
+            feedbackBlockSize: targetFeedbackBlockSize,
+            markedQuestions: targetMarkedQuestions,
             startTime: startTimeRef.current,
-            historyMode: s.historyMode,
-            memorizationLogs: s.memorizationLogs,
-            memorizationInputsMap: s.memorizationInputsMap,
-        }), sessionSlotKey).catch((err) => {
-            console.error('Failed to auto-save suspended session', err);
+            historyMode: targetHistoryMode,
+            memorizationLogs: targetMemorizationLogs,
+            memorizationInputsMap: targetMemorizationInputsMap,
         });
+
+        if (sessionSlotKey !== REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
+            return session;
+        }
+
+        const completedQuestionIds = mergeCompletedQuestionIds(
+            completedQuestionIdsRef.current,
+            getCompletedQuestionIdsFromSuspendedSession(session)
+        );
+        completedQuestionIdsRef.current = completedQuestionIds;
+
+        return {
+            ...session,
+            completedQuestionIds,
+        };
+    };
+
+    // Auto-save session when page is hidden or app is closed
+    const doAutoSaveRef = useRef<() => void>(() => {});
+    useEffect(() => {
+        doAutoSaveRef.current = () => {
+            const s = autoSaveStateRef.current;
+            if (s.isTestCompleted || s.activeHistory !== null) return;
+            if (s.quizSetId === undefined || s.questions.length === 0) return;
+            void saveSessionToStorage(s.quizSetId, buildMemorizationSessionForSave({
+                questions: s.questions,
+                currentQuestionIndex: s.currentQuestionIndex,
+                answeredMap: s.answeredMap,
+                showAnswerMap: s.showAnswerMap,
+                pendingRevealQuestionIds: s.pendingRevealQuestionIds,
+                feedbackPhase: s.feedbackPhase,
+                feedbackTimingMode: s.feedbackTimingMode,
+                feedbackBlockSize: s.feedbackBlockSize,
+                markedQuestions: s.markedQuestions,
+                historyMode: s.historyMode,
+                memorizationLogs: s.memorizationLogs,
+                memorizationInputsMap: s.memorizationInputsMap,
+            }), sessionSlotKey).catch((err) => {
+                console.error('Failed to auto-save suspended session', err);
+            });
+        };
     });
 
     const scheduleSaveSession = () => {
@@ -213,6 +279,7 @@ export const MemorizationRoute: React.FC = () => {
             setFeedbackTimingMode(settings.feedbackTimingMode);
             setFeedbackBlockSize(settings.feedbackBlockSize);
         }
+        completedQuestionIdsRef.current = [];
         setQuestions(studyQuestions);
         setMemorizationLogs([]);
         setMemorizationInputsMap({});
@@ -255,6 +322,7 @@ export const MemorizationRoute: React.FC = () => {
                         return false;
                     }
 
+                    completedQuestionIdsRef.current = getCompletedQuestionIdsFromSuspendedSession(session);
                     const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
                     setQuestions(filteredQuestions);
                     setMemorizationLogs(session.memorizationLogs || []);
@@ -351,7 +419,7 @@ export const MemorizationRoute: React.FC = () => {
         initMem();
     }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, fromReviewBoardFromState, sessionSlotKey]);
 
-    const handleBackToDetail = () => {
+    const handleBackToDetail = async () => {
         clearWindowTimeout(saveDebounceRef);
 
         const quizSetIdForSave = activeQuizSet?.id;
@@ -363,7 +431,7 @@ export const MemorizationRoute: React.FC = () => {
 
         if (fromReviewBoardFromState) {
             if (shouldSaveSuspendedSession && quizSetIdForSave !== undefined) {
-                void saveSessionToStorage(quizSetIdForSave, buildMemorizationSuspendedSession({
+                const savePromise = saveSessionToStorage(quizSetIdForSave, buildMemorizationSessionForSave({
                     questions,
                     currentQuestionIndex,
                     answeredMap,
@@ -373,20 +441,25 @@ export const MemorizationRoute: React.FC = () => {
                     feedbackTimingMode,
                     feedbackBlockSize,
                     markedQuestions,
-                    startTime: startTimeRef.current,
                     historyMode,
                     memorizationLogs,
                     memorizationInputsMap,
                 }), sessionSlotKey).catch((err) => {
                     console.error('Failed to save suspended session', err);
                 });
+                await Promise.race([
+                    savePromise,
+                    new Promise<void>((resolve) => {
+                        window.setTimeout(resolve, SAVE_BEFORE_NAVIGATION_GRACE_MS);
+                    }),
+                ]);
             }
             navigate('/review-board');
             return;
         }
 
         if (shouldSaveSuspendedSession) {
-            void saveSessionToStorage(quizSetIdForSave, buildMemorizationSuspendedSession({
+            const savePromise = saveSessionToStorage(quizSetIdForSave, buildMemorizationSessionForSave({
                 questions,
                 currentQuestionIndex,
                 answeredMap,
@@ -396,13 +469,18 @@ export const MemorizationRoute: React.FC = () => {
                 feedbackTimingMode,
                 feedbackBlockSize,
                 markedQuestions,
-                startTime: startTimeRef.current,
                 historyMode,
                 memorizationLogs,
                 memorizationInputsMap,
             }), sessionSlotKey).catch((err) => {
                 console.error('Failed to save suspended session', err);
             });
+            await Promise.race([
+                savePromise,
+                new Promise<void>((resolve) => {
+                    window.setTimeout(resolve, SAVE_BEFORE_NAVIGATION_GRACE_MS);
+                }),
+            ]);
 
             navigate(`/quiz/${quizSetId}`, { state: { expectSuspendedSession: true } });
             return;
@@ -827,6 +905,7 @@ export const MemorizationRoute: React.FC = () => {
 
         if (activeQuizSet?.id !== undefined) {
             await clearSessionFromStorage(activeQuizSet.id, sessionSlotKey);
+            completedQuestionIdsRef.current = [];
         }
 
         try {
