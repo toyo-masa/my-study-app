@@ -79,6 +79,7 @@ export interface SuspendedSession {
     memorizationLogs?: MemorizationLog[];
     memorizationInputsMap?: Record<string, string[]>;
     completedQuestionIds?: number[];
+    persistedCompletedQuestionIds?: number[];
     updatedAt?: Date;
 }
 

@@ -88,6 +88,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
     const lastSessionKeyRef = useRef<string | null>(null);
     const saveDebounceRef = useRef<number | null>(null);
     const completedQuestionIdsRef = useRef<number[]>([]);
+    const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
+    const questionByIdRef = useRef<Record<number, Question>>({});
 
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
@@ -124,6 +126,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
     useLayoutEffect(() => {
         clearWindowTimeout(saveDebounceRef);
         completedQuestionIdsRef.current = [];
+        persistedCompletedQuestionIdsRef.current = [];
+        questionByIdRef.current = {};
         setIsLoading(true);
         setQuestions([]);
         setCurrentQuestionIndex(0);
@@ -209,7 +213,129 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
         return {
             ...session,
             completedQuestionIds,
+            persistedCompletedQuestionIds: persistedCompletedQuestionIdsRef.current,
         };
+    };
+
+    const buildStudyReviewScheduleUpdates = async (
+        questionIds: number[],
+        targetAnswers: Record<string, number[]>,
+        targetConfidences: Record<string, ConfidenceLevel>
+    ): Promise<(Omit<ReviewSchedule, 'id'> & { id?: number })[]> => {
+        if (activeQuizSet?.id === undefined || questionIds.length === 0) {
+            return [];
+        }
+
+        const quizSetId = activeQuizSet.id;
+        const existingSchedules = await getReviewSchedulesForQuizSet(quizSetId);
+        const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
+        const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
+        const reviewIntervalSettings = loadReviewIntervalSettings();
+
+        return questionIds.flatMap((questionId) => {
+            const question = questionByIdRef.current[questionId];
+            if (!question) {
+                return [];
+            }
+
+            const qKey = String(questionId);
+            const userAnswers = targetAnswers[qKey] || [];
+            const confidence: ConfidenceLevel = targetConfidences[qKey] || 'high';
+            const isCorrect = question.questionType === 'memorization'
+                ? confidence === 'high'
+                : (userAnswers.length === question.correctAnswers.length && userAnswers.every(a => question.correctAnswers.includes(a)));
+            const currentInterval = intervalByQuestionId.get(questionId) ?? 1;
+            const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
+            const intervalDays = calculateNextInterval(isCorrect, confidence, currentInterval, reviewIntervalSettings);
+            const nextDue = calculateNextDue(intervalDays);
+            const consecutiveCorrect = updateConsecutiveCorrect(isCorrect, currentConsecutive);
+
+            return [{
+                questionId,
+                quizSetId,
+                intervalDays,
+                nextDue,
+                lastReviewedAt: new Date().toISOString(),
+                consecutiveCorrect,
+            }];
+        });
+    };
+
+    const saveStudySession = async ({
+        quizSetId: targetQuizSetId,
+        questions: targetQuestions,
+        currentQuestionIndex: targetCurrentQuestionIndex,
+        answers: targetAnswers,
+        answeredMap: targetAnsweredMap,
+        memos: targetMemos,
+        confidences: targetConfidences,
+        memorizationAnswers: targetMemorizationAnswers,
+        showAnswerMap: targetShowAnswerMap,
+        pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+        feedbackPhase: targetFeedbackPhase,
+        feedbackTimingMode: targetFeedbackTimingMode,
+        feedbackBlockSize: targetFeedbackBlockSize,
+        markedQuestions: targetMarkedQuestions,
+        historyMode: targetHistoryMode,
+    }: {
+        quizSetId: number;
+        questions: Question[];
+        currentQuestionIndex: number;
+        answers: Record<string, number[]>;
+        answeredMap: Record<string, boolean>;
+        memos: Record<string, string>;
+        confidences: Record<string, ConfidenceLevel>;
+        memorizationAnswers: Record<string, string>;
+        showAnswerMap: Record<string, boolean>;
+        pendingRevealQuestionIds: number[];
+        feedbackPhase: 'answering' | 'revealing';
+        feedbackTimingMode: FeedbackTimingMode;
+        feedbackBlockSize: number;
+        markedQuestions: number[];
+        historyMode: HistoryMode;
+    }) => {
+        let session = buildStudySessionForSave({
+            questions: targetQuestions,
+            currentQuestionIndex: targetCurrentQuestionIndex,
+            answers: targetAnswers,
+            answeredMap: targetAnsweredMap,
+            memos: targetMemos,
+            confidences: targetConfidences,
+            memorizationAnswers: targetMemorizationAnswers,
+            showAnswerMap: targetShowAnswerMap,
+            pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+            feedbackPhase: targetFeedbackPhase,
+            feedbackTimingMode: targetFeedbackTimingMode,
+            feedbackBlockSize: targetFeedbackBlockSize,
+            markedQuestions: targetMarkedQuestions,
+            historyMode: targetHistoryMode,
+        });
+
+        if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
+            const persistedSet = new Set(persistedCompletedQuestionIdsRef.current);
+            const newCompletedQuestionIds = (session.completedQuestionIds || []).filter((questionId) => !persistedSet.has(questionId));
+            if (newCompletedQuestionIds.length > 0) {
+                const schedulesToUpdate = await buildStudyReviewScheduleUpdates(
+                    newCompletedQuestionIds,
+                    targetAnswers,
+                    targetConfidences
+                );
+                if (schedulesToUpdate.length > 0) {
+                    await upsertReviewSchedulesBulk(schedulesToUpdate);
+                    persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(
+                        persistedCompletedQuestionIdsRef.current,
+                        schedulesToUpdate.map((schedule) => schedule.questionId)
+                    );
+                }
+            }
+
+            session = {
+                ...session,
+                persistedCompletedQuestionIds: persistedCompletedQuestionIdsRef.current,
+            };
+        }
+
+        await saveSessionToStorage(targetQuizSetId, session, sessionSlotKey);
     };
 
     // Auto-save session when page is hidden or app is closed
@@ -219,7 +345,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
             const s = autoSaveStateRef.current;
             if (s.isTestCompleted || s.activeHistory !== null) return;
             if (s.quizSetId === undefined || s.questions.length === 0) return;
-            void saveSessionToStorage(s.quizSetId, buildStudySessionForSave({
+            void saveStudySession({
+                quizSetId: s.quizSetId,
                 questions: s.questions,
                 currentQuestionIndex: s.currentQuestionIndex,
                 answers: s.answers,
@@ -234,7 +361,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
                 feedbackBlockSize: s.feedbackBlockSize,
                 markedQuestions: s.markedQuestions,
                 historyMode: s.historyMode,
-            }), sessionSlotKey).catch((err) => {
+            }).catch((err) => {
                 console.error('Failed to auto-save suspended session', err);
             });
         };
@@ -286,6 +413,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
 
             try {
                 const qs = await getQuestionsForQuizSet(quizSetId);
+                questionByIdRef.current = Object.fromEntries(
+                    qs
+                        .filter((question): question is Question & { id: number } => question.id !== undefined)
+                        .map((question) => [question.id, question])
+                );
                 const quizSetSettings = loadQuizSetSettings(quizSetId);
                 const shouldLoadSuspendedSession = fromReviewBoardFromState ? true : !startNewFromState;
                 const suspendedSession = shouldLoadSuspendedSession
@@ -300,6 +432,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
                     }
 
                     completedQuestionIdsRef.current = getCompletedQuestionIdsFromSuspendedSession(session);
+                    persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(session.persistedCompletedQuestionIds);
                     const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
                     setQuestions(filteredQuestions);
                     setCurrentQuestionIndex(Math.max(0, nextIndex));
@@ -458,6 +591,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
                 }
             }
             completedQuestionIdsRef.current = [];
+            persistedCompletedQuestionIdsRef.current = [];
             // All state updates together
             setQuestions(studyQuestions);
             setCurrentQuestionIndex(0);
@@ -492,7 +626,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
 
         if (fromReviewBoardFromState) {
             if (shouldSaveSuspendedSession && quizSetIdForSave !== undefined) {
-                void saveSessionToStorage(quizSetIdForSave, buildStudySessionForSave({
+                void saveStudySession({
+                    quizSetId: quizSetIdForSave,
                     questions,
                     currentQuestionIndex,
                     answers,
@@ -507,7 +642,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
                     feedbackBlockSize,
                     markedQuestions,
                     historyMode,
-                }), sessionSlotKey).catch((err) => {
+                }).catch((err) => {
                     console.error('Failed to save suspended session', err);
                 });
             }
@@ -516,7 +651,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
         }
 
         if (shouldSaveSuspendedSession) {
-            void saveSessionToStorage(quizSetIdForSave, buildStudySessionForSave({
+            void saveStudySession({
+                quizSetId: quizSetIdForSave,
                 questions,
                 currentQuestionIndex,
                 answers,
@@ -531,7 +667,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
                 feedbackBlockSize,
                 markedQuestions,
                 historyMode,
-            }), sessionSlotKey).catch((err) => {
+            }).catch((err) => {
                 console.error('Failed to save suspended session', err);
             });
 
@@ -668,8 +804,10 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
         setIsTestCompleted(true);
 
         if (activeQuizSet?.id !== undefined) {
+            const persistedCompletedQuestionIdSet = new Set(persistedCompletedQuestionIdsRef.current);
             await clearSessionFromStorage(activeQuizSet.id, sessionSlotKey);
             completedQuestionIdsRef.current = [];
+            persistedCompletedQuestionIdsRef.current = [];
 
             // overrideConfidences: 暗記問題の最後判定直後は state が未反映のため引数で渡す
             const effectiveConfidences = overrideConfidences ?? confidences;
@@ -704,34 +842,13 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
 
             await addHistory(historyData);
 
-            const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
-            const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
-            const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
-            const reviewIntervalSettings = loadReviewIntervalSettings();
-
-            const schedulesToUpdate: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = [];
-            for (const q of questions) {
-                const qKey = String(q.id);
-                const userAnswers = answers[qKey] || [];
-                const confidence: ConfidenceLevel = effectiveConfidences[qKey] || 'high';
-                const isCorrect = q.questionType === 'memorization'
-                    ? confidence === 'high'
-                    : (userAnswers.length === q.correctAnswers.length && userAnswers.every(a => q.correctAnswers.includes(a)));
-                const currentInterval = intervalByQuestionId.get(q.id!) ?? 1;
-                const currentConsecutive = consecutiveByQuestionId.get(q.id!) ?? 0;
-                const intervalDays = calculateNextInterval(isCorrect, confidence, currentInterval, reviewIntervalSettings);
-                const nextDue = calculateNextDue(intervalDays);
-                const consecutiveCorrect = updateConsecutiveCorrect(isCorrect, currentConsecutive);
-
-                schedulesToUpdate.push({
-                    questionId: q.id!,
-                    quizSetId: activeQuizSet.id,
-                    intervalDays,
-                    nextDue,
-                    lastReviewedAt: new Date().toISOString(),
-                    consecutiveCorrect,
-                });
-            }
+            const schedulesToUpdate = await buildStudyReviewScheduleUpdates(
+                questions
+                    .map((question) => question.id!)
+                    .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId)),
+                answers,
+                effectiveConfidences
+            );
 
             if (schedulesToUpdate.length > 0) {
                 await upsertReviewSchedulesBulk(schedulesToUpdate);
@@ -1119,6 +1236,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
     };
 
     const handleReview = () => {
+        completedQuestionIdsRef.current = [];
+        persistedCompletedQuestionIdsRef.current = [];
         setIsTestCompleted(false);
         setCurrentQuestionIndex(0);
         const allShown: Record<string, boolean> = {};
@@ -1139,6 +1258,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
             const settings = loadQuizSetSettings(activeQuizSet.id);
             qs = applyShuffleSettings(qs, settings);
         }
+        completedQuestionIdsRef.current = [];
+        persistedCompletedQuestionIdsRef.current = [];
         setQuestions(qs);
         setCurrentQuestionIndex(0);
         setAnswers({});
@@ -1320,7 +1441,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
 
         return [] as number[];
     })();
-    const answeredCount = Object.values(answeredMap).filter(Boolean).length;
+    const answeredCount = questions.filter((question) => answeredMap[String(question.id)]).length;
     const reviewHeaderBadge =
         historyMode === 'review_wrong'
             ? '復習中（誤りのみ）'

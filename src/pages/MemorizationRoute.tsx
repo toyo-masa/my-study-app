@@ -92,6 +92,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
     const lastSessionKeyRef = useRef<string | null>(null);
     const saveDebounceRef = useRef<number | null>(null);
     const completedQuestionIdsRef = useRef<number[]>([]);
+    const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
     const autoSaveStateRef = useRef({
@@ -149,6 +150,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
     useEffect(() => {
         clearWindowTimeout(saveDebounceRef);
         completedQuestionIdsRef.current = [];
+        persistedCompletedQuestionIdsRef.current = [];
     }, [sessionKey]);
 
     const buildMemorizationSessionForSave = ({
@@ -207,7 +209,115 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         return {
             ...session,
             completedQuestionIds,
+            persistedCompletedQuestionIds: persistedCompletedQuestionIdsRef.current,
         };
+    };
+
+    const buildMemorizationReviewScheduleUpdates = async (
+        questionIds: number[],
+        targetLogs: MemorizationLog[]
+    ): Promise<(Omit<ReviewSchedule, 'id'> & { id?: number })[]> => {
+        if (activeQuizSet?.id === undefined || questionIds.length === 0) {
+            return [];
+        }
+
+        const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
+        const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
+        const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
+        const reviewIntervalSettings = loadReviewIntervalSettings();
+        const logByQuestionId = new Map(targetLogs.map((log) => [log.questionId, log]));
+
+        return questionIds.flatMap((questionId) => {
+            const log = logByQuestionId.get(questionId);
+            if (!log) {
+                return [];
+            }
+
+            const currentInterval = intervalByQuestionId.get(questionId) ?? 1;
+            const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
+            const intervalDays = calculateNextInterval(log.isMemorized, 'high', currentInterval, reviewIntervalSettings);
+            const nextDue = calculateNextDue(intervalDays);
+            const consecutiveCorrect = updateConsecutiveCorrect(log.isMemorized, currentConsecutive);
+
+            return [{
+                questionId,
+                quizSetId: activeQuizSet.id!,
+                intervalDays,
+                nextDue,
+                lastReviewedAt: new Date().toISOString(),
+                consecutiveCorrect,
+            }];
+        });
+    };
+
+    const saveMemorizationSession = async ({
+        quizSetId: targetQuizSetId,
+        questions: targetQuestions,
+        currentQuestionIndex: targetCurrentQuestionIndex,
+        answeredMap: targetAnsweredMap,
+        showAnswerMap: targetShowAnswerMap,
+        pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+        feedbackPhase: targetFeedbackPhase,
+        feedbackTimingMode: targetFeedbackTimingMode,
+        feedbackBlockSize: targetFeedbackBlockSize,
+        markedQuestions: targetMarkedQuestions,
+        historyMode: targetHistoryMode,
+        memorizationLogs: targetMemorizationLogs,
+        memorizationInputsMap: targetMemorizationInputsMap,
+    }: {
+        quizSetId: number;
+        questions: Question[];
+        currentQuestionIndex: number;
+        answeredMap: Record<string, boolean>;
+        showAnswerMap: Record<string, boolean>;
+        pendingRevealQuestionIds: number[];
+        feedbackPhase: 'answering' | 'revealing';
+        feedbackTimingMode: FeedbackTimingMode;
+        feedbackBlockSize: number;
+        markedQuestions: number[];
+        historyMode: HistoryMode;
+        memorizationLogs: MemorizationLog[];
+        memorizationInputsMap: Record<string, string[]>;
+    }) => {
+        let session = buildMemorizationSessionForSave({
+            questions: targetQuestions,
+            currentQuestionIndex: targetCurrentQuestionIndex,
+            answeredMap: targetAnsweredMap,
+            showAnswerMap: targetShowAnswerMap,
+            pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+            feedbackPhase: targetFeedbackPhase,
+            feedbackTimingMode: targetFeedbackTimingMode,
+            feedbackBlockSize: targetFeedbackBlockSize,
+            markedQuestions: targetMarkedQuestions,
+            historyMode: targetHistoryMode,
+            memorizationLogs: targetMemorizationLogs,
+            memorizationInputsMap: targetMemorizationInputsMap,
+        });
+
+        if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
+            const persistedSet = new Set(persistedCompletedQuestionIdsRef.current);
+            const newCompletedQuestionIds = (session.completedQuestionIds || []).filter((questionId) => !persistedSet.has(questionId));
+            if (newCompletedQuestionIds.length > 0) {
+                const schedulesToUpdate = await buildMemorizationReviewScheduleUpdates(
+                    newCompletedQuestionIds,
+                    targetMemorizationLogs
+                );
+                if (schedulesToUpdate.length > 0) {
+                    await upsertReviewSchedulesBulk(schedulesToUpdate);
+                    persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(
+                        persistedCompletedQuestionIdsRef.current,
+                        schedulesToUpdate.map((schedule) => schedule.questionId)
+                    );
+                }
+            }
+
+            session = {
+                ...session,
+                persistedCompletedQuestionIds: persistedCompletedQuestionIdsRef.current,
+            };
+        }
+
+        await saveSessionToStorage(targetQuizSetId, session, sessionSlotKey);
     };
 
     // Auto-save session when page is hidden or app is closed
@@ -217,7 +327,8 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
             const s = autoSaveStateRef.current;
             if (s.isTestCompleted || s.activeHistory !== null) return;
             if (s.quizSetId === undefined || s.questions.length === 0) return;
-            void saveSessionToStorage(s.quizSetId, buildMemorizationSessionForSave({
+            void saveMemorizationSession({
+                quizSetId: s.quizSetId,
                 questions: s.questions,
                 currentQuestionIndex: s.currentQuestionIndex,
                 answeredMap: s.answeredMap,
@@ -230,7 +341,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
                 historyMode: s.historyMode,
                 memorizationLogs: s.memorizationLogs,
                 memorizationInputsMap: s.memorizationInputsMap,
-            }), sessionSlotKey).catch((err) => {
+            }).catch((err) => {
                 console.error('Failed to auto-save suspended session', err);
             });
         };
@@ -301,6 +412,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
             }
         }
         completedQuestionIdsRef.current = [];
+        persistedCompletedQuestionIdsRef.current = [];
         setQuestions(studyQuestions);
         setMemorizationLogs([]);
         setMemorizationInputsMap({});
@@ -344,6 +456,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
                     }
 
                     completedQuestionIdsRef.current = getCompletedQuestionIdsFromSuspendedSession(session);
+                    persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(session.persistedCompletedQuestionIds);
                     const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
                     setQuestions(filteredQuestions);
                     setMemorizationLogs(session.memorizationLogs || []);
@@ -459,7 +572,8 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
 
         if (fromReviewBoardFromState) {
             if (shouldSaveSuspendedSession && quizSetIdForSave !== undefined) {
-                void saveSessionToStorage(quizSetIdForSave, buildMemorizationSessionForSave({
+                void saveMemorizationSession({
+                    quizSetId: quizSetIdForSave,
                     questions,
                     currentQuestionIndex,
                     answeredMap,
@@ -472,7 +586,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
                     historyMode,
                     memorizationLogs,
                     memorizationInputsMap,
-                }), sessionSlotKey).catch((err) => {
+                }).catch((err) => {
                     console.error('Failed to save suspended session', err);
                 });
             }
@@ -481,7 +595,8 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         }
 
         if (shouldSaveSuspendedSession) {
-            void saveSessionToStorage(quizSetIdForSave, buildMemorizationSessionForSave({
+            void saveMemorizationSession({
+                quizSetId: quizSetIdForSave,
                 questions,
                 currentQuestionIndex,
                 answeredMap,
@@ -494,7 +609,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
                 historyMode,
                 memorizationLogs,
                 memorizationInputsMap,
-            }), sessionSlotKey).catch((err) => {
+            }).catch((err) => {
                 console.error('Failed to save suspended session', err);
             });
 
@@ -901,6 +1016,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         clearWindowTimeout(saveDebounceRef);
         setIsTestCompleted(true);
         if (activeHistory) return;
+        const persistedCompletedQuestionIdSet = new Set(persistedCompletedQuestionIdsRef.current);
 
         const endTime = new Date();
         const durationSeconds = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000);
@@ -922,33 +1038,19 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         if (activeQuizSet?.id !== undefined) {
             await clearSessionFromStorage(activeQuizSet.id, sessionSlotKey);
             completedQuestionIdsRef.current = [];
+            persistedCompletedQuestionIdsRef.current = [];
         }
 
         try {
             await addHistory(history);
 
             if (activeQuizSet?.id !== undefined && finalLogs.length > 0) {
-                const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
-                const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
-                const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
-                const reviewIntervalSettings = loadReviewIntervalSettings();
-
-                const schedulesToUpdate: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = finalLogs.map((log) => {
-                    const currentInterval = intervalByQuestionId.get(log.questionId) ?? 1;
-                    const currentConsecutive = consecutiveByQuestionId.get(log.questionId) ?? 0;
-                    const intervalDays = calculateNextInterval(log.isMemorized, 'high', currentInterval, reviewIntervalSettings);
-                    const nextDue = calculateNextDue(intervalDays);
-                    const consecutiveCorrect = updateConsecutiveCorrect(log.isMemorized, currentConsecutive);
-
-                    return {
-                        questionId: log.questionId,
-                        quizSetId: activeQuizSet.id!,
-                        intervalDays,
-                        nextDue,
-                        lastReviewedAt: new Date().toISOString(),
-                        consecutiveCorrect,
-                    };
-                });
+                const schedulesToUpdate = await buildMemorizationReviewScheduleUpdates(
+                    finalLogs
+                        .map((log) => log.questionId)
+                        .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId)),
+                    finalLogs
+                );
 
                 await upsertReviewSchedulesBulk(schedulesToUpdate);
             }
