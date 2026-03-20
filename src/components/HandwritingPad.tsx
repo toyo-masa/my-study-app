@@ -52,6 +52,19 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
         });
     }, [onChange]);
 
+    const clearTextSelection = useCallback(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+            return;
+        }
+
+        selection.removeAllRanges();
+    }, []);
+
     const applyContextStyle = useCallback((ctx: CanvasRenderingContext2D, stroke: HandwritingStroke) => {
         const canvas = canvasRef.current;
         const strokeColor = canvas ? getComputedStyle(canvas).getPropertyValue('--text-color').trim() : '';
@@ -302,7 +315,11 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
     }, [syncCanvasSize]);
 
     return (
-        <div className="handwriting-pad-section">
+        <div
+            className="handwriting-pad-section"
+            onPointerDownCapture={clearTextSelection}
+            onContextMenu={(event) => event.preventDefault()}
+        >
             <div className="handwriting-pad-header">
                 <div>
                     <span className="handwriting-pad-title">手書きメモ</span>

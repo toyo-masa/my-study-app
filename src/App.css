@@ -4652,6 +4652,16 @@ input:checked+.slider svg {
 
 .handwriting-pad-section {
   margin-top: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.handwriting-pad-section * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .handwriting-pad-header {
@@ -4679,6 +4689,7 @@ input:checked+.slider svg {
 
 .handwriting-pad-clear-btn {
   white-space: nowrap;
+  touch-action: manipulation;
 }
 
 .handwriting-pad-actions {
@@ -4695,6 +4706,7 @@ input:checked+.slider svg {
   background: var(--surface-color);
   color: var(--text-secondary);
   padding: 0.45rem;
+  touch-action: manipulation;
 }
 
 .handwriting-pad-icon-btn:hover:not(:disabled) {
