@@ -4778,6 +4778,7 @@ input:checked+.slider svg {
   overflow: hidden;
   --handwriting-guide-color: rgba(148, 163, 184, 0.22);
   background-color: var(--bg-color);
+  transition: height 0.2s ease;
 }
 
 .handwriting-pad-surface.is-plain {
@@ -4821,6 +4822,44 @@ input:checked+.slider svg {
   font-size: 0.92rem;
   pointer-events: none;
   text-align: center;
+}
+
+.handwriting-pad-resize-handle {
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.75rem 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.32rem;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.handwriting-pad-resize-bar {
+  width: 56px;
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-secondary) 42%, transparent);
+}
+
+.handwriting-pad-resize-text {
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+@media (hover: hover) {
+  .handwriting-pad-resize-handle:hover {
+    color: var(--text-color);
+  }
+
+  .handwriting-pad-resize-handle:hover .handwriting-pad-resize-bar {
+    background: color-mix(in srgb, var(--primary-color) 60%, transparent);
+  }
 }
 
 .dark-mode .handwriting-pad-surface {
