@@ -247,6 +247,7 @@
   overflow: auto;
   border: 1px solid var(--border-color);
   border-radius: 14px;
+  max-height: min(70vh, 760px);
 }
 
 .distribution-data-table {
@@ -290,6 +291,97 @@
 .distribution-data-table tbody tr:last-child th,
 .distribution-data-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.distribution-plot-card {
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.distribution-plot-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.distribution-plot-card-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.distribution-plot-card-head p {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.distribution-plot-figure {
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-color) 94%, var(--primary-color) 6%);
+  padding: 0.75rem;
+}
+
+.distribution-plot-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.distribution-plot-axis {
+  stroke: var(--border-color);
+  stroke-width: 1.2;
+}
+
+.distribution-plot-curve {
+  fill: none;
+  stroke: var(--text-color);
+  stroke-width: 2.2;
+}
+
+.distribution-plot-region {
+  fill: rgba(var(--primary-color-rgb, 99, 102, 241), 0.2);
+  stroke: none;
+}
+
+.distribution-plot-cutoff {
+  stroke: var(--primary-color);
+  stroke-width: 1.4;
+  stroke-dasharray: 6 4;
+}
+
+.distribution-plot-cutoff-label {
+  fill: var(--primary-color);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.distribution-plot-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.distribution-plot-chip {
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-secondary);
+  padding: 0.42rem 0.72rem;
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+
+.distribution-plot-chip.is-accent {
+  border-color: rgba(var(--primary-color-rgb, 99, 102, 241), 0.26);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.1);
+  color: var(--primary-color);
 }
 
 .distribution-data-table thead th.is-selected-column {

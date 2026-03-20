@@ -20,6 +20,24 @@ type DistributionTableConfig = {
     rows: TableRow[];
 };
 
+type PlotRegion = {
+    from: number;
+    to: number;
+};
+
+type DistributionPreview = {
+    chartTitle: string;
+    chartSubtitle: string;
+    helperText: string;
+    selectedValueLabel: string | null;
+    areaLabel: string | null;
+    xMin: number;
+    xMax: number;
+    pdf: (value: number) => number;
+    cutoffs: number[];
+    shadedRegions: PlotRegion[];
+};
+
 const NORMAL_ROW_BASES = Array.from({ length: 40 }, (_, index) => index / 10);
 const NORMAL_COLUMN_OFFSETS = Array.from({ length: 10 }, (_, index) => index / 100);
 const T_TWO_SIDED_ALPHA_COLUMNS = [0.2, 0.1, 0.05, 0.02, 0.01];
@@ -176,6 +194,10 @@ function standardNormalCdf(value: number): number {
     return 0.5 * (1 + (z >= 0 ? erf : -erf));
 }
 
+function standardNormalPdf(value: number): number {
+    return Math.exp(-(value * value) / 2) / Math.sqrt(2 * Math.PI);
+}
+
 function studentTCdf(value: number, degreesOfFreedom: number): number {
     if (degreesOfFreedom <= 0) return Number.NaN;
     if (!Number.isFinite(degreesOfFreedom)) {
@@ -187,9 +209,33 @@ function studentTCdf(value: number, degreesOfFreedom: number): number {
     return value >= 0 ? 1 - 0.5 * ib : 0.5 * ib;
 }
 
+function studentTPdf(value: number, degreesOfFreedom: number): number {
+    if (!Number.isFinite(degreesOfFreedom)) {
+        return standardNormalPdf(value);
+    }
+
+    const logDensity =
+        lnGamma((degreesOfFreedom + 1) / 2) -
+        lnGamma(degreesOfFreedom / 2) -
+        0.5 * Math.log(degreesOfFreedom * Math.PI) -
+        ((degreesOfFreedom + 1) / 2) * Math.log(1 + (value * value) / degreesOfFreedom);
+    return Math.exp(logDensity);
+}
+
 function chiSquareCdf(value: number, degreesOfFreedom: number): number {
     if (value <= 0) return 0;
     return regularizedGammaP(degreesOfFreedom / 2, value / 2);
+}
+
+function chiSquarePdf(value: number, degreesOfFreedom: number): number {
+    if (value <= 0) return 0;
+    const shape = degreesOfFreedom / 2;
+    return Math.exp(
+        (shape - 1) * Math.log(value) -
+        value / 2 -
+        shape * Math.log(2) -
+        lnGamma(shape)
+    );
 }
 
 function inverseMonotoneCdf(
@@ -304,6 +350,78 @@ function buildChiSquareTable(): DistributionTableConfig {
     };
 }
 
+function buildDistributionPreview(
+    tableKey: DistributionTableKey,
+    selectedCell: { rowIndex: number; columnIndex: number } | null
+): DistributionPreview {
+    if (tableKey === 'normal') {
+        const z = selectedCell
+            ? Number((NORMAL_ROW_BASES[selectedCell.rowIndex] + NORMAL_COLUMN_OFFSETS[selectedCell.columnIndex]).toFixed(2))
+            : 0;
+        const cumulativeProbability = standardNormalCdf(z);
+        return {
+            chartTitle: '標準正規分布',
+            chartSubtitle: selectedCell ? `z = ${z.toFixed(2)} の累積確率` : 'セルを選択すると z に対応する累積確率を図示します。',
+            helperText: '左側の塗りつぶし領域が Φ(z) = P(Z ≤ z) を表します。',
+            selectedValueLabel: selectedCell ? `Φ(${z.toFixed(2)}) = ${formatFixed(cumulativeProbability, 4)}` : null,
+            areaLabel: selectedCell ? `左側累積確率 = ${formatFixed(cumulativeProbability, 4)}` : null,
+            xMin: Math.min(-4, z - 1.2),
+            xMax: Math.max(4, z + 1.2),
+            pdf: standardNormalPdf,
+            cutoffs: selectedCell ? [z] : [],
+            shadedRegions: selectedCell ? [{ from: -10, to: z }] : [],
+        };
+    }
+
+    if (tableKey === 't') {
+        const degreesOfFreedom = selectedCell ? T_DF_ROWS[selectedCell.rowIndex] : 10;
+        const alpha = selectedCell ? T_TWO_SIDED_ALPHA_COLUMNS[selectedCell.columnIndex] : 0.05;
+        const criticalValue = inverseStudentT(1 - alpha / 2, degreesOfFreedom);
+        const extent = Math.max(4, Math.ceil(criticalValue + 1.5));
+        const dfLabel = Number.isFinite(degreesOfFreedom) ? String(degreesOfFreedom) : '∞';
+
+        return {
+            chartTitle: 't分布',
+            chartSubtitle: selectedCell
+                ? `自由度 ${dfLabel} / 両側有意水準 α = ${alpha.toFixed(2)}`
+                : 'セルを選択すると自由度と有意水準に対応する棄却域を図示します。',
+            helperText: '塗りつぶし領域は両側検定の棄却域です。左右の合計面積が α になります。',
+            selectedValueLabel: selectedCell ? `臨界値 = ±${formatFixed(criticalValue, 3)}` : null,
+            areaLabel: selectedCell ? `両側棄却域の合計 = ${alpha.toFixed(2)}` : null,
+            xMin: -extent,
+            xMax: extent,
+            pdf: (value) => studentTPdf(value, degreesOfFreedom),
+            cutoffs: selectedCell ? [-criticalValue, criticalValue] : [],
+            shadedRegions: selectedCell
+                ? [
+                    { from: -extent, to: -criticalValue },
+                    { from: criticalValue, to: extent },
+                ]
+                : [],
+        };
+    }
+
+    const degreesOfFreedom = selectedCell ? CHI_SQUARE_DF_ROWS[selectedCell.rowIndex] : 10;
+    const alpha = selectedCell ? CHI_SQUARE_UPPER_TAIL_COLUMNS[selectedCell.columnIndex] : 0.05;
+    const criticalValue = inverseChiSquareUpperTail(alpha, degreesOfFreedom);
+    const maxX = Math.max(10, criticalValue * 1.35, degreesOfFreedom + 5 * Math.sqrt(2 * degreesOfFreedom));
+
+    return {
+        chartTitle: 'カイ二乗分布',
+        chartSubtitle: selectedCell
+            ? `自由度 ${degreesOfFreedom} / 右側確率 α = ${alpha}`
+            : 'セルを選択すると自由度と右側確率に対応する領域を図示します。',
+        helperText: '塗りつぶし領域は右側確率 P(X ≥ x) を表します。',
+        selectedValueLabel: selectedCell ? `臨界値 = ${formatFixed(criticalValue, 3)}` : null,
+        areaLabel: selectedCell ? `右側確率 = ${alpha}` : null,
+        xMin: 0,
+        xMax: maxX,
+        pdf: (value) => chiSquarePdf(value, degreesOfFreedom),
+        cutoffs: selectedCell ? [criticalValue] : [],
+        shadedRegions: selectedCell ? [{ from: criticalValue, to: maxX }] : [],
+    };
+}
+
 interface DistributionTablesProps {
     onBack: () => void;
 }
@@ -318,6 +436,59 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }
     }), []);
 
     const activeTable = tables[activeTableKey];
+    const preview = useMemo(() => buildDistributionPreview(activeTableKey, selectedCell), [activeTableKey, selectedCell]);
+    const plotGeometry = useMemo(() => {
+        const svgWidth = 760;
+        const svgHeight = 260;
+        const padding = { top: 16, right: 18, bottom: 28, left: 18 };
+        const innerWidth = svgWidth - padding.left - padding.right;
+        const innerHeight = svgHeight - padding.top - padding.bottom;
+        const sampleCount = 320;
+        const points = Array.from({ length: sampleCount + 1 }, (_, index) => {
+            const x = preview.xMin + (index / sampleCount) * (preview.xMax - preview.xMin);
+            return { x, y: preview.pdf(x) };
+        });
+        const yMax = Math.max(...points.map((point) => point.y), 1e-6) * 1.08;
+        const baselineY = svgHeight - padding.bottom;
+        const xToSvg = (value: number) => padding.left + ((value - preview.xMin) / (preview.xMax - preview.xMin)) * innerWidth;
+        const yToSvg = (value: number) => baselineY - (value / yMax) * innerHeight;
+        const curvePath = points
+            .map((point, index) => `${index === 0 ? 'M' : 'L'} ${xToSvg(point.x).toFixed(2)} ${yToSvg(point.y).toFixed(2)}`)
+            .join(' ');
+        const buildRegionPath = (region: PlotRegion) => {
+            const start = Math.max(preview.xMin, region.from);
+            const end = Math.min(preview.xMax, region.to);
+            if (end <= start) {
+                return '';
+            }
+
+            const regionPoints = [
+                { x: start, y: preview.pdf(start) },
+                ...points.filter((point) => point.x > start && point.x < end),
+                { x: end, y: preview.pdf(end) },
+            ];
+
+            return [
+                `M ${xToSvg(start).toFixed(2)} ${baselineY.toFixed(2)}`,
+                `L ${xToSvg(start).toFixed(2)} ${yToSvg(regionPoints[0].y).toFixed(2)}`,
+                ...regionPoints.slice(1).map((point) => `L ${xToSvg(point.x).toFixed(2)} ${yToSvg(point.y).toFixed(2)}`),
+                `L ${xToSvg(end).toFixed(2)} ${baselineY.toFixed(2)}`,
+                'Z',
+            ].join(' ');
+        };
+
+        return {
+            svgWidth,
+            svgHeight,
+            baselineY,
+            curvePath,
+            regionPaths: preview.shadedRegions.map(buildRegionPath).filter(Boolean),
+            cutoffs: preview.cutoffs.map((value) => ({
+                value,
+                x: xToSvg(value),
+            })),
+        };
+    }, [preview]);
 
     return (
         <div className="distribution-tables-page">
@@ -347,6 +518,63 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }
                     </button>
                 ))}
             </div>
+
+            <section className="distribution-plot-card">
+                <div className="distribution-plot-card-head">
+                    <div>
+                        <h2>{preview.chartTitle}</h2>
+                        <p>{preview.chartSubtitle}</p>
+                    </div>
+                    <span className="distribution-table-badge">面積図</span>
+                </div>
+                <p className="distribution-table-note">{preview.helperText}</p>
+                <div className="distribution-plot-figure">
+                    <svg
+                        className="distribution-plot-svg"
+                        viewBox={`0 0 ${plotGeometry.svgWidth} ${plotGeometry.svgHeight}`}
+                        aria-label={`${preview.chartTitle}の面積図`}
+                    >
+                        <line
+                            x1="18"
+                            y1={plotGeometry.baselineY}
+                            x2={plotGeometry.svgWidth - 18}
+                            y2={plotGeometry.baselineY}
+                            className="distribution-plot-axis"
+                        />
+                        {plotGeometry.regionPaths.map((path, index) => (
+                            <path key={`region-${index}`} d={path} className="distribution-plot-region" />
+                        ))}
+                        <path d={plotGeometry.curvePath} className="distribution-plot-curve" />
+                        {plotGeometry.cutoffs.map((cutoff) => (
+                            <g key={`cutoff-${cutoff.value}`}>
+                                <line
+                                    x1={cutoff.x}
+                                    y1="18"
+                                    x2={cutoff.x}
+                                    y2={plotGeometry.baselineY}
+                                    className="distribution-plot-cutoff"
+                                />
+                                <text
+                                    x={cutoff.x}
+                                    y="14"
+                                    textAnchor="middle"
+                                    className="distribution-plot-cutoff-label"
+                                >
+                                    {cutoff.value.toFixed(2)}
+                                </text>
+                            </g>
+                        ))}
+                    </svg>
+                </div>
+                <div className="distribution-plot-summary">
+                    <span className="distribution-plot-chip">
+                        {preview.selectedValueLabel ?? 'セルを選択すると、対応する面積を図示します。'}
+                    </span>
+                    {preview.areaLabel && (
+                        <span className="distribution-plot-chip is-accent">{preview.areaLabel}</span>
+                    )}
+                </div>
+            </section>
 
             <section className="distribution-table-card">
                 <div className="distribution-table-card-head">
