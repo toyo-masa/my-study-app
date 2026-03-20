@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarClickPosition } from '../components/Sidebar';
 import { TestResult } from '../components/TestResult';
@@ -19,7 +19,6 @@ import {
     saveSessionToStorage,
     loadSessionFromStorage,
     clearSessionFromStorage,
-    loadReviewBoardSettings,
     resolveReviewBoardFeedbackBlockSize,
 } from '../utils/quizSettings';
 import {
@@ -38,9 +37,10 @@ import {
 
 interface StudyRouteProps {
     allowTouchDrawing: boolean;
+    reviewBoardFeedbackBlockSize: number;
 }
 
-export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => {
+export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing, reviewBoardFeedbackBlockSize }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
@@ -90,6 +90,12 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
     const completedQuestionIdsRef = useRef<number[]>([]);
     const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
     const questionByIdRef = useRef<Record<number, Question>>({});
+
+    const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
+        return resolveReviewBoardFeedbackBlockSize(questionCount, {
+            feedbackBlockSize: reviewBoardFeedbackBlockSize,
+        });
+    }, [reviewBoardFeedbackBlockSize]);
 
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
@@ -445,10 +451,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
                     setPendingRevealQuestionIds(session.pendingRevealQuestionIds || []);
                     setFeedbackPhase(session.feedbackPhase || 'answering');
                     if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
-                        const reviewBoardSettings = loadReviewBoardSettings();
-                        const reviewBoardFeedbackBlockSize = resolveReviewBoardFeedbackBlockSize(filteredQuestions.length, reviewBoardSettings);
-                        setFeedbackTimingMode(session.feedbackTimingMode || 'delayed_block');
-                        setFeedbackBlockSize(session.feedbackBlockSize || reviewBoardFeedbackBlockSize);
+                        setFeedbackTimingMode('delayed_block');
+                        setFeedbackBlockSize(resolveCurrentReviewBoardFeedbackBlockSize(filteredQuestions.length));
                     } else {
                         setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
                         setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
@@ -582,9 +586,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
                     clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
                 }
                 if (mode === 'review_due') {
-                    const reviewBoardSettings = loadReviewBoardSettings();
                     setFeedbackTimingMode('delayed_block');
-                    setFeedbackBlockSize(resolveReviewBoardFeedbackBlockSize(studyQuestions.length, reviewBoardSettings));
+                    setFeedbackBlockSize(resolveCurrentReviewBoardFeedbackBlockSize(studyQuestions.length));
                 } else {
                     setFeedbackTimingMode(settings.feedbackTimingMode);
                     setFeedbackBlockSize(settings.feedbackBlockSize);
@@ -612,7 +615,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing }) => 
         };
 
         void initStudy();
-    }, [sessionKey, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, navigate, fromReviewBoardFromState, sessionSlotKey]);
+    }, [sessionKey, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, navigate, fromReviewBoardFromState, sessionSlotKey, resolveCurrentReviewBoardFeedbackBlockSize]);
 
     const handleBackToDetail = () => {
         clearWindowTimeout(saveDebounceRef);

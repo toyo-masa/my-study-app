@@ -352,7 +352,14 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                     onClick={() => onConfidenceChange(confidence === 'low' ? 'high' : 'low')}
                                     title={confidence === 'low' ? '復習フラグを解除' : '復習に回す'}
                                 >
-                                    {confidence === 'low' ? '🤔 復習対象' : '🤔 復習に回す'}
+                                    <span className="review-flag-btn-label">
+                                        <span className="review-flag-btn-text">
+                                            {confidence === 'low' ? '🤔 復習対象' : '🤔 復習に回す'}
+                                        </span>
+                                        <span className="review-flag-btn-measure" aria-hidden="true">
+                                            🤔 復習に回す
+                                        </span>
+                                    </span>
                                     <kbd className="confidence-kbd">M</kbd>
                                 </button>
                                 {isLast ? (

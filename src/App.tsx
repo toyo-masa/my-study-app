@@ -132,8 +132,8 @@ function App() {
           <Route path="/tutorial" element={<TutorialHubRoute />} />
           {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
           <Route path="/quiz/:id/manage" element={<ManageRoute />} />
-          <Route path="/quiz/:id/study" element={<StudyRoute allowTouchDrawing={handwritingSettings.allowTouchDrawing} />} />
-          <Route path="/quiz/:id/memorization" element={<MemorizationRoute allowTouchDrawing={handwritingSettings.allowTouchDrawing} />} />
+          <Route path="/quiz/:id/study" element={<StudyRoute allowTouchDrawing={handwritingSettings.allowTouchDrawing} reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize} />} />
+          <Route path="/quiz/:id/memorization" element={<MemorizationRoute allowTouchDrawing={handwritingSettings.allowTouchDrawing} reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize} />} />
           <Route path="/quiz/:id/history-table" element={<HistoryTableRoute />} />
           <Route path="/quiz/:id" element={<QuizDetailRoute />} />
           <Route path="/release-notes" element={<ReleaseNotesRoute />} />

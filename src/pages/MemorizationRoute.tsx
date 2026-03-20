@@ -25,7 +25,6 @@ import {
     clearSessionFromStorage,
     loadQuizSetSettings,
     applyShuffleSettings,
-    loadReviewBoardSettings,
     resolveReviewBoardFeedbackBlockSize,
 } from '../utils/quizSettings';
 import { calculateNextDue, calculateNextInterval, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
@@ -45,9 +44,10 @@ import {
 
 interface MemorizationRouteProps {
     allowTouchDrawing: boolean;
+    reviewBoardFeedbackBlockSize: number;
 }
 
-export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouchDrawing }) => {
+export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouchDrawing, reviewBoardFeedbackBlockSize }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
@@ -93,6 +93,12 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
     const saveDebounceRef = useRef<number | null>(null);
     const completedQuestionIdsRef = useRef<number[]>([]);
     const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
+
+    const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
+        return resolveReviewBoardFeedbackBlockSize(questionCount, {
+            feedbackBlockSize: reviewBoardFeedbackBlockSize,
+        });
+    }, [reviewBoardFeedbackBlockSize]);
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
     const autoSaveStateRef = useRef({
@@ -396,19 +402,18 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
             return;
         }
 
-        if (quizSetId) {
-            const settings = loadQuizSetSettings(quizSetId);
-            studyQuestions = applyShuffleSettings(studyQuestions, settings);
-            if (sessionSlotKey === DEFAULT_SUSPENDED_SESSION_SLOT_KEY) {
-                clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
-            }
-            if (mode === 'review_due') {
-                const reviewBoardSettings = loadReviewBoardSettings();
-                setFeedbackTimingMode('delayed_block');
-                setFeedbackBlockSize(resolveReviewBoardFeedbackBlockSize(studyQuestions.length, reviewBoardSettings));
-            } else {
-                setFeedbackTimingMode(settings.feedbackTimingMode);
-                setFeedbackBlockSize(settings.feedbackBlockSize);
+            if (quizSetId) {
+                const settings = loadQuizSetSettings(quizSetId);
+                studyQuestions = applyShuffleSettings(studyQuestions, settings);
+                if (sessionSlotKey === DEFAULT_SUSPENDED_SESSION_SLOT_KEY) {
+                    clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
+                }
+                if (mode === 'review_due') {
+                    setFeedbackTimingMode('delayed_block');
+                    setFeedbackBlockSize(resolveCurrentReviewBoardFeedbackBlockSize(studyQuestions.length));
+                } else {
+                    setFeedbackTimingMode(settings.feedbackTimingMode);
+                    setFeedbackBlockSize(settings.feedbackBlockSize);
             }
         }
         completedQuestionIdsRef.current = [];
@@ -430,7 +435,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         // Mark as initialized to prevent useEffect from re-shuffling
         lastSessionKeyRef.current = sessionKey;
         setIsLoading(false);
-    }, [navigate, quizSetId, sessionKey, fromReviewBoardFromState, sessionSlotKey]);
+    }, [navigate, quizSetId, sessionKey, fromReviewBoardFromState, sessionSlotKey, resolveCurrentReviewBoardFeedbackBlockSize]);
 
     useEffect(() => {
         const initMem = async () => {
@@ -466,10 +471,8 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
                     setPendingRevealQuestionIds(session.pendingRevealQuestionIds || []);
                     setFeedbackPhase(session.feedbackPhase || 'answering');
                     if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
-                        const reviewBoardSettings = loadReviewBoardSettings();
-                        const reviewBoardFeedbackBlockSize = resolveReviewBoardFeedbackBlockSize(filteredQuestions.length, reviewBoardSettings);
-                        setFeedbackTimingMode(session.feedbackTimingMode || 'delayed_block');
-                        setFeedbackBlockSize(session.feedbackBlockSize || reviewBoardFeedbackBlockSize);
+                        setFeedbackTimingMode('delayed_block');
+                        setFeedbackBlockSize(resolveCurrentReviewBoardFeedbackBlockSize(filteredQuestions.length));
                     } else {
                         setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
                         setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
@@ -558,7 +561,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         };
 
         initMem();
-    }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, fromReviewBoardFromState, sessionSlotKey]);
+    }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, fromReviewBoardFromState, sessionSlotKey, resolveCurrentReviewBoardFeedbackBlockSize]);
 
     const handleBackToDetail = () => {
         clearWindowTimeout(saveDebounceRef);
