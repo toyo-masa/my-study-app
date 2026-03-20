@@ -3984,6 +3984,47 @@ input:checked+.slider svg {
   margin-left: 0;
 }
 
+.stepper-control {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  height: 2.5rem;
+  background: var(--surface-color);
+}
+
+.stepper-control-btn {
+  width: 2.5rem;
+  height: 100%;
+  border: none;
+  background: var(--bg-color);
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+
+.stepper-control-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.stepper-control-input {
+  border: none;
+  border-radius: 0;
+  width: 2.5rem;
+  min-width: unset;
+  height: 100%;
+  padding: 0;
+  font-weight: bold;
+  font-size: 1rem;
+  text-align: center;
+}
+
 .quiz-feedback-size-input {
   width: 88px;
   min-width: 88px;
@@ -3991,6 +4032,11 @@ input:checked+.slider svg {
   background: var(--surface-color);
   border-color: rgba(148, 163, 184, 0.28);
   color: var(--text-color);
+}
+
+.stepper-control-input.quiz-feedback-size-input {
+  width: 2.5rem;
+  min-width: unset;
 }
 
 .quiz-feedback-size-input[type="number"] {
@@ -4023,6 +4069,10 @@ input:checked+.slider svg {
 .quiz-feedback-size-help {
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+.review-settings-card .quiz-feedback-inline-controls {
+  justify-content: flex-start;
 }
 
 .quiz-start-actions {
@@ -7657,6 +7707,12 @@ input:checked+.slider svg {
     width: 72px;
     min-width: 72px;
     padding: 0.45rem 0.55rem;
+  }
+
+  .stepper-control-input.quiz-feedback-size-input {
+    width: 2.5rem;
+    min-width: unset;
+    padding: 0;
   }
 
   /* --- Test Result --- */

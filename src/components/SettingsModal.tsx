@@ -5,6 +5,7 @@ import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
 import type { ThemeMode } from '../utils/settings';
 import type { ReviewBoardSettings } from '../utils/quizSettings';
+import { NumericStepper } from './NumericStepper';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -57,28 +58,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const exampleBaseDays = 4;
     const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
 
-    const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, rawValue: string) => {
-        const parsedValue = Number(rawValue);
-        if (!Number.isFinite(parsedValue)) {
-            return;
-        }
-
+    const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, nextValue: number) => {
         const nextSettings = normalizeReviewIntervalSettings({
             ...reviewIntervalSettings,
-            [field]: parsedValue,
+            [field]: nextValue,
         });
         onReviewIntervalSettingsChange(nextSettings);
     };
 
-    const handleReviewBoardBlockSizeChange = (rawValue: string) => {
-        const parsedValue = Number(rawValue);
-        if (!Number.isFinite(parsedValue)) {
-            return;
-        }
-
+    const handleReviewBoardBlockSizeChange = (nextValue: number) => {
         onReviewBoardSettingsChange({
             ...reviewBoardSettings,
-            feedbackBlockSize: parsedValue,
+            feedbackBlockSize: nextValue,
         });
     };
 
@@ -263,33 +254,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <div className="review-settings-grid">
                                                 <label className="review-setting-item">
                                                     <span className="review-setting-label">不正解・自信なし時の次回間隔</span>
-                                                    <div className="review-setting-input-wrap">
-                                                        <input
-                                                            type="number"
-                                                            className="field-input review-setting-input"
-                                                            min={1}
-                                                            max={365}
-                                                            step={1}
-                                                            value={reviewIntervalSettings.retryIntervalDays}
-                                                            onChange={(e) => handleReviewSettingChange('retryIntervalDays', e.target.value)}
-                                                        />
-                                                        <span className="review-setting-unit">日</span>
-                                                    </div>
+                                                    <NumericStepper
+                                                        value={reviewIntervalSettings.retryIntervalDays}
+                                                        min={1}
+                                                        max={365}
+                                                        step={1}
+                                                        onChange={(value) => handleReviewSettingChange('retryIntervalDays', value)}
+                                                        trailingLabel="日"
+                                                        decreaseAriaLabel="不正解時の次回間隔を減らす"
+                                                        increaseAriaLabel="不正解時の次回間隔を増やす"
+                                                    />
                                                 </label>
                                                 <label className="review-setting-item">
                                                     <span className="review-setting-label">正解時の倍率</span>
-                                                    <div className="review-setting-input-wrap">
-                                                        <input
-                                                            type="number"
-                                                            className="field-input review-setting-input"
-                                                            min={0.2}
-                                                            max={10}
-                                                            step={0.1}
-                                                            value={reviewIntervalSettings.correctMultiplier}
-                                                            onChange={(e) => handleReviewSettingChange('correctMultiplier', e.target.value)}
-                                                        />
-                                                        <span className="review-setting-unit">倍</span>
-                                                    </div>
+                                                    <NumericStepper
+                                                        value={reviewIntervalSettings.correctMultiplier}
+                                                        min={0.2}
+                                                        max={10}
+                                                        step={0.1}
+                                                        onChange={(value) => handleReviewSettingChange('correctMultiplier', value)}
+                                                        trailingLabel="倍"
+                                                        decreaseAriaLabel="正解時の倍率を減らす"
+                                                        increaseAriaLabel="正解時の倍率を増やす"
+                                                    />
                                                 </label>
                                             </div>
 
@@ -321,18 +308,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <div className="review-settings-grid">
                                                 <label className="review-setting-item">
                                                     <span className="review-setting-label">まとめて確認する問題数</span>
-                                                    <div className="review-setting-input-wrap">
-                                                        <input
-                                                            type="number"
-                                                            className="field-input review-setting-input"
-                                                            min={1}
-                                                            max={1000}
-                                                            step={1}
-                                                            value={reviewBoardSettings.feedbackBlockSize}
-                                                            onChange={(e) => handleReviewBoardBlockSizeChange(e.target.value)}
-                                                        />
-                                                        <span className="review-setting-unit">問</span>
-                                                    </div>
+                                                    <NumericStepper
+                                                        value={reviewBoardSettings.feedbackBlockSize}
+                                                        min={1}
+                                                        max={1000}
+                                                        step={1}
+                                                        onChange={handleReviewBoardBlockSizeChange}
+                                                        trailingLabel="問"
+                                                        decreaseAriaLabel="復習ボードの回答確認間隔を減らす"
+                                                        increaseAriaLabel="復習ボードの回答確認間隔を増やす"
+                                                    />
                                                 </label>
                                             </div>
 
