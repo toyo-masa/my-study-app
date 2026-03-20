@@ -1195,6 +1195,47 @@ body {
   margin-bottom: 2rem;
 }
 
+.settings-collapsible {
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-color) 92%, var(--primary-color) 8%);
+  overflow: hidden;
+}
+
+.settings-collapsible-summary {
+  list-style: none;
+  cursor: pointer;
+  margin-bottom: 0;
+  padding: 0.95rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-collapsible-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-collapsible-chevron {
+  transition: transform 0.2s ease;
+}
+
+.settings-collapsible[open] .settings-collapsible-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-collapsible-body {
+  display: grid;
+  gap: 0.95rem;
+  padding: 0 1rem 1rem;
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -1205,6 +1246,10 @@ body {
   margin-bottom: 1rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.section-title.settings-collapsible-summary {
+  margin-bottom: 0;
 }
 
 .setting-item {
@@ -1238,6 +1283,19 @@ body {
   font-size: 0.82rem;
   color: var(--text-secondary);
   line-height: 1.55;
+}
+
+.review-settings-card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 0.9rem;
+  background: var(--bg-color);
+}
+
+.review-settings-card-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.9rem;
+  color: var(--text-color);
 }
 
 .review-settings-grid {

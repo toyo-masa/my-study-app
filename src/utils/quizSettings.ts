@@ -9,6 +9,10 @@ export interface QuizSetSettings {
     feedbackBlockSize: number;
 }
 
+export interface ReviewBoardSettings {
+    feedbackBlockSize: number;
+}
+
 function getSuspendedSessionStorageKey(quizSetId: number, slotKey: SuspendedSessionSlotKey): string {
     if (slotKey === 'default') {
         return `suspendedSession_${quizSetId}`;
@@ -82,6 +86,12 @@ const DEFAULT_QUIZ_SET_SETTINGS: QuizSetSettings = {
     feedbackBlockSize: 5,
 };
 
+export const DEFAULT_REVIEW_BOARD_SETTINGS: ReviewBoardSettings = {
+    feedbackBlockSize: 5,
+};
+
+const REVIEW_BOARD_SETTINGS_STORAGE_KEY = 'reviewBoardSettings';
+
 const FEEDBACK_BLOCK_SIZE_MIN = 1;
 const FEEDBACK_BLOCK_SIZE_MAX = 1000;
 
@@ -108,6 +118,13 @@ const normalizeQuizSetSettings = (raw: unknown): QuizSetSettings => {
     };
 };
 
+export const normalizeReviewBoardSettings = (raw: unknown): ReviewBoardSettings => {
+    const source = (raw && typeof raw === 'object') ? raw as Partial<ReviewBoardSettings> : {};
+    return {
+        feedbackBlockSize: normalizeFeedbackBlockSize(source.feedbackBlockSize),
+    };
+};
+
 export const loadQuizSetSettings = (quizSetId: number): QuizSetSettings => {
     try {
         const stored = localStorage.getItem(`quizSetSettings_${quizSetId}`);
@@ -120,6 +137,29 @@ export const loadQuizSetSettings = (quizSetId: number): QuizSetSettings => {
 
 export const saveQuizSetSettings = (quizSetId: number, settings: QuizSetSettings) => {
     localStorage.setItem(`quizSetSettings_${quizSetId}`, JSON.stringify(normalizeQuizSetSettings(settings)));
+};
+
+export const loadReviewBoardSettings = (): ReviewBoardSettings => {
+    try {
+        const stored = localStorage.getItem(REVIEW_BOARD_SETTINGS_STORAGE_KEY);
+        if (stored) return normalizeReviewBoardSettings(JSON.parse(stored));
+    } catch (e) {
+        console.error('Failed to load review board settings', e);
+    }
+    return { ...DEFAULT_REVIEW_BOARD_SETTINGS };
+};
+
+export const saveReviewBoardSettings = (settings: ReviewBoardSettings) => {
+    localStorage.setItem(REVIEW_BOARD_SETTINGS_STORAGE_KEY, JSON.stringify(normalizeReviewBoardSettings(settings)));
+};
+
+export const resolveReviewBoardFeedbackBlockSize = (
+    questionCount: number,
+    settings: ReviewBoardSettings = DEFAULT_REVIEW_BOARD_SETTINGS
+): number => {
+    const normalizedQuestionCount = Math.max(1, Math.round(questionCount));
+    const normalizedSettings = normalizeReviewBoardSettings(settings);
+    return Math.min(normalizedQuestionCount, normalizedSettings.feedbackBlockSize);
 };
 
 // Fisher-Yates shuffle (immutable)

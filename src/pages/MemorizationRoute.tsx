@@ -19,7 +19,15 @@ import type {
     MemorizationLog,
     SuspendedSession,
 } from '../types';
-import { saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage, loadQuizSetSettings, applyShuffleSettings } from '../utils/quizSettings';
+import {
+    saveSessionToStorage,
+    loadSessionFromStorage,
+    clearSessionFromStorage,
+    loadQuizSetSettings,
+    applyShuffleSettings,
+    loadReviewBoardSettings,
+    resolveReviewBoardFeedbackBlockSize,
+} from '../utils/quizSettings';
 import { calculateNextDue, calculateNextInterval, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import {
     buildMemorizationSuspendedSession,
@@ -279,8 +287,14 @@ export const MemorizationRoute: React.FC = () => {
             if (sessionSlotKey === DEFAULT_SUSPENDED_SESSION_SLOT_KEY) {
                 clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
             }
-            setFeedbackTimingMode(settings.feedbackTimingMode);
-            setFeedbackBlockSize(settings.feedbackBlockSize);
+            if (mode === 'review_due') {
+                const reviewBoardSettings = loadReviewBoardSettings();
+                setFeedbackTimingMode('delayed_block');
+                setFeedbackBlockSize(resolveReviewBoardFeedbackBlockSize(studyQuestions.length, reviewBoardSettings));
+            } else {
+                setFeedbackTimingMode(settings.feedbackTimingMode);
+                setFeedbackBlockSize(settings.feedbackBlockSize);
+            }
         }
         completedQuestionIdsRef.current = [];
         setQuestions(studyQuestions);
@@ -334,8 +348,15 @@ export const MemorizationRoute: React.FC = () => {
                     setShowAnswerMap(session.showAnswerMap || {});
                     setPendingRevealQuestionIds(session.pendingRevealQuestionIds || []);
                     setFeedbackPhase(session.feedbackPhase || 'answering');
-                    setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
-                    setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
+                    if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
+                        const reviewBoardSettings = loadReviewBoardSettings();
+                        const reviewBoardFeedbackBlockSize = resolveReviewBoardFeedbackBlockSize(filteredQuestions.length, reviewBoardSettings);
+                        setFeedbackTimingMode(session.feedbackTimingMode || 'delayed_block');
+                        setFeedbackBlockSize(session.feedbackBlockSize || reviewBoardFeedbackBlockSize);
+                    } else {
+                        setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
+                        setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
+                    }
                     setCurrentQuestionIndex(Math.max(0, nextIndex));
                     setMarkedQuestions(session.markedQuestions || []);
                     startTimeRef.current = buildResumedStartTime(session.elapsedSeconds);

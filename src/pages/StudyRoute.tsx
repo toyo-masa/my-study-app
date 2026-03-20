@@ -13,7 +13,15 @@ import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode, SuspendedSession } from '../types';
-import { loadQuizSetSettings, applyShuffleSettings, saveSessionToStorage, loadSessionFromStorage, clearSessionFromStorage } from '../utils/quizSettings';
+import {
+    loadQuizSetSettings,
+    applyShuffleSettings,
+    saveSessionToStorage,
+    loadSessionFromStorage,
+    clearSessionFromStorage,
+    loadReviewBoardSettings,
+    resolveReviewBoardFeedbackBlockSize,
+} from '../utils/quizSettings';
 import {
     buildQuizSessionKey,
     buildResumedStartTime,
@@ -299,8 +307,15 @@ export const StudyRoute: React.FC = () => {
                     setShowAnswerMap(session.showAnswerMap || {});
                     setPendingRevealQuestionIds(session.pendingRevealQuestionIds || []);
                     setFeedbackPhase(session.feedbackPhase || 'answering');
-                    setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
-                    setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
+                    if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
+                        const reviewBoardSettings = loadReviewBoardSettings();
+                        const reviewBoardFeedbackBlockSize = resolveReviewBoardFeedbackBlockSize(filteredQuestions.length, reviewBoardSettings);
+                        setFeedbackTimingMode(session.feedbackTimingMode || 'delayed_block');
+                        setFeedbackBlockSize(session.feedbackBlockSize || reviewBoardFeedbackBlockSize);
+                    } else {
+                        setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
+                        setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
+                    }
                     setMarkedQuestions(session.markedQuestions || []);
                     startTimeRef.current = buildResumedStartTime(session.elapsedSeconds);
                     setHistoryMode(session.historyMode || 'normal');
@@ -429,8 +444,14 @@ export const StudyRoute: React.FC = () => {
                 if (sessionSlotKey === DEFAULT_SUSPENDED_SESSION_SLOT_KEY) {
                     clearSessionFromStorage(quizSetId, sessionSlotKey).catch(err => console.error('Failed to clear suspended session', err));
                 }
-                setFeedbackTimingMode(settings.feedbackTimingMode);
-                setFeedbackBlockSize(settings.feedbackBlockSize);
+                if (mode === 'review_due') {
+                    const reviewBoardSettings = loadReviewBoardSettings();
+                    setFeedbackTimingMode('delayed_block');
+                    setFeedbackBlockSize(resolveReviewBoardFeedbackBlockSize(studyQuestions.length, reviewBoardSettings));
+                } else {
+                    setFeedbackTimingMode(settings.feedbackTimingMode);
+                    setFeedbackBlockSize(settings.feedbackBlockSize);
+                }
             }
             completedQuestionIdsRef.current = [];
             // All state updates together

@@ -1,9 +1,10 @@
 import React from 'react';
-import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info, SlidersHorizontal } from 'lucide-react';
+import { X, Moon, Sun, Globe, Monitor, Type, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
 import type { ThemeMode } from '../utils/settings';
+import type { ReviewBoardSettings } from '../utils/quizSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -15,8 +16,11 @@ interface SettingsModalProps {
     accentColor: string;
     onAccentColorChange: (color: string) => void;
     reviewIntervalSettings: ReviewIntervalSettings;
+    reviewBoardSettings: ReviewBoardSettings;
     onReviewIntervalSettingsChange: (settings: ReviewIntervalSettings) => void;
     onResetReviewIntervalSettings: () => void;
+    onReviewBoardSettingsChange: (settings: ReviewBoardSettings) => void;
+    onResetReviewBoardSettings: () => void;
     currentUsername?: string | null;
     onLogout?: () => void;
     onLoginRequest?: () => void;
@@ -41,8 +45,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     accentColor,
     onAccentColorChange,
     reviewIntervalSettings,
+    reviewBoardSettings,
     onReviewIntervalSettingsChange,
     onResetReviewIntervalSettings,
+    onReviewBoardSettingsChange,
+    onResetReviewBoardSettings,
     currentUsername,
     onLogout,
     onLoginRequest
@@ -61,6 +68,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             [field]: parsedValue,
         });
         onReviewIntervalSettingsChange(nextSettings);
+    };
+
+    const handleReviewBoardBlockSizeChange = (rawValue: string) => {
+        const parsedValue = Number(rawValue);
+        if (!Number.isFinite(parsedValue)) {
+            return;
+        }
+
+        onReviewBoardSettingsChange({
+            ...reviewBoardSettings,
+            feedbackBlockSize: parsedValue,
+        });
     };
 
     return (
@@ -227,64 +246,115 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </section>
 
                             <section className="settings-section">
-                                <div className="section-title">
-                                    <SlidersHorizontal size={18} />
-                                    <span>復習設定</span>
-                                </div>
-                                <p className="review-settings-note">
-                                    復習間隔の計算に使う値を調整できます。変更内容は次回の復習判定から反映されます。
-                                </p>
-                                <div className="review-settings-grid">
-                                    <label className="review-setting-item">
-                                        <span className="review-setting-label">不正解・自信なし時の次回間隔</span>
-                                        <div className="review-setting-input-wrap">
-                                            <input
-                                                type="number"
-                                                className="field-input review-setting-input"
-                                                min={1}
-                                                max={365}
-                                                step={1}
-                                                value={reviewIntervalSettings.retryIntervalDays}
-                                                onChange={(e) => handleReviewSettingChange('retryIntervalDays', e.target.value)}
-                                            />
-                                            <span className="review-setting-unit">日</span>
-                                        </div>
-                                    </label>
-                                    <label className="review-setting-item">
-                                        <span className="review-setting-label">正解時の倍率</span>
-                                        <div className="review-setting-input-wrap">
-                                            <input
-                                                type="number"
-                                                className="field-input review-setting-input"
-                                                min={0.2}
-                                                max={10}
-                                                step={0.1}
-                                                value={reviewIntervalSettings.correctMultiplier}
-                                                onChange={(e) => handleReviewSettingChange('correctMultiplier', e.target.value)}
-                                            />
-                                            <span className="review-setting-unit">倍</span>
-                                        </div>
-                                    </label>
-                                </div>
+                                <details className="settings-collapsible" open>
+                                    <summary className="section-title settings-collapsible-summary">
+                                        <span className="settings-collapsible-title">
+                                            <SlidersHorizontal size={18} />
+                                            <span>復習設定</span>
+                                        </span>
+                                        <ChevronDown size={16} className="settings-collapsible-chevron" />
+                                    </summary>
+                                    <div className="settings-collapsible-body">
+                                        <div className="review-settings-card">
+                                            <h4 className="review-settings-card-title">復習日程</h4>
+                                            <p className="review-settings-note">
+                                                復習間隔の計算に使う値を調整できます。変更内容は次回の復習判定から反映されます。
+                                            </p>
+                                            <div className="review-settings-grid">
+                                                <label className="review-setting-item">
+                                                    <span className="review-setting-label">不正解・自信なし時の次回間隔</span>
+                                                    <div className="review-setting-input-wrap">
+                                                        <input
+                                                            type="number"
+                                                            className="field-input review-setting-input"
+                                                            min={1}
+                                                            max={365}
+                                                            step={1}
+                                                            value={reviewIntervalSettings.retryIntervalDays}
+                                                            onChange={(e) => handleReviewSettingChange('retryIntervalDays', e.target.value)}
+                                                        />
+                                                        <span className="review-setting-unit">日</span>
+                                                    </div>
+                                                </label>
+                                                <label className="review-setting-item">
+                                                    <span className="review-setting-label">正解時の倍率</span>
+                                                    <div className="review-setting-input-wrap">
+                                                        <input
+                                                            type="number"
+                                                            className="field-input review-setting-input"
+                                                            min={0.2}
+                                                            max={10}
+                                                            step={0.1}
+                                                            value={reviewIntervalSettings.correctMultiplier}
+                                                            onChange={(e) => handleReviewSettingChange('correctMultiplier', e.target.value)}
+                                                        />
+                                                        <span className="review-setting-unit">倍</span>
+                                                    </div>
+                                                </label>
+                                            </div>
 
-                                <div className="review-settings-formula">
-                                    <p className="review-settings-formula-title">次回日数の決まり方</p>
-                                    <ul className="review-settings-formula-list">
-                                        <li>この問題を初めて解くときは、基準日数を1日として開始します。</li>
-                                        <li>正解したとき: 基準日数に {reviewIntervalSettings.correctMultiplier} を掛けて四捨五入します。</li>
-                                        <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
-                                        <li>採用された日数が、次に解いたときの基準日数になります。</li>
-                                        <li>例: 基準日数が {exampleBaseDays} 日なら、正解時は {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
-                                    </ul>
-                                </div>
+                                            <div className="review-settings-formula">
+                                                <p className="review-settings-formula-title">次回日数の決まり方</p>
+                                                <ul className="review-settings-formula-list">
+                                                    <li>この問題を初めて解くときは、基準日数を1日として開始します。</li>
+                                                    <li>正解したとき: 基準日数に {reviewIntervalSettings.correctMultiplier} を掛けて四捨五入します。</li>
+                                                    <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
+                                                    <li>採用された日数が、次に解いたときの基準日数になります。</li>
+                                                    <li>例: 基準日数が {exampleBaseDays} 日なら、正解時は {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
+                                                </ul>
+                                            </div>
 
-                                <button
-                                    type="button"
-                                    className="nav-btn"
-                                    onClick={onResetReviewIntervalSettings}
-                                >
-                                    初期値に戻す
-                                </button>
+                                            <button
+                                                type="button"
+                                                className="nav-btn"
+                                                onClick={onResetReviewIntervalSettings}
+                                            >
+                                                復習日程を初期値に戻す
+                                            </button>
+                                        </div>
+
+                                        <div className="review-settings-card">
+                                            <h4 className="review-settings-card-title">復習ボードの回答確認間隔</h4>
+                                            <p className="review-settings-note">
+                                                復習ボードから新しく開始した学習で、何問ごとに正解と解説をまとめて確認するかを指定します。
+                                            </p>
+                                            <div className="review-settings-grid">
+                                                <label className="review-setting-item">
+                                                    <span className="review-setting-label">まとめて確認する問題数</span>
+                                                    <div className="review-setting-input-wrap">
+                                                        <input
+                                                            type="number"
+                                                            className="field-input review-setting-input"
+                                                            min={1}
+                                                            max={1000}
+                                                            step={1}
+                                                            value={reviewBoardSettings.feedbackBlockSize}
+                                                            onChange={(e) => handleReviewBoardBlockSizeChange(e.target.value)}
+                                                        />
+                                                        <span className="review-setting-unit">問</span>
+                                                    </div>
+                                                </label>
+                                            </div>
+
+                                            <div className="review-settings-formula">
+                                                <p className="review-settings-formula-title">使われ方</p>
+                                                <ul className="review-settings-formula-list">
+                                                    <li>1問なら、1問回答するたびに正解と解説を確認できます。</li>
+                                                    <li>2問以上なら、その問数を回答したあとにまとめて確認できます。</li>
+                                                    <li>実際の復習問題数を超える値を入れていても、その回の問題数まで自動で調整します。</li>
+                                                </ul>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className="nav-btn"
+                                                onClick={onResetReviewBoardSettings}
+                                            >
+                                                復習ボード設定を初期値に戻す
+                                            </button>
+                                        </div>
+                                    </div>
+                                </details>
                             </section>
 
                             <section className="settings-section">

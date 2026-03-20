@@ -13,6 +13,13 @@ import {
     setStoredThemeMode,
     type ThemeMode,
 } from '../utils/settings';
+import {
+    DEFAULT_REVIEW_BOARD_SETTINGS,
+    loadReviewBoardSettings,
+    normalizeReviewBoardSettings,
+    saveReviewBoardSettings,
+    type ReviewBoardSettings,
+} from '../utils/quizSettings';
 import type { QuizSetWithMeta } from '../types';
 
 const APP_TITLE_PREFIX = 'qa';
@@ -111,6 +118,9 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const [reviewIntervalSettings, setReviewIntervalSettings] = useState<ReviewIntervalSettings>(() => {
         return loadReviewIntervalSettings();
     });
+    const [reviewBoardSettings, setReviewBoardSettings] = useState<ReviewBoardSettings>(() => {
+        return loadReviewBoardSettings();
+    });
 
     useEffect(() => {
         document.body.classList.toggle('dark-mode', isDarkMode);
@@ -136,6 +146,10 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     }, [reviewIntervalSettings]);
 
     useEffect(() => {
+        saveReviewBoardSettings(reviewBoardSettings);
+    }, [reviewBoardSettings]);
+
+    useEffect(() => {
         document.title = resolvePageTitle(pathname, quizSets);
     }, [pathname, quizSets]);
 
@@ -146,6 +160,12 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const handleResetReviewIntervalSettings = () => {
         setReviewIntervalSettings({ ...DEFAULT_REVIEW_INTERVAL_SETTINGS });
     };
+    const handleReviewBoardSettingsChange = (settings: ReviewBoardSettings) => {
+        setReviewBoardSettings(normalizeReviewBoardSettings(settings));
+    };
+    const handleResetReviewBoardSettings = () => {
+        setReviewBoardSettings({ ...DEFAULT_REVIEW_BOARD_SETTINGS });
+    };
 
     return {
         themeMode,
@@ -154,8 +174,11 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
         accentColor,
         setAccentColor,
         reviewIntervalSettings,
+        reviewBoardSettings,
         toggleDarkMode,
         handleReviewIntervalSettingsChange,
         handleResetReviewIntervalSettings,
+        handleReviewBoardSettingsChange,
+        handleResetReviewBoardSettings,
     };
 }

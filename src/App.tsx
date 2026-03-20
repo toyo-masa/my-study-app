@@ -45,9 +45,12 @@ function App() {
     accentColor,
     setAccentColor,
     reviewIntervalSettings,
+    reviewBoardSettings,
     toggleDarkMode,
     handleReviewIntervalSettingsChange,
     handleResetReviewIntervalSettings,
+    handleReviewBoardSettingsChange,
+    handleResetReviewBoardSettings,
   } = useAppShellSettings(location.pathname, quizSets);
 
   // Logout
@@ -94,8 +97,11 @@ function App() {
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
         reviewIntervalSettings={reviewIntervalSettings}
+        reviewBoardSettings={reviewBoardSettings}
         onReviewIntervalSettingsChange={handleReviewIntervalSettingsChange}
         onResetReviewIntervalSettings={handleResetReviewIntervalSettings}
+        onReviewBoardSettingsChange={handleReviewBoardSettingsChange}
+        onResetReviewBoardSettings={handleResetReviewBoardSettings}
         currentUsername={currentUser?.username}
         onLogout={handleLogout}
         onLoginRequest={() => { setIsSettingsOpen(false); setIsLoginModalOpen(true); }}
