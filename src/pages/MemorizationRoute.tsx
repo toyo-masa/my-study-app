@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarClickPosition } from '../components/Sidebar';
+import type { HandwritingPadState } from '../components/HandwritingPad';
 import { MemorizationResultView, MemorizationQuestionView } from '../components/MemorizationView';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
@@ -61,6 +62,7 @@ export const MemorizationRoute: React.FC = () => {
     const [feedbackTimingMode, setFeedbackTimingMode] = useState<FeedbackTimingMode>('immediate');
     const [feedbackBlockSize, setFeedbackBlockSize] = useState(5);
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
+    const [handwritingMap, setHandwritingMap] = useState<Record<string, HandwritingPadState>>({});
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
@@ -123,6 +125,7 @@ export const MemorizationRoute: React.FC = () => {
         setFeedbackBlockSize(5);
         setCurrentQuestionIndex(0);
         setMarkedQuestions([]);
+        setHandwritingMap({});
         setIsTestCompleted(false);
         setSidebarOpen(!isMobileViewport());
         setActiveHistory(null);
@@ -1146,6 +1149,8 @@ export const MemorizationRoute: React.FC = () => {
                             feedbackTimingMode={feedbackTimingMode}
                             feedbackBlockSize={feedbackBlockSize}
                             revealReadyCount={revealReadyCount}
+                            handwritingState={handwritingMap[currentQuestionKey]}
+                            onHandwritingStateChange={(value) => setHandwritingMap((prev) => ({ ...prev, [currentQuestionKey]: value }))}
                         />
                     </>
                 )

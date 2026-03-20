@@ -3,7 +3,7 @@ import type { Question, ConfidenceLevel, FeedbackTimingMode } from '../types';
 import { motion } from 'framer-motion';
 import { Bookmark, Check, X } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
-import { HandwritingPad } from './HandwritingPad';
+import { HandwritingPad, type HandwritingPadState } from './HandwritingPad';
 
 interface QuestionViewProps {
     question: Question;
@@ -32,6 +32,8 @@ interface QuestionViewProps {
     revealReadyCount?: number | null;
     useNextAnswerLabel?: boolean;
     showHandwritingPad: boolean;
+    handwritingState?: HandwritingPadState;
+    onHandwritingStateChange?: (value: HandwritingPadState) => void;
 }
 
 export const QuestionView: React.FC<QuestionViewProps> = ({
@@ -58,6 +60,8 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     revealReadyCount = null,
     useNextAnswerLabel = false,
     showHandwritingPad,
+    handwritingState,
+    onHandwritingStateChange,
 }) => {
     const isMemoQuestion = question.questionType === 'memorization';
 
@@ -373,7 +377,11 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         rows={2}
                     />
                     {showHandwritingPad && (
-                        <HandwritingPad key={question.id ?? `${questionIndex}-${question.text}`} />
+                        <HandwritingPad
+                            key={question.id ?? `${questionIndex}-${question.text}`}
+                            value={handwritingState}
+                            onChange={onHandwritingStateChange}
+                        />
                     )}
                 </div>
             </motion.div>

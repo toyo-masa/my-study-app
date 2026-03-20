@@ -4585,6 +4585,12 @@ input:checked+.slider svg {
   color: var(--text-color);
 }
 
+.handwriting-pad-tool-btn.active {
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.14);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
 .handwriting-pad-icon-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

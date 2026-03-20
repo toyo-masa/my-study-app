@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarClickPosition } from '../components/Sidebar';
 import { TestResult } from '../components/TestResult';
 import { QuestionView } from '../components/QuestionView';
+import type { HandwritingPadState } from '../components/HandwritingPad';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
@@ -56,6 +57,7 @@ export const StudyRoute: React.FC = () => {
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
     const [confidences, setConfidences] = useState<Record<string, ConfidenceLevel>>({});
     const [memorizationAnswers, setMemorizationAnswers] = useState<Record<string, string>>({});
+    const [handwritingMap, setHandwritingMap] = useState<Record<string, HandwritingPadState>>({});
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
     const [endTime, setEndTime] = useState<Date>(new Date());
@@ -124,6 +126,7 @@ export const StudyRoute: React.FC = () => {
         setMarkedQuestions([]);
         setConfidences({});
         setMemorizationAnswers({});
+        setHandwritingMap({});
         setIsTestCompleted(false);
         setSidebarOpen(!isMobileViewport());
         setActiveHistory(null);
@@ -1398,6 +1401,8 @@ export const StudyRoute: React.FC = () => {
                         revealReadyCount={revealReadyCount}
                         useNextAnswerLabel={useNextAnswerLabel}
                         showHandwritingPad={true}
+                        handwritingState={handwritingMap[qId]}
+                        onHandwritingStateChange={(value) => setHandwritingMap((prev) => ({ ...prev, [qId]: value }))}
                     />
                 </>
             ) : (

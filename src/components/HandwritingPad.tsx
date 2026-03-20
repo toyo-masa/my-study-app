@@ -1,30 +1,58 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { RotateCcw, RotateCw } from 'lucide-react';
+import { Eraser, Pencil, RotateCcw, RotateCw } from 'lucide-react';
 
 type HandwritingPoint = {
     x: number;
     y: number;
 };
 
-type HandwritingStroke = {
+export type HandwritingStroke = {
     points: HandwritingPoint[];
     lineWidth: number;
+    mode: 'draw' | 'erase';
 };
 
-const DEFAULT_LINE_WIDTH = 2.5;
+export type HandwritingPadState = {
+    strokes: HandwritingStroke[];
+    redoStrokes: HandwritingStroke[];
+};
 
-export const HandwritingPad: React.FC = () => {
+const EMPTY_HANDWRITING_PAD_STATE: HandwritingPadState = {
+    strokes: [],
+    redoStrokes: [],
+};
+
+const DEFAULT_LINE_WIDTH = 1.875;
+const DEFAULT_ERASER_WIDTH = 12;
+
+interface HandwritingPadProps {
+    value?: HandwritingPadState;
+    onChange?: (nextValue: HandwritingPadState) => void;
+}
+
+export const HandwritingPad: React.FC<HandwritingPadProps> = ({
+    value = EMPTY_HANDWRITING_PAD_STATE,
+    onChange,
+}) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const surfaceRef = useRef<HTMLDivElement>(null);
     const activePointerIdRef = useRef<number | null>(null);
     const isDrawingRef = useRef(false);
     const canvasDprRef = useRef(1);
     const currentStrokeRef = useRef<HandwritingStroke | null>(null);
-    const [strokes, setStrokes] = useState<HandwritingStroke[]>([]);
-    const [redoStrokes, setRedoStrokes] = useState<HandwritingStroke[]>([]);
     const [hasPreviewStroke, setHasPreviewStroke] = useState(false);
+    const [toolMode, setToolMode] = useState<'draw' | 'erase'>('draw');
+    const strokes = value.strokes;
+    const redoStrokes = value.redoStrokes;
 
-    const applyContextStyle = useCallback((ctx: CanvasRenderingContext2D, lineWidth: number) => {
+    const updateValue = useCallback((nextStrokes: HandwritingStroke[], nextRedoStrokes: HandwritingStroke[]) => {
+        onChange?.({
+            strokes: nextStrokes,
+            redoStrokes: nextRedoStrokes,
+        });
+    }, [onChange]);
+
+    const applyContextStyle = useCallback((ctx: CanvasRenderingContext2D, stroke: HandwritingStroke) => {
         const canvas = canvasRef.current;
         const strokeColor = canvas ? getComputedStyle(canvas).getPropertyValue('--text-color').trim() : '';
         const dpr = canvasDprRef.current || 1;
@@ -32,7 +60,8 @@ export const HandwritingPad: React.FC = () => {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.lineWidth = lineWidth;
+        ctx.lineWidth = stroke.lineWidth;
+        ctx.globalCompositeOperation = stroke.mode === 'erase' ? 'destination-out' : 'source-over';
         ctx.strokeStyle = strokeColor || '#111827';
         ctx.fillStyle = strokeColor || '#111827';
     }, []);
@@ -55,7 +84,7 @@ export const HandwritingPad: React.FC = () => {
             return;
         }
 
-        applyContextStyle(ctx, stroke.lineWidth);
+        applyContextStyle(ctx, stroke);
 
         if (stroke.points.length === 1) {
             ctx.beginPath();
@@ -152,9 +181,8 @@ export const HandwritingPad: React.FC = () => {
             points: currentStroke.points.map((point) => ({ ...point })),
         };
         currentStrokeRef.current = null;
-        setStrokes((prev) => [...prev, completedStroke]);
-        setRedoStrokes([]);
-    }, []);
+        updateValue([...strokes, completedStroke], []);
+    }, [strokes, updateValue]);
 
     const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
@@ -167,7 +195,8 @@ export const HandwritingPad: React.FC = () => {
         event.preventDefault();
         const nextStroke: HandwritingStroke = {
             points: [point],
-            lineWidth: DEFAULT_LINE_WIDTH,
+            lineWidth: toolMode === 'erase' ? DEFAULT_ERASER_WIDTH : DEFAULT_LINE_WIDTH,
+            mode: toolMode,
         };
 
         activePointerIdRef.current = event.pointerId;
@@ -176,7 +205,7 @@ export const HandwritingPad: React.FC = () => {
         canvas.setPointerCapture(event.pointerId);
         drawStroke(ctx, nextStroke);
         setHasPreviewStroke(true);
-    }, [drawStroke, getCanvasPoint]);
+    }, [drawStroke, getCanvasPoint, toolMode]);
 
     const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
         if (!isDrawingRef.current || activePointerIdRef.current !== event.pointerId) {
@@ -194,7 +223,7 @@ export const HandwritingPad: React.FC = () => {
         event.preventDefault();
         const lastPoint = currentStroke.points[currentStroke.points.length - 1];
         currentStroke.points.push(point);
-        applyContextStyle(ctx, currentStroke.lineWidth);
+        applyContextStyle(ctx, currentStroke);
         ctx.beginPath();
         ctx.moveTo(lastPoint.x, lastPoint.y);
         ctx.lineTo(point.x, point.y);
@@ -216,10 +245,9 @@ export const HandwritingPad: React.FC = () => {
     const handleClear = useCallback(() => {
         currentStrokeRef.current = null;
         finishStroke(activePointerIdRef.current ?? undefined);
-        setStrokes([]);
-        setRedoStrokes([]);
+        updateValue([], []);
         setHasPreviewStroke(false);
-    }, [finishStroke]);
+    }, [finishStroke, updateValue]);
 
     const handleUndo = useCallback(() => {
         if (strokes.length === 0) {
@@ -230,10 +258,9 @@ export const HandwritingPad: React.FC = () => {
         finishStroke(activePointerIdRef.current ?? undefined);
         const removedStroke = strokes[strokes.length - 1];
         const nextStrokes = strokes.slice(0, -1);
-        setStrokes(nextStrokes);
-        setRedoStrokes([removedStroke, ...redoStrokes]);
+        updateValue(nextStrokes, [removedStroke, ...redoStrokes]);
         setHasPreviewStroke(false);
-    }, [finishStroke, redoStrokes, strokes]);
+    }, [finishStroke, redoStrokes, strokes, updateValue]);
 
     const handleRedo = useCallback(() => {
         if (redoStrokes.length === 0) {
@@ -244,10 +271,9 @@ export const HandwritingPad: React.FC = () => {
         finishStroke(activePointerIdRef.current ?? undefined);
         const [restoredStroke, ...nextRedoStrokes] = redoStrokes;
         const nextStrokes = [...strokes, restoredStroke];
-        setRedoStrokes(nextRedoStrokes);
-        setStrokes(nextStrokes);
+        updateValue(nextStrokes, nextRedoStrokes);
         setHasPreviewStroke(false);
-    }, [finishStroke, redoStrokes, strokes]);
+    }, [finishStroke, redoStrokes, strokes, updateValue]);
 
     useEffect(() => {
         redrawCanvas(strokes, currentStrokeRef.current);
@@ -283,6 +309,24 @@ export const HandwritingPad: React.FC = () => {
                     <p className="handwriting-pad-hint">ここに指やペンで書けます。保存はされません。</p>
                 </div>
                 <div className="handwriting-pad-actions">
+                    <button
+                        type="button"
+                        className={`icon-btn handwriting-pad-icon-btn handwriting-pad-tool-btn ${toolMode === 'draw' ? 'active' : ''}`}
+                        onClick={() => setToolMode('draw')}
+                        aria-label="ペン"
+                        title="ペン"
+                    >
+                        <Pencil size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        className={`icon-btn handwriting-pad-icon-btn handwriting-pad-tool-btn ${toolMode === 'erase' ? 'active' : ''}`}
+                        onClick={() => setToolMode('erase')}
+                        aria-label="消しゴム"
+                        title="消しゴム"
+                    >
+                        <Eraser size={16} />
+                    </button>
                     <button
                         type="button"
                         className="icon-btn handwriting-pad-icon-btn"
