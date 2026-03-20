@@ -10,6 +10,7 @@ import '../App.css';
 interface HomePageProps {
     quizSets: QuizSetWithMeta[];
     onAddQuizSet: (file: File) => void;
+    onAddMixedSet: (file: File) => void;
     onAddEmptyQuizSet: () => Promise<boolean>;
     onAddMemorizationSet: (file: File) => void;
     onAddEmptyMemorizationSet: () => Promise<boolean>;
@@ -75,6 +76,7 @@ const toCreatedAtMs = (createdAt: unknown): number => {
 export const HomePage: React.FC<HomePageProps> = ({
     quizSets,
     onAddQuizSet,
+    onAddMixedSet,
     onAddEmptyQuizSet,
     onAddMemorizationSet,
     onAddEmptyMemorizationSet,
@@ -261,6 +263,14 @@ export const HomePage: React.FC<HomePageProps> = ({
         const file = event.target.files?.[0];
         if (file) {
             onAddMemorizationSet(file);
+            event.target.value = '';
+        }
+    };
+
+    const handleMixedFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            onAddMixedSet(file);
             event.target.value = '';
         }
     };
@@ -454,8 +464,12 @@ export const HomePage: React.FC<HomePageProps> = ({
                                     <Plus size={14} /> 空の混合セットを追加
                                 </button>
                                 <label className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
-                                    <Upload size={14} /> CSVで追加
+                                    <Upload size={14} /> CSVで問題集を追加
                                     <input type="file" accept=".csv" onChange={(e) => { handleFileChange(e); setQuizMenuOpen(false); }} hidden />
+                                </label>
+                                <label className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
+                                    <Upload size={14} /> CSVで混合セットを追加
+                                    <input type="file" accept=".csv" onChange={(e) => { handleMixedFileChange(e); setQuizMenuOpen(false); }} hidden />
                                 </label>
                             </div>
                         )}
@@ -474,7 +488,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                                     <Plus size={14} /> 空の暗記カードを追加
                                 </button>
                                 <label className="dropdown-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', color: 'var(--text-primary)' }}>
-                                    <Upload size={14} /> CSVで追加
+                                    <Upload size={14} /> CSVで暗記カードを追加
                                     <input type="file" accept=".csv" onChange={(e) => { handleMemorizationFileChange(e); setMemoMenuOpen(false); }} hidden />
                                 </label>
                             </div>

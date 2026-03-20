@@ -43,8 +43,7 @@ export const HomeRoute: React.FC = () => {
         return tempIdRef.current;
     };
 
-    // Add quiz set from uploaded CSV (optimistic)
-    const handleAddQuizSet = async (file: File) => {
+    const handleAddQuestionCsvSet = async (file: File, type: 'quiz' | 'mixed') => {
         let tempId: number | undefined;
         try {
             const parsed = await parseQuestions(file);
@@ -60,19 +59,29 @@ export const HomeRoute: React.FC = () => {
             // Optimistic: show item immediately with temp id and question count
             tempId = nextTempId();
             const optimisticSet = {
-                id: tempId, name, type: 'quiz' as const,
+                id: tempId, name, type,
                 createdAt: new Date(), isDeleted: false, isArchived: false,
                 questionCount: questionsForDB.length, categories: []
             };
             setQuizSets(prev => [optimisticSet, ...prev]);
-            showGlobalNotice(`${formatQuizSetLabel(name, 'quiz')}を追加しました。`, 'success');
+            showGlobalNotice(`${formatQuizSetLabel(name, type)}を追加しました。`, 'success');
             // Background save + replace with real id
-            const realId = await addQuizSetWithQuestions(name, questionsForDB);
+            const realId = await addQuizSetWithQuestions(name, questionsForDB, type);
             setQuizSets(prev => prev.map(qs => qs.id === tempId ? { ...qs, id: realId } : qs));
         } catch {
             if (tempId !== undefined) setQuizSets(prev => prev.filter(qs => qs.id !== tempId));
-            showGlobalNotice('問題集の追加に失敗しました。', 'error');
+            showGlobalNotice(type === 'mixed' ? '混合セットの追加に失敗しました。' : '問題集の追加に失敗しました。', 'error');
         }
+    };
+
+    // Add quiz set from uploaded CSV (optimistic)
+    const handleAddQuizSet = async (file: File) => {
+        await handleAddQuestionCsvSet(file, 'quiz');
+    };
+
+    // Add mixed set from uploaded CSV (optimistic)
+    const handleAddMixedSet = async (file: File) => {
+        await handleAddQuestionCsvSet(file, 'mixed');
     };
 
     // Add memorization set from uploaded CSV (optimistic)
@@ -257,6 +266,7 @@ export const HomeRoute: React.FC = () => {
         <HomePage
             quizSets={quizSets}
             onAddQuizSet={handleAddQuizSet}
+            onAddMixedSet={handleAddMixedSet}
             onSelectQuizSet={(set) => navigate(`/quiz/${set.id}`)}
             onManageQuizSet={(set) => navigate(`/quiz/${set.id}/manage`)}
             onDeleteQuizSet={handleDeleteQuizSet}

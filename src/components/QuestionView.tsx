@@ -370,6 +370,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         placeholder="調べたいキーワードやメモを入力..."
                         value={memo}
                         onChange={(e) => onMemoChange(e.target.value)}
+                        rows={2}
                     />
                     {showHandwritingPad && (
                         <HandwritingPad key={question.id ?? `${questionIndex}-${question.text}`} />
