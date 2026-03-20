@@ -310,6 +310,7 @@ interface DistributionTablesProps {
 
 export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }) => {
     const [activeTableKey, setActiveTableKey] = useState<DistributionTableKey>('normal');
+    const [selectedCell, setSelectedCell] = useState<{ rowIndex: number; columnIndex: number } | null>(null);
     const tables = useMemo<Record<DistributionTableKey, DistributionTableConfig>>(() => ({
         normal: buildNormalTable(),
         t: buildTTable(),
@@ -336,7 +337,10 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }
                         key={table.key}
                         type="button"
                         className={`distribution-tables-switch-btn ${activeTable.key === table.key ? 'active' : ''}`}
-                        onClick={() => setActiveTableKey(table.key)}
+                        onClick={() => {
+                            setActiveTableKey(table.key);
+                            setSelectedCell(null);
+                        }}
                     >
                         {table.icon}
                         <span>{table.label}</span>
@@ -359,18 +363,48 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }
                         <thead>
                             <tr>
                                 <th>{activeTable.rowLabel}</th>
-                                {activeTable.columns.map((column) => (
-                                    <th key={`${activeTable.key}-${column}`}>{column}</th>
+                                {activeTable.columns.map((column, columnIndex) => (
+                                    <th
+                                        key={`${activeTable.key}-${column}`}
+                                        className={selectedCell?.columnIndex === columnIndex ? 'is-selected-column' : ''}
+                                    >
+                                        {column}
+                                    </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {activeTable.rows.map((row) => (
+                            {activeTable.rows.map((row, rowIndex) => (
                                 <tr key={`${activeTable.key}-${row.label}`}>
-                                    <th>{row.label}</th>
-                                    {row.values.map((value, index) => (
-                                        <td key={`${activeTable.key}-${row.label}-${activeTable.columns[index]}`}>{value}</td>
-                                    ))}
+                                    <th className={selectedCell?.rowIndex === rowIndex ? 'is-selected-row' : ''}>{row.label}</th>
+                                    {row.values.map((value, columnIndex) => {
+                                        const isSelectedRow = selectedCell?.rowIndex === rowIndex;
+                                        const isSelectedColumn = selectedCell?.columnIndex === columnIndex;
+                                        const isSelectedCell = isSelectedRow && isSelectedColumn;
+                                        return (
+                                            <td
+                                                key={`${activeTable.key}-${row.label}-${activeTable.columns[columnIndex]}`}
+                                                className={[
+                                                    isSelectedRow ? 'is-selected-row' : '',
+                                                    isSelectedColumn ? 'is-selected-column' : '',
+                                                    isSelectedCell ? 'is-selected-cell' : '',
+                                                ].filter(Boolean).join(' ')}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="distribution-data-cell-btn"
+                                                    onClick={() => setSelectedCell((previous) => (
+                                                        previous?.rowIndex === rowIndex && previous?.columnIndex === columnIndex
+                                                            ? null
+                                                            : { rowIndex, columnIndex }
+                                                    ))}
+                                                    aria-pressed={isSelectedCell}
+                                                >
+                                                    {value}
+                                                </button>
+                                            </td>
+                                        );
+                                    })}
                                 </tr>
                             ))}
                         </tbody>

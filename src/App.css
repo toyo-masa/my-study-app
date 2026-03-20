@@ -292,6 +292,43 @@
   border-bottom: none;
 }
 
+.distribution-data-table thead th.is-selected-column {
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.16);
+  color: var(--primary-color);
+}
+
+.distribution-data-table tbody th.is-selected-row {
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.16);
+  color: var(--primary-color);
+}
+
+.distribution-data-table td.is-selected-row,
+.distribution-data-table td.is-selected-column {
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.08);
+}
+
+.distribution-data-table td.is-selected-cell {
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.18);
+}
+
+.distribution-data-cell-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .distribution-data-cell-btn:hover {
+    color: var(--primary-color);
+  }
+}
+
 .tutorial-hub-select-label {
   font-size: 0.83rem;
   font-weight: 600;
