@@ -27,8 +27,6 @@ import {
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
 
-const SAVE_BEFORE_NAVIGATION_GRACE_MS = 400;
-
 export const StudyRoute: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -454,7 +452,7 @@ export const StudyRoute: React.FC = () => {
         void initStudy();
     }, [sessionKey, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, navigate, fromReviewBoardFromState, sessionSlotKey]);
 
-    const handleBackToDetail = async () => {
+    const handleBackToDetail = () => {
         clearWindowTimeout(saveDebounceRef);
 
         const quizSetIdForSave = activeQuizSet?.id;
@@ -466,7 +464,7 @@ export const StudyRoute: React.FC = () => {
 
         if (fromReviewBoardFromState) {
             if (shouldSaveSuspendedSession && quizSetIdForSave !== undefined) {
-                const savePromise = saveSessionToStorage(quizSetIdForSave, buildStudySessionForSave({
+                void saveSessionToStorage(quizSetIdForSave, buildStudySessionForSave({
                     questions,
                     currentQuestionIndex,
                     answers,
@@ -484,19 +482,13 @@ export const StudyRoute: React.FC = () => {
                 }), sessionSlotKey).catch((err) => {
                     console.error('Failed to save suspended session', err);
                 });
-                await Promise.race([
-                    savePromise,
-                    new Promise<void>((resolve) => {
-                        window.setTimeout(resolve, SAVE_BEFORE_NAVIGATION_GRACE_MS);
-                    }),
-                ]);
             }
             navigate('/review-board');
             return;
         }
 
         if (shouldSaveSuspendedSession) {
-            const savePromise = saveSessionToStorage(quizSetIdForSave, buildStudySessionForSave({
+            void saveSessionToStorage(quizSetIdForSave, buildStudySessionForSave({
                 questions,
                 currentQuestionIndex,
                 answers,
@@ -514,12 +506,6 @@ export const StudyRoute: React.FC = () => {
             }), sessionSlotKey).catch((err) => {
                 console.error('Failed to save suspended session', err);
             });
-            await Promise.race([
-                savePromise,
-                new Promise<void>((resolve) => {
-                    window.setTimeout(resolve, SAVE_BEFORE_NAVIGATION_GRACE_MS);
-                }),
-            ]);
 
             navigate(`/quiz/${quizSetId}`, { state: { expectSuspendedSession: true } });
             return;
