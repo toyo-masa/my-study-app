@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Check, Copy, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
@@ -93,7 +93,7 @@ const buildQuestionContextUserPrompt = (question: Question, questionIndex: numbe
     const questionType = question.questionType === 'memorization' ? 'memorization' : 'quiz';
     const parts: string[] = [
         'あなたは学習中のユーザーを支援する日本語の問題解説アシスタントです。',
-        `現在扱っているのは統合セットの問題${questionIndex + 1}です。`,
+        `現在扱っているのは学習中の問題${questionIndex + 1}です。`,
         `問題種別: ${questionType}`,
         `問題文:\n${question.text.trim()}`,
     ];
@@ -248,6 +248,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             ? (initialSession.modelId || localLlmSettings.defaultModelId)
             : localLlmSettings.defaultModelId
     ));
+    const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
+    const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const threadRef = useRef<HTMLDivElement>(null);
@@ -258,6 +260,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const localApiModelListAbortRef = useRef<AbortController | null>(null);
     const localApiChatAbortRef = useRef<AbortController | null>(null);
     const autoLoadWebLlmKeyRef = useRef<string | null>(null);
+    const copyRequestResetTimeoutRef = useRef<number | null>(null);
 
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
@@ -321,6 +324,37 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setAvailableModels([]);
     }, []);
 
+    const resetCopiedRequestState = useCallback(() => {
+        if (copyRequestResetTimeoutRef.current !== null) {
+            window.clearTimeout(copyRequestResetTimeoutRef.current);
+            copyRequestResetTimeoutRef.current = null;
+        }
+        setDidCopyRequestPayload(false);
+    }, []);
+
+    const updateLastRequestPayload = useCallback((payload: unknown) => {
+        setLastRequestPayload(JSON.stringify(payload, null, 2));
+        resetCopiedRequestState();
+    }, [resetCopiedRequestState]);
+
+    const handleCopyRequestPayload = useCallback(async () => {
+        if (!lastRequestPayload) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(lastRequestPayload);
+            resetCopiedRequestState();
+            setDidCopyRequestPayload(true);
+            copyRequestResetTimeoutRef.current = window.setTimeout(() => {
+                setDidCopyRequestPayload(false);
+                copyRequestResetTimeoutRef.current = null;
+            }, 2000);
+        } catch {
+            setError('送信内容をコピーできませんでした。');
+        }
+    }, [lastRequestPayload, resetCopiedRequestState]);
+
     const isNearBottom = useCallback(() => {
         const element = threadRef.current;
         if (!element) {
@@ -373,6 +407,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         mountedRef.current = true;
         return () => {
             mountedRef.current = false;
+            if (copyRequestResetTimeoutRef.current !== null) {
+                window.clearTimeout(copyRequestResetTimeoutRef.current);
+            }
             cancelActiveWork();
         };
     }, [cancelActiveWork]);
@@ -416,6 +453,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 ? (session.modelId || localLlmSettings.defaultModelId)
                 : localLlmSettings.defaultModelId
         );
+        setLastRequestPayload(null);
+        resetCopiedRequestState();
     }, [
         cancelActiveWork,
         localLlmSettings.defaultModelId,
@@ -423,6 +462,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         onWebLlmModelChange,
         questionId,
         quizSetId,
+        resetCopiedRequestState,
         resetTransientState,
         selectedWebLlmModel,
     ]);
@@ -690,13 +730,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         try {
             if (activeMode === 'webllm') {
                 const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
+                const webLlmMessages = toWebLlmMessages(
+                    [...messages, userMessage],
+                    webllmSystemPrompt,
+                    questionContextUserPrompt
+                );
                 const result = await runWebLlmBudgetedGeneration({
                     engine,
-                    messages: toWebLlmMessages(
-                        [...messages, userMessage],
-                        webllmSystemPrompt,
-                        questionContextUserPrompt
-                    ),
+                    messages: webLlmMessages,
                     enableThinking: localLlmSettings.webllmEnableThinking,
                     firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
                     firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
@@ -714,6 +755,15 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         setWebllmGenerationPhase(phase);
                     },
                 });
+                updateLastRequestPayload({
+                    mode: 'webllm',
+                    model: selectedWebLlmModel,
+                    requests: {
+                        firstPass: result.firstPassRequest,
+                        secondPass: result.secondPassRequest ?? null,
+                    },
+                    secondPassTrigger: result.secondPassTrigger,
+                });
 
                 assistantText = result.displayText;
                 webllmHitFinalLengthLimit = result.usedSecondPass && result.secondFinishReason === 'length';
@@ -723,15 +773,26 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             } else {
                 const controller = new AbortController();
                 localApiChatAbortRef.current = controller;
+                const openAiMessages = toOpenAiMessages(
+                    [...messages, userMessage],
+                    '',
+                    questionContextUserPrompt
+                );
+                updateLastRequestPayload({
+                    mode: 'openai-local',
+                    baseUrl: localLlmSettings.baseUrl,
+                    model: selectedModel,
+                    request: {
+                        model: selectedModel,
+                        messages: openAiMessages,
+                        stream: true,
+                    },
+                });
 
                 const finalText = await streamOpenAiCompatibleChat({
                     baseUrl: localLlmSettings.baseUrl,
                     model: selectedModel,
-                    messages: toOpenAiMessages(
-                        [...messages, userMessage],
-                        '',
-                        questionContextUserPrompt
-                    ),
+                    messages: openAiMessages,
                     apiKey: apiKey.trim() || undefined,
                     signal: controller.signal,
                     onDelta: (delta) => {
@@ -792,6 +853,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         questionContextUserPrompt,
         selectedModel,
         selectedWebLlmModel,
+        updateLastRequestPayload,
         webllmSystemPrompt,
         webllmFirstPassThinkingBudget,
         webllmSecondPassFinalAnswerMaxTokens,
@@ -870,6 +932,16 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 {webllmGenerationPhase === 'thinking' ? '思考中' : '最終回答を生成中'}
                             </span>
                         )}
+                        <button
+                            type="button"
+                            className="menu-btn right-panel-copy-btn"
+                            onClick={() => { void handleCopyRequestPayload(); }}
+                            disabled={!lastRequestPayload || isGenerating}
+                            aria-label="送信内容をコピー"
+                            title="送信内容をコピー"
+                        >
+                            {didCopyRequestPayload ? <Check size={18} /> : <Copy size={18} />}
+                        </button>
                         <button
                             type="button"
                             className="menu-btn right-panel-clear-btn"

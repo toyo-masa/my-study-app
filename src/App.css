@@ -1025,6 +1025,10 @@
   flex-shrink: 0;
 }
 
+.right-panel-copy-btn {
+  flex-shrink: 0;
+}
+
 .local-llm-inline-status {
   display: inline-flex;
   align-items: center;

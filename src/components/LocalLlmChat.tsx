@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Clock3, LoaderCircle, Plus, Send, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Check, Clock3, Copy, LoaderCircle, Plus, Send, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import { BackButton } from './BackButton';
 import { MarkdownText } from './MarkdownText';
@@ -207,6 +207,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             ? initialSession.modelId || localLlmSettings.defaultModelId
             : localLlmSettings.defaultModelId
     ));
+    const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
+    const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -220,6 +222,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const autoLoadWebLlmKeyRef = useRef<string | null>(null);
     const previousModeRef = useRef<LocalLlmMode>(localLlmSettings.preferredMode);
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
+    const copyRequestResetTimeoutRef = useRef<number | null>(null);
 
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
@@ -386,6 +389,37 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         createFreshSession(activeMode);
     }, [activeMode, cancelActiveWork, createFreshSession, isGenerating, localLlmSettings.defaultModelId, messages.length, resetViewState]);
 
+    const resetCopiedRequestState = useCallback(() => {
+        if (copyRequestResetTimeoutRef.current !== null) {
+            window.clearTimeout(copyRequestResetTimeoutRef.current);
+            copyRequestResetTimeoutRef.current = null;
+        }
+        setDidCopyRequestPayload(false);
+    }, []);
+
+    const updateLastRequestPayload = useCallback((payload: unknown) => {
+        setLastRequestPayload(JSON.stringify(payload, null, 2));
+        resetCopiedRequestState();
+    }, [resetCopiedRequestState]);
+
+    const handleCopyRequestPayload = useCallback(async () => {
+        if (!lastRequestPayload) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(lastRequestPayload);
+            resetCopiedRequestState();
+            setDidCopyRequestPayload(true);
+            copyRequestResetTimeoutRef.current = window.setTimeout(() => {
+                setDidCopyRequestPayload(false);
+                copyRequestResetTimeoutRef.current = null;
+            }, 2000);
+        } catch {
+            setError('送信内容をコピーできませんでした。');
+        }
+    }, [lastRequestPayload, resetCopiedRequestState]);
+
     useEffect(() => {
         mountedRef.current = true;
 
@@ -404,10 +438,18 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         return () => {
             mountedRef.current = false;
+            if (copyRequestResetTimeoutRef.current !== null) {
+                window.clearTimeout(copyRequestResetTimeoutRef.current);
+            }
             cancelActiveWork();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        setLastRequestPayload(null);
+        resetCopiedRequestState();
+    }, [currentSessionId, resetCopiedRequestState]);
 
     useEffect(() => {
         lastScrollYRef.current = window.scrollY;
@@ -776,9 +818,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         try {
             if (activeMode === 'webllm') {
                 const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
+                const webLlmMessages = toWebLlmMessages([...messages, userMessage], webllmSystemPrompt);
                 const result = await runWebLlmBudgetedGeneration({
                     engine,
-                    messages: toWebLlmMessages([...messages, userMessage], webllmSystemPrompt),
+                    messages: webLlmMessages,
                     enableThinking: localLlmSettings.webllmEnableThinking,
                     firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
                     firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
@@ -796,6 +839,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         setWebllmGenerationPhase(phase);
                     },
                 });
+                updateLastRequestPayload({
+                    mode: 'webllm',
+                    model: selectedWebLlmModel,
+                    requests: {
+                        firstPass: result.firstPassRequest,
+                        secondPass: result.secondPassRequest ?? null,
+                    },
+                    secondPassTrigger: result.secondPassTrigger,
+                });
 
                 assistantText = result.displayText;
                 webllmHitFinalLengthLimit = result.usedSecondPass && result.secondFinishReason === 'length';
@@ -805,11 +857,22 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             } else {
                 const controller = new AbortController();
                 localApiChatAbortRef.current = controller;
+                const openAiMessages = toOpenAiMessages([...messages, userMessage]);
+                updateLastRequestPayload({
+                    mode: 'openai-local',
+                    baseUrl: localLlmSettings.baseUrl,
+                    model: selectedModel,
+                    request: {
+                        model: selectedModel,
+                        messages: openAiMessages,
+                        stream: true,
+                    },
+                });
 
                 const finalText = await streamOpenAiCompatibleChat({
                     baseUrl: localLlmSettings.baseUrl,
                     model: selectedModel,
-                    messages: toOpenAiMessages([...messages, userMessage]),
+                    messages: openAiMessages,
                     apiKey: apiKey.trim() || undefined,
                     signal: controller.signal,
                     onDelta: (delta) => {
@@ -871,6 +934,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         messages,
         selectedWebLlmModel,
         selectedModel,
+        updateLastRequestPayload,
     ]);
 
     const handleStopGeneration = useCallback(() => {
@@ -979,6 +1043,16 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         接続確認中
                                     </span>
                                 )}
+                                <button
+                                    type="button"
+                                    className="menu-btn right-panel-copy-btn"
+                                    onClick={() => { void handleCopyRequestPayload(); }}
+                                    disabled={!lastRequestPayload || isGenerating}
+                                    aria-label="送信内容をコピー"
+                                    title="送信内容をコピー"
+                                >
+                                    {didCopyRequestPayload ? <Check size={18} /> : <Copy size={18} />}
+                                </button>
                                 <button
                                     type="button"
                                     className="menu-btn right-panel-clear-btn"

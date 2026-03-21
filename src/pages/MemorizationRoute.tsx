@@ -6,6 +6,7 @@ import { MemorizationResultView, MemorizationQuestionView } from '../components/
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
@@ -41,13 +42,31 @@ import {
     mergeCompletedQuestionIds,
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
+import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 
 interface MemorizationRouteProps {
     allowTouchDrawing: boolean;
     reviewBoardFeedbackBlockSize: number;
+    localLlmSettings: LocalLlmSettings;
+    onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+    onWebLlmModelChange: (modelId: string) => void;
 }
 
-export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouchDrawing, reviewBoardFeedbackBlockSize }) => {
+const isStudyChatDrawerViewport = (): boolean => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(max-width: 1200px)').matches;
+};
+
+export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
+    allowTouchDrawing,
+    reviewBoardFeedbackBlockSize,
+    localLlmSettings,
+    onLocalLlmModeChange,
+    onWebLlmModelChange,
+}) => {
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
@@ -77,6 +96,9 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
     const [handwritingMap, setHandwritingMap] = useState<Record<string, HandwritingPadState>>({});
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
+    const [isMobileLayout, setIsMobileLayout] = useState(() => isMobileViewport());
+    const [isRightPanelModal, setIsRightPanelModal] = useState(() => isStudyChatDrawerViewport());
+    const [rightPanelOpen, setRightPanelOpen] = useState(false);
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
     const [showEmptyCardsModal, setShowEmptyCardsModal] = useState(false);
@@ -147,6 +169,9 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         setHandwritingMap({});
         setIsTestCompleted(false);
         setSidebarOpen(!isMobileViewport());
+        setIsMobileLayout(isMobileViewport());
+        setIsRightPanelModal(isStudyChatDrawerViewport());
+        setRightPanelOpen(false);
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyCardsModal(false);
@@ -158,6 +183,16 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
         completedQuestionIdsRef.current = [];
         persistedCompletedQuestionIdsRef.current = [];
     }, [sessionKey]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobileLayout(isMobileViewport());
+            setIsRightPanelModal(isStudyChatDrawerViewport());
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const buildMemorizationSessionForSave = ({
         questions: targetQuestions,
@@ -1200,6 +1235,20 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
                 : historyMode === 'review_due'
                     ? '復習中'
                     : undefined;
+    const showStudyQuestionChat = !isTestCompleted;
+    const resolvedRightPanelOpen = showStudyQuestionChat ? rightPanelOpen : false;
+    const handleToggleSidebar = () => {
+        if (isMobileLayout && showStudyQuestionChat) {
+            setRightPanelOpen(false);
+        }
+        setSidebarOpen(!sidebarOpen);
+    };
+    const handleToggleRightPanel = () => {
+        if (isMobileLayout) {
+            setSidebarOpen(false);
+        }
+        setRightPanelOpen(!resolvedRightPanelOpen);
+    };
     return (
         <QuizSessionLayout
             title={`${activeQuizSet.name} (暗記)`}
@@ -1209,7 +1258,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
             hideMenuButton={isTestCompleted}
             onBack={handleBackToDetail}
             sessionBadge={!isTestCompleted ? reviewHeaderBadge : undefined}
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            onToggleSidebar={handleToggleSidebar}
             onCloseSidebar={() => setSidebarOpen(false)}
             sidebarContent={
                 <Sidebar
@@ -1226,6 +1275,23 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({ allowTouch
                     lockedQuestionIds={sidebarLockedQuestionIds}
                 />
             }
+            showRightPanel={showStudyQuestionChat}
+            rightPanelOpen={resolvedRightPanelOpen}
+            rightPanelModal={isRightPanelModal}
+            showRightPanelToggle={showStudyQuestionChat}
+            onToggleRightPanel={handleToggleRightPanel}
+            onCloseRightPanel={() => setRightPanelOpen(false)}
+            rightPanelContent={showStudyQuestionChat && currentQuestion && activeQuizSet?.id !== undefined ? (
+                <StudyQuestionChatPanel
+                    quizSetId={activeQuizSet.id}
+                    question={currentQuestion}
+                    questionIndex={currentQuestionIndex}
+                    showAnswer={showAnswerForCurrent}
+                    localLlmSettings={localLlmSettings}
+                    onLocalLlmModeChange={onLocalLlmModeChange}
+                    onWebLlmModelChange={onWebLlmModelChange}
+                />
+            ) : null}
         >
             {isTestCompleted ? (
                 <MemorizationResultView

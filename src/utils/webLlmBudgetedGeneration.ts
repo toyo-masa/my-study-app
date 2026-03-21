@@ -18,11 +18,26 @@ export type AssistantMessageSegment = {
 export type WebLlmGenerationPhase = 'thinking' | 'finalizing';
 export type SecondPassTrigger = 'unclosed_think' | 'length' | 'both';
 
+export type WebLlmRequestSnapshot = {
+    messages: ChatCompletionMessageParam[];
+    temperature: number | null;
+    top_p: number | null;
+    max_tokens: number;
+    presence_penalty: number | null;
+    repetition_penalty?: number | null;
+    extra_body?: {
+        enable_thinking: boolean;
+    };
+    stream: true;
+};
+
 export type BudgetedGenerationResult = {
     displayText: string;
     historyText: string;
     rawFirstPassText: string;
     rawSecondPassText?: string;
+    firstPassRequest: WebLlmRequestSnapshot;
+    secondPassRequest?: WebLlmRequestSnapshot;
     usedSecondPass: boolean;
     firstFinishReason: ChatCompletionFinishReason | null;
     secondFinishReason?: ChatCompletionFinishReason | null;
@@ -247,18 +262,20 @@ export async function runWebLlmBudgetedGeneration({
     onPhaseChange?.('thinking');
 
     try {
+        const firstPassRequest: WebLlmRequestSnapshot = {
+            messages,
+            temperature: firstPassTemperature,
+            top_p: firstPassTopP,
+            max_tokens: firstPassThinkingBudget,
+            presence_penalty: firstPassPresencePenalty,
+            extra_body: {
+                enable_thinking: enableThinking,
+            },
+            stream: true,
+        };
         const firstPass = await runStreamPass(
             engine,
-            {
-                messages,
-                temperature: firstPassTemperature,
-                top_p: firstPassTopP,
-                max_tokens: firstPassThinkingBudget,
-                presence_penalty: firstPassPresencePenalty,
-                extra_body: {
-                    enable_thinking: enableThinking,
-                },
-            },
+            firstPassRequest,
             onDisplayText
         );
 
@@ -268,6 +285,7 @@ export async function runWebLlmBudgetedGeneration({
                 displayText: firstPass.text,
                 historyText: toAssistantHistoryText(firstPass.text),
                 rawFirstPassText: firstPass.text,
+                firstPassRequest,
                 usedSecondPass: false,
                 firstFinishReason: firstPass.finishReason,
                 secondPassTrigger: null,
@@ -278,30 +296,32 @@ export async function runWebLlmBudgetedGeneration({
         const carryAssistantText = buildCarryAssistantText(firstPass.text);
 
         onPhaseChange?.('finalizing');
+        const secondPassRequest: WebLlmRequestSnapshot = {
+            messages: [
+                ...messages,
+                {
+                    role: 'assistant',
+                    content: carryAssistantText,
+                },
+                {
+                    role: 'user',
+                    content: buildFinalizePrompt(),
+                },
+            ],
+            temperature: secondPassTemperature,
+            top_p: secondPassTopP,
+            max_tokens: secondPassFinalAnswerMaxTokens,
+            presence_penalty: secondPassPresencePenalty,
+            repetition_penalty: 1.03,
+            extra_body: {
+                enable_thinking: enableThinking,
+            },
+            stream: true,
+        };
 
         const secondPass = await runStreamPass(
             engine,
-            {
-                messages: [
-                    ...messages,
-                    {
-                        role: 'assistant',
-                        content: carryAssistantText,
-                    },
-                    {
-                        role: 'user',
-                        content: buildFinalizePrompt(),
-                    },
-                ],
-                temperature: secondPassTemperature,
-                top_p: secondPassTopP,
-                max_tokens: secondPassFinalAnswerMaxTokens,
-                presence_penalty: secondPassPresencePenalty,
-                repetition_penalty: 1.03,
-                extra_body: {
-                    enable_thinking: enableThinking,
-                },
-            },
+            secondPassRequest,
             (secondText) => {
                 onDisplayText(`${displayCarryText}${secondText}`);
             }
@@ -313,6 +333,8 @@ export async function runWebLlmBudgetedGeneration({
             historyText: toAssistantHistoryText(displayText),
             rawFirstPassText: firstPass.text,
             rawSecondPassText: secondPass.text,
+            firstPassRequest,
+            secondPassRequest,
             usedSecondPass: true,
             firstFinishReason: firstPass.finishReason,
             secondFinishReason: secondPass.finishReason,

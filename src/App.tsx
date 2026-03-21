@@ -176,7 +176,24 @@ function App() {
               />
             )}
           />
-          <Route path="/quiz/:id/memorization" element={<MemorizationRoute allowTouchDrawing={handwritingSettings.allowTouchDrawing} reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize} />} />
+          <Route
+            path="/quiz/:id/memorization"
+            element={(
+              <MemorizationRoute
+                allowTouchDrawing={handwritingSettings.allowTouchDrawing}
+                reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
+                localLlmSettings={localLlmSettings}
+                onLocalLlmModeChange={(preferredMode) => handleLocalLlmSettingsChange({
+                  ...localLlmSettings,
+                  preferredMode,
+                })}
+                onWebLlmModelChange={(webllmModelId) => handleLocalLlmSettingsChange({
+                  ...localLlmSettings,
+                  webllmModelId,
+                })}
+              />
+            )}
+          />
           <Route path="/quiz/:id/history-table" element={<HistoryTableRoute />} />
           <Route path="/quiz/:id" element={<QuizDetailRoute />} />
           <Route path="/release-notes" element={<ReleaseNotesRoute />} />

@@ -1520,7 +1520,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 : historyMode === 'review_due'
                     ? '復習中'
                     : undefined;
-    const showStudyQuestionChat = activeQuizSet?.type === 'mixed' && !isTestCompleted;
+    const showStudyQuestionChat = !isTestCompleted;
     const resolvedRightPanelOpen = showStudyQuestionChat ? rightPanelOpen : false;
     const handleToggleSidebar = () => {
         if (isMobileLayout && showStudyQuestionChat) {
