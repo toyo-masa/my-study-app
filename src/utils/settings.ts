@@ -7,6 +7,12 @@ export interface LocalLlmSettings {
     preferredMode: LocalLlmMode;
     baseUrl: string;
     defaultModelId: string;
+    webllmSystemPrompt: string;
+    webllmEnableThinking: boolean;
+    webllmTemperature: number | null;
+    webllmTopP: number | null;
+    webllmMaxTokens: number | null;
+    webllmPresencePenalty: number | null;
 }
 
 const SETTINGS_KEYS = {
@@ -28,6 +34,12 @@ const DEFAULT_SETTINGS = {
         preferredMode: 'webllm' as LocalLlmMode,
         baseUrl: 'http://localhost:1234/v1',
         defaultModelId: '',
+        webllmSystemPrompt: '',
+        webllmEnableThinking: true,
+        webllmTemperature: null,
+        webllmTopP: null,
+        webllmMaxTokens: null,
+        webllmPresencePenalty: null,
     } as LocalLlmSettings,
 } as const;
 
@@ -103,6 +115,41 @@ const normalizeLocalLlmModelId = (value: unknown): string => {
     return typeof value === 'string' ? value.trim() : '';
 };
 
+const normalizeLocalLlmSystemPrompt = (value: unknown): string => {
+    return typeof value === 'string' ? value.trim() : '';
+};
+
+const normalizeOptionalFiniteNumber = (
+    value: unknown,
+    min: number,
+    max: number,
+    integer = false
+): number | null => {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+
+    const parsed = typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+            ? Number.parseFloat(value.trim())
+            : Number.NaN;
+
+    if (!Number.isFinite(parsed)) {
+        return null;
+    }
+
+    const clamped = Math.min(max, Math.max(min, parsed));
+    if (integer) {
+        return Math.round(clamped);
+    }
+    return Math.round(clamped * 100) / 100;
+};
+
+const normalizeWebLlmEnableThinking = (value: unknown): boolean => {
+    return value !== false;
+};
+
 export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
     const source = raw && typeof raw === 'object'
         ? raw as Partial<LocalLlmSettings>
@@ -112,6 +159,12 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         preferredMode: normalizeLocalLlmMode(source.preferredMode),
         baseUrl: normalizeLocalLlmBaseUrl(source.baseUrl),
         defaultModelId: normalizeLocalLlmModelId(source.defaultModelId),
+        webllmSystemPrompt: normalizeLocalLlmSystemPrompt(source.webllmSystemPrompt),
+        webllmEnableThinking: normalizeWebLlmEnableThinking(source.webllmEnableThinking),
+        webllmTemperature: normalizeOptionalFiniteNumber(source.webllmTemperature, 0, 2),
+        webllmTopP: normalizeOptionalFiniteNumber(source.webllmTopP, 0.01, 1),
+        webllmMaxTokens: normalizeOptionalFiniteNumber(source.webllmMaxTokens, 1, 32768, true),
+        webllmPresencePenalty: normalizeOptionalFiniteNumber(source.webllmPresencePenalty, -2, 2),
     };
 }
 

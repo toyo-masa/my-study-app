@@ -50,11 +50,26 @@ const getErrorMessage = (error: unknown) => {
     return 'ローカルLLMの処理に失敗しました。';
 };
 
-const toWebLlmMessages = (messages: LocalChatMessage[]): ChatCompletionMessageParam[] => {
-    return messages.map((message) => ({
+const toWebLlmMessages = (
+    messages: LocalChatMessage[],
+    systemPrompt: string
+): ChatCompletionMessageParam[] => {
+    const conversationMessages = messages.map((message) => ({
         role: message.role,
         content: message.content,
     }));
+
+    if (systemPrompt.trim().length === 0) {
+        return conversationMessages;
+    }
+
+    return [
+        {
+            role: 'system',
+            content: systemPrompt.trim(),
+        },
+        ...conversationMessages,
+    ];
 };
 
 const toOpenAiMessages = (messages: LocalChatMessage[]): OpenAiCompatibleMessage[] => {
@@ -108,6 +123,10 @@ const formatSessionTime = (value: string) => {
         hour: '2-digit',
         minute: '2-digit',
     });
+};
+
+const formatOptionalWebLlmSetting = (value: number | null) => {
+    return value === null ? '既定値' : String(value);
 };
 
 const buildEmptySession = (
@@ -169,6 +188,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
 
     const activeMode = localLlmSettings.preferredMode;
+    const webllmSystemPrompt = localLlmSettings.webllmSystemPrompt.trim();
+    const webllmTemperature = localLlmSettings.webllmTemperature;
+    const webllmTopP = localLlmSettings.webllmTopP;
+    const webllmMaxTokens = localLlmSettings.webllmMaxTokens;
+    const webllmPresencePenalty = localLlmSettings.webllmPresencePenalty;
     const selectedModel = activeMode === 'webllm'
         ? LOCAL_LLM_MODEL_ID
         : selectedLocalApiModel.trim();
@@ -547,8 +571,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             if (activeMode === 'webllm') {
                 const engine = await ensureLocalLlmEngine();
                 const stream = await engine.chat.completions.create({
-                    messages: toWebLlmMessages([...messages, userMessage]),
+                    messages: toWebLlmMessages([...messages, userMessage], webllmSystemPrompt),
                     stream: true,
+                    temperature: webllmTemperature,
+                    top_p: webllmTopP,
+                    max_tokens: webllmMaxTokens,
+                    presence_penalty: webllmPresencePenalty,
+                    extra_body: {
+                        enable_thinking: localLlmSettings.webllmEnableThinking,
+                    },
                 });
 
                 for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
@@ -611,6 +642,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         isGenerating,
         isModelReady,
         localLlmSettings.baseUrl,
+        localLlmSettings.webllmEnableThinking,
+        webllmSystemPrompt,
+        webllmTemperature,
+        webllmTopP,
+        webllmMaxTokens,
+        webllmPresencePenalty,
         messages,
         selectedModel,
     ]);
@@ -711,6 +748,18 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 <>
                                     <span className="local-llm-info-chip"><Cpu size={14} /> WebLLM + WebGPU</span>
                                     <span className="local-llm-info-chip"><Bot size={14} /> 現在のモデル: {LOCAL_LLM_MODEL_ID}</span>
+                                    <span className="local-llm-info-chip">
+                                        <ShieldCheck size={14} />
+                                        {webllmSystemPrompt.length > 0 ? 'システムプロンプト設定あり' : 'システムプロンプトなし'}
+                                    </span>
+                                    <span className="local-llm-info-chip">
+                                        <ShieldCheck size={14} />
+                                        Thinking: {localLlmSettings.webllmEnableThinking ? 'ON' : 'OFF'}
+                                    </span>
+                                    <span className="local-llm-info-chip">temperature: {formatOptionalWebLlmSetting(webllmTemperature)}</span>
+                                    <span className="local-llm-info-chip">top_p: {formatOptionalWebLlmSetting(webllmTopP)}</span>
+                                    <span className="local-llm-info-chip">max_tokens: {formatOptionalWebLlmSetting(webllmMaxTokens)}</span>
+                                    <span className="local-llm-info-chip">presence_penalty: {formatOptionalWebLlmSetting(webllmPresencePenalty)}</span>
                                     <span className="local-llm-info-chip"><ShieldCheck size={14} /> 動作確認対象: PC Chrome / Edge</span>
                                     {gpuVendor && (
                                         <span className="local-llm-info-chip">{`GPU Vendor: ${gpuVendor}`}</span>

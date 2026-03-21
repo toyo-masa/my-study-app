@@ -72,6 +72,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const exampleBaseDays = 4;
     const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
 
+    const parseOptionalNumberInput = (value: string): number | null => {
+        const trimmed = value.trim();
+        if (trimmed.length === 0) {
+            return null;
+        }
+
+        const parsed = Number.parseFloat(trimmed);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const parseOptionalIntegerInput = (value: string): number | null => {
+        const parsed = parseOptionalNumberInput(value);
+        return parsed === null ? null : Math.round(parsed);
+    };
+
     const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, nextValue: number) => {
         const nextSettings = normalizeReviewIntervalSettings({
             ...reviewIntervalSettings,
@@ -344,6 +359,120 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 >
                                                     ローカルLLM設定を初期値に戻す
                                                 </button>
+                                            </div>
+
+                                            <div className="review-settings-card">
+                                                <h4 className="review-settings-card-title">WebLLM システムプロンプト</h4>
+                                                <p className="review-settings-note">
+                                                    WebLLM モードで送信するときだけ、各会話の先頭に `system` メッセージとして追加します。ローカルAPIモードには適用しません。
+                                                </p>
+                                                <label className="review-setting-item">
+                                                    <span className="review-setting-label">システムプロンプト</span>
+                                                    <textarea
+                                                        className="setting-select"
+                                                        value={localLlmSettings.webllmSystemPrompt}
+                                                        onChange={(event) => onLocalLlmSettingsChange({
+                                                            ...localLlmSettings,
+                                                            webllmSystemPrompt: event.target.value,
+                                                        })}
+                                                        placeholder="例: あなたは簡潔に日本語で答える学習補助アシスタントです。"
+                                                        rows={5}
+                                                        style={{ resize: 'vertical', minHeight: 120 }}
+                                                    />
+                                                </label>
+                                            </div>
+
+                                            <div className="review-settings-card">
+                                                <h4 className="review-settings-card-title">WebLLM 生成パラメータ</h4>
+                                                <p className="review-settings-note">
+                                                    空欄の項目はモデル既定値を使います。Qwen3 の推奨値として、thinking 時は `temperature 0.6 / top_p 0.95`、non-thinking 時は `temperature 0.7 / top_p 0.8` が案内されています。
+                                                </p>
+
+                                                <div className="setting-control">
+                                                    <span>Thinking モードを使う</span>
+                                                    <label className="toggle-switch">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={localLlmSettings.webllmEnableThinking}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                webllmEnableThinking: event.target.checked,
+                                                            })}
+                                                        />
+                                                        <span className="slider"></span>
+                                                    </label>
+                                                </div>
+
+                                                <div className="review-settings-grid">
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">temperature</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.webllmTemperature ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                webllmTemperature: parseOptionalNumberInput(event.target.value),
+                                                            })}
+                                                            placeholder="既定値"
+                                                            min={0}
+                                                            max={2}
+                                                            step={0.05}
+                                                            inputMode="decimal"
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">top_p</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.webllmTopP ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                webllmTopP: parseOptionalNumberInput(event.target.value),
+                                                            })}
+                                                            placeholder="既定値"
+                                                            min={0.01}
+                                                            max={1}
+                                                            step={0.01}
+                                                            inputMode="decimal"
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">max_tokens</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.webllmMaxTokens ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                webllmMaxTokens: parseOptionalIntegerInput(event.target.value),
+                                                            })}
+                                                            placeholder="既定値"
+                                                            min={1}
+                                                            max={32768}
+                                                            step={1}
+                                                            inputMode="numeric"
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">presence_penalty</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.webllmPresencePenalty ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                webllmPresencePenalty: parseOptionalNumberInput(event.target.value),
+                                                            })}
+                                                            placeholder="既定値"
+                                                            min={-2}
+                                                            max={2}
+                                                            step={0.1}
+                                                            inputMode="decimal"
+                                                        />
+                                                    </label>
+                                                </div>
                                             </div>
                                         </div>
                                     </details>
