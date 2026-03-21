@@ -3180,6 +3180,36 @@ button.appearance-option.active {
   flex-shrink: 0;
 }
 
+.right-panel-resizer {
+  width: 10px;
+  flex: 0 0 10px;
+  cursor: col-resize;
+  position: relative;
+  background: transparent;
+}
+
+.right-panel-resizer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.32);
+  transition: background 0.2s ease;
+}
+
+.right-panel-resizer:hover::before,
+.is-resizing-right-panel .right-panel-resizer::before {
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.7);
+}
+
+.is-resizing-right-panel {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .right-panel-container.docked.closed {
   width: 0;
   border: none;
