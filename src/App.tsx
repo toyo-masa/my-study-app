@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
@@ -73,27 +73,32 @@ function App() {
     await loadQuizSets();
   };
 
+  const isStudyOrMemRoute = location.pathname.includes('/study') || location.pathname.includes('/memorization');
+  const handleLocalLlmModeChange = useCallback((preferredMode: 'webllm' | 'openai-local') => {
+    handleLocalLlmSettingsChange((previous) => (
+      previous.preferredMode === preferredMode
+        ? previous
+        : {
+          ...previous,
+          preferredMode,
+        }
+    ));
+  }, [handleLocalLlmSettingsChange]);
+
+  const handleWebLlmModelChange = useCallback((webllmModelId: string) => {
+    handleLocalLlmSettingsChange((previous) => (
+      previous.webllmModelId === webllmModelId
+        ? previous
+        : {
+          ...previous,
+          webllmModelId,
+        }
+    ));
+  }, [handleLocalLlmSettingsChange]);
+
   if (!isInitialized && !isReleaseNotesRoute) {
     return <LoadingView fullPage message="データを読み込み中..." />;
   }
-
-  const isStudyOrMemRoute = location.pathname.includes('/study') || location.pathname.includes('/memorization');
-  const handleLocalLlmModeChange = (preferredMode: 'webllm' | 'openai-local') => handleLocalLlmSettingsChange((previous) => (
-    previous.preferredMode === preferredMode
-      ? previous
-      : {
-        ...previous,
-        preferredMode,
-      }
-  ));
-  const handleWebLlmModelChange = (webllmModelId: string) => handleLocalLlmSettingsChange((previous) => (
-    previous.webllmModelId === webllmModelId
-      ? previous
-      : {
-        ...previous,
-        webllmModelId,
-      }
-  ));
 
   return (
     <div className={`app-container ${isStudyOrMemRoute ? 'study-mode-active' : ''}`}>

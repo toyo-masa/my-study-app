@@ -152,8 +152,20 @@ const normalizeWebLlmModelId = (value: unknown): string => {
     return DEFAULT_WEB_LLM_MODEL_ID;
 };
 
+const LEGACY_WEB_LLM_SYSTEM_PROMPT_LINES = new Set([
+    '最終出力は簡潔にまとめる',
+]);
+
 const normalizeLocalLlmSystemPrompt = (value: unknown): string => {
-    return typeof value === 'string' ? value.trim() : '';
+    if (typeof value !== 'string') {
+        return '';
+    }
+
+    return value
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !LEGACY_WEB_LLM_SYSTEM_PROMPT_LINES.has(line))
+        .join('\n');
 };
 
 const normalizeOptionalFiniteNumber = (
