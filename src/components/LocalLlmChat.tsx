@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Clock3, Cpu, Download, LoaderCircle, Plus, Send, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Clock3, Cpu, Download, LoaderCircle, Plus, Send, ShieldCheck, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionChunk, ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import { BackButton } from './BackButton';
 import { MarkdownText } from './MarkdownText';
@@ -227,6 +227,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const bottomRef = useRef<HTMLDivElement>(null);
     const mountedRef = useRef(true);
     const requestIdRef = useRef(0);
+    const shouldAutoScrollRef = useRef(true);
     const localApiModelListAbortRef = useRef<AbortController | null>(null);
     const localApiChatAbortRef = useRef<AbortController | null>(null);
     const previousModeRef = useRef<LocalLlmMode>(localLlmSettings.preferredMode);
@@ -248,6 +249,41 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     const invalidateActiveRequest = useCallback(() => {
         requestIdRef.current += 1;
+    }, []);
+
+    const updateAutoScrollPreference = useCallback(() => {
+        const bottomElement = bottomRef.current;
+        if (!bottomElement || typeof window === 'undefined') {
+            shouldAutoScrollRef.current = true;
+            return;
+        }
+
+        const distanceFromViewportBottom = bottomElement.getBoundingClientRect().top - window.innerHeight;
+        shouldAutoScrollRef.current = distanceFromViewportBottom <= 160;
+    }, []);
+
+    const scrollToBottom = useCallback((force = false) => {
+        if (!force && !shouldAutoScrollRef.current) {
+            return;
+        }
+
+        bottomRef.current?.scrollIntoView({
+            behavior: isGenerating ? 'auto' : 'smooth',
+            block: 'end',
+        });
+    }, [isGenerating]);
+
+    const finalizeStreamingMessages = useCallback(() => {
+        setMessages((previous) => previous
+            .filter((message) => !(message.role === 'assistant' && message.isStreaming && message.content.trim().length === 0))
+            .map((message) => (
+                message.role === 'assistant' && message.isStreaming
+                    ? {
+                        ...message,
+                        isStreaming: false,
+                    }
+                    : message
+            )));
     }, []);
 
     const resetViewState = useCallback(() => {
@@ -357,8 +393,24 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, []);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, [messages, loadProgress]);
+        updateAutoScrollPreference();
+
+        const handleWindowScroll = () => {
+            updateAutoScrollPreference();
+        };
+
+        window.addEventListener('scroll', handleWindowScroll, { passive: true });
+        window.addEventListener('resize', handleWindowScroll);
+
+        return () => {
+            window.removeEventListener('scroll', handleWindowScroll);
+            window.removeEventListener('resize', handleWindowScroll);
+        };
+    }, [updateAutoScrollPreference]);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, scrollToBottom]);
 
     useEffect(() => {
         saveLocalLlmChatSessions(chatSessions);
@@ -595,6 +647,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setError(null);
         setInput('');
         setIsGenerating(true);
+        shouldAutoScrollRef.current = true;
         setMessages((previous) => [...previous, userMessage, pendingAssistantMessage]);
 
         const updateAssistantText = (nextText: string) => {
@@ -719,6 +772,20 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         selectedWebLlmModel,
         selectedModel,
     ]);
+
+    const handleStopGeneration = useCallback(() => {
+        if (!isGenerating) {
+            return;
+        }
+
+        setError(null);
+        invalidateActiveRequest();
+        interruptLocalLlmGeneration();
+        localApiChatAbortRef.current?.abort();
+        localApiChatAbortRef.current = null;
+        setIsGenerating(false);
+        finalizeStreamingMessages();
+    }, [finalizeStreamingMessages, invalidateActiveRequest, isGenerating]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key !== 'Enter' || event.shiftKey) {
@@ -1105,15 +1172,26 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 disabled={(activeMode === 'webllm' ? !isModelReady : selectedModel.length === 0) || isGenerating}
                             />
                             <div className="local-llm-composer-actions">
-                                <button
-                                    type="button"
-                                    className="nav-btn"
-                                    onClick={() => { void handleSend(); }}
-                                    disabled={!canSend}
-                                >
-                                    {isGenerating ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}
-                                    送信
-                                </button>
+                                {isGenerating ? (
+                                    <button
+                                        type="button"
+                                        className="nav-btn"
+                                        onClick={handleStopGeneration}
+                                    >
+                                        <Square size={16} />
+                                        生成を中止
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="nav-btn"
+                                        onClick={() => { void handleSend(); }}
+                                        disabled={!canSend}
+                                    >
+                                        <Send size={16} />
+                                        送信
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </section>
