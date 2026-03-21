@@ -12,6 +12,30 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.49.8',
+        date: '2026年3月21日 18:15',
+        improvements: [
+            '数学ツール用の planner と explainer を、通常の WebLLM 会話に近い streaming ベースの呼び出しへそろえて、数学質問時の内部状態ずれを起こしにくくしました。',
+            'planner / explainer 実行前に WebLLM の会話 state を明示的に初期化するようにして、前の会話状態に引きずられにくくしました。',
+        ],
+        fixes: [
+            '`enable_thinking: false` を使う planner 経路で WebLLM 内部の会話状態エラーが出て、数学ツールへ進めないことがある問題をさらに修正しました。',
+            'planner が呼ばれるたびに内部メッセージ状態が不整合になり、通常回答への fallback しか動かなくなる不安定さを抑えました。',
+        ],
+    },
+    {
+        version: '1.49.7',
+        date: '2026年3月21日 18:15',
+        improvements: [
+            'ローカルLLMチャットと学習中の AI チャットで、数学ツール用の planner / explainer を通常の WebLLM 生成と同じ安定した no-think 経路に寄せ、数学質問でも処理が始まりやすくしました。',
+            'planner は `enable_thinking` の切替に頼らず、prompt 側の `/no_think` 指示で制御するようにして、Qwen 系モデルの数学補助フローを安定化しました。',
+        ],
+        fixes: [
+            '数学ツール導入後、planner 実行時に `planner_runner_failed_detail:Error: Message error should not be 0` が出て tool 経路へ進めないことがある問題を修正しました。',
+            'WebLLM の planner / explainer でだけ不安定になっていた `enable_thinking: false` 依存を外し、通常の会話生成に近い呼び出し方へそろえました。',
+        ],
+    },
+    {
         version: '1.49.6',
         date: '2026年3月21日 18:07',
         improvements: [

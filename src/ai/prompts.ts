@@ -69,6 +69,7 @@ export const buildPlannerUserPrompt = (
         : '';
 
     return [
+        '/no_think',
         repairSection,
         '現在のユーザー入力を解くために、次に必要な 1 手だけを判断してください。',
         '',

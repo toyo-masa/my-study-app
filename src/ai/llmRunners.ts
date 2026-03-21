@@ -1,5 +1,4 @@
 import type {
-    ChatCompletion,
     ChatCompletionChunk,
     ChatCompletionMessageParam,
     WebWorkerMLCEngine,
@@ -69,11 +68,50 @@ const toOpenAiMessages = (messages: OrchestrationPromptMessage[]): OpenAiCompati
     }));
 };
 
-const getChatCompletionText = (response: ChatCompletion) => {
-    const firstChoice = response.choices?.[0];
-    return typeof firstChoice?.message?.content === 'string'
-        ? firstChoice.message.content
-        : '';
+const runWebLlmStreamText = async ({
+    engine,
+    messages,
+    maxTokens,
+    temperature,
+    topP,
+    presencePenalty,
+    onDelta,
+}: {
+    engine: WebWorkerMLCEngine;
+    messages: OrchestrationPromptMessage[];
+    maxTokens: number;
+    temperature: number | null;
+    topP: number | null;
+    presencePenalty: number | null;
+    onDelta?: (text: string) => void;
+}) => {
+    await engine.resetChat(false);
+
+    let text = '';
+    const stream = await engine.chat.completions.create({
+        messages: toWebLlmMessages(messages),
+        max_tokens: maxTokens,
+        temperature,
+        top_p: topP,
+        presence_penalty: presencePenalty,
+        stream: true,
+    });
+
+    for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (typeof delta !== 'string' || delta.length === 0) {
+            continue;
+        }
+        text += delta;
+        onDelta?.(text);
+    }
+
+    if (text.length === 0) {
+        text = await engine.getMessage();
+        onDelta?.(text);
+    }
+
+    return text;
 };
 
 export const runWebLlmPlanner = async ({
@@ -84,19 +122,17 @@ export const runWebLlmPlanner = async ({
     topP,
     presencePenalty,
 }: WebLlmPlannerParams): Promise<PlannerLlmResult> => {
-    const response = await engine.chat.completions.create({
-        messages: toWebLlmMessages(messages),
-        max_tokens: maxTokens,
+    const text = await runWebLlmStreamText({
+        engine,
+        messages,
+        maxTokens,
         temperature,
-        top_p: topP,
-        presence_penalty: presencePenalty,
-        extra_body: {
-            enable_thinking: false,
-        },
-    }) as ChatCompletion;
+        topP,
+        presencePenalty,
+    });
 
     return {
-        text: getChatCompletionText(response),
+        text,
         request: {
             messages,
             maxTokens,
@@ -116,32 +152,15 @@ export const runWebLlmExplainer = async ({
     presencePenalty,
     onDelta,
 }: WebLlmExplainerParams): Promise<ExplainerLlmResult> => {
-    let text = '';
-    const stream = await engine.chat.completions.create({
-        messages: toWebLlmMessages(messages),
-        max_tokens: maxTokens,
+    const text = await runWebLlmStreamText({
+        engine,
+        messages,
+        maxTokens,
         temperature,
-        top_p: topP,
-        presence_penalty: presencePenalty,
-        extra_body: {
-            enable_thinking: false,
-        },
-        stream: true,
+        topP,
+        presencePenalty,
+        onDelta,
     });
-
-    for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (typeof delta !== 'string' || delta.length === 0) {
-            continue;
-        }
-        text += delta;
-        onDelta(text);
-    }
-
-    if (text.length === 0) {
-        text = await engine.getMessage();
-        onDelta(text);
-    }
 
     return {
         text,
