@@ -178,7 +178,7 @@ export const cloudApi = {
     },
 
     async addQuestionsBulk(questions: Omit<Question, 'id'>[]): Promise<number[]> {
-        const res = await fetchApi<{ ids: number[] }>('/api/questionsBulk', {
+        const res = await fetchApi<{ ids: number[] }>('/api/questions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ questions })

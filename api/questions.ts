@@ -10,6 +10,15 @@ type QuestionBody = {
     correctAnswers?: unknown;
     explanation?: string;
     questionType?: string;
+    questions?: Array<{
+        quizSetId?: number | string;
+        category?: string;
+        text?: string;
+        options?: unknown;
+        correctAnswers?: unknown;
+        explanation?: string;
+        questionType?: string;
+    }>;
 };
 
 export default async function handler(req: ApiHandlerRequest<QuestionBody>, res: ApiHandlerResponse) {
@@ -108,6 +117,49 @@ export default async function handler(req: ApiHandlerRequest<QuestionBody>, res:
 
             if (method === 'POST') {
                 const q = req.body || {};
+
+                if (Array.isArray(q.questions)) {
+                    const questions = q.questions;
+                    if (questions.length === 0) {
+                        return res.status(400).json({ error: 'Invalid or empty questions array' });
+                    }
+
+                    const bulkQuizSetId = questions[0].quizSetId;
+                    const setCheck = await sql`SELECT id FROM quiz_sets WHERE id = ${bulkQuizSetId} AND user_id = ${userId}`;
+                    if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found or unauthorized' });
+
+                    if (!questions.every(question => question.quizSetId === bulkQuizSetId)) {
+                        return res.status(400).json({ error: 'All questions must belong to the same quizSetId' });
+                    }
+
+                    const insertData = questions.map(question => ({
+                        quiz_set_id: question.quizSetId,
+                        category: question.category,
+                        text: question.text,
+                        options: JSON.stringify(question.options),
+                        correct_answers: JSON.stringify(question.correctAnswers),
+                        explanation: question.explanation || '',
+                        question_type: question.questionType ?? 'quiz'
+                    }));
+
+                    const result = await sql`
+                        INSERT INTO questions (quiz_set_id, category, text, options, correct_answers, explanation, question_type)
+                        SELECT quiz_set_id, category, text, options::jsonb, correct_answers::jsonb, explanation, question_type
+                        FROM jsonb_to_recordset(${JSON.stringify(insertData)}::jsonb) AS x(
+                            quiz_set_id int,
+                            category text,
+                            text text,
+                            options text,
+                            correct_answers text,
+                            explanation text,
+                            question_type text
+                        )
+                        RETURNING id
+                    `;
+
+                    return res.status(201).json({ ids: result.map(row => row.id) });
+                }
+
                 // Verify quiz set belongs to user
                 const setCheck = await sql`SELECT id FROM quiz_sets WHERE id = ${q.quizSetId} AND user_id = ${userId}`;
                 if (setCheck.length === 0) return res.status(404).json({ error: 'Quiz set not found' });

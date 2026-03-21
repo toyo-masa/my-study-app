@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.49.1',
+        date: '2026年3月21日 17:44',
+        improvements: [
+            '数学計算ツールを追加した状態でも、Vercel Hobby プランの Function 上限に収まるよう API 構成を見直し、デプロイしやすくしました。',
+            '問題の一括追加 API を既存の questions エンドポイントへ統合し、機能を変えずにサーバー構成を整理しました。',
+        ],
+        fixes: [
+            '`/api/tools` を追加したことで Vercel Hobby の `No more than 12 Serverless Functions` に引っかかり、ビルドが失敗する問題を修正しました。',
+            '会話や問題追加の既存導線を保ったまま、不要に増えていた Function 数を 1 本減らしました。',
+        ],
+    },
+    {
         version: '1.49.0',
         date: '2026年3月21日 17:26',
         improvements: [
