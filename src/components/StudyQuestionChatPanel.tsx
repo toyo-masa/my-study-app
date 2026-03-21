@@ -62,6 +62,37 @@ const LOCAL_LLM_BASE_SYSTEM_PROMPT = [
     'ユーザーの最新の依頼や質問内容を最優先にしてください。',
     '回答の詳しさ・長さ・形式は、ユーザーがこの会話で求めた内容に合わせてください。',
 ].join('\n');
+const buildStudyQuestionChatScrollKey = (quizSetId: number, questionId: number) => `studyQuestionChatScroll:${quizSetId}:${questionId}`;
+
+const readStudyQuestionChatScrollTop = (quizSetId: number, questionId: number) => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const raw = window.sessionStorage.getItem(buildStudyQuestionChatScrollKey(quizSetId, questionId));
+    if (raw === null) {
+        return null;
+    }
+
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+const writeStudyQuestionChatScrollTop = (quizSetId: number, questionId: number, scrollTop: number) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.sessionStorage.setItem(buildStudyQuestionChatScrollKey(quizSetId, questionId), String(scrollTop));
+};
+
+const clearStudyQuestionChatScrollTop = (quizSetId: number, questionId: number) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.sessionStorage.removeItem(buildStudyQuestionChatScrollKey(quizSetId, questionId));
+};
 
 const getErrorMessage = (error: unknown) => {
     if (error instanceof Error && error.message.trim().length > 0) {
@@ -239,6 +270,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const initialSession = questionId !== null
         ? findStudyQuestionChatSession(initialSessions, quizSetId, questionId)
         : null;
+    const hasInitialMessages = (initialSession?.messages.length ?? 0) > 0;
 
     const [storedSessions, setStoredSessions] = useState<StoredStudyQuestionChatSession[]>(initialSessions);
     const storedSessionsRef = useRef<StoredStudyQuestionChatSession[]>(initialSessions);
@@ -265,7 +297,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const threadRef = useRef<HTMLDivElement>(null);
     const mountedRef = useRef(true);
     const requestIdRef = useRef(0);
-    const shouldAutoScrollRef = useRef(true);
+    const shouldAutoScrollRef = useRef(!hasInitialMessages);
     const isComposingRef = useRef(false);
     const localApiModelListAbortRef = useRef<AbortController | null>(null);
     const localApiChatAbortRef = useRef<AbortController | null>(null);
@@ -414,7 +446,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             top: element.scrollHeight,
             behavior: isGenerating ? 'auto' : 'smooth',
         });
-    }, [isGenerating]);
+        if (questionId !== null) {
+            writeStudyQuestionChatScrollTop(quizSetId, questionId, element.scrollHeight);
+        }
+    }, [isGenerating, questionId, quizSetId]);
 
     const finalizeStreamingMessages = useCallback(() => {
         setMessages((previous) => previous
@@ -486,13 +521,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         shouldAutoScrollRef.current = !hasRestoredMessages;
         setMessages(restoredMessages);
         if (hasRestoredMessages) {
+            const savedScrollTop = readStudyQuestionChatScrollTop(quizSetId, questionId);
             window.requestAnimationFrame(() => {
                 const element = threadRef.current;
                 if (!element) {
                     return;
                 }
                 element.scrollTo({
-                    top: element.scrollHeight,
+                    top: savedScrollTop ?? element.scrollHeight,
                     behavior: 'auto',
                 });
             });
@@ -587,8 +623,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [messages, scrollToBottom]);
 
     const handleThreadScroll = useCallback(() => {
+        if (questionId !== null && threadRef.current) {
+            writeStudyQuestionChatScrollTop(quizSetId, questionId, threadRef.current.scrollTop);
+        }
         shouldAutoScrollRef.current = isNearBottom();
-    }, [isNearBottom]);
+    }, [isNearBottom, questionId, quizSetId]);
 
     const handleLoadModel = useCallback(async () => {
         if (isModelLoading || hasLoadedLocalLlmEngine(selectedWebLlmModel)) {
@@ -947,10 +986,18 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             return;
         }
 
+        if (questionId !== null) {
+            clearStudyQuestionChatScrollTop(quizSetId, questionId);
+            setStoredSessions((previous) => previous.filter((session) => !(session.quizSetId === quizSetId && session.questionId === questionId)));
+        }
+        shouldAutoScrollRef.current = true;
         setMessages([]);
         setInput('');
         setError(null);
-    }, [isGenerating]);
+        setLastRequestPayload(null);
+        resetCopiedRequestState();
+        resetCopiedAnswerState();
+    }, [isGenerating, questionId, quizSetId, resetCopiedAnswerState, resetCopiedRequestState]);
 
     const handleModelOptionChange = useCallback((value: string) => {
         if (value.startsWith('webllm:')) {
