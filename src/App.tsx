@@ -78,6 +78,14 @@ function App() {
   }
 
   const isStudyOrMemRoute = location.pathname.includes('/study') || location.pathname.includes('/memorization');
+  const handleLocalLlmModeChange = (preferredMode: 'webllm' | 'openai-local') => handleLocalLlmSettingsChange((previous) => ({
+    ...previous,
+    preferredMode,
+  }));
+  const handleWebLlmModelChange = (webllmModelId: string) => handleLocalLlmSettingsChange((previous) => ({
+    ...previous,
+    webllmModelId,
+  }));
 
   return (
     <div className={`app-container ${isStudyOrMemRoute ? 'study-mode-active' : ''}`}>
@@ -143,14 +151,8 @@ function App() {
             element={(
               <LocalLlmChatRoute
                 localLlmSettings={localLlmSettings}
-                onLocalLlmModeChange={(preferredMode) => handleLocalLlmSettingsChange({
-                  ...localLlmSettings,
-                  preferredMode,
-                })}
-                onWebLlmModelChange={(webllmModelId) => handleLocalLlmSettingsChange({
-                  ...localLlmSettings,
-                  webllmModelId,
-                })}
+                onLocalLlmModeChange={handleLocalLlmModeChange}
+                onWebLlmModelChange={handleWebLlmModelChange}
               />
             )}
           />
@@ -165,14 +167,8 @@ function App() {
                 allowTouchDrawing={handwritingSettings.allowTouchDrawing}
                 reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
                 localLlmSettings={localLlmSettings}
-                onLocalLlmModeChange={(preferredMode) => handleLocalLlmSettingsChange({
-                  ...localLlmSettings,
-                  preferredMode,
-                })}
-                onWebLlmModelChange={(webllmModelId) => handleLocalLlmSettingsChange({
-                  ...localLlmSettings,
-                  webllmModelId,
-                })}
+                onLocalLlmModeChange={handleLocalLlmModeChange}
+                onWebLlmModelChange={handleWebLlmModelChange}
               />
             )}
           />
@@ -183,14 +179,8 @@ function App() {
                 allowTouchDrawing={handwritingSettings.allowTouchDrawing}
                 reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
                 localLlmSettings={localLlmSettings}
-                onLocalLlmModeChange={(preferredMode) => handleLocalLlmSettingsChange({
-                  ...localLlmSettings,
-                  preferredMode,
-                })}
-                onWebLlmModelChange={(webllmModelId) => handleLocalLlmSettingsChange({
-                  ...localLlmSettings,
-                  webllmModelId,
-                })}
+                onLocalLlmModeChange={handleLocalLlmModeChange}
+                onWebLlmModelChange={handleWebLlmModelChange}
               />
             )}
           />

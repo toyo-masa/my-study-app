@@ -34,6 +34,7 @@ import type { QuizSetWithMeta } from '../types';
 
 const APP_TITLE_PREFIX = 'qa';
 const APP_TITLE_SEPARATOR = ' - ';
+type LocalLlmSettingsUpdater = LocalLlmSettings | ((previous: LocalLlmSettings) => LocalLlmSettings);
 
 const buildPageTitle = (...segments: string[]): string => {
     return segments.filter(Boolean).join(APP_TITLE_SEPARATOR);
@@ -198,8 +199,10 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const handleResetHandwritingSettings = () => {
         setHandwritingSettings({ ...DEFAULT_HANDWRITING_SETTINGS });
     };
-    const handleLocalLlmSettingsChange = (settings: LocalLlmSettings) => {
-        setLocalLlmSettings(normalizeLocalLlmSettings(settings));
+    const handleLocalLlmSettingsChange = (settings: LocalLlmSettingsUpdater) => {
+        setLocalLlmSettings((previous) => normalizeLocalLlmSettings(
+            typeof settings === 'function' ? settings(previous) : settings
+        ));
     };
     const handleResetLocalLlmSettings = () => {
         setLocalLlmSettings({ ...DEFAULT_LOCAL_LLM_SETTINGS });

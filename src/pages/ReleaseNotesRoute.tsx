@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.48.12',
+        date: '2026年3月21日 17:11',
+        improvements: [
+            'ローカルLLMチャットと学習中の AI チャットで、WebLLM とローカルAPIの切替が最新の設定を基準に保存されるよう見直し、プルダウンを安心して選び直せるようにしました。',
+            'モデル選択時の設定反映を安定させ、ローカルAPIを試したあとでも Qwen 系 WebLLM へそのまま戻しやすくしました。',
+        ],
+        fixes: [
+            'ローカルAPIをプルダウンで選んだあと、Qwen を選び直しても内部で古い設定が上書きされ、WebLLM に戻れなくなる問題を修正しました。',
+            '同じ操作中に `preferredMode` と `webllmModelId` を連続更新すると、後から入る更新で前の変更が巻き戻る経路をふさぎました。',
+        ],
+    },
+    {
         version: '1.48.11',
         date: '2026年3月21日 16:42',
         improvements: [
