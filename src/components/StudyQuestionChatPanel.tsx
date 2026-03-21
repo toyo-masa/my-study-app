@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Bot, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
-import type { ChatCompletionChunk, ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
+import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import { MarkdownText } from './MarkdownText';
@@ -25,6 +25,11 @@ import {
     saveStudyQuestionChatSessions,
     type StoredStudyQuestionChatSession,
 } from '../utils/studyQuestionChatHistory';
+import {
+    parseAssistantMessageContent,
+    runWebLlmBudgetedGeneration,
+    type WebLlmGenerationPhase,
+} from '../utils/webLlmBudgetedGeneration';
 
 type LocalChatMessage = {
     id: string;
@@ -50,12 +55,7 @@ const LOCAL_API_EXAMPLES = [
 ] as const;
 
 const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
-const WEB_LLM_LENGTH_WARNING = 'WebLLM の文脈長または出力上限に達したため、ここで応答を打ち切りました。必要なら続けて質問してください。';
-
-type ParsedAssistantMessage = {
-    thinkContent: string | null;
-    answerContent: string;
-};
+const WEB_LLM_LENGTH_WARNING = 'WebLLM の上限に達したため、最終回答も途中で打ち切られました。必要なら続きを短く区切って質問してください。';
 
 const getErrorMessage = (error: unknown) => {
     if (error instanceof Error && error.message.trim().length > 0) {
@@ -63,37 +63,6 @@ const getErrorMessage = (error: unknown) => {
     }
     return 'ローカルLLMの処理に失敗しました。';
 };
-
-function parseAssistantMessageContent(content: string): ParsedAssistantMessage {
-    const thinkStart = content.indexOf('<think>');
-    if (thinkStart === -1) {
-        return {
-            thinkContent: null,
-            answerContent: content,
-        };
-    }
-
-    const thinkTagLength = '<think>'.length;
-    const thinkEnd = content.indexOf('</think>', thinkStart + thinkTagLength);
-    const leadingContent = content.slice(0, thinkStart).trim();
-
-    if (thinkEnd === -1) {
-        return {
-            thinkContent: content.slice(thinkStart + thinkTagLength).trim(),
-            answerContent: leadingContent,
-        };
-    }
-
-    const trailingContent = content.slice(thinkEnd + '</think>'.length).trim();
-    const answerContent = [leadingContent, trailingContent]
-        .filter((segment) => segment.length > 0)
-        .join('\n\n');
-
-    return {
-        thinkContent: content.slice(thinkStart + thinkTagLength, thinkEnd).trim(),
-        answerContent,
-    };
-}
 
 const toPromptMessageContent = (message: LocalChatMessage) => {
     if (message.role !== 'assistant') {
@@ -259,6 +228,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const [isModelLoading, setIsModelLoading] = useState(false);
     const [isModelReady, setIsModelReady] = useState(() => hasLoadedLocalLlmEngine(localLlmSettings.webllmModelId));
     const [isGenerating, setIsGenerating] = useState(false);
+    const [webllmGenerationPhase, setWebllmGenerationPhase] = useState<WebLlmGenerationPhase | null>(null);
     const [apiKey, setApiKey] = useState('');
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [selectedLocalApiModel, setSelectedLocalApiModel] = useState(() => (
@@ -280,6 +250,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
+    const webllmThinkingBudget = localLlmSettings.webllmThinkingBudget;
+    const webllmFinalAnswerMaxTokens = localLlmSettings.webllmFinalAnswerMaxTokens;
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
@@ -378,6 +350,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         localApiChatAbortRef.current?.abort();
         localApiChatAbortRef.current = null;
         setIsGenerating(false);
+        setWebllmGenerationPhase(null);
     }, [invalidateActiveRequest]);
 
     useEffect(() => {
@@ -655,15 +628,17 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         requestIdRef.current = requestId;
 
         let assistantText = '';
-        let webllmFinishReason: string | null = null;
+        let webllmHitFinalLengthLimit = false;
 
         setError(null);
         setInput('');
         setIsGenerating(true);
+        setWebllmGenerationPhase(null);
         shouldAutoScrollRef.current = true;
         setMessages((previous) => [...previous, userMessage, pendingAssistantMessage]);
 
         const updateAssistantText = (nextText: string) => {
+            assistantText = nextText;
             if (!mountedRef.current || requestIdRef.current !== requestId) {
                 return;
             }
@@ -703,38 +678,27 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         try {
             if (activeMode === 'webllm') {
                 const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
-                const stream = await engine.chat.completions.create({
+                const result = await runWebLlmBudgetedGeneration({
+                    engine,
                     messages: toWebLlmMessages([...messages, userMessage], combinedWebLlmSystemPrompt),
-                    stream: true,
+                    enableThinking: localLlmSettings.webllmEnableThinking,
+                    thinkingBudget: webllmThinkingBudget ?? 1024,
+                    finalAnswerMaxTokens: webllmFinalAnswerMaxTokens ?? 768,
                     temperature: localLlmSettings.webllmTemperature,
-                    top_p: localLlmSettings.webllmTopP,
-                    max_tokens: localLlmSettings.webllmMaxTokens,
-                    presence_penalty: localLlmSettings.webllmPresencePenalty,
-                    extra_body: {
-                        enable_thinking: localLlmSettings.webllmEnableThinking,
+                    topP: localLlmSettings.webllmTopP,
+                    presencePenalty: localLlmSettings.webllmPresencePenalty,
+                    onDisplayText: updateAssistantText,
+                    onPhaseChange: (phase) => {
+                        if (!mountedRef.current || requestIdRef.current !== requestId) {
+                            return;
+                        }
+                        setWebllmGenerationPhase(phase);
                     },
                 });
 
-                for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
-                    const choice = chunk.choices[0];
-                    if (choice?.finish_reason) {
-                        webllmFinishReason = choice.finish_reason;
-                    }
-
-                    const delta = choice?.delta?.content;
-                    if (typeof delta !== 'string' || delta.length === 0) {
-                        continue;
-                    }
-
-                    assistantText += delta;
-                    updateAssistantText(assistantText);
-                }
-
-                if (assistantText.length === 0) {
-                    assistantText = await engine.getMessage();
-                }
-
-                if (webllmFinishReason === 'length') {
+                assistantText = result.displayText;
+                webllmHitFinalLengthLimit = result.usedSecondPass && result.secondFinishReason === 'length';
+                if (result.firstFinishReason === 'length' || result.secondFinishReason === 'length') {
                     await resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
                 }
             } else {
@@ -763,7 +727,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             }
 
             finalizeAssistantText(assistantText);
-            if (webllmFinishReason === 'length' && mountedRef.current && requestIdRef.current === requestId) {
+            if (webllmHitFinalLengthLimit && mountedRef.current && requestIdRef.current === requestId) {
                 setError(WEB_LLM_LENGTH_WARNING);
             }
         } catch (generationError) {
@@ -783,6 +747,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             localApiChatAbortRef.current = null;
             if (mountedRef.current && requestIdRef.current === requestId) {
                 setIsGenerating(false);
+                setWebllmGenerationPhase(null);
             }
         }
     }, [
@@ -794,7 +759,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         isModelReady,
         localLlmSettings.baseUrl,
         localLlmSettings.webllmEnableThinking,
-        localLlmSettings.webllmMaxTokens,
         localLlmSettings.webllmPresencePenalty,
         localLlmSettings.webllmTemperature,
         localLlmSettings.webllmTopP,
@@ -803,6 +767,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         questionId,
         selectedModel,
         selectedWebLlmModel,
+        webllmFinalAnswerMaxTokens,
+        webllmThinkingBudget,
     ]);
 
     const handleStopGeneration = useCallback(() => {
@@ -819,6 +785,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         localApiChatAbortRef.current?.abort();
         localApiChatAbortRef.current = null;
         setIsGenerating(false);
+        setWebllmGenerationPhase(null);
         finalizeStreamingMessages();
     }, [activeMode, finalizeStreamingMessages, invalidateActiveRequest, isGenerating, selectedWebLlmModel]);
 
@@ -871,6 +838,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         <p>問題{questionIndex + 1}について質問できます。{showAnswer ? '解説込みで相談できます。' : 'ヒント中心で答えます。'}</p>
                     </div>
                     <div className="study-question-chat-head-actions">
+                        {isGenerating && activeMode === 'webllm' && webllmGenerationPhase && (
+                            <span className="local-llm-inline-status">
+                                <LoaderCircle size={15} className="spin" />
+                                {webllmGenerationPhase === 'thinking' ? '思考中' : '最終回答を生成中'}
+                            </span>
+                        )}
                         <button
                             type="button"
                             className="menu-btn right-panel-clear-btn"
@@ -1046,7 +1019,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                         {message.isStreaming && (
                                             <span className="local-llm-streaming-indicator">
                                                 <LoaderCircle size={14} className="spin" />
-                                                生成中
+                                                {activeMode === 'webllm' && webllmGenerationPhase === 'finalizing'
+                                                    ? '最終回答を生成中'
+                                                    : '生成中'}
                                             </span>
                                         )}
                                     </div>

@@ -12,7 +12,8 @@ export const WEB_LLM_QWEN_NON_THINKING_DEFAULTS = {
     topP: 0.8,
 } as const;
 
-export const WEB_LLM_QWEN_DEFAULT_MAX_TOKENS = 32768;
+export const WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET = 1024;
+export const WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS = 768;
 export const WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY = 1.5;
 
 export interface HandwritingSettings {
@@ -27,7 +28,8 @@ export interface LocalLlmSettings {
     webllmEnableThinking: boolean;
     webllmTemperature: number | null;
     webllmTopP: number | null;
-    webllmMaxTokens: number | null;
+    webllmThinkingBudget: number | null;
+    webllmFinalAnswerMaxTokens: number | null;
     webllmPresencePenalty: number | null;
 }
 
@@ -55,7 +57,8 @@ const DEFAULT_SETTINGS = {
         webllmEnableThinking: true,
         webllmTemperature: WEB_LLM_QWEN_THINKING_DEFAULTS.temperature,
         webllmTopP: WEB_LLM_QWEN_THINKING_DEFAULTS.topP,
-        webllmMaxTokens: WEB_LLM_QWEN_DEFAULT_MAX_TOKENS,
+        webllmThinkingBudget: WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET,
+        webllmFinalAnswerMaxTokens: WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS,
         webllmPresencePenalty: WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
     } as LocalLlmSettings,
 } as const;
@@ -196,7 +199,8 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         webllmEnableThinking,
         webllmTemperature: normalizeOptionalFiniteNumber(source.webllmTemperature, 0, 2) ?? defaultSampling.temperature,
         webllmTopP: normalizeOptionalFiniteNumber(source.webllmTopP, 0.01, 1) ?? defaultSampling.topP,
-        webllmMaxTokens: normalizeOptionalFiniteNumber(source.webllmMaxTokens, 1, 32768, true) ?? WEB_LLM_QWEN_DEFAULT_MAX_TOKENS,
+        webllmThinkingBudget: normalizeOptionalFiniteNumber(source.webllmThinkingBudget, 1, 32768, true) ?? WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET,
+        webllmFinalAnswerMaxTokens: normalizeOptionalFiniteNumber(source.webllmFinalAnswerMaxTokens, 1, 32768, true) ?? WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS,
         webllmPresencePenalty: normalizeOptionalFiniteNumber(source.webllmPresencePenalty, -2, 2) ?? WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
     };
 }

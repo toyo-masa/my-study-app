@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.45.0',
+        date: '2026年3月21日 14:53',
+        improvements: [
+            'WebLLM の Qwen 系チャットで 2段階生成を導入し、思考が長い質問でも最終回答まで届きやすくしました。',
+            '設定サイドバーの WebLLM 生成パラメータに `thinking_budget` と `final_answer_max_tokens` を追加し、長い回答を出しやすいように調整できるようにしました。',
+        ],
+        fixes: [
+            'これまで WebLLM は出力上限に達するとその場で止まり、思考だけで回答が終わらないケースがあった問題を改善しました。',
+            'ローカルLLMチャット画面と統合セットの AI チャットで WebLLM の長さ打ち切り処理が別々になっていたため、挙動が揃いにくかった問題を改善しました。',
+        ],
+    },
+    {
         version: '1.44.6',
         date: '2026年3月21日 14:08',
         improvements: [

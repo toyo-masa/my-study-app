@@ -5,7 +5,8 @@ import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
 import {
     getWebLlmQwenDefaultSampling,
-    WEB_LLM_QWEN_DEFAULT_MAX_TOKENS,
+    WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS,
+    WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET,
     WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
     type HandwritingSettings,
     type LocalLlmSettings,
@@ -393,7 +394,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <div className="review-settings-card">
                                                 <h4 className="review-settings-card-title">WebLLM 生成パラメータ</h4>
                                                 <p className="review-settings-note">
-                                                    Qwen 系 WebLLM の初期入力値をあらかじめ入れています。thinking 時は `temperature 0.6 / top_p 0.95`、non-thinking 時は `temperature 0.7 / top_p 0.8` に切り替わり、`max_tokens 32768 / presence_penalty 1.5` を初期値として使います。
+                                                    Qwen 系 WebLLM の初期入力値をあらかじめ入れています。thinking 時は `temperature 0.6 / top_p 0.95`、non-thinking 時は `temperature 0.7 / top_p 0.8` に切り替わり、`thinking_budget 1024 / final_answer_max_tokens 768 / presence_penalty 1.5` を初期値として使います。
                                                 </p>
 
                                                 <div className="setting-control">
@@ -455,16 +456,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         />
                                                     </label>
                                                     <label className="review-setting-item">
-                                                        <span className="review-setting-label">max_tokens</span>
+                                                        <span className="review-setting-label">thinking_budget</span>
                                                         <input
                                                             type="number"
                                                             className="setting-select"
-                                                            value={localLlmSettings.webllmMaxTokens ?? ''}
+                                                            value={localLlmSettings.webllmThinkingBudget ?? ''}
                                                             onChange={(event) => onLocalLlmSettingsChange({
                                                                 ...localLlmSettings,
-                                                                webllmMaxTokens: parseOptionalIntegerInput(event.target.value),
+                                                                webllmThinkingBudget: parseOptionalIntegerInput(event.target.value),
                                                             })}
-                                                            placeholder={String(WEB_LLM_QWEN_DEFAULT_MAX_TOKENS)}
+                                                            placeholder={String(WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET)}
+                                                            min={1}
+                                                            max={32768}
+                                                            step={1}
+                                                            inputMode="numeric"
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">final_answer_max_tokens</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.webllmFinalAnswerMaxTokens ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                webllmFinalAnswerMaxTokens: parseOptionalIntegerInput(event.target.value),
+                                                            })}
+                                                            placeholder={String(WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS)}
                                                             min={1}
                                                             max={32768}
                                                             step={1}
