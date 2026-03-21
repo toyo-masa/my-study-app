@@ -89,13 +89,14 @@ export type FunctionCallingConversationMessage = {
 export type SelectionTraceEntry = {
     step: number;
     strategy: 'native' | 'manual';
+    repairMode: boolean;
     request: {
         messages: FunctionCallingPromptMessage[];
         maxTokens: number;
         temperature: number | null;
         topP: number | null;
         presencePenalty: number | null;
-        stream: false;
+        stream: boolean;
         tools: ToolDefinition[] | null;
         toolChoice: 'auto' | 'none' | null;
         extraBody: Record<string, unknown> | null;

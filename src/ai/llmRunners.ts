@@ -159,24 +159,6 @@ const toOpenAiMessages = (messages: FunctionCallingPromptMessage[]): OpenAiCompa
     return result;
 };
 
-const extractWebLlmText = (value: unknown): string => {
-    if (typeof value === 'string') {
-        return value;
-    }
-    if (!Array.isArray(value)) {
-        return '';
-    }
-    return value.map((part) => {
-        if (typeof part === 'string') {
-            return part;
-        }
-        if (part && typeof part === 'object' && 'text' in part && typeof part.text === 'string') {
-            return part.text;
-        }
-        return '';
-    }).join('');
-};
-
 const runWebLlmStreamText = async ({
     engine,
     messages,
@@ -231,18 +213,14 @@ export const runWebLlmSelection = async ({
     topP,
     presencePenalty,
 }: WebLlmSelectionParams): Promise<SelectionLlmResult> => {
-    await engine.resetChat(false);
-
-    const response = await engine.chat.completions.create({
-        messages: toWebLlmMessages(messages),
-        max_tokens: maxTokens,
+    const text = await runWebLlmStreamText({
+        engine,
+        messages,
+        maxTokens,
         temperature,
-        top_p: topP,
-        presence_penalty: presencePenalty,
-        stream: false,
+        topP,
+        presencePenalty,
     });
-
-    const text = extractWebLlmText(response.choices?.[0]?.message?.content);
 
     return {
         text,
@@ -253,7 +231,7 @@ export const runWebLlmSelection = async ({
             temperature,
             topP,
             presencePenalty,
-            stream: false,
+            stream: true,
             tools: null,
             toolChoice: null,
             extraBody: null,

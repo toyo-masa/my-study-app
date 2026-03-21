@@ -49,6 +49,11 @@ type ParsedSelection = {
     readyForFinalAnswer: boolean;
 };
 
+type SelectionAttemptResult = {
+    parsed: ParsedSelection | null;
+    rawResponse: string;
+};
+
 const createEmptyTrace = (): FunctionCallingTrace => ({
     selection: [],
     toolCalls: [],
@@ -302,23 +307,28 @@ const executeSelection = async (
     strategy: 'native' | 'manual',
     runner: SelectionRunner,
     repairMode = false
-) => {
+): Promise<SelectionAttemptResult> => {
     const messages = strategy === 'native'
         ? buildNativeSelectionMessages(state, conversationMessages)
         : buildManualSelectionMessages(state, conversationMessages, repairMode);
     const result = await runner(messages);
     const parsed = parseSelectionResult(result);
+    const rawResponse = toRawSelectionResponse(result);
 
     state.trace.selection.push({
         step,
         strategy,
+        repairMode,
         request: result.request,
-        rawResponse: toRawSelectionResponse(result),
+        rawResponse,
         toolInvocations: parsed?.toolInvocations ?? [],
         readyForFinalAnswer: parsed?.readyForFinalAnswer ?? false,
     });
 
-    return parsed;
+    return {
+        parsed,
+        rawResponse,
+    };
 };
 
 export async function runFunctionCallingLoop({
@@ -338,30 +348,54 @@ export async function runFunctionCallingLoop({
 
         if (runNativeSelection) {
             try {
-                selection = await executeSelection(state, conversationMessages, step, 'native', runNativeSelection);
+                const nativeAttempt = await executeSelection(state, conversationMessages, step, 'native', runNativeSelection);
+                selection = nativeAttempt.parsed;
+                if (!selection && nativeAttempt.rawResponse.trim().length === 0) {
+                    appendTraceError(state.trace, 'empty_selection_response');
+                }
             } catch (error) {
                 appendTraceError(state.trace, 'selection_native_failed', error);
             }
         }
 
         if (!selection) {
-            for (let attempt = 0; attempt < 2; attempt += 1) {
+            let shouldRunRepair = false;
+            let manualAttemptCount = 0;
+
+            while (!selection && manualAttemptCount < 2) {
+                const repairMode = shouldRunRepair;
+                manualAttemptCount += 1;
                 try {
-                    selection = await executeSelection(
+                    const manualAttempt = await executeSelection(
                         state,
                         conversationMessages,
                         step,
                         'manual',
                         runManualSelection,
-                        attempt === 1
+                        repairMode
                     );
-                } catch (error) {
-                    appendTraceError(state.trace, attempt === 0 ? 'selection_manual_failed' : 'selection_manual_repair_failed', error);
-                    selection = null;
-                }
+                    selection = manualAttempt.parsed;
 
-                if (selection) {
-                    break;
+                    if (manualAttempt.rawResponse.trim().length === 0) {
+                        appendTraceError(state.trace, 'empty_selection_response');
+                        shouldRunRepair = false;
+                        continue;
+                    }
+
+                    if (!selection) {
+                        appendTraceError(state.trace, 'selection_parse_failed');
+                        if (!repairMode) {
+                            shouldRunRepair = true;
+                            continue;
+                        }
+                    }
+                } catch (error) {
+                    appendTraceError(
+                        state.trace,
+                        manualAttemptCount === 1 ? 'selection_manual_failed' : 'selection_manual_retry_failed',
+                        error
+                    );
+                    shouldRunRepair = false;
                 }
             }
         }

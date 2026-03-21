@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.50.1',
+        date: '2026年3月21日 21:16',
+        improvements: [
+            'WebLLM の補助ツール selection を内部 streaming ベースへ寄せ、最終回答と近い実行方式にそろえて空応答になりにくくしました。',
+            'selection 用 prompt の重複文脈を減らし、最初の判定では同じ問題文を二重に送りにくいようにして、Qwen 系モデルでの補助ツール選択を軽くしました。',
+        ],
+        fixes: [
+            'WebLLM の補助ツール selection で `Message error should not be 0` や空応答が出たときに、そのまま parse 失敗扱いへ混ざっていた問題を見直し、runner failure・空応答・parse failure を trace 上で区別できるようにしました。',
+            'selection の再試行時に毎回 repair 文を足していたため、例外系の再試行でも不要なノイズが入りやすかった問題を修正し、repair prompt は parse failure のときだけ使うようにしました。',
+        ],
+    },
+    {
         version: '1.50.0',
         date: '2026年3月21日 20:59',
         improvements: [

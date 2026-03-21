@@ -16,6 +16,8 @@ const formatConversationHistory = (messages: FunctionCallingConversationMessage[
     }).join('\n\n');
 };
 
+const normalizeComparableText = (value: string) => value.replace(/\s+/g, ' ').trim();
+
 const formatToolResults = (toolResults: ToolExecutionResult[]) => {
     if (toolResults.length === 0) {
         return 'なし';
@@ -186,11 +188,23 @@ export const buildToolSelectionUserPrompt = (
 ) => {
     const repairSection = repairMode
         ? [
-            '前回の出力は契約違反でした。',
-            '前回の出力は無視し、指定の形式だけを返してください。',
+            '前回は形式を満たしませんでした。',
+            '今回の出力だけを、指定された形式どおりに返してください。',
             '',
         ].join('\n')
         : '';
+
+    const normalizedOriginal = normalizeComparableText(state.originalUserMessage);
+    const shouldIncludeRecentConversation = state.stepCount > 0 && conversationMessages.some((message) => {
+        if (message.role !== 'user') {
+            return true;
+        }
+        return normalizeComparableText(message.content) !== normalizedOriginal;
+    });
+
+    const recentConversationSection = shouldIncludeRecentConversation
+        ? ['', `recentConversation:\n${formatConversationHistory(conversationMessages)}`]
+        : [];
 
     return [
         '/no_think',
@@ -202,8 +216,7 @@ export const buildToolSelectionUserPrompt = (
         `originalUserMessage:\n${state.originalUserMessage}`,
         '',
         `toolResults:\n${formatToolResults(state.toolResults)}`,
-        '',
-        `recentConversation:\n${formatConversationHistory(conversationMessages)}`,
+        ...recentConversationSection,
     ].join('\n');
 };
 
