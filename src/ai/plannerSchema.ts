@@ -31,6 +31,13 @@ const normalizeCapabilityList = (value: unknown): Capability[] => {
     ));
 };
 
+const appendCapabilityIfMissing = (capabilities: Capability[], capability: Capability | null) => {
+    if (!capability || capabilities.includes(capability)) {
+        return capabilities;
+    }
+    return [...capabilities, capability];
+};
+
 const normalizeFacts = (value: unknown): string[] => {
     if (!Array.isArray(value)) {
         return [];
@@ -131,10 +138,16 @@ export const parsePlannerDecision = (raw: string): PlannerDecision | null => {
 
             const source = parsed as Partial<PlannerDecision>;
             const nextAction = normalizeToolAction(source.nextAction);
+            const normalizedMode = nextAction && source.done !== true
+                ? 'tool_augmented_answer'
+                : normalizePlannerMode(source.mode);
             const decision: PlannerDecision = {
-                mode: normalizePlannerMode(source.mode),
+                mode: normalizedMode,
                 problemType: normalizeProblemType(source.problemType),
-                neededCapabilities: normalizeCapabilityList(source.neededCapabilities),
+                neededCapabilities: appendCapabilityIfMissing(
+                    normalizeCapabilityList(source.neededCapabilities),
+                    nextAction?.capability ?? null
+                ),
                 factsToAdd: normalizeFacts(source.factsToAdd),
                 done: source.done === true,
                 nextAction,

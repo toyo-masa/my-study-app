@@ -269,8 +269,8 @@ export async function runToolAugmentedOrchestration({
                 nextAction,
                 errorCode,
                 errorCode === 'UNAUTHORIZED'
-                    ? '計算ツールを利用するにはログインが必要です。'
-                    : '計算ツールの実行に失敗しました。'
+                    ? '補助ツールを利用するにはログインが必要です。'
+                    : '補助ツールの実行に失敗しました。'
             );
 
             state.toolResults.push(unavailableResult);
@@ -287,7 +287,7 @@ export async function runToolAugmentedOrchestration({
     }
 
     state.done = true;
-    onDisplayText('計算ツールを使用して回答を整理しています…');
+    onDisplayText('補助ツールを使用して回答を整理しています…');
 
     const explainerMessages = buildExplainerMessages(state, conversationMessages);
     let explainerResult: ExplainerLlmResult | null = null;

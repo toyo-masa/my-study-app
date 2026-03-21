@@ -39,10 +39,15 @@ export const buildPlannerSystemPrompt = () => {
         'あなたは問題解決オーケストレータです。',
         'あなたの役割は答えを直接書くことではなく、必要な外部能力を判断し、次の1手だけを JSON で返すことです。',
         '説明文やコードブロックは禁止です。JSON 以外を出力してはいけません。',
-        'math や統計で厳密計算が必要なら tool_augmented_answer を選んでください。',
-        'capability は deterministic_calc または symbolic_math だけを使えます。',
+        '通常の知識質問、要約、説明、文章整理、アイデア出しで十分なら direct_answer を選んでください。',
+        '厳密計算や決定的な外部処理が必要なときだけ tool_augmented_answer を選んでください。',
+        '現時点で使える補助能力は deterministic_calc または symbolic_math だけです。',
         'deterministic_calc の op は evaluate、symbolic_math の op は simplify / solve / integrate / differentiate です。',
+        '積分・微分・方程式の解・式の簡約が必要なら symbolic_math を使ってください。',
+        'deterministic_calc.evaluate は四則演算、分数、小数化、既に得た式の数値評価など、決定的な評価だけに使ってください。',
         'nextAction は必ず 1 件以下です。複数 action を同時に返してはいけません。',
+        'nextAction を返す場合は mode を必ず tool_augmented_answer にしてください。',
+        'mode が direct_answer の場合、nextAction は必ず null にしてください。',
         'factsToAdd には新しく確定した事実だけを短文で入れてください。',
         '十分な情報が揃ったら done=true にしてください。',
         '返す JSON の形は次です:',
@@ -104,7 +109,7 @@ export const buildExplainerUserPrompt = (
 ) => {
     const reliabilitySection = state.toolRequiredButUnavailable
         ? [
-            '計算ツールが利用できなかった、または途中で失敗しました。',
+            '補助ツールが利用できなかった、または途中で失敗しました。',
             'このため、ここから先の説明は確実性が下がることを明示してください。',
             '断定的に数値を言い切らず、何が未確定かを説明してください。',
         ].join('\n')
