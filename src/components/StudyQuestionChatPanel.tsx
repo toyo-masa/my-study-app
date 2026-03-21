@@ -480,7 +480,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             if (
                 session.modelId
                 && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === session.modelId)
-                && session.modelId !== selectedWebLlmModel
             ) {
                 onWebLlmModelChange(session.modelId);
             }
@@ -505,7 +504,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         resetCopiedAnswerState,
         resetCopiedRequestState,
         resetTransientState,
-        selectedWebLlmModel,
     ]);
 
     useEffect(() => {

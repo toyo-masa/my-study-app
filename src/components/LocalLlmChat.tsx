@@ -451,7 +451,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             targetSession.mode === 'webllm'
             && targetSession.modelId
             && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === targetSession.modelId)
-            && targetSession.modelId !== selectedWebLlmModel
         ) {
             onWebLlmModelChange(targetSession.modelId);
         }
@@ -572,7 +571,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             initialSession.mode === 'webllm'
             && initialSession.modelId
             && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === initialSession.modelId)
-            && initialSession.modelId !== selectedWebLlmModel
         ) {
             onWebLlmModelChange(initialSession.modelId);
         }
@@ -943,40 +941,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         void handleFetchModels();
     }, [activeMode, handleFetchModels, localLlmSettings.baseUrl]);
-
-    useEffect(() => {
-        if (isGenerating || !currentSession) {
-            return;
-        }
-
-        if (currentSession.mode !== activeMode) {
-            modeChangeReasonRef.current = 'session-load';
-            onLocalLlmModeChange(currentSession.mode);
-            return;
-        }
-
-        if (
-            currentSession.mode === 'webllm'
-            && currentSession.modelId
-            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === currentSession.modelId)
-            && currentSession.modelId !== selectedWebLlmModel
-        ) {
-            onWebLlmModelChange(currentSession.modelId);
-            return;
-        }
-
-        if (currentSession.mode === 'openai-local') {
-            setSelectedLocalApiModel(currentSession.modelId || localLlmSettings.defaultModelId);
-        }
-    }, [
-        activeMode,
-        currentSession,
-        isGenerating,
-        localLlmSettings.defaultModelId,
-        onLocalLlmModeChange,
-        onWebLlmModelChange,
-        selectedWebLlmModel,
-    ]);
 
     useEffect(() => {
         if (activeMode !== 'webllm' || !webllmSupport.supported) {
