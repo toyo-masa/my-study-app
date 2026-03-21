@@ -1,4 +1,9 @@
 {
+    "functions": {
+        "api/*.py": {
+            "excludeFiles": "{src/**,dist/**,node_modules/**,__pycache__/**,**/*.ts,**/*.tsx,**/*.md}"
+        }
+    },
     "rewrites": [
         {
             "source": "/api/me",

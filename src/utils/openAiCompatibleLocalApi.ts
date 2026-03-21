@@ -3,6 +3,14 @@ export interface OpenAiCompatibleMessage {
     content: string;
 }
 
+type ChatTuningParams = {
+    temperature?: number | null;
+    topP?: number | null;
+    maxTokens?: number | null;
+    presencePenalty?: number | null;
+    repetitionPenalty?: number | null;
+};
+
 type StreamChatParams = {
     baseUrl: string;
     model: string;
@@ -10,10 +18,49 @@ type StreamChatParams = {
     apiKey?: string;
     signal?: AbortSignal;
     onDelta: (delta: string) => void;
-};
+} & ChatTuningParams;
+
+type ChatOnceParams = {
+    baseUrl: string;
+    model: string;
+    messages: OpenAiCompatibleMessage[];
+    apiKey?: string;
+    signal?: AbortSignal;
+} & ChatTuningParams;
 
 const buildEndpoint = (baseUrl: string, path: string) => {
     return `${baseUrl.replace(/\/+$/, '')}${path}`;
+};
+
+const buildChatRequestBody = (
+    model: string,
+    messages: OpenAiCompatibleMessage[],
+    stream: boolean,
+    params: ChatTuningParams
+) => {
+    const payload: Record<string, unknown> = {
+        model,
+        messages,
+        stream,
+    };
+
+    if (typeof params.temperature === 'number') {
+        payload.temperature = params.temperature;
+    }
+    if (typeof params.topP === 'number') {
+        payload.top_p = params.topP;
+    }
+    if (typeof params.maxTokens === 'number') {
+        payload.max_tokens = params.maxTokens;
+    }
+    if (typeof params.presencePenalty === 'number') {
+        payload.presence_penalty = params.presencePenalty;
+    }
+    if (typeof params.repetitionPenalty === 'number') {
+        payload.repetition_penalty = params.repetitionPenalty;
+    }
+
+    return payload;
 };
 
 const buildHeaders = (apiKey?: string, withStream = false) => {
@@ -166,15 +213,22 @@ export const streamOpenAiCompatibleChat = async ({
     apiKey,
     signal,
     onDelta,
+    temperature,
+    topP,
+    maxTokens,
+    presencePenalty,
+    repetitionPenalty,
 }: StreamChatParams) => {
     const response = await fetch(buildEndpoint(baseUrl, '/chat/completions'), {
         method: 'POST',
         headers: buildHeaders(apiKey, true),
-        body: JSON.stringify({
-            model,
-            messages,
-            stream: true,
-        }),
+        body: JSON.stringify(buildChatRequestBody(model, messages, true, {
+            temperature,
+            topP,
+            maxTokens,
+            presencePenalty,
+            repetitionPenalty,
+        })),
         signal,
     });
 
@@ -241,4 +295,45 @@ export const streamOpenAiCompatibleChat = async ({
     }
 
     return assistantText;
+};
+
+export const createOpenAiCompatibleChat = async ({
+    baseUrl,
+    model,
+    messages,
+    apiKey,
+    signal,
+    temperature,
+    topP,
+    maxTokens,
+    presencePenalty,
+    repetitionPenalty,
+}: ChatOnceParams) => {
+    const response = await fetch(buildEndpoint(baseUrl, '/chat/completions'), {
+        method: 'POST',
+        headers: buildHeaders(apiKey),
+        body: JSON.stringify(buildChatRequestBody(model, messages, false, {
+            temperature,
+            topP,
+            maxTokens,
+            presencePenalty,
+            repetitionPenalty,
+        })),
+        signal,
+    });
+
+    if (!response.ok) {
+        throw new Error(await getResponseErrorMessage(response));
+    }
+
+    const payload = await response.json();
+    const text = extractAssistantMessage(payload);
+    if (text.length === 0) {
+        throw new Error('ローカルAPIから応答本文を取得できませんでした。');
+    }
+
+    return {
+        text,
+        raw: payload,
+    };
 };
