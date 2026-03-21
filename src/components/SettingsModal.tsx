@@ -3,7 +3,14 @@ import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizon
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
-import type { HandwritingSettings, LocalLlmSettings, ThemeMode } from '../utils/settings';
+import {
+    getWebLlmQwenDefaultSampling,
+    WEB_LLM_QWEN_DEFAULT_MAX_TOKENS,
+    WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
+    type HandwritingSettings,
+    type LocalLlmSettings,
+    type ThemeMode,
+} from '../utils/settings';
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 
@@ -71,6 +78,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
     const exampleBaseDays = 4;
     const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
+    const activeWebLlmDefaults = getWebLlmQwenDefaultSampling(localLlmSettings.webllmEnableThinking);
 
     const parseOptionalNumberInput = (value: string): number | null => {
         const trimmed = value.trim();
@@ -385,7 +393,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <div className="review-settings-card">
                                                 <h4 className="review-settings-card-title">WebLLM 生成パラメータ</h4>
                                                 <p className="review-settings-note">
-                                                    空欄の項目はモデル既定値を使います。Qwen3 の推奨値として、thinking 時は `temperature 0.6 / top_p 0.95`、non-thinking 時は `temperature 0.7 / top_p 0.8` が案内されています。
+                                                    Qwen 系 WebLLM の初期入力値をあらかじめ入れています。thinking 時は `temperature 0.6 / top_p 0.95`、non-thinking 時は `temperature 0.7 / top_p 0.8` に切り替わり、`max_tokens 32768 / presence_penalty 1.5` を初期値として使います。
                                                 </p>
 
                                                 <div className="setting-control">
@@ -397,6 +405,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             onChange={(event) => onLocalLlmSettingsChange({
                                                                 ...localLlmSettings,
                                                                 webllmEnableThinking: event.target.checked,
+                                                                webllmTemperature:
+                                                                    localLlmSettings.webllmTemperature === activeWebLlmDefaults.temperature
+                                                                        ? getWebLlmQwenDefaultSampling(event.target.checked).temperature
+                                                                        : localLlmSettings.webllmTemperature,
+                                                                webllmTopP:
+                                                                    localLlmSettings.webllmTopP === activeWebLlmDefaults.topP
+                                                                        ? getWebLlmQwenDefaultSampling(event.target.checked).topP
+                                                                        : localLlmSettings.webllmTopP,
                                                             })}
                                                         />
                                                         <span className="slider"></span>
@@ -414,7 +430,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 webllmTemperature: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder="既定値"
+                                                            placeholder={String(activeWebLlmDefaults.temperature)}
                                                             min={0}
                                                             max={2}
                                                             step={0.05}
@@ -431,7 +447,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 webllmTopP: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder="既定値"
+                                                            placeholder={String(activeWebLlmDefaults.topP)}
                                                             min={0.01}
                                                             max={1}
                                                             step={0.01}
@@ -448,7 +464,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 webllmMaxTokens: parseOptionalIntegerInput(event.target.value),
                                                             })}
-                                                            placeholder="既定値"
+                                                            placeholder={String(WEB_LLM_QWEN_DEFAULT_MAX_TOKENS)}
                                                             min={1}
                                                             max={32768}
                                                             step={1}
@@ -465,7 +481,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 webllmPresencePenalty: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder="既定値"
+                                                            placeholder={String(WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY)}
                                                             min={-2}
                                                             max={2}
                                                             step={0.1}

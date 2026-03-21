@@ -2,6 +2,19 @@ import { DEFAULT_WEB_LLM_MODEL_ID, WEB_LLM_QWEN_MODEL_OPTIONS } from './localLlm
 export type ThemeMode = 'light' | 'dark' | 'monokai';
 export type LocalLlmMode = 'webllm' | 'openai-local';
 
+export const WEB_LLM_QWEN_THINKING_DEFAULTS = {
+    temperature: 0.6,
+    topP: 0.95,
+} as const;
+
+export const WEB_LLM_QWEN_NON_THINKING_DEFAULTS = {
+    temperature: 0.7,
+    topP: 0.8,
+} as const;
+
+export const WEB_LLM_QWEN_DEFAULT_MAX_TOKENS = 32768;
+export const WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY = 1.5;
+
 export interface HandwritingSettings {
     allowTouchDrawing: boolean;
 }
@@ -40,10 +53,10 @@ const DEFAULT_SETTINGS = {
         webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
         webllmSystemPrompt: '',
         webllmEnableThinking: true,
-        webllmTemperature: null,
-        webllmTopP: null,
-        webllmMaxTokens: null,
-        webllmPresencePenalty: null,
+        webllmTemperature: WEB_LLM_QWEN_THINKING_DEFAULTS.temperature,
+        webllmTopP: WEB_LLM_QWEN_THINKING_DEFAULTS.topP,
+        webllmMaxTokens: WEB_LLM_QWEN_DEFAULT_MAX_TOKENS,
+        webllmPresencePenalty: WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
     } as LocalLlmSettings,
 } as const;
 
@@ -162,10 +175,17 @@ const normalizeWebLlmEnableThinking = (value: unknown): boolean => {
     return value !== false;
 };
 
+export const getWebLlmQwenDefaultSampling = (enableThinking: boolean) => {
+    return enableThinking ? WEB_LLM_QWEN_THINKING_DEFAULTS : WEB_LLM_QWEN_NON_THINKING_DEFAULTS;
+};
+
 export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
     const source = raw && typeof raw === 'object'
         ? raw as Partial<LocalLlmSettings>
         : {};
+
+    const webllmEnableThinking = normalizeWebLlmEnableThinking(source.webllmEnableThinking);
+    const defaultSampling = getWebLlmQwenDefaultSampling(webllmEnableThinking);
 
     return {
         preferredMode: normalizeLocalLlmMode(source.preferredMode),
@@ -173,11 +193,11 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         defaultModelId: normalizeLocalLlmModelId(source.defaultModelId),
         webllmModelId: normalizeWebLlmModelId(source.webllmModelId),
         webllmSystemPrompt: normalizeLocalLlmSystemPrompt(source.webllmSystemPrompt),
-        webllmEnableThinking: normalizeWebLlmEnableThinking(source.webllmEnableThinking),
-        webllmTemperature: normalizeOptionalFiniteNumber(source.webllmTemperature, 0, 2),
-        webllmTopP: normalizeOptionalFiniteNumber(source.webllmTopP, 0.01, 1),
-        webllmMaxTokens: normalizeOptionalFiniteNumber(source.webllmMaxTokens, 1, 32768, true),
-        webllmPresencePenalty: normalizeOptionalFiniteNumber(source.webllmPresencePenalty, -2, 2),
+        webllmEnableThinking,
+        webllmTemperature: normalizeOptionalFiniteNumber(source.webllmTemperature, 0, 2) ?? defaultSampling.temperature,
+        webllmTopP: normalizeOptionalFiniteNumber(source.webllmTopP, 0.01, 1) ?? defaultSampling.topP,
+        webllmMaxTokens: normalizeOptionalFiniteNumber(source.webllmMaxTokens, 1, 32768, true) ?? WEB_LLM_QWEN_DEFAULT_MAX_TOKENS,
+        webllmPresencePenalty: normalizeOptionalFiniteNumber(source.webllmPresencePenalty, -2, 2) ?? WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
     };
 }
 
