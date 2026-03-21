@@ -1,6 +1,12 @@
 export type ThemeMode = 'light' | 'dark' | 'monokai';
+export type LocalLlmMode = 'webllm' | 'openai-local';
 export interface HandwritingSettings {
     allowTouchDrawing: boolean;
+}
+export interface LocalLlmSettings {
+    preferredMode: LocalLlmMode;
+    baseUrl: string;
+    defaultModelId: string;
 }
 
 const SETTINGS_KEYS = {
@@ -8,6 +14,7 @@ const SETTINGS_KEYS = {
     accentColor: 'accentColor',
     useCloudSync: 'useCloudSync',
     handwritingSettings: 'handwritingSettings',
+    localLlmSettings: 'localLlmSettings',
 } as const;
 
 const DEFAULT_SETTINGS = {
@@ -17,6 +24,11 @@ const DEFAULT_SETTINGS = {
     handwritingSettings: {
         allowTouchDrawing: false,
     } as HandwritingSettings,
+    localLlmSettings: {
+        preferredMode: 'webllm' as LocalLlmMode,
+        baseUrl: 'http://localhost:1234/v1',
+        defaultModelId: '',
+    } as LocalLlmSettings,
 } as const;
 
 export function ensureLocalSettingsInitialized(): void {
@@ -30,6 +42,10 @@ export function ensureLocalSettingsInitialized(): void {
 
     if (localStorage.getItem(SETTINGS_KEYS.handwritingSettings) === null) {
         localStorage.setItem(SETTINGS_KEYS.handwritingSettings, JSON.stringify(DEFAULT_SETTINGS.handwritingSettings));
+    }
+
+    if (localStorage.getItem(SETTINGS_KEYS.localLlmSettings) === null) {
+        localStorage.setItem(SETTINGS_KEYS.localLlmSettings, JSON.stringify(DEFAULT_SETTINGS.localLlmSettings));
     }
 }
 
@@ -52,6 +68,9 @@ export function setStoredAccentColor(color: string): void {
 export const DEFAULT_HANDWRITING_SETTINGS: HandwritingSettings = {
     ...DEFAULT_SETTINGS.handwritingSettings,
 };
+export const DEFAULT_LOCAL_LLM_SETTINGS: LocalLlmSettings = {
+    ...DEFAULT_SETTINGS.localLlmSettings,
+};
 
 export function normalizeHandwritingSettings(raw: unknown): HandwritingSettings {
     const source = raw && typeof raw === 'object'
@@ -60,6 +79,39 @@ export function normalizeHandwritingSettings(raw: unknown): HandwritingSettings 
 
     return {
         allowTouchDrawing: source.allowTouchDrawing === true,
+    };
+}
+
+const normalizeLocalLlmMode = (value: unknown): LocalLlmMode => {
+    return value === 'openai-local' ? 'openai-local' : 'webllm';
+};
+
+const normalizeLocalLlmBaseUrl = (value: unknown): string => {
+    if (typeof value !== 'string') {
+        return DEFAULT_LOCAL_LLM_SETTINGS.baseUrl;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+        return DEFAULT_LOCAL_LLM_SETTINGS.baseUrl;
+    }
+
+    return trimmed.replace(/\/+$/, '');
+};
+
+const normalizeLocalLlmModelId = (value: unknown): string => {
+    return typeof value === 'string' ? value.trim() : '';
+};
+
+export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
+    const source = raw && typeof raw === 'object'
+        ? raw as Partial<LocalLlmSettings>
+        : {};
+
+    return {
+        preferredMode: normalizeLocalLlmMode(source.preferredMode),
+        baseUrl: normalizeLocalLlmBaseUrl(source.baseUrl),
+        defaultModelId: normalizeLocalLlmModelId(source.defaultModelId),
     };
 }
 
@@ -79,6 +131,25 @@ export function saveHandwritingSettings(settings: HandwritingSettings): void {
     localStorage.setItem(
         SETTINGS_KEYS.handwritingSettings,
         JSON.stringify(normalizeHandwritingSettings(settings))
+    );
+}
+
+export function loadLocalLlmSettings(): LocalLlmSettings {
+    try {
+        const stored = localStorage.getItem(SETTINGS_KEYS.localLlmSettings);
+        if (!stored) {
+            return { ...DEFAULT_LOCAL_LLM_SETTINGS };
+        }
+        return normalizeLocalLlmSettings(JSON.parse(stored));
+    } catch {
+        return { ...DEFAULT_LOCAL_LLM_SETTINGS };
+    }
+}
+
+export function saveLocalLlmSettings(settings: LocalLlmSettings): void {
+    localStorage.setItem(
+        SETTINGS_KEYS.localLlmSettings,
+        JSON.stringify(normalizeLocalLlmSettings(settings))
     );
 }
 

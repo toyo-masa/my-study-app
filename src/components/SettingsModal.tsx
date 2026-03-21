@@ -1,9 +1,9 @@
 import React from 'react';
-import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil } from 'lucide-react';
+import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
-import type { HandwritingSettings, ThemeMode } from '../utils/settings';
+import type { HandwritingSettings, LocalLlmSettings, ThemeMode } from '../utils/settings';
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 
@@ -17,9 +17,12 @@ interface SettingsModalProps {
     accentColor: string;
     onAccentColorChange: (color: string) => void;
     handwritingSettings: HandwritingSettings;
+    localLlmSettings: LocalLlmSettings;
     reviewIntervalSettings: ReviewIntervalSettings;
     reviewBoardSettings: ReviewBoardSettings;
     onHandwritingSettingsChange: (settings: HandwritingSettings) => void;
+    onLocalLlmSettingsChange: (settings: LocalLlmSettings) => void;
+    onResetLocalLlmSettings: () => void;
     onResetHandwritingSettings: () => void;
     onReviewIntervalSettingsChange: (settings: ReviewIntervalSettings) => void;
     onResetReviewIntervalSettings: () => void;
@@ -28,6 +31,7 @@ interface SettingsModalProps {
     currentUsername?: string | null;
     onLogout?: () => void;
     onLoginRequest?: () => void;
+    showLocalLlmSettings?: boolean;
 }
 
 const PRESET_COLORS = [
@@ -49,9 +53,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     accentColor,
     onAccentColorChange,
     handwritingSettings,
+    localLlmSettings,
     reviewIntervalSettings,
     reviewBoardSettings,
     onHandwritingSettingsChange,
+    onLocalLlmSettingsChange,
+    onResetLocalLlmSettings,
     onResetHandwritingSettings,
     onReviewIntervalSettingsChange,
     onResetReviewIntervalSettings,
@@ -59,7 +66,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onResetReviewBoardSettings,
     currentUsername,
     onLogout,
-    onLoginRequest
+    onLoginRequest,
+    showLocalLlmSettings = false,
 }) => {
     const exampleBaseDays = 4;
     const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
@@ -245,6 +253,102 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     </div>
                                 </details>
                             </section>
+
+                            {showLocalLlmSettings && (
+                                <section className="settings-section">
+                                    <details className="settings-collapsible">
+                                        <summary className="section-title settings-collapsible-summary">
+                                            <span className="settings-collapsible-title">
+                                                <Bot size={18} />
+                                                <span>ローカルLLM設定</span>
+                                            </span>
+                                            <ChevronDown size={16} className="settings-collapsible-chevron" />
+                                        </summary>
+                                        <div className="settings-collapsible-body">
+                                            <div className="review-settings-card">
+                                                <h4 className="review-settings-card-title">既定モード</h4>
+                                                <p className="review-settings-note">
+                                                    外出先では WebLLM、PC で高品質モデルを使うときは OpenAI互換ローカルAPI を既定にできます。
+                                                </p>
+                                                <div className="appearance-grid local-llm-settings-mode-grid">
+                                                    <button
+                                                        type="button"
+                                                        className={`appearance-option ${localLlmSettings.preferredMode === 'webllm' ? 'active' : ''}`}
+                                                        onClick={() => onLocalLlmSettingsChange({
+                                                            ...localLlmSettings,
+                                                            preferredMode: 'webllm',
+                                                        })}
+                                                    >
+                                                        <div className="appearance-preview light"></div>
+                                                        <span>WebLLM</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`appearance-option ${localLlmSettings.preferredMode === 'openai-local' ? 'active' : ''}`}
+                                                        onClick={() => onLocalLlmSettingsChange({
+                                                            ...localLlmSettings,
+                                                            preferredMode: 'openai-local',
+                                                        })}
+                                                    >
+                                                        <div className="appearance-preview dark"></div>
+                                                        <span>ローカルAPI</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="review-settings-card">
+                                                <h4 className="review-settings-card-title">ローカルAPI接続先</h4>
+                                                <p className="review-settings-note">
+                                                    LM Studio は通常 `http://localhost:1234/v1`、vLLM / SGLang は `http://localhost:8000/v1` を使います。
+                                                </p>
+                                                <div className="review-settings-grid">
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">Base URL</span>
+                                                        <input
+                                                            type="text"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.baseUrl}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                baseUrl: event.target.value,
+                                                            })}
+                                                            placeholder="http://localhost:1234/v1"
+                                                            spellCheck={false}
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">既定モデル名</span>
+                                                        <input
+                                                            type="text"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.defaultModelId}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                defaultModelId: event.target.value,
+                                                            })}
+                                                            placeholder="Qwen/Qwen3.5-0.8B など"
+                                                            spellCheck={false}
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                <p className="review-settings-note" style={{ marginTop: '0.9rem', marginBottom: 0 }}>
+                                                    APIキーはここには保存せず、チャット画面を開いている間だけ入力します。
+                                                </p>
+
+                                                <button
+                                                    type="button"
+                                                    className="nav-btn"
+                                                    onClick={onResetLocalLlmSettings}
+                                                    style={{ marginTop: '0.9rem' }}
+                                                >
+                                                    ローカルLLM設定を初期値に戻す
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </details>
+                                </section>
+                            )}
 
                             <section className="settings-section">
                                 <details className="settings-collapsible">

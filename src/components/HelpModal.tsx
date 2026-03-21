@@ -131,9 +131,10 @@ General,日本の首都は?,東京|大阪|京都,1,東京です
 interface HelpModalProps {
     isOpen: boolean;
     onClose: () => void;
+    popoverStyle?: React.CSSProperties;
 }
 
-export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
+export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverStyle }) => {
     const [activeTab, setActiveTab] = useState<'quiz' | 'memorization' | 'mixed'>('quiz');
     const [copied, setCopied] = useState<string | null>(null);
 
@@ -152,7 +153,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    style={{ width: '450px', maxWidth: '90vw' }}
+                    style={popoverStyle}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="help-popover-header" style={{ alignItems: 'center' }}>

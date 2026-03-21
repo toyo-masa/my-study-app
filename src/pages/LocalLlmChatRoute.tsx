@@ -1,0 +1,24 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LocalLlmChat } from '../components/LocalLlmChat';
+import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
+
+interface LocalLlmChatRouteProps {
+    localLlmSettings: LocalLlmSettings;
+    onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+}
+
+export const LocalLlmChatRoute: React.FC<LocalLlmChatRouteProps> = ({
+    localLlmSettings,
+    onLocalLlmModeChange,
+}) => {
+    const navigate = useNavigate();
+
+    return (
+        <LocalLlmChat
+            onBack={() => navigate('/')}
+            localLlmSettings={localLlmSettings}
+            onLocalLlmModeChange={onLocalLlmModeChange}
+        />
+    );
+};

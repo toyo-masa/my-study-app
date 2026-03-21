@@ -102,7 +102,9 @@ export const HomePage: React.FC<HomePageProps> = ({
     const [memoMenuOpen, setMemoMenuOpen] = useState(false);
     const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
     const [permanentDeleteTargetId, setPermanentDeleteTargetId] = useState<number | null>(null);
+    const [helpButtonRect, setHelpButtonRect] = useState<DOMRect | null>(null);
     const helpRef = useRef<HTMLDivElement>(null);
+    const helpButtonRef = useRef<HTMLButtonElement>(null);
     const quizMenuRef = useRef<HTMLDivElement>(null);
     const memoMenuRef = useRef<HTMLDivElement>(null);
     const addQuizMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -297,6 +299,29 @@ export const HomePage: React.FC<HomePageProps> = ({
     }, [isHelpOpen, isTutorialActive, memoMenuOpen, quizMenuOpen, tutorialStep]);
 
     useEffect(() => {
+        if (!isHelpOpen) {
+            return;
+        }
+
+        const updateHelpButtonRect = () => {
+            if (!helpButtonRef.current) {
+                setHelpButtonRect(null);
+                return;
+            }
+            setHelpButtonRect(helpButtonRef.current.getBoundingClientRect());
+        };
+
+        updateHelpButtonRect();
+        window.addEventListener('resize', updateHelpButtonRect);
+        window.addEventListener('scroll', updateHelpButtonRect, true);
+
+        return () => {
+            window.removeEventListener('resize', updateHelpButtonRect);
+            window.removeEventListener('scroll', updateHelpButtonRect, true);
+        };
+    }, [isHelpOpen]);
+
+    useEffect(() => {
         if (!isTutorialActive) return;
 
         // Ensure the step target is scrolled into view (especially if it's on a lower row)
@@ -430,6 +455,58 @@ export const HomePage: React.FC<HomePageProps> = ({
             maxHeight: Math.max(120, tutorialViewportHeight - 24),
             overflowY: 'auto',
         };
+    const helpViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const helpViewportHeight = typeof window !== 'undefined' ? window.innerHeight : 720;
+    const helpPopoverWidth = Math.min(450, helpViewportWidth - 24);
+    const helpPopoverLeft = helpButtonRect
+        ? Math.min(
+            Math.max(12, helpButtonRect.left + helpButtonRect.width / 2 - helpPopoverWidth / 2),
+            Math.max(12, helpViewportWidth - helpPopoverWidth - 12)
+        )
+        : Math.max(12, helpViewportWidth / 2 - helpPopoverWidth / 2);
+    const helpAvailableAbove = helpButtonRect ? Math.max(0, helpButtonRect.top - 12) : Math.max(0, helpViewportHeight - 24);
+    const helpAvailableBelow = helpButtonRect
+        ? Math.max(0, helpViewportHeight - helpButtonRect.bottom - 12)
+        : Math.max(0, helpViewportHeight - 24);
+    const helpPlaceAbove = !!helpButtonRect && helpAvailableBelow < 360 && helpAvailableAbove >= helpAvailableBelow;
+    const helpPopoverStyle: React.CSSProperties = helpViewportWidth <= 480
+        ? {
+            position: 'fixed',
+            top: 'auto',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            width: '100%',
+            maxWidth: '100%',
+            maxHeight: '70vh',
+            overflowY: 'auto',
+        }
+        : helpButtonRect
+            ? helpPlaceAbove
+                ? {
+                    position: 'fixed',
+                    left: helpPopoverLeft,
+                    bottom: Math.max(12, helpViewportHeight - helpButtonRect.top + 12),
+                    width: helpPopoverWidth,
+                    maxHeight: Math.max(120, helpAvailableAbove),
+                    overflowY: 'auto',
+                }
+                : {
+                    position: 'fixed',
+                    top: helpButtonRect.bottom + 12,
+                    left: helpPopoverLeft,
+                    width: helpPopoverWidth,
+                    maxHeight: Math.max(120, helpAvailableBelow),
+                    overflowY: 'auto',
+                }
+            : {
+                position: 'fixed',
+                top: Math.max(12, helpViewportHeight / 2 - 220),
+                left: helpPopoverLeft,
+                width: helpPopoverWidth,
+                maxHeight: Math.max(120, helpViewportHeight - 24),
+                overflowY: 'auto',
+            };
 
     return (
         <div className="home-page">
@@ -496,13 +573,18 @@ export const HomePage: React.FC<HomePageProps> = ({
                     </div>
                     <div className="help-popover-wrapper" ref={helpRef}>
                         <button
+                            ref={helpButtonRef}
                             className="help-icon-btn"
                             onClick={() => setIsHelpOpen(!isHelpOpen)}
                             data-tooltip="CSVフォーマット仕様"
                         >
                             <HelpCircle size={20} />
                         </button>
-                        <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+                        <HelpModal
+                            isOpen={isHelpOpen}
+                            onClose={() => setIsHelpOpen(false)}
+                            popoverStyle={helpPopoverStyle}
+                        />
                     </div>
 
                     <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>

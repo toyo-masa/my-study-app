@@ -17,6 +17,7 @@ import { MemorizationRoute } from './pages/MemorizationRoute';
 import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
 import { DistributionTablesRoute } from './pages/DistributionTablesRoute';
+import { LocalLlmChatRoute } from './pages/LocalLlmChatRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
 import { AdminRoute } from './pages/AdminRoute';
@@ -46,10 +47,13 @@ function App() {
     accentColor,
     setAccentColor,
     handwritingSettings,
+    localLlmSettings,
     reviewIntervalSettings,
     reviewBoardSettings,
     toggleDarkMode,
     handleHandwritingSettingsChange,
+    handleLocalLlmSettingsChange,
+    handleResetLocalLlmSettings,
     handleResetHandwritingSettings,
     handleReviewIntervalSettingsChange,
     handleResetReviewIntervalSettings,
@@ -101,14 +105,18 @@ function App() {
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
         handwritingSettings={handwritingSettings}
+        localLlmSettings={localLlmSettings}
         reviewIntervalSettings={reviewIntervalSettings}
         reviewBoardSettings={reviewBoardSettings}
         onHandwritingSettingsChange={handleHandwritingSettingsChange}
+        onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
+        onResetLocalLlmSettings={handleResetLocalLlmSettings}
         onResetHandwritingSettings={handleResetHandwritingSettings}
         onReviewIntervalSettingsChange={handleReviewIntervalSettingsChange}
         onResetReviewIntervalSettings={handleResetReviewIntervalSettings}
         onReviewBoardSettingsChange={handleReviewBoardSettingsChange}
         onResetReviewBoardSettings={handleResetReviewBoardSettings}
+        showLocalLlmSettings={location.pathname === '/local-llm-chat'}
         currentUsername={currentUser?.username}
         onLogout={handleLogout}
         onLoginRequest={() => { setIsSettingsOpen(false); setIsLoginModalOpen(true); }}
@@ -130,6 +138,18 @@ function App() {
           <Route path="/" element={<HomeRoute />} />
           <Route path="/distribution-sim" element={<DistributionRoute />} />
           <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
+          <Route
+            path="/local-llm-chat"
+            element={(
+              <LocalLlmChatRoute
+                localLlmSettings={localLlmSettings}
+                onLocalLlmModeChange={(preferredMode) => handleLocalLlmSettingsChange({
+                  ...localLlmSettings,
+                  preferredMode,
+                })}
+              />
+            )}
+          />
           <Route path="/review-board" element={<ReviewBoardRoute />} />
           <Route path="/tutorial" element={<TutorialHubRoute />} />
           {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}

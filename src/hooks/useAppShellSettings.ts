@@ -8,14 +8,19 @@ import {
 } from '../utils/spacedRepetition';
 import {
     DEFAULT_HANDWRITING_SETTINGS,
+    DEFAULT_LOCAL_LLM_SETTINGS,
     getStoredAccentColor,
     getStoredThemeMode,
     loadHandwritingSettings,
+    loadLocalLlmSettings,
     normalizeHandwritingSettings,
+    normalizeLocalLlmSettings,
     saveHandwritingSettings,
+    saveLocalLlmSettings,
     setStoredAccentColor,
     setStoredThemeMode,
     type HandwritingSettings,
+    type LocalLlmSettings,
     type ThemeMode,
 } from '../utils/settings';
 import {
@@ -38,6 +43,7 @@ function resolvePageTitle(pathname: string, quizSets: QuizSetWithMeta[]): string
     if (pathname === '/') return buildPageTitle(APP_TITLE_PREFIX, 'ホーム');
     if (pathname === '/distribution-sim') return buildPageTitle(APP_TITLE_PREFIX, '分布シミュレーター');
     if (pathname === '/distribution-tables') return buildPageTitle(APP_TITLE_PREFIX, '統計分布表');
+    if (pathname === '/local-llm-chat') return buildPageTitle(APP_TITLE_PREFIX, 'ローカルLLMチャット');
     if (pathname === '/review-board') return buildPageTitle(APP_TITLE_PREFIX, '復習ボード');
     if (pathname === '/tutorial') return buildPageTitle(APP_TITLE_PREFIX, 'チュートリアル');
     if (pathname === '/release-notes') return buildPageTitle(APP_TITLE_PREFIX, 'リリースノート');
@@ -130,6 +136,9 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const [handwritingSettings, setHandwritingSettings] = useState<HandwritingSettings>(() => {
         return loadHandwritingSettings();
     });
+    const [localLlmSettings, setLocalLlmSettings] = useState<LocalLlmSettings>(() => {
+        return loadLocalLlmSettings();
+    });
 
     useEffect(() => {
         document.body.classList.toggle('dark-mode', isDarkMode);
@@ -163,6 +172,10 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     }, [handwritingSettings]);
 
     useEffect(() => {
+        saveLocalLlmSettings(localLlmSettings);
+    }, [localLlmSettings]);
+
+    useEffect(() => {
         document.title = resolvePageTitle(pathname, quizSets);
     }, [pathname, quizSets]);
 
@@ -185,6 +198,12 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const handleResetHandwritingSettings = () => {
         setHandwritingSettings({ ...DEFAULT_HANDWRITING_SETTINGS });
     };
+    const handleLocalLlmSettingsChange = (settings: LocalLlmSettings) => {
+        setLocalLlmSettings(normalizeLocalLlmSettings(settings));
+    };
+    const handleResetLocalLlmSettings = () => {
+        setLocalLlmSettings({ ...DEFAULT_LOCAL_LLM_SETTINGS });
+    };
 
     return {
         themeMode,
@@ -195,6 +214,7 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
         reviewIntervalSettings,
         reviewBoardSettings,
         handwritingSettings,
+        localLlmSettings,
         toggleDarkMode,
         handleReviewIntervalSettingsChange,
         handleResetReviewIntervalSettings,
@@ -202,5 +222,7 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
         handleResetReviewBoardSettings,
         handleHandwritingSettingsChange,
         handleResetHandwritingSettings,
+        handleLocalLlmSettingsChange,
+        handleResetLocalLlmSettings,
     };
 }
