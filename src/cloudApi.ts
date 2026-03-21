@@ -234,11 +234,11 @@ export const cloudApi = {
     },
 
     async getReviewLogsByQuizSet(quizSetId: number, options?: { latestByQuestion?: boolean }): Promise<ReviewLog[]> {
-        const params = new URLSearchParams({ quizSetId: quizSetId.toString() });
+        const params = new URLSearchParams({ quizSetId: quizSetId.toString(), action: 'logs' });
         if (options?.latestByQuestion) {
             params.append('latest', 'true');
         }
-        return fetchApi(`/api/reviewLogs?${params.toString()}`);
+        return fetchApi(`/api/reviewSchedules?${params.toString()}`);
     },
 
     // Suspended Sessions

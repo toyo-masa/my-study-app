@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { getAuthenticatedUserId } from './_auth.js';
 import type { ApiHandlerRequest, ApiHandlerResponse } from './_http.js';
 import { hasValue, isValidDateTime, isValidLocalDateString, parseNonNegativeInt, parsePositiveInt, parseQueryPositiveInt } from './_validation.js';
@@ -25,6 +26,144 @@ async function hasOwnedQuestion(
         LIMIT 1
       `) as Record<string, unknown>[];
   return rows.length > 0;
+}
+
+type ReviewLogRow = {
+  id: number;
+  question_id: number;
+  quiz_set_id: number;
+  reviewed_at: string | Date;
+  is_correct: boolean;
+  confidence: number;
+  interval_days: number;
+  next_due: string | Date | null;
+  memo: string | null;
+  duration_seconds: number | null;
+  session_id: string | null;
+};
+
+type ReviewLogBody = {
+  questionId?: unknown;
+  quizSetId?: unknown;
+  reviewedAt?: unknown;
+  isCorrect?: unknown;
+  confidence?: unknown;
+  intervalDays?: unknown;
+  nextDue?: unknown;
+  memo?: unknown;
+  durationSeconds?: unknown;
+  sessionId?: unknown;
+};
+
+function toReviewLogResponse(r: ReviewLogRow) {
+  return {
+    id: r.id,
+    questionId: r.question_id,
+    quizSetId: r.quiz_set_id,
+    reviewedAt: new Date(r.reviewed_at).toISOString(),
+    isCorrect: r.is_correct,
+    confidence: r.confidence,
+    intervalDays: r.interval_days,
+    nextDue: r.next_due ? new Date(r.next_due).toISOString().split('T')[0] : '',
+    memo: r.memo,
+    durationSeconds: r.duration_seconds,
+    sessionId: r.session_id
+  };
+}
+
+async function handleReviewLogsRequest(
+  sql: NeonQueryFunction<false, false>,
+  userId: number,
+  req: ApiHandlerRequest<ReviewLogBody>,
+  res: ApiHandlerResponse
+) {
+  const { method } = req;
+  const { quizSetId, questionId, latest } = req.query;
+
+  if (method === 'GET') {
+    if (questionId) {
+      const questionIdNum = parseQueryPositiveInt(questionId).value;
+      if (!questionIdNum) {
+        return res.status(400).json({ error: 'Invalid questionId parameter' });
+      }
+
+      const rows = await sql`
+        SELECT rl.* FROM review_logs rl
+        WHERE rl.user_id = ${userId}
+          AND rl.question_id = ${questionIdNum}
+        ORDER BY rl.reviewed_at DESC
+      `;
+      return res.status(200).json((rows as ReviewLogRow[]).map(toReviewLogResponse));
+    }
+
+    if (quizSetId) {
+      const latestValue = Array.isArray(latest) ? latest[0] : latest;
+      const quizSetIdNum = parseQueryPositiveInt(quizSetId).value;
+      if (!quizSetIdNum) {
+        return res.status(400).json({ error: 'Invalid quizSetId parameter' });
+      }
+
+      const rows = latestValue === 'true'
+        ? await sql`
+            SELECT * FROM (
+              SELECT DISTINCT ON (rl.question_id) rl.*
+              FROM review_logs rl
+              WHERE rl.user_id = ${userId}
+                AND rl.quiz_set_id = ${quizSetIdNum}
+              ORDER BY rl.question_id, rl.reviewed_at DESC
+            ) latest_logs
+            ORDER BY latest_logs.reviewed_at DESC
+          `
+        : await sql`
+            SELECT rl.* FROM review_logs rl
+            WHERE rl.user_id = ${userId}
+              AND rl.quiz_set_id = ${quizSetIdNum}
+            ORDER BY rl.reviewed_at DESC
+          `;
+      return res.status(200).json((rows as ReviewLogRow[]).map(toReviewLogResponse));
+    }
+
+    return res.status(400).json({ error: 'Missing questionId or quizSetId parameter' });
+  }
+
+  if (method === 'POST') {
+    const body = req.body || {};
+    const questionIdNum = Number(body.questionId);
+    const quizSetIdNum = Number(body.quizSetId);
+    if (!Number.isInteger(questionIdNum) || questionIdNum <= 0 || !Number.isInteger(quizSetIdNum) || quizSetIdNum <= 0) {
+      return res.status(400).json({ error: 'Missing or invalid questionId/quizSetId' });
+    }
+
+    const ownedQuestion = await hasOwnedQuestion(sql, userId, questionIdNum, quizSetIdNum);
+    if (!ownedQuestion) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    const reviewedAt = typeof body.reviewedAt === 'string' ? body.reviewedAt : new Date().toISOString();
+    const result = await sql`
+      INSERT INTO review_logs (
+        question_id, quiz_set_id, reviewed_at, is_correct, confidence,
+        interval_days, next_due, memo, duration_seconds, session_id, user_id
+      ) VALUES (
+        ${questionIdNum}, ${quizSetIdNum}, ${reviewedAt}, ${body.isCorrect}, ${body.confidence},
+        ${body.intervalDays}, ${body.nextDue}, ${body.memo || null}, ${body.durationSeconds || null}, ${body.sessionId || null}, ${userId}
+      )
+      RETURNING id
+    `;
+    return res.status(201).json({ id: result[0].id });
+  }
+
+  if (method === 'DELETE') {
+    const quizSetIdNum = parseQueryPositiveInt(quizSetId).value;
+    if (!quizSetIdNum) {
+      return res.status(400).json({ error: 'Missing quizSetId' });
+    }
+    await sql`DELETE FROM review_logs WHERE quiz_set_id = ${quizSetIdNum} AND user_id = ${userId}`;
+    return res.status(200).json({ success: true });
+  }
+
+  res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+  return res.status(405).end(`Method ${method} Not Allowed`);
 }
 
 // ---- Bulk upsert types ----
@@ -270,9 +409,12 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
   const sql = neon(databaseUrl);
 
   const { method } = req;
-  const { quizSetId, questionId, bulk } = req.query;
+  const { quizSetId, questionId, bulk, action, resource } = req.query;
   const parsedQuestionId = parseQueryPositiveInt(questionId);
   const parsedQuizSetId = parseQueryPositiveInt(quizSetId);
+  const queryAction = Array.isArray(action) ? action[0] : action;
+  const queryResource = Array.isArray(resource) ? resource[0] : resource;
+  const isReviewLogsRequest = queryAction === 'logs' || queryResource === 'logs';
 
   // Handle bulk upsert via POST ?bulk=true
   if (method === 'POST' && bulk === 'true') {
@@ -285,6 +427,10 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
   }
 
   try {
+    if (isReviewLogsRequest) {
+      return await handleReviewLogsRequest(sql, userId, req as ApiHandlerRequest<ReviewLogBody>, res);
+    }
+
     if (method === 'GET') {
       if (parsedQuestionId.exists) {
         if (!parsedQuestionId.value) {

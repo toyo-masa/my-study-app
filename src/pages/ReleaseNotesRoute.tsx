@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.49.2',
+        date: '2026年3月21日 18:03',
+        improvements: [
+            'Vercel Hobby プランの Function 上限にさらに余裕を持たせるため、復習ログ API を復習スケジュール API に統合し、サーバー構成をもう一段整理しました。',
+            '復習ログの取得導線はそのまま維持しつつ、review 系の API を 1 本にまとめて管理しやすくしました。',
+        ],
+        fixes: [
+            '数学計算ツール追加後も Vercel Hobby の Function 数制限に引っかかりにくいよう、`reviewLogs` を単独 Function のまま残していた構成を解消しました。',
+            'クラウド同期時の低自信フィルタで使う復習ログ取得を、新しい統合 API 経由でも従来どおり動くよう調整しました。',
+        ],
+    },
+    {
         version: '1.49.1',
         date: '2026年3月21日 17:44',
         improvements: [
