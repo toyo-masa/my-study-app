@@ -217,7 +217,7 @@ const extractJsonObjectText = (raw: string, key: string) => {
 const parseMalformedPlannerDecision = (raw: string): PlannerDecision | null => {
     const mode = normalizePlannerMode(extractJsonStringValue(raw, 'mode'));
     const problemType = normalizeProblemType(extractJsonStringValue(raw, 'problemType'));
-    const done = extractJsonBooleanValue(raw, 'done') === true;
+    const requestedDone = extractJsonBooleanValue(raw, 'done') === true;
 
     const neededCapabilitiesText = extractJsonArrayText(raw, 'neededCapabilities');
     const neededCapabilities = appendCapabilityIfMissing(
@@ -238,6 +238,7 @@ const parseMalformedPlannerDecision = (raw: string): PlannerDecision | null => {
             nextAction = null;
         }
     }
+    const done = nextAction ? false : requestedDone;
     const normalizedMode = nextAction && !done ? 'tool_augmented_answer' : mode;
 
     if (normalizedMode === 'tool_augmented_answer' && !done && nextAction === null) {
@@ -267,7 +268,8 @@ export const parsePlannerDecision = (raw: string): PlannerDecision | null => {
 
             const source = parsed as Partial<PlannerDecision>;
             const nextAction = normalizeToolAction(source.nextAction);
-            const normalizedMode = nextAction && source.done !== true
+            const done = nextAction ? false : source.done === true;
+            const normalizedMode = nextAction && !done
                 ? 'tool_augmented_answer'
                 : normalizePlannerMode(source.mode);
             const decision: PlannerDecision = {
@@ -278,7 +280,7 @@ export const parsePlannerDecision = (raw: string): PlannerDecision | null => {
                     nextAction?.capability ?? null
                 ),
                 factsToAdd: normalizeFacts(source.factsToAdd),
-                done: source.done === true,
+                done,
                 nextAction,
             };
 

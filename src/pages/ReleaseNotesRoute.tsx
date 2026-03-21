@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.49.13',
+        date: '2026年3月21日 19:57',
+        improvements: [
+            'ローカルLLMチャットと学習中の AI チャットで、planner の `done` 判定を補助ツール action の有無と整合するようにして、途中の計算手順を最後まで進めやすくしました。',
+            'planner への指示で、`nextAction` を返す場合は `done=false` にすることを明示し、途中で説明生成へ飛びにくい流れに整えました。',
+        ],
+        fixes: [
+            'planner が `nextAction` を返しているのに `done=true` を混ぜると、補助ツールの後続処理を打ち切って早すぎる解答生成へ進んでしまう問題を修正しました。',
+            '厳密計算がまだ残っているのに explainer が走ってしまい、途中までの tool 結果だけで回答が始まる不整合を抑えました。',
+        ],
+    },
+    {
         version: '1.49.12',
         date: '2026年3月21日 19:51',
         improvements: [
