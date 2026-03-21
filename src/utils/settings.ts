@@ -152,9 +152,16 @@ const normalizeWebLlmModelId = (value: unknown): string => {
     return DEFAULT_WEB_LLM_MODEL_ID;
 };
 
-const LEGACY_WEB_LLM_SYSTEM_PROMPT_LINES = new Set([
-    '最終出力は簡潔にまとめる',
-]);
+const LEGACY_WEB_LLM_SYSTEM_PROMPT_PATTERNS = [
+    /^最終出力は簡潔にまとめる$/u,
+    /^[-*•]\s*最終出力は簡潔にまとめる$/u,
+    /^・\s*最終出力は簡潔にまとめる$/u,
+    /^\d+[.)．]\s*最終出力は簡潔にまとめる$/u,
+] as const;
+
+const isLegacyWebLlmSystemPromptLine = (line: string): boolean => {
+    return LEGACY_WEB_LLM_SYSTEM_PROMPT_PATTERNS.some((pattern) => pattern.test(line));
+};
 
 const normalizeLocalLlmSystemPrompt = (value: unknown): string => {
     if (typeof value !== 'string') {
@@ -164,7 +171,7 @@ const normalizeLocalLlmSystemPrompt = (value: unknown): string => {
     return value
         .split(/\r?\n/)
         .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !LEGACY_WEB_LLM_SYSTEM_PROMPT_LINES.has(line))
+        .filter((line) => line.length > 0 && !isLegacyWebLlmSystemPromptLine(line))
         .join('\n');
 };
 
