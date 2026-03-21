@@ -6,7 +6,6 @@ import { cloudApi } from './cloudApi';
 import { AppAuthModals } from './components/AppAuthModals';
 import { useAppContext } from './contexts/AppContext';
 import { LoadingView } from './components/LoadingView';
-import { AnimatePresence } from 'framer-motion';
 import { useAppShellSettings } from './hooks/useAppShellSettings';
 
 // Routes
@@ -154,55 +153,53 @@ function App() {
         loadQuizSets={loadQuizSets}
       />
 
-      <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
-          <Route path="/" element={<HomeRoute />} />
-          <Route path="/distribution-sim" element={<DistributionRoute />} />
-          <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
-          <Route
-            path="/local-llm-chat"
-            element={(
-              <LocalLlmChatRoute
-                localLlmSettings={localLlmSettings}
-                onLocalLlmModeChange={handleLocalLlmModeChange}
-                onWebLlmModelChange={handleWebLlmModelChange}
-              />
-            )}
-          />
-          <Route path="/review-board" element={<ReviewBoardRoute />} />
-          <Route path="/tutorial" element={<TutorialHubRoute />} />
-          {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
-          <Route path="/quiz/:id/manage" element={<ManageRoute />} />
-          <Route
-            path="/quiz/:id/study"
-            element={(
-              <StudyRoute
-                allowTouchDrawing={handwritingSettings.allowTouchDrawing}
-                reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
-                localLlmSettings={localLlmSettings}
-                onLocalLlmModeChange={handleLocalLlmModeChange}
-                onWebLlmModelChange={handleWebLlmModelChange}
-              />
-            )}
-          />
-          <Route
-            path="/quiz/:id/memorization"
-            element={(
-              <MemorizationRoute
-                allowTouchDrawing={handwritingSettings.allowTouchDrawing}
-                reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
-                localLlmSettings={localLlmSettings}
-                onLocalLlmModeChange={handleLocalLlmModeChange}
-                onWebLlmModelChange={handleWebLlmModelChange}
-              />
-            )}
-          />
-          <Route path="/quiz/:id/history-table" element={<HistoryTableRoute />} />
-          <Route path="/quiz/:id" element={<QuizDetailRoute />} />
-          <Route path="/release-notes" element={<ReleaseNotesRoute />} />
-          <Route path="*" element={<NotFoundRoute />} />
-        </Routes>
-      </AnimatePresence>
+      <Routes location={location}>
+        <Route path="/" element={<HomeRoute />} />
+        <Route path="/distribution-sim" element={<DistributionRoute />} />
+        <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
+        <Route
+          path="/local-llm-chat"
+          element={(
+            <LocalLlmChatRoute
+              localLlmSettings={localLlmSettings}
+              onLocalLlmModeChange={handleLocalLlmModeChange}
+              onWebLlmModelChange={handleWebLlmModelChange}
+            />
+          )}
+        />
+        <Route path="/review-board" element={<ReviewBoardRoute />} />
+        <Route path="/tutorial" element={<TutorialHubRoute />} />
+        {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
+        <Route path="/quiz/:id/manage" element={<ManageRoute />} />
+        <Route
+          path="/quiz/:id/study"
+          element={(
+            <StudyRoute
+              allowTouchDrawing={handwritingSettings.allowTouchDrawing}
+              reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
+              localLlmSettings={localLlmSettings}
+              onLocalLlmModeChange={handleLocalLlmModeChange}
+              onWebLlmModelChange={handleWebLlmModelChange}
+            />
+          )}
+        />
+        <Route
+          path="/quiz/:id/memorization"
+          element={(
+            <MemorizationRoute
+              allowTouchDrawing={handwritingSettings.allowTouchDrawing}
+              reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
+              localLlmSettings={localLlmSettings}
+              onLocalLlmModeChange={handleLocalLlmModeChange}
+              onWebLlmModelChange={handleWebLlmModelChange}
+            />
+          )}
+        />
+        <Route path="/quiz/:id/history-table" element={<HistoryTableRoute />} />
+        <Route path="/quiz/:id" element={<QuizDetailRoute />} />
+        <Route path="/release-notes" element={<ReleaseNotesRoute />} />
+        <Route path="*" element={<NotFoundRoute />} />
+      </Routes>
     </div>
   );
 }
