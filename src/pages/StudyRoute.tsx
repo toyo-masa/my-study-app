@@ -83,6 +83,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     const [showAnswerMap, setShowAnswerMap] = useState<Record<string, boolean>>({});
     const [pendingRevealQuestionIds, setPendingRevealQuestionIds] = useState<number[]>([]);
     const [feedbackPhase, setFeedbackPhase] = useState<'answering' | 'revealing'>('answering');
+    const [overflowRevealAfterCurrentQuestionId, setOverflowRevealAfterCurrentQuestionId] = useState<number | null>(null);
     const [feedbackTimingMode, setFeedbackTimingMode] = useState<FeedbackTimingMode>('immediate');
     const [feedbackBlockSize, setFeedbackBlockSize] = useState(5);
     const [markedQuestions, setMarkedQuestions] = useState<number[]>([]);
@@ -118,6 +119,12 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             feedbackBlockSize: reviewBoardFeedbackBlockSize,
         });
     }, [reviewBoardFeedbackBlockSize]);
+
+    useEffect(() => {
+        if (feedbackPhase === 'revealing' && overflowRevealAfterCurrentQuestionId !== null) {
+            setOverflowRevealAfterCurrentQuestionId(null);
+        }
+    }, [feedbackPhase, overflowRevealAfterCurrentQuestionId]);
 
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
@@ -483,14 +490,30 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                     setConfidences(session.confidences || {});
                     setMemorizationAnswers(session.memorizationAnswers || {});
                     setShowAnswerMap(session.showAnswerMap || {});
-                    setPendingRevealQuestionIds(session.pendingRevealQuestionIds || []);
-                    setFeedbackPhase(session.feedbackPhase || 'answering');
+                    const restoredPendingRevealQuestionIds = session.pendingRevealQuestionIds || [];
+                    const restoredFeedbackPhase = session.feedbackPhase || 'answering';
+                    setPendingRevealQuestionIds(restoredPendingRevealQuestionIds);
+                    setFeedbackPhase(restoredFeedbackPhase);
                     if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
+                        const resolvedFeedbackBlockSize = resolveCurrentReviewBoardFeedbackBlockSize(filteredQuestions.length);
+                        const currentQuestionId = filteredQuestions[Math.max(0, nextIndex)]?.id;
+                        const currentQuestionKey = currentQuestionId !== undefined ? String(currentQuestionId) : '';
+                        const shouldAllowOverflowRevealAfterCurrent =
+                            restoredFeedbackPhase === 'answering' &&
+                            currentQuestionId !== undefined &&
+                            restoredPendingRevealQuestionIds.length >= resolvedFeedbackBlockSize &&
+                            !restoredPendingRevealQuestionIds.includes(currentQuestionId) &&
+                            !session.showAnswerMap?.[currentQuestionKey] &&
+                            !session.answeredMap?.[currentQuestionKey];
                         setFeedbackTimingMode('delayed_block');
-                        setFeedbackBlockSize(resolveCurrentReviewBoardFeedbackBlockSize(filteredQuestions.length));
+                        setFeedbackBlockSize(resolvedFeedbackBlockSize);
+                        setOverflowRevealAfterCurrentQuestionId(
+                            shouldAllowOverflowRevealAfterCurrent ? currentQuestionId : null
+                        );
                     } else {
                         setFeedbackTimingMode(session.feedbackTimingMode || quizSetSettings.feedbackTimingMode);
                         setFeedbackBlockSize(session.feedbackBlockSize || quizSetSettings.feedbackBlockSize);
+                        setOverflowRevealAfterCurrentQuestionId(null);
                     }
                     setMarkedQuestions(session.markedQuestions || []);
                     startTimeRef.current = buildResumedStartTime(session.elapsedSeconds);
@@ -640,6 +663,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             setShowAnswerMap({});
             setPendingRevealQuestionIds([]);
             setFeedbackPhase('answering');
+            setOverflowRevealAfterCurrentQuestionId(null);
             setMarkedQuestions([]);
             setConfidences({});
             setIsTestCompleted(false);
@@ -826,6 +850,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
     const enterRevealPhase = (questionIds: number[]) => {
         if (questionIds.length === 0) return;
+        setOverflowRevealAfterCurrentQuestionId(null);
         setFeedbackPhase('revealing');
         setPendingRevealQuestionIds(questionIds);
         setShowAnswerMap(prev => ({ ...prev, [String(questionIds[0])]: true }));
@@ -917,7 +942,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         if (feedbackTimingMode === 'delayed_block' && feedbackPhase === 'answering') {
             const blockState = getDelayedBlockLockPreview();
             const isCurrentPending = blockState.pendingIds.includes(questionId);
-            if (blockState.locked && blockState.remainingCount > 0 && !isCurrentPending) {
+            const canResolveOverflowAfterCurrent = overflowRevealAfterCurrentQuestionId === questionId;
+            if (blockState.locked && blockState.remainingCount > 0 && !isCurrentPending && !canResolveOverflowAfterCurrent) {
                 return;
             }
         }
@@ -950,6 +976,9 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         if (!pendingRevealQuestionIds.includes(questionId)) {
             setPendingRevealQuestionIds(nextPendingRevealQuestionIds);
+        }
+        if (overflowRevealAfterCurrentQuestionId === questionId) {
+            setOverflowRevealAfterCurrentQuestionId(null);
         }
 
         const allAnswered = questions.every(q => nextAnsweredMap[String(q.id)] === true);
@@ -1384,6 +1413,9 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             const blockState = getDelayedBlockLockPreview();
             if (blockState.locked && blockState.pendingIds.includes(currentQuestion.id!)) {
                 return blockState.remainingCount > 0 ? blockState.remainingCount : null;
+            }
+            if (overflowRevealAfterCurrentQuestionId === currentQuestion.id) {
+                return blockState.pendingIds.length + 1;
             }
             return null;
         }
