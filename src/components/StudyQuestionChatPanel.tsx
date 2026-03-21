@@ -2,16 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Bot, Check, Copy, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
-import { cloudApi } from '../cloudApi';
-import {
-    runOpenAiFinalAnswer,
-    runOpenAiSelection,
-    runWebLlmFinalAnswer,
-    runWebLlmSelection,
-} from '../ai/llmRunners';
-import { FUNCTION_TOOLS } from '../ai/prompts';
-import { runFunctionCallingLoop } from '../ai/solverOrchestrator';
-import type { FunctionCallingConversationMessage } from '../ai/types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
 import { MarkdownText } from './MarkdownText';
@@ -217,20 +207,6 @@ const toOpenAiMessages = (
     }
 
     return [...leadingMessages, ...conversationMessages];
-};
-
-const toConversationMessages = (messages: LocalChatMessage[]): FunctionCallingConversationMessage[] => {
-    return messages.flatMap((message) => {
-        const content = toPromptMessageContent(message);
-        if (content.trim().length === 0) {
-            return [];
-        }
-
-        return [{
-            role: message.role,
-            content,
-        }];
-    }).slice(-WEB_LLM_PROMPT_MESSAGE_LIMIT);
 };
 
 const toProgressPercent = (progress: InitProgressReport | null) => {
@@ -748,8 +724,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         let assistantText = '';
         let webllmHitFinalLengthLimit = false;
-        let functionCallingFallbackNotice: string | null = null;
-        let functionCallingFallbackContext: string | null = null;
 
         setError(null);
         setInput('');
@@ -797,207 +771,81 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         };
 
         try {
-            const conversationMessages = toConversationMessages([...messages, userMessage]);
             if (activeMode === 'webllm') {
                 const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
-                const functionCalling = await runFunctionCallingLoop({
-                    originalUserMessage: trimmed,
-                    syntheticContext: questionContextUserPrompt,
-                    conversationMessages,
-                    runManualSelection: (selectionMessages) => runWebLlmSelection({
-                        engine,
-                        messages: selectionMessages,
-                        maxTokens: 320,
-                        temperature: 0.2,
-                        topP: 0.8,
-                        presencePenalty: 0,
-                    }),
-                    runFinalAnswer: (finalAnswerMessages, onDelta) => runWebLlmFinalAnswer({
-                        engine,
-                        messages: finalAnswerMessages,
-                        maxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
-                        temperature: localLlmSettings.webllmSecondPassTemperature,
-                        topP: localLlmSettings.webllmSecondPassTopP,
-                        presencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
-                        onDelta,
-                    }),
-                    runTool: (request) => cloudApi.runMathTool(request),
+                const webLlmMessages = toWebLlmMessages(
+                    [...messages, userMessage],
+                    webllmSystemPrompt,
+                    questionContextUserPrompt
+                );
+                const result = await runWebLlmBudgetedGeneration({
+                    engine,
+                    messages: webLlmMessages,
+                    enableThinking: localLlmSettings.webllmEnableThinking,
+                    firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
+                    firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
+                    firstPassTopP: webllmFirstPassTopP ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
+                    firstPassPresencePenalty: localLlmSettings.webllmFirstPassPresencePenalty,
+                    secondPassFinalAnswerMaxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
+                    secondPassTemperature: localLlmSettings.webllmSecondPassTemperature,
+                    secondPassTopP: localLlmSettings.webllmSecondPassTopP,
+                    secondPassPresencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
                     onDisplayText: updateAssistantText,
+                    onPhaseChange: (phase) => {
+                        if (!mountedRef.current || requestIdRef.current !== requestId) {
+                            return;
+                        }
+                        setWebllmGenerationPhase(phase);
+                    },
+                });
+                updateLastRequestPayload({
+                    mode: 'webllm',
+                    model: selectedWebLlmModel,
+                    requests: {
+                        firstPass: result.firstPassRequest,
+                        secondPass: result.secondPassRequest ?? null,
+                    },
+                    secondPassTrigger: result.secondPassTrigger,
                 });
 
-                if (functionCalling.kind === 'tool_augmented_answer') {
-                    updateLastRequestPayload({
-                        mode: 'webllm',
-                        model: selectedWebLlmModel,
-                        functionCallingTrace: functionCalling.trace,
-                    });
-                    assistantText = functionCalling.displayText;
-                } else {
-                    functionCallingFallbackNotice = functionCalling.fallbackNotice;
-                    functionCallingFallbackContext = functionCalling.fallbackContext;
-                    const leadingUserPrompt = [functionCallingFallbackNotice, functionCallingFallbackContext]
-                        .filter((value): value is string => Boolean(value && value.trim().length > 0))
-                        .join('\n\n');
-                    const webLlmMessages = toWebLlmMessages(
-                        [...messages, userMessage],
-                        webllmSystemPrompt,
-                        [questionContextUserPrompt, leadingUserPrompt]
-                            .filter((value) => value.trim().length > 0)
-                            .join('\n\n')
-                    );
-                    const result = await runWebLlmBudgetedGeneration({
-                        engine,
-                        messages: webLlmMessages,
-                        enableThinking: localLlmSettings.webllmEnableThinking,
-                        firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
-                        firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
-                        firstPassTopP: webllmFirstPassTopP ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
-                        firstPassPresencePenalty: localLlmSettings.webllmFirstPassPresencePenalty,
-                        secondPassFinalAnswerMaxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
-                        secondPassTemperature: localLlmSettings.webllmSecondPassTemperature,
-                        secondPassTopP: localLlmSettings.webllmSecondPassTopP,
-                        secondPassPresencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
-                        onDisplayText: (nextText) => {
-                            const prefix = functionCallingFallbackNotice?.trim().length
-                                ? `${functionCallingFallbackNotice}\n\n`
-                                : '';
-                            updateAssistantText(prefix + nextText);
-                        },
-                        onPhaseChange: (phase) => {
-                            if (!mountedRef.current || requestIdRef.current !== requestId) {
-                                return;
-                            }
-                            setWebllmGenerationPhase(phase);
-                        },
-                    });
-                    updateLastRequestPayload({
-                        mode: 'webllm',
-                        model: selectedWebLlmModel,
-                        functionCallingTrace: functionCalling.trace,
-                        functionCallingFallback: Boolean(functionCalling.fallbackNotice),
-                        requests: {
-                            firstPass: result.firstPassRequest,
-                            secondPass: result.secondPassRequest ?? null,
-                        },
-                        secondPassTrigger: result.secondPassTrigger,
-                    });
-
-                    const prefix = functionCallingFallbackNotice?.trim().length
-                        ? `${functionCallingFallbackNotice}\n\n`
-                        : '';
-                    assistantText = prefix + result.displayText;
-                    webllmHitFinalLengthLimit = result.usedSecondPass && result.secondFinishReason === 'length';
-                    if (result.firstFinishReason === 'length' || result.secondFinishReason === 'length') {
-                        await resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
-                    }
+                assistantText = result.displayText;
+                webllmHitFinalLengthLimit = result.usedSecondPass && result.secondFinishReason === 'length';
+                if (result.firstFinishReason === 'length' || result.secondFinishReason === 'length') {
+                    await resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
                 }
             } else {
                 const controller = new AbortController();
                 localApiChatAbortRef.current = controller;
-                const functionCalling = await runFunctionCallingLoop({
-                    originalUserMessage: trimmed,
-                    syntheticContext: questionContextUserPrompt,
-                    conversationMessages,
-                    runNativeSelection: (selectionMessages) => runOpenAiSelection({
-                        baseUrl: localLlmSettings.baseUrl,
-                        model: selectedModel,
-                        messages: selectionMessages,
-                        apiKey: apiKey.trim() || undefined,
-                        signal: controller.signal,
-                        maxTokens: 320,
-                        temperature: 0.2,
-                        topP: 0.8,
-                        presencePenalty: 0,
-                        tools: FUNCTION_TOOLS,
-                        toolChoice: 'auto',
-                        extraBody: {
-                            enable_thinking: false,
-                        },
-                    }),
-                    runManualSelection: (selectionMessages) => runOpenAiSelection({
-                        baseUrl: localLlmSettings.baseUrl,
-                        model: selectedModel,
-                        messages: selectionMessages,
-                        apiKey: apiKey.trim() || undefined,
-                        signal: controller.signal,
-                        maxTokens: 320,
-                        temperature: 0.2,
-                        topP: 0.8,
-                        presencePenalty: 0,
-                    }),
-                    runFinalAnswer: (finalAnswerMessages, onDelta) => runOpenAiFinalAnswer({
-                        baseUrl: localLlmSettings.baseUrl,
-                        model: selectedModel,
-                        messages: finalAnswerMessages,
-                        apiKey: apiKey.trim() || undefined,
-                        signal: controller.signal,
-                        maxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
-                        temperature: localLlmSettings.webllmSecondPassTemperature,
-                        topP: localLlmSettings.webllmSecondPassTopP,
-                        presencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
-                        onDelta,
-                    }),
-                    runTool: (request) => cloudApi.runMathTool(request),
-                    onDisplayText: updateAssistantText,
-                });
-
-                if (functionCalling.kind === 'tool_augmented_answer') {
-                    updateLastRequestPayload({
-                        mode: 'openai-local',
-                        baseUrl: localLlmSettings.baseUrl,
-                        model: selectedModel,
-                        functionCallingTrace: functionCalling.trace,
-                    });
-                    assistantText = functionCalling.displayText;
-                } else {
-                    functionCallingFallbackNotice = functionCalling.fallbackNotice;
-                    functionCallingFallbackContext = functionCalling.fallbackContext;
-                    const leadingUserPrompt = [functionCallingFallbackNotice, functionCallingFallbackContext]
-                        .filter((value): value is string => Boolean(value && value.trim().length > 0))
-                        .join('\n\n');
-                    const openAiMessages = toOpenAiMessages(
-                        [...messages, userMessage],
-                        '',
-                        [questionContextUserPrompt, leadingUserPrompt]
-                            .filter((value) => value.trim().length > 0)
-                            .join('\n\n')
-                    );
-                    updateLastRequestPayload({
-                        mode: 'openai-local',
-                        baseUrl: localLlmSettings.baseUrl,
-                        model: selectedModel,
-                        functionCallingTrace: functionCalling.trace,
-                        functionCallingFallback: Boolean(functionCalling.fallbackNotice),
-                        request: {
-                            model: selectedModel,
-                            messages: openAiMessages,
-                            stream: true,
-                        },
-                    });
-
-                    const noticePrefix = functionCallingFallbackNotice?.trim().length
-                        ? `${functionCallingFallbackNotice}\n\n`
-                        : '';
-                    if (noticePrefix.length > 0) {
-                        assistantText = noticePrefix;
-                        updateAssistantText(assistantText);
-                    }
-
-                    const finalText = await streamOpenAiCompatibleChat({
-                        baseUrl: localLlmSettings.baseUrl,
+                const openAiMessages = toOpenAiMessages(
+                    [...messages, userMessage],
+                    '',
+                    questionContextUserPrompt
+                );
+                updateLastRequestPayload({
+                    mode: 'openai-local',
+                    baseUrl: localLlmSettings.baseUrl,
+                    model: selectedModel,
+                    request: {
                         model: selectedModel,
                         messages: openAiMessages,
-                        apiKey: apiKey.trim() || undefined,
-                        signal: controller.signal,
-                        onDelta: (delta) => {
-                            assistantText += delta;
-                            updateAssistantText(assistantText);
-                        },
-                    });
+                        stream: true,
+                    },
+                });
 
-                    if (assistantText.length === 0 || assistantText === noticePrefix) {
-                        assistantText += finalText;
-                    }
+                const finalText = await streamOpenAiCompatibleChat({
+                    baseUrl: localLlmSettings.baseUrl,
+                    model: selectedModel,
+                    messages: openAiMessages,
+                    apiKey: apiKey.trim() || undefined,
+                    signal: controller.signal,
+                    onDelta: (delta) => {
+                        assistantText += delta;
+                        updateAssistantText(assistantText);
+                    },
+                });
+
+                if (assistantText.length === 0) {
+                    assistantText = finalText;
                 }
 
                 if (localApiChatAbortRef.current === controller) {
