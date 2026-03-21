@@ -821,6 +821,7 @@
 
 .local-llm-progress-block {
   margin-top: 0.95rem;
+  min-height: 3.5rem;
 }
 
 .local-llm-progress-head {
@@ -831,6 +832,22 @@
   margin-bottom: 0.45rem;
   color: var(--text-secondary);
   font-size: 0.85rem;
+  min-height: 1.25rem;
+}
+
+.local-llm-progress-head span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.local-llm-progress-head span:last-child {
+  flex: 0 0 auto;
+  min-width: 3.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .local-llm-progress-bar {
