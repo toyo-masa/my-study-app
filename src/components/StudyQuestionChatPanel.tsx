@@ -3,6 +3,7 @@ import { AlertTriangle, Bot, LoaderCircle, Send, Square, Trash2 } from 'lucide-r
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
+import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
 import { MarkdownText } from './MarkdownText';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
@@ -251,8 +252,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
-    const webllmThinkingBudget = localLlmSettings.webllmThinkingBudget;
-    const webllmFinalAnswerMaxTokens = localLlmSettings.webllmFinalAnswerMaxTokens;
+    const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
+    const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
+    const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;
+    const webllmSecondPassFinalAnswerMaxTokens = localLlmSettings.webllmSecondPassFinalAnswerMaxTokens;
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
@@ -683,11 +686,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     engine,
                     messages: toWebLlmMessages([...messages, userMessage], combinedWebLlmSystemPrompt),
                     enableThinking: localLlmSettings.webllmEnableThinking,
-                    thinkingBudget: webllmThinkingBudget ?? 1024,
-                    finalAnswerMaxTokens: webllmFinalAnswerMaxTokens ?? 768,
-                    temperature: localLlmSettings.webllmTemperature,
-                    topP: localLlmSettings.webllmTopP,
-                    presencePenalty: localLlmSettings.webllmPresencePenalty,
+                    firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
+                    firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
+                    firstPassTopP: webllmFirstPassTopP ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
+                    firstPassPresencePenalty: localLlmSettings.webllmFirstPassPresencePenalty,
+                    secondPassFinalAnswerMaxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
+                    secondPassTemperature: localLlmSettings.webllmSecondPassTemperature,
+                    secondPassTopP: localLlmSettings.webllmSecondPassTopP,
+                    secondPassPresencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
                     onDisplayText: updateAssistantText,
                     onPhaseChange: (phase) => {
                         if (!mountedRef.current || requestIdRef.current !== requestId) {
@@ -760,16 +766,19 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         isModelReady,
         localLlmSettings.baseUrl,
         localLlmSettings.webllmEnableThinking,
-        localLlmSettings.webllmPresencePenalty,
-        localLlmSettings.webllmTemperature,
-        localLlmSettings.webllmTopP,
+        webllmFirstPassTemperature,
+        webllmFirstPassTopP,
+        localLlmSettings.webllmFirstPassPresencePenalty,
+        localLlmSettings.webllmSecondPassPresencePenalty,
+        localLlmSettings.webllmSecondPassTemperature,
+        localLlmSettings.webllmSecondPassTopP,
         messages,
         questionContextPrompt,
         questionId,
         selectedModel,
         selectedWebLlmModel,
-        webllmFinalAnswerMaxTokens,
-        webllmThinkingBudget,
+        webllmFirstPassThinkingBudget,
+        webllmSecondPassFinalAnswerMaxTokens,
     ]);
 
     const handleStopGeneration = useCallback(() => {

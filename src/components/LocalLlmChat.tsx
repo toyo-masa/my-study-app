@@ -4,6 +4,7 @@ import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web
 import { BackButton } from './BackButton';
 import { MarkdownText } from './MarkdownText';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
+import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
@@ -223,11 +224,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
     const webllmSystemPrompt = localLlmSettings.webllmSystemPrompt.trim();
-    const webllmTemperature = localLlmSettings.webllmTemperature;
-    const webllmTopP = localLlmSettings.webllmTopP;
-    const webllmThinkingBudget = localLlmSettings.webllmThinkingBudget;
-    const webllmFinalAnswerMaxTokens = localLlmSettings.webllmFinalAnswerMaxTokens;
-    const webllmPresencePenalty = localLlmSettings.webllmPresencePenalty;
+    const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
+    const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
+    const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;
+    const webllmFirstPassPresencePenalty = localLlmSettings.webllmFirstPassPresencePenalty;
+    const webllmSecondPassTemperature = localLlmSettings.webllmSecondPassTemperature;
+    const webllmSecondPassTopP = localLlmSettings.webllmSecondPassTopP;
+    const webllmSecondPassFinalAnswerMaxTokens = localLlmSettings.webllmSecondPassFinalAnswerMaxTokens;
+    const webllmSecondPassPresencePenalty = localLlmSettings.webllmSecondPassPresencePenalty;
     const currentSession = useMemo(
         () => chatSessions.find((session) => session.id === currentSessionId) ?? null,
         [chatSessions, currentSessionId]
@@ -776,11 +780,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                     engine,
                     messages: toWebLlmMessages([...messages, userMessage], webllmSystemPrompt),
                     enableThinking: localLlmSettings.webllmEnableThinking,
-                    thinkingBudget: webllmThinkingBudget ?? 1024,
-                    finalAnswerMaxTokens: webllmFinalAnswerMaxTokens ?? 768,
-                    temperature: webllmTemperature,
-                    topP: webllmTopP,
-                    presencePenalty: webllmPresencePenalty,
+                    firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
+                    firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
+                    firstPassTopP: webllmFirstPassTopP ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
+                    firstPassPresencePenalty: webllmFirstPassPresencePenalty,
+                    secondPassFinalAnswerMaxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
+                    secondPassTemperature: webllmSecondPassTemperature,
+                    secondPassTopP: webllmSecondPassTopP,
+                    secondPassPresencePenalty: webllmSecondPassPresencePenalty,
                     onDisplayText: updateAssistantText,
                     onPhaseChange: (phase) => {
                         if (!mountedRef.current || requestIdRef.current !== requestId) {
@@ -853,11 +860,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         localLlmSettings.baseUrl,
         localLlmSettings.webllmEnableThinking,
         webllmSystemPrompt,
-        webllmTemperature,
-        webllmTopP,
-        webllmThinkingBudget,
-        webllmFinalAnswerMaxTokens,
-        webllmPresencePenalty,
+        webllmFirstPassTemperature,
+        webllmFirstPassTopP,
+        webllmFirstPassThinkingBudget,
+        webllmFirstPassPresencePenalty,
+        webllmSecondPassTemperature,
+        webllmSecondPassTopP,
+        webllmSecondPassFinalAnswerMaxTokens,
+        webllmSecondPassPresencePenalty,
         messages,
         selectedWebLlmModel,
         selectedModel,

@@ -2,21 +2,22 @@ import { DEFAULT_WEB_LLM_MODEL_ID, WEB_LLM_QWEN_MODEL_OPTIONS } from './localLlm
 export type ThemeMode = 'light' | 'dark' | 'monokai';
 export type LocalLlmMode = 'webllm' | 'openai-local';
 
-export const WEB_LLM_QWEN_THINKING_DEFAULTS = {
+export const WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS = {
     temperature: 0.6,
     topP: 0.95,
 } as const;
 
-export const WEB_LLM_QWEN_NON_THINKING_DEFAULTS = {
+export const WEB_LLM_QWEN_SECOND_PASS_DEFAULTS = {
     temperature: 0.7,
     topP: 0.8,
+    presencePenalty: 0.0,
 } as const;
 
-export const WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET = 1024;
-export const WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS = 768;
-export const WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY = 1.5;
-export const WEB_LLM_QWEN_THINKING_BUDGET_OPTIONS = [1024, 2048, 4096, 8192, 16384] as const;
-export const WEB_LLM_QWEN_FINAL_ANSWER_MAX_TOKENS_OPTIONS = [768, 1024, 1280, 1536, 1792, 2048] as const;
+export const WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET = 1024;
+export const WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY = 0.3;
+export const WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS = 512;
+export const WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS = [1024, 2048, 4096, 8192, 16384] as const;
+export const WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS = [256, 384, 512] as const;
 
 export interface HandwritingSettings {
     allowTouchDrawing: boolean;
@@ -28,11 +29,14 @@ export interface LocalLlmSettings {
     webllmModelId: string;
     webllmSystemPrompt: string;
     webllmEnableThinking: boolean;
-    webllmTemperature: number | null;
-    webllmTopP: number | null;
-    webllmThinkingBudget: number | null;
-    webllmFinalAnswerMaxTokens: number | null;
-    webllmPresencePenalty: number | null;
+    webllmFirstPassTemperature: number | null;
+    webllmFirstPassTopP: number | null;
+    webllmFirstPassThinkingBudget: number | null;
+    webllmFirstPassPresencePenalty: number | null;
+    webllmSecondPassTemperature: number | null;
+    webllmSecondPassTopP: number | null;
+    webllmSecondPassFinalAnswerMaxTokens: number | null;
+    webllmSecondPassPresencePenalty: number | null;
 }
 
 const SETTINGS_KEYS = {
@@ -57,11 +61,14 @@ const DEFAULT_SETTINGS = {
         webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
         webllmSystemPrompt: '',
         webllmEnableThinking: true,
-        webllmTemperature: WEB_LLM_QWEN_THINKING_DEFAULTS.temperature,
-        webllmTopP: WEB_LLM_QWEN_THINKING_DEFAULTS.topP,
-        webllmThinkingBudget: WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET,
-        webllmFinalAnswerMaxTokens: WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS,
-        webllmPresencePenalty: WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
+        webllmFirstPassTemperature: WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
+        webllmFirstPassTopP: WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
+        webllmFirstPassThinkingBudget: WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET,
+        webllmFirstPassPresencePenalty: WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY,
+        webllmSecondPassTemperature: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature,
+        webllmSecondPassTopP: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP,
+        webllmSecondPassFinalAnswerMaxTokens: WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS,
+        webllmSecondPassPresencePenalty: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty,
     } as LocalLlmSettings,
 } as const;
 
@@ -180,33 +187,34 @@ const normalizeWebLlmEnableThinking = (value: unknown): boolean => {
     return value !== false;
 };
 
-const normalizeWebLlmThinkingBudget = (value: unknown): number => {
+const normalizeWebLlmFirstPassThinkingBudget = (value: unknown): number => {
     const parsed = normalizeOptionalFiniteNumber(value, 1, 32768, true);
-    if (parsed !== null && WEB_LLM_QWEN_THINKING_BUDGET_OPTIONS.includes(parsed as typeof WEB_LLM_QWEN_THINKING_BUDGET_OPTIONS[number])) {
+    if (parsed !== null && WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS.includes(parsed as typeof WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS[number])) {
         return parsed;
     }
-    return WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET;
+    return WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET;
 };
 
-const normalizeWebLlmFinalAnswerMaxTokens = (value: unknown): number => {
+const normalizeWebLlmSecondPassFinalAnswerMaxTokens = (value: unknown): number => {
     const parsed = normalizeOptionalFiniteNumber(value, 1, 32768, true);
-    if (parsed !== null && WEB_LLM_QWEN_FINAL_ANSWER_MAX_TOKENS_OPTIONS.includes(parsed as typeof WEB_LLM_QWEN_FINAL_ANSWER_MAX_TOKENS_OPTIONS[number])) {
+    if (parsed !== null && WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS.includes(parsed as typeof WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS[number])) {
         return parsed;
     }
-    return WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS;
-};
-
-export const getWebLlmQwenDefaultSampling = (enableThinking: boolean) => {
-    return enableThinking ? WEB_LLM_QWEN_THINKING_DEFAULTS : WEB_LLM_QWEN_NON_THINKING_DEFAULTS;
+    return WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS;
 };
 
 export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
     const source = raw && typeof raw === 'object'
-        ? raw as Partial<LocalLlmSettings>
+        ? raw as Partial<LocalLlmSettings> & {
+            webllmThinkingBudget?: unknown;
+            webllmFinalAnswerMaxTokens?: unknown;
+            webllmPresencePenalty?: unknown;
+            webllmTemperature?: unknown;
+            webllmTopP?: unknown;
+        }
         : {};
 
     const webllmEnableThinking = normalizeWebLlmEnableThinking(source.webllmEnableThinking);
-    const defaultSampling = getWebLlmQwenDefaultSampling(webllmEnableThinking);
 
     return {
         preferredMode: normalizeLocalLlmMode(source.preferredMode),
@@ -215,11 +223,42 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         webllmModelId: normalizeWebLlmModelId(source.webllmModelId),
         webllmSystemPrompt: normalizeLocalLlmSystemPrompt(source.webllmSystemPrompt),
         webllmEnableThinking,
-        webllmTemperature: normalizeOptionalFiniteNumber(source.webllmTemperature, 0, 2) ?? defaultSampling.temperature,
-        webllmTopP: normalizeOptionalFiniteNumber(source.webllmTopP, 0.01, 1) ?? defaultSampling.topP,
-        webllmThinkingBudget: normalizeWebLlmThinkingBudget(source.webllmThinkingBudget),
-        webllmFinalAnswerMaxTokens: normalizeWebLlmFinalAnswerMaxTokens(source.webllmFinalAnswerMaxTokens),
-        webllmPresencePenalty: normalizeOptionalFiniteNumber(source.webllmPresencePenalty, -2, 2) ?? WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
+        webllmFirstPassTemperature: normalizeOptionalFiniteNumber(
+            source.webllmFirstPassTemperature ?? source.webllmTemperature,
+            0,
+            2
+        ) ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
+        webllmFirstPassTopP: normalizeOptionalFiniteNumber(
+            source.webllmFirstPassTopP ?? source.webllmTopP,
+            0.01,
+            1
+        ) ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
+        webllmFirstPassThinkingBudget: normalizeWebLlmFirstPassThinkingBudget(
+            source.webllmFirstPassThinkingBudget ?? source.webllmThinkingBudget
+        ),
+        webllmFirstPassPresencePenalty: normalizeOptionalFiniteNumber(
+            source.webllmFirstPassPresencePenalty ?? source.webllmPresencePenalty,
+            0.3,
+            0.6
+        ) ?? WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY,
+        webllmSecondPassTemperature: normalizeOptionalFiniteNumber(
+            source.webllmSecondPassTemperature ?? source.webllmTemperature,
+            0.5,
+            0.7
+        ) ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature,
+        webllmSecondPassTopP: normalizeOptionalFiniteNumber(
+            source.webllmSecondPassTopP ?? source.webllmTopP,
+            0.8,
+            0.9
+        ) ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP,
+        webllmSecondPassFinalAnswerMaxTokens: normalizeWebLlmSecondPassFinalAnswerMaxTokens(
+            source.webllmSecondPassFinalAnswerMaxTokens ?? source.webllmFinalAnswerMaxTokens
+        ),
+        webllmSecondPassPresencePenalty: normalizeOptionalFiniteNumber(
+            source.webllmSecondPassPresencePenalty,
+            0,
+            0.3
+        ) ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty,
     };
 }
 

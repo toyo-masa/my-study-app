@@ -33,28 +33,27 @@ type RunWebLlmBudgetedGenerationOptions = {
     engine: WebWorkerMLCEngine;
     messages: ChatCompletionMessageParam[];
     enableThinking: boolean;
-    thinkingBudget: number;
-    finalAnswerMaxTokens: number;
-    temperature: number | null;
-    topP: number | null;
-    presencePenalty: number | null;
+    firstPassThinkingBudget: number;
+    firstPassTemperature: number;
+    firstPassTopP: number;
+    firstPassPresencePenalty: number | null;
+    secondPassFinalAnswerMaxTokens: number;
+    secondPassTemperature: number | null;
+    secondPassTopP: number | null;
+    secondPassPresencePenalty: number | null;
     onDisplayText: (displayText: string) => void;
     onPhaseChange?: (phase: WebLlmGenerationPhase | null) => void;
 };
 
-const FINALIZE_PROMPT = [
-    'ここまでの内容を踏まえて、最終回答だけを出してください。',
-    '新しい長い思考は不要です。',
-    '最初からやり直さないでください。',
-    '結論と必要最小限の説明だけを簡潔に出してください。',
-].join('\n');
-
-const FINALIZE_SAMPLING = {
-    temperature: 0.25,
-    topP: 0.85,
-    presencePenalty: 0.2,
-    repetitionPenalty: 1.03,
-} as const;
+const buildFinalizePrompt = () => {
+    return [
+        '/no_think',
+        'ここまでの内容を踏まえて、最終回答だけを出してください。',
+        '新しい長い思考は不要です。',
+        '最初からやり直さないでください。',
+        '結論と必要最小限の説明だけを簡潔に出してください。',
+    ].join('\n');
+};
 
 export function parseAssistantMessageSegments(content: string): AssistantMessageSegment[] {
     const segments: AssistantMessageSegment[] = [];
@@ -227,11 +226,14 @@ export async function runWebLlmBudgetedGeneration({
     engine,
     messages,
     enableThinking,
-    thinkingBudget,
-    finalAnswerMaxTokens,
-    temperature,
-    topP,
-    presencePenalty,
+    firstPassThinkingBudget,
+    firstPassTemperature,
+    firstPassTopP,
+    firstPassPresencePenalty,
+    secondPassFinalAnswerMaxTokens,
+    secondPassTemperature,
+    secondPassTopP,
+    secondPassPresencePenalty,
     onDisplayText,
     onPhaseChange,
 }: RunWebLlmBudgetedGenerationOptions): Promise<BudgetedGenerationResult> {
@@ -242,10 +244,10 @@ export async function runWebLlmBudgetedGeneration({
             engine,
             {
                 messages,
-                temperature,
-                top_p: topP,
-                max_tokens: thinkingBudget,
-                presence_penalty: presencePenalty,
+                temperature: firstPassTemperature,
+                top_p: firstPassTopP,
+                max_tokens: firstPassThinkingBudget,
+                presence_penalty: firstPassPresencePenalty,
                 extra_body: {
                     enable_thinking: enableThinking,
                 },
@@ -281,14 +283,14 @@ export async function runWebLlmBudgetedGeneration({
                     },
                     {
                         role: 'user',
-                        content: FINALIZE_PROMPT,
+                        content: buildFinalizePrompt(),
                     },
                 ],
-                temperature: FINALIZE_SAMPLING.temperature,
-                top_p: FINALIZE_SAMPLING.topP,
-                max_tokens: finalAnswerMaxTokens,
-                presence_penalty: FINALIZE_SAMPLING.presencePenalty,
-                repetition_penalty: FINALIZE_SAMPLING.repetitionPenalty,
+                temperature: secondPassTemperature,
+                top_p: secondPassTopP,
+                max_tokens: secondPassFinalAnswerMaxTokens,
+                presence_penalty: secondPassPresencePenalty,
+                repetition_penalty: 1.03,
                 extra_body: {
                     enable_thinking: enableThinking,
                 },
