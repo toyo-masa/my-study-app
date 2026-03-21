@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Download, LoaderCircle, Send, ShieldCheck, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Download, LoaderCircle, Send, ShieldCheck, Square, Trash2, X } from 'lucide-react';
 import type { ChatCompletionChunk, ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
@@ -10,6 +10,7 @@ import {
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
     resetLocalLlmChat,
+    WEB_LLM_QWEN_MODEL_OPTIONS,
 } from '../utils/localLlmEngine';
 import {
     fetchOpenAiCompatibleModelIds,
@@ -38,6 +39,8 @@ interface StudyQuestionChatPanelProps {
     showAnswer: boolean;
     localLlmSettings: LocalLlmSettings;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+    onWebLlmModelChange: (modelId: string) => void;
+    onClose: () => void;
 }
 
 const LOCAL_API_EXAMPLES = [
@@ -234,6 +237,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     showAnswer,
     localLlmSettings,
     onLocalLlmModeChange,
+    onWebLlmModelChange,
+    onClose,
 }) => {
     const questionId = question.id ?? null;
     const initialSessionsRef = useRef<StoredStudyQuestionChatSession[] | null>(null);
@@ -782,11 +787,22 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         <h2>AIチャット</h2>
                         <p>問題{questionIndex + 1}について質問できます。{showAnswer ? '解答後なので解説込みで質問できます。' : '解答前なのでヒント中心で応答します。'}</p>
                     </div>
-                    <span className={`local-llm-status-chip ${(activeMode === 'webllm' ? isModelReady : selectedModel.length > 0) ? 'is-ready' : 'is-muted'}`}>
-                        {activeMode === 'webllm'
-                            ? (isModelReady ? '送信可能' : '未初期化')
-                            : (selectedModel.length > 0 ? '送信可能' : 'モデル未選択')}
-                    </span>
+                    <div className="study-question-chat-head-actions">
+                        <span className={`local-llm-status-chip ${(activeMode === 'webllm' ? isModelReady : selectedModel.length > 0) ? 'is-ready' : 'is-muted'}`}>
+                            {activeMode === 'webllm'
+                                ? (isModelReady ? '送信可能' : '未初期化')
+                                : (selectedModel.length > 0 ? '送信可能' : 'モデル未選択')}
+                        </span>
+                        <button
+                            type="button"
+                            className="menu-btn right-panel-close-btn"
+                            onClick={onClose}
+                            aria-label="AIチャットを閉じる"
+                            title="閉じる"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="study-question-chat-meta">
@@ -817,26 +833,42 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 </div>
 
                 {activeMode === 'webllm' ? (
-                    <div className="study-question-chat-actions">
-                        <button
-                            type="button"
-                            className="nav-btn"
-                            onClick={() => { void handleLoadModel(); }}
-                            disabled={isModelLoading || isModelReady}
-                        >
-                            {isModelLoading ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}
-                            {isModelReady ? 'モデル読み込み済み' : 'モデルを読み込む'}
-                        </button>
-                        <button
-                            type="button"
-                            className="nav-btn"
-                            onClick={handleClearChat}
-                            disabled={messages.length === 0 || isGenerating}
-                        >
-                            <Trash2 size={16} />
-                            この問題の会話をクリア
-                        </button>
-                    </div>
+                    <>
+                        <div className="study-question-chat-field-row">
+                            <select
+                                className="local-llm-input"
+                                value={selectedWebLlmModel}
+                                onChange={(event) => onWebLlmModelChange(event.target.value)}
+                                disabled={isGenerating || isModelLoading}
+                            >
+                                {WEB_LLM_QWEN_MODEL_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="study-question-chat-actions">
+                            <button
+                                type="button"
+                                className="nav-btn"
+                                onClick={() => { void handleLoadModel(); }}
+                                disabled={isModelLoading || isModelReady}
+                            >
+                                {isModelLoading ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}
+                                {isModelReady ? 'モデル読み込み済み' : 'モデルを読み込む'}
+                            </button>
+                            <button
+                                type="button"
+                                className="nav-btn"
+                                onClick={handleClearChat}
+                                disabled={messages.length === 0 || isGenerating}
+                            >
+                                <Trash2 size={16} />
+                                この問題の会話をクリア
+                            </button>
+                        </div>
+                    </>
                 ) : (
                     <>
                         <div className="study-question-chat-field-row">

@@ -1003,6 +1003,17 @@
   gap: 0.75rem;
 }
 
+.study-question-chat-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.right-panel-close-btn {
+  flex-shrink: 0;
+}
+
 .study-question-chat-panel-head h2 {
   margin: 0;
   font-size: 1.05rem;

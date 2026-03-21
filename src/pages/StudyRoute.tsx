@@ -42,6 +42,7 @@ interface StudyRouteProps {
     reviewBoardFeedbackBlockSize: number;
     localLlmSettings: LocalLlmSettings;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+    onWebLlmModelChange: (modelId: string) => void;
 }
 
 export const StudyRoute: React.FC<StudyRouteProps> = ({
@@ -49,6 +50,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     reviewBoardFeedbackBlockSize,
     localLlmSettings,
     onLocalLlmModeChange,
+    onWebLlmModelChange,
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -172,11 +174,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
     useEffect(() => {
         const handleResize = () => {
-            const mobile = isMobileViewport();
-            setIsMobileLayout(mobile);
-            if (!mobile) {
-                setRightPanelOpen(true);
-            }
+            setIsMobileLayout(isMobileViewport());
         };
 
         window.addEventListener('resize', handleResize);
@@ -1480,7 +1478,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                     ? '復習中'
                     : undefined;
     const showStudyQuestionChat = activeQuizSet?.type === 'mixed' && !isTestCompleted;
-    const resolvedRightPanelOpen = showStudyQuestionChat ? (isMobileLayout ? rightPanelOpen : true) : false;
+    const resolvedRightPanelOpen = showStudyQuestionChat ? rightPanelOpen : false;
     const handleToggleSidebar = () => {
         if (isMobileLayout && showStudyQuestionChat) {
             setRightPanelOpen(false);
@@ -1522,7 +1520,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             showRightPanel={showStudyQuestionChat}
             rightPanelOpen={resolvedRightPanelOpen}
             rightPanelModal={isMobileLayout}
-            showRightPanelToggle={showStudyQuestionChat && isMobileLayout}
+            showRightPanelToggle={showStudyQuestionChat}
             onToggleRightPanel={handleToggleRightPanel}
             onCloseRightPanel={() => setRightPanelOpen(false)}
             rightPanelContent={showStudyQuestionChat && currentQuestion && activeQuizSet?.id !== undefined ? (
@@ -1533,6 +1531,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                     showAnswer={showAnswerForCurrent}
                     localLlmSettings={localLlmSettings}
                     onLocalLlmModeChange={onLocalLlmModeChange}
+                    onWebLlmModelChange={onWebLlmModelChange}
+                    onClose={() => setRightPanelOpen(false)}
                 />
             ) : null}
         >
