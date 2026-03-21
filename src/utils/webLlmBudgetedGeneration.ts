@@ -10,6 +10,11 @@ export type ParsedAssistantMessage = {
     answerContent: string;
 };
 
+export type AssistantMessageSegment = {
+    type: 'think' | 'answer';
+    content: string;
+};
+
 export type WebLlmGenerationPhase = 'thinking' | 'finalizing';
 export type SecondPassTrigger = 'unclosed_think' | 'length' | 'both';
 
@@ -51,39 +56,67 @@ const FINALIZE_SAMPLING = {
     repetitionPenalty: 1.03,
 } as const;
 
+export function parseAssistantMessageSegments(content: string): AssistantMessageSegment[] {
+    const segments: AssistantMessageSegment[] = [];
+    let cursor = 0;
+
+    while (cursor < content.length) {
+        const thinkStart = content.indexOf('<think>', cursor);
+        if (thinkStart === -1) {
+            const answerContent = content.slice(cursor).trim();
+            if (answerContent.length > 0) {
+                segments.push({ type: 'answer', content: answerContent });
+            }
+            break;
+        }
+
+        const leadingContent = content.slice(cursor, thinkStart).trim();
+        if (leadingContent.length > 0) {
+            segments.push({ type: 'answer', content: leadingContent });
+        }
+
+        const thinkTagLength = '<think>'.length;
+        const thinkEnd = content.indexOf('</think>', thinkStart + thinkTagLength);
+        if (thinkEnd === -1) {
+            const thinkContent = content.slice(thinkStart + thinkTagLength).trim();
+            if (thinkContent.length > 0) {
+                segments.push({ type: 'think', content: thinkContent });
+            }
+            break;
+        }
+
+        const thinkContent = content.slice(thinkStart + thinkTagLength, thinkEnd).trim();
+        if (thinkContent.length > 0) {
+            segments.push({ type: 'think', content: thinkContent });
+        }
+
+        cursor = thinkEnd + '</think>'.length;
+    }
+
+    return segments;
+}
+
 export function parseAssistantMessageContent(content: string): ParsedAssistantMessage {
-    const thinkStart = content.indexOf('<think>');
-    if (thinkStart === -1) {
-        return {
-            thinkContent: null,
-            answerContent: content,
-        };
-    }
-
-    const thinkTagLength = '<think>'.length;
-    const thinkEnd = content.indexOf('</think>', thinkStart + thinkTagLength);
-    const leadingContent = content.slice(0, thinkStart).trim();
-
-    if (thinkEnd === -1) {
-        return {
-            thinkContent: content.slice(thinkStart + thinkTagLength).trim(),
-            answerContent: leadingContent,
-        };
-    }
-
-    const trailingContent = content.slice(thinkEnd + '</think>'.length).trim();
-    const answerContent = [leadingContent, trailingContent]
-        .filter((segment) => segment.length > 0)
-        .join('\n\n');
+    const segments = parseAssistantMessageSegments(content);
+    const thinkSegments = segments
+        .filter((segment) => segment.type === 'think')
+        .map((segment) => segment.content);
+    const answerSegments = segments
+        .filter((segment) => segment.type === 'answer')
+        .map((segment) => segment.content);
 
     return {
-        thinkContent: content.slice(thinkStart + thinkTagLength, thinkEnd).trim(),
-        answerContent,
+        thinkContent: thinkSegments.length > 0 ? thinkSegments.join('\n\n') : null,
+        answerContent: answerSegments.join('\n\n'),
     };
 }
 
 export function toAssistantHistoryText(content: string): string {
-    return parseAssistantMessageContent(content).answerContent.trim();
+    return parseAssistantMessageSegments(content)
+        .filter((segment) => segment.type === 'answer')
+        .map((segment) => segment.content)
+        .join('\n\n')
+        .trim();
 }
 
 const hasClosedThinkTag = (content: string) => {

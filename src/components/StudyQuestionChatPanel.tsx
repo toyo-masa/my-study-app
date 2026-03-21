@@ -27,6 +27,7 @@ import {
 } from '../utils/studyQuestionChatHistory';
 import {
     parseAssistantMessageContent,
+    parseAssistantMessageSegments,
     runWebLlmBudgetedGeneration,
     type WebLlmGenerationPhase,
 } from '../utils/webLlmBudgetedGeneration';
@@ -973,8 +974,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         </div>
                     ) : (
                         messages.map((message) => {
-                            const parsedAssistantMessage = message.role === 'assistant'
-                                ? parseAssistantMessageContent(message.content)
+                            const parsedAssistantMessageSegments = message.role === 'assistant'
+                                ? parseAssistantMessageSegments(message.content)
                                 : null;
 
                             return (
@@ -988,30 +989,33 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                     <div className={`local-llm-message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
                                         {message.role === 'assistant' ? (
                                             <div className="local-llm-assistant-stack">
-                                                {parsedAssistantMessage?.thinkContent && (
-                                                    <details
-                                                        className="local-llm-think-block"
-                                                        open={message.isStreaming ? true : undefined}
-                                                    >
-                                                        <summary className="local-llm-think-summary">
-                                                            {message.isStreaming ? '思考中...' : '思考過程を表示'}
-                                                        </summary>
-                                                        <div className="local-llm-think-body">
+                                                {parsedAssistantMessageSegments?.map((segment, index) => (
+                                                    segment.type === 'think'
+                                                        ? (
+                                                            <details
+                                                                key={`${message.id}-think-${index}`}
+                                                                className="local-llm-think-block"
+                                                                open={message.isStreaming ? true : undefined}
+                                                            >
+                                                                <summary className="local-llm-think-summary">
+                                                                    {message.isStreaming ? '思考中...' : '思考過程を表示'}
+                                                                </summary>
+                                                                <div className="local-llm-think-body">
+                                                                    <MarkdownText
+                                                                        content={segment.content}
+                                                                        className="local-llm-markdown local-llm-think-markdown"
+                                                                    />
+                                                                </div>
+                                                            </details>
+                                                        )
+                                                        : (
                                                             <MarkdownText
-                                                                content={parsedAssistantMessage.thinkContent}
-                                                                className="local-llm-markdown local-llm-think-markdown"
+                                                                key={`${message.id}-answer-${index}`}
+                                                                content={segment.content}
+                                                                className="local-llm-markdown"
                                                             />
-                                                        </div>
-                                                    </details>
-                                                )}
-                                                {parsedAssistantMessage?.answerContent.trim().length
-                                                    ? (
-                                                        <MarkdownText
-                                                            content={parsedAssistantMessage.answerContent}
-                                                            className="local-llm-markdown"
-                                                        />
-                                                    )
-                                                    : null}
+                                                        )
+                                                ))}
                                             </div>
                                         ) : (
                                             <div className="local-llm-plain-text">{message.content}</div>
