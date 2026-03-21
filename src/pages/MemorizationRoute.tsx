@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarClickPosition } from '../components/Sidebar';
 import type { HandwritingPadState } from '../components/HandwritingPad';
@@ -150,33 +150,36 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         locationKey: location.key,
     });
 
-    // Synchronous state reset to prevent flickering
-    const [renderedSessionKey, setRenderedSessionKey] = useState<string | null>(null);
-    if (renderedSessionKey !== sessionKey) {
-        setRenderedSessionKey(sessionKey);
-        setIsLoading(true);
-        setQuestions([]);
-        setMemorizationLogs([]);
-        setMemorizationInputsMap({});
-        setAnsweredMap({});
-        setShowAnswerMap({});
-        setPendingRevealQuestionIds([]);
-        setFeedbackPhase('answering');
-        setFeedbackTimingMode('immediate');
-        setFeedbackBlockSize(5);
-        setCurrentQuestionIndex(0);
-        setMarkedQuestions([]);
-        setHandwritingMap({});
-        setIsTestCompleted(false);
-        setSidebarOpen(!isMobileViewport());
-        setIsMobileLayout(isMobileViewport());
-        setIsRightPanelModal(isStudyChatDrawerViewport());
-        setRightPanelOpen(false);
-        setActiveHistory(null);
-        setHistoryMode('normal');
-        setShowEmptyCardsModal(false);
-        resetSessionNotices();
-    }
+    useLayoutEffect(() => {
+        const frameId = window.requestAnimationFrame(() => {
+            setIsLoading(true);
+            setQuestions([]);
+            setMemorizationLogs([]);
+            setMemorizationInputsMap({});
+            setAnsweredMap({});
+            setShowAnswerMap({});
+            setPendingRevealQuestionIds([]);
+            setFeedbackPhase('answering');
+            setFeedbackTimingMode('immediate');
+            setFeedbackBlockSize(5);
+            setCurrentQuestionIndex(0);
+            setMarkedQuestions([]);
+            setHandwritingMap({});
+            setIsTestCompleted(false);
+            setSidebarOpen(!isMobileViewport());
+            setIsMobileLayout(isMobileViewport());
+            setIsRightPanelModal(isStudyChatDrawerViewport());
+            setRightPanelOpen(false);
+            setActiveHistory(null);
+            setHistoryMode('normal');
+            setShowEmptyCardsModal(false);
+            resetSessionNotices();
+        });
+
+        return () => {
+            window.cancelAnimationFrame(frameId);
+        };
+    }, [sessionKey, resetSessionNotices]);
 
     useEffect(() => {
         clearWindowTimeout(saveDebounceRef);
