@@ -423,7 +423,7 @@
 
 /* ===== Local LLM Chat ===== */
 .local-llm-page {
-  max-width: 1100px;
+  max-width: 1320px;
   width: 100%;
   box-sizing: border-box;
   margin: 0 auto;
@@ -432,11 +432,109 @@
   color: var(--text-color);
 }
 
+.local-llm-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.local-llm-main {
+  min-width: 0;
+}
+
 .local-llm-header {
   display: flex;
   align-items: flex-start;
   gap: 0.9rem;
   margin-bottom: 1rem;
+}
+
+.local-llm-sidebar {
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-sm);
+  padding: 0.95rem;
+  position: sticky;
+  top: calc(var(--page-padding-top) + 0.5rem);
+}
+
+.local-llm-sidebar-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-bottom: 0.9rem;
+}
+
+.local-llm-sidebar-head h2 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.local-llm-sidebar-head p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.local-llm-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.local-llm-session-item {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  border-radius: 14px;
+  padding: 0.8rem 0.85rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.local-llm-session-item.active {
+  border-color: rgba(var(--primary-color-rgb, 99, 102, 241), 0.34);
+  background: color-mix(in srgb, var(--surface-color) 86%, var(--primary-color) 14%);
+}
+
+.local-llm-session-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.local-llm-session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.local-llm-session-model {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.local-llm-session-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
 }
 
 .local-llm-title {
@@ -793,6 +891,18 @@
 }
 
 @media (max-width: 768px) {
+  .local-llm-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .local-llm-sidebar {
+    position: static;
+  }
+
+  .local-llm-sidebar-list {
+    max-height: 280px;
+  }
+
   .local-llm-header,
   .local-llm-card-head {
     flex-direction: column;

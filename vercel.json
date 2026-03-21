@@ -17,11 +17,27 @@
             "destination": "/index.html"
         },
         {
+            "source": "/distribution-tables",
+            "destination": "/index.html"
+        },
+        {
+            "source": "/local-llm-chat",
+            "destination": "/index.html"
+        },
+        {
             "source": "/release-notes",
             "destination": "/index.html"
         },
         {
             "source": "/admin",
+            "destination": "/index.html"
+        },
+        {
+            "source": "/review-board",
+            "destination": "/index.html"
+        },
+        {
+            "source": "/tutorial",
             "destination": "/index.html"
         },
         {
