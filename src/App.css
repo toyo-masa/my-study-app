@@ -502,6 +502,23 @@
   transition: all 0.2s ease;
 }
 
+.local-llm-session-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.local-llm-session-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.local-llm-session-delete {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 2.5rem;
+}
+
 .local-llm-session-item.active {
   border-color: rgba(var(--primary-color-rgb, 99, 102, 241), 0.34);
   background: color-mix(in srgb, var(--surface-color) 86%, var(--primary-color) 14%);
@@ -906,6 +923,18 @@
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+}
+
+.local-llm-assistant-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.local-llm-message-copy-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .local-llm-think-block {

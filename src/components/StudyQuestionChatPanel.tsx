@@ -74,6 +74,11 @@ const toPromptMessageContent = (message: LocalChatMessage) => {
     return parseAssistantMessageContent(message.content).answerContent.trim();
 };
 
+const getCopyableAssistantContent = (content: string) => {
+    const answerContent = parseAssistantMessageContent(content).answerContent.trim();
+    return answerContent.length > 0 ? answerContent : content.trim();
+};
+
 const toStoredMessages = (messages: LocalChatMessage[]): StoredLocalLlmChatMessage[] => {
     return messages.map(({ id, role, content }) => ({
         id,
@@ -250,6 +255,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     ));
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
+    const [copiedAnswerMessageId, setCopiedAnswerMessageId] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const threadRef = useRef<HTMLDivElement>(null);
@@ -261,6 +267,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const localApiChatAbortRef = useRef<AbortController | null>(null);
     const autoLoadWebLlmKeyRef = useRef<string | null>(null);
     const copyRequestResetTimeoutRef = useRef<number | null>(null);
+    const copyAnswerResetTimeoutRef = useRef<number | null>(null);
 
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
@@ -332,6 +339,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setDidCopyRequestPayload(false);
     }, []);
 
+    const resetCopiedAnswerState = useCallback(() => {
+        if (copyAnswerResetTimeoutRef.current !== null) {
+            window.clearTimeout(copyAnswerResetTimeoutRef.current);
+            copyAnswerResetTimeoutRef.current = null;
+        }
+        setCopiedAnswerMessageId(null);
+    }, []);
+
     const updateLastRequestPayload = useCallback((payload: unknown) => {
         setLastRequestPayload(JSON.stringify(payload, null, 2));
         resetCopiedRequestState();
@@ -354,6 +369,25 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             setError('送信内容をコピーできませんでした。');
         }
     }, [lastRequestPayload, resetCopiedRequestState]);
+
+    const handleCopyAssistantMessage = useCallback(async (messageId: string, content: string) => {
+        const copyableContent = getCopyableAssistantContent(content);
+        if (copyableContent.length === 0) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(copyableContent);
+            resetCopiedAnswerState();
+            setCopiedAnswerMessageId(messageId);
+            copyAnswerResetTimeoutRef.current = window.setTimeout(() => {
+                setCopiedAnswerMessageId(null);
+                copyAnswerResetTimeoutRef.current = null;
+            }, 2000);
+        } catch {
+            setError('回答内容をコピーできませんでした。');
+        }
+    }, [resetCopiedAnswerState]);
 
     const isNearBottom = useCallback(() => {
         const element = threadRef.current;
@@ -410,6 +444,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             if (copyRequestResetTimeoutRef.current !== null) {
                 window.clearTimeout(copyRequestResetTimeoutRef.current);
             }
+            if (copyAnswerResetTimeoutRef.current !== null) {
+                window.clearTimeout(copyAnswerResetTimeoutRef.current);
+            }
             cancelActiveWork();
         };
     }, [cancelActiveWork]);
@@ -455,6 +492,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         );
         setLastRequestPayload(null);
         resetCopiedRequestState();
+        resetCopiedAnswerState();
     }, [
         cancelActiveWork,
         localLlmSettings.defaultModelId,
@@ -462,6 +500,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         onWebLlmModelChange,
         questionId,
         quizSetId,
+        resetCopiedAnswerState,
         resetCopiedRequestState,
         resetTransientState,
         selectedWebLlmModel,
@@ -1086,6 +1125,18 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                     <div className={`local-llm-message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
                                         {message.role === 'assistant' ? (
                                             <div className="local-llm-assistant-stack">
+                                                <div className="local-llm-assistant-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="menu-btn local-llm-message-copy-btn"
+                                                        onClick={() => { void handleCopyAssistantMessage(message.id, message.content); }}
+                                                        disabled={getCopyableAssistantContent(message.content).length === 0}
+                                                        aria-label="回答内容をコピー"
+                                                        title="回答内容をコピー"
+                                                    >
+                                                        {copiedAnswerMessageId === message.id ? <Check size={16} /> : <Copy size={16} />}
+                                                    </button>
+                                                </div>
                                                 {parsedAssistantMessageSegments?.map((segment, index) => (
                                                     segment.type === 'think'
                                                         ? (

@@ -65,6 +65,11 @@ const toPromptMessageContent = (message: LocalChatMessage) => {
     return parseAssistantMessageContent(message.content).answerContent.trim();
 };
 
+const getCopyableAssistantContent = (content: string) => {
+    const answerContent = parseAssistantMessageContent(content).answerContent.trim();
+    return answerContent.length > 0 ? answerContent : content.trim();
+};
+
 const toWebLlmMessages = (
     messages: LocalChatMessage[],
     systemPrompt: string
@@ -190,7 +195,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         localLlmSettings.webllmModelId
     );
 
-    const [chatSessions, setChatSessions] = useState<StoredLocalLlmChatSession[]>(initialSessions.length > 0 ? initialSessions : [initialSession]);
+    const [chatSessions, setChatSessions] = useState<StoredLocalLlmChatSession[]>(initialSessions);
     const [currentSessionId, setCurrentSessionId] = useState(initialSession.id);
     const [messages, setMessages] = useState<LocalChatMessage[]>(() => toViewMessages(initialSession.messages));
     const [input, setInput] = useState('');
@@ -209,6 +214,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     ));
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
+    const [copiedAnswerMessageId, setCopiedAnswerMessageId] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -223,6 +229,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const previousModeRef = useRef<LocalLlmMode>(localLlmSettings.preferredMode);
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
     const copyRequestResetTimeoutRef = useRef<number | null>(null);
+    const copyAnswerResetTimeoutRef = useRef<number | null>(null);
     const currentSessionIdRef = useRef(currentSessionId);
     const activeGenerationSessionRef = useRef<{
         sessionId: string;
@@ -386,14 +393,77 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setWebllmGenerationPhase(null);
     }, [invalidateActiveRequest]);
 
+    const resetCopiedRequestState = useCallback(() => {
+        if (copyRequestResetTimeoutRef.current !== null) {
+            window.clearTimeout(copyRequestResetTimeoutRef.current);
+            copyRequestResetTimeoutRef.current = null;
+        }
+        setDidCopyRequestPayload(false);
+    }, []);
+
+    const resetCopiedAnswerState = useCallback(() => {
+        if (copyAnswerResetTimeoutRef.current !== null) {
+            window.clearTimeout(copyAnswerResetTimeoutRef.current);
+            copyAnswerResetTimeoutRef.current = null;
+        }
+        setCopiedAnswerMessageId(null);
+    }, []);
+
     const createFreshSession = useCallback((mode: LocalLlmMode) => {
         const nextSession = buildEmptySession(mode, localLlmSettings.defaultModelId, selectedWebLlmModel);
-        setChatSessions((previous) => sortLocalLlmChatSessions([nextSession, ...previous.filter((session) => session.id !== nextSession.id)]));
         setCurrentSessionId(nextSession.id);
         setMessages([]);
         setSelectedLocalApiModel(mode === 'openai-local' ? nextSession.modelId : localLlmSettings.defaultModelId);
         resetViewState();
     }, [localLlmSettings.defaultModelId, resetViewState, selectedWebLlmModel]);
+
+    const selectSessionForView = useCallback((targetSession: StoredLocalLlmChatSession | null) => {
+        if (!targetSession) {
+            const draftSession = buildEmptySession(activeMode, localLlmSettings.defaultModelId, selectedWebLlmModel);
+            setCurrentSessionId(draftSession.id);
+            setMessages([]);
+            setSelectedLocalApiModel(localLlmSettings.defaultModelId);
+            setLastRequestPayload(null);
+            resetCopiedRequestState();
+            resetCopiedAnswerState();
+            resetViewState();
+            return;
+        }
+
+        modeChangeReasonRef.current = targetSession.mode !== activeMode ? 'session-load' : null;
+        setCurrentSessionId(targetSession.id);
+        setMessages(toViewMessages(targetSession.messages));
+        setSelectedLocalApiModel(
+            targetSession.mode === 'openai-local'
+                ? (targetSession.modelId || localLlmSettings.defaultModelId)
+                : localLlmSettings.defaultModelId
+        );
+        setLastRequestPayload(null);
+        resetCopiedRequestState();
+        resetCopiedAnswerState();
+        resetViewState();
+
+        if (targetSession.mode !== activeMode) {
+            onLocalLlmModeChange(targetSession.mode);
+        }
+        if (
+            targetSession.mode === 'webllm'
+            && targetSession.modelId
+            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === targetSession.modelId)
+            && targetSession.modelId !== selectedWebLlmModel
+        ) {
+            onWebLlmModelChange(targetSession.modelId);
+        }
+    }, [
+        activeMode,
+        localLlmSettings.defaultModelId,
+        onLocalLlmModeChange,
+        onWebLlmModelChange,
+        resetCopiedAnswerState,
+        resetCopiedRequestState,
+        resetViewState,
+        selectedWebLlmModel,
+    ]);
 
     const handleSelectSession = useCallback((sessionId: string) => {
         const targetSession = chatSessions.find((session) => session.id === sessionId);
@@ -404,29 +474,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         if (!isGenerating) {
             cancelActiveWork();
         }
-        modeChangeReasonRef.current = targetSession.mode !== activeMode ? 'session-load' : null;
-        setCurrentSessionId(targetSession.id);
-        setMessages(toViewMessages(targetSession.messages));
-        setSelectedLocalApiModel(
-            targetSession.mode === 'openai-local'
-                ? (targetSession.modelId || localLlmSettings.defaultModelId)
-                : localLlmSettings.defaultModelId
-        );
-        resetViewState();
-
-        if (!isGenerating && targetSession.mode !== activeMode) {
-            onLocalLlmModeChange(targetSession.mode);
-        }
-        if (
-            !isGenerating &&
-            targetSession.mode === 'webllm'
-            && targetSession.modelId
-            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === targetSession.modelId)
-            && targetSession.modelId !== selectedWebLlmModel
-        ) {
-            onWebLlmModelChange(targetSession.modelId);
-        }
-    }, [activeMode, cancelActiveWork, chatSessions, currentSessionId, isGenerating, localLlmSettings.defaultModelId, onLocalLlmModeChange, onWebLlmModelChange, resetViewState, selectedWebLlmModel]);
+        selectSessionForView(targetSession);
+    }, [cancelActiveWork, chatSessions, currentSessionId, isGenerating, selectSessionForView]);
 
     const handleCreateNewChat = useCallback(() => {
         if (isGenerating) {
@@ -446,13 +495,19 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         createFreshSession(activeMode);
     }, [activeMode, cancelActiveWork, createFreshSession, isGenerating, localLlmSettings.defaultModelId, messages.length, resetViewState]);
 
-    const resetCopiedRequestState = useCallback(() => {
-        if (copyRequestResetTimeoutRef.current !== null) {
-            window.clearTimeout(copyRequestResetTimeoutRef.current);
-            copyRequestResetTimeoutRef.current = null;
+    const handleDeleteSession = useCallback((sessionId: string) => {
+        if (isGenerating) {
+            return;
         }
-        setDidCopyRequestPayload(false);
-    }, []);
+
+        cancelActiveWork();
+        const nextSessions = sortLocalLlmChatSessions(chatSessions.filter((session) => session.id !== sessionId));
+        setChatSessions(nextSessions);
+
+        if (sessionId === currentSessionId) {
+            selectSessionForView(nextSessions[0] ?? null);
+        }
+    }, [cancelActiveWork, chatSessions, currentSessionId, isGenerating, selectSessionForView]);
 
     const updateLastRequestPayload = useCallback((payload: unknown) => {
         setLastRequestPayload(JSON.stringify(payload, null, 2));
@@ -477,6 +532,25 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         }
     }, [lastRequestPayload, resetCopiedRequestState]);
 
+    const handleCopyAssistantMessage = useCallback(async (messageId: string, content: string) => {
+        const copyableContent = getCopyableAssistantContent(content);
+        if (copyableContent.length === 0) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(copyableContent);
+            resetCopiedAnswerState();
+            setCopiedAnswerMessageId(messageId);
+            copyAnswerResetTimeoutRef.current = window.setTimeout(() => {
+                setCopiedAnswerMessageId(null);
+                copyAnswerResetTimeoutRef.current = null;
+            }, 2000);
+        } catch {
+            setError('回答内容をコピーできませんでした。');
+        }
+    }, [resetCopiedAnswerState]);
+
     useEffect(() => {
         mountedRef.current = true;
 
@@ -498,6 +572,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             if (copyRequestResetTimeoutRef.current !== null) {
                 window.clearTimeout(copyRequestResetTimeoutRef.current);
             }
+            if (copyAnswerResetTimeoutRef.current !== null) {
+                window.clearTimeout(copyAnswerResetTimeoutRef.current);
+            }
             cancelActiveWork();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -506,7 +583,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     useEffect(() => {
         setLastRequestPayload(null);
         resetCopiedRequestState();
-    }, [currentSessionId, resetCopiedRequestState]);
+        resetCopiedAnswerState();
+    }, [currentSessionId, resetCopiedAnswerState, resetCopiedRequestState]);
 
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
@@ -622,6 +700,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         const now = new Date().toISOString();
         const storedMessages = toStoredMessages(messages);
+        if (storedMessages.length === 0) {
+            setChatSessions((previous) => previous.filter((session) => session.id !== currentSessionId));
+            return;
+        }
         const persistedMode = isGenerating
             ? (chatSessions.find((session) => session.id === currentSessionId)?.mode ?? activeMode)
             : activeMode;
@@ -700,9 +782,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         if (isGenerating) {
             return;
         }
-        setMessages([]);
-        resetViewState();
-    }, [isGenerating, resetViewState]);
+        if (currentSession) {
+            handleDeleteSession(currentSession.id);
+            return;
+        }
+        createFreshSession(activeMode);
+    }, [activeMode, createFreshSession, currentSession, handleDeleteSession, isGenerating]);
 
     const handleModelOptionChange = useCallback((value: string) => {
         if (value.startsWith('webllm:')) {
@@ -1136,22 +1221,33 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
                     <div className="local-llm-sidebar-list">
                         {chatSessions.map((session) => (
-                            <button
-                                key={session.id}
-                                type="button"
-                                className={`local-llm-session-item ${session.id === currentSessionId ? 'active' : ''}`}
-                                onClick={() => handleSelectSession(session.id)}
-                            >
-                                <div className="local-llm-session-title">{session.title}</div>
-                                <div className="local-llm-session-meta">
-                                    <span>{session.mode === 'webllm' ? 'WebLLM' : 'ローカルAPI'}</span>
-                                    <span className="local-llm-session-model">{session.modelId || 'モデル未選択'}</span>
-                                </div>
-                                <div className="local-llm-session-time">
-                                    <Clock3 size={13} />
-                                    {formatSessionTime(session.updatedAt)}
-                                </div>
-                            </button>
+                            <div key={session.id} className="local-llm-session-row">
+                                <button
+                                    type="button"
+                                    className={`local-llm-session-item local-llm-session-select ${session.id === currentSessionId ? 'active' : ''}`}
+                                    onClick={() => handleSelectSession(session.id)}
+                                >
+                                    <div className="local-llm-session-title">{session.title}</div>
+                                    <div className="local-llm-session-meta">
+                                        <span>{session.mode === 'webllm' ? 'WebLLM' : 'ローカルAPI'}</span>
+                                        <span className="local-llm-session-model">{session.modelId || 'モデル未選択'}</span>
+                                    </div>
+                                    <div className="local-llm-session-time">
+                                        <Clock3 size={13} />
+                                        {formatSessionTime(session.updatedAt)}
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="menu-btn local-llm-session-delete"
+                                    onClick={() => handleDeleteSession(session.id)}
+                                    disabled={isGenerating}
+                                    aria-label="会話履歴を削除"
+                                    title="会話履歴を削除"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
                         ))}
                     </div>
                 </aside>
@@ -1198,9 +1294,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                     type="button"
                                     className="menu-btn right-panel-clear-btn"
                                     onClick={handleClearChat}
-                                    disabled={messages.length === 0 || isGenerating}
-                                    aria-label="会話をクリア"
-                                    title="クリア"
+                                    disabled={(currentSession === null && messages.length === 0) || isGenerating}
+                                    aria-label="会話履歴を削除"
+                                    title="会話履歴を削除"
                                 >
                                     <Trash2 size={18} />
                                 </button>
@@ -1325,6 +1421,18 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         <div className={`local-llm-message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
                                             {message.role === 'assistant' ? (
                                                 <div className="local-llm-assistant-stack">
+                                                    <div className="local-llm-assistant-actions">
+                                                        <button
+                                                            type="button"
+                                                            className="menu-btn local-llm-message-copy-btn"
+                                                            onClick={() => { void handleCopyAssistantMessage(message.id, message.content); }}
+                                                            disabled={getCopyableAssistantContent(message.content).length === 0}
+                                                            aria-label="回答内容をコピー"
+                                                            title="回答内容をコピー"
+                                                        >
+                                                            {copiedAnswerMessageId === message.id ? <Check size={16} /> : <Copy size={16} />}
+                                                        </button>
+                                                    </div>
                                                     {parsedAssistantMessageSegments?.map((segment, index) => (
                                                         segment.type === 'think'
                                                             ? (
