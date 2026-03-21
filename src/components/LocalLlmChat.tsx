@@ -11,6 +11,7 @@ import {
     getLocalLlmSupport,
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
+    resetLocalLlmChat,
     WEB_LLM_QWEN_MODEL_OPTIONS,
 } from '../utils/localLlmEngine';
 import {
@@ -45,6 +46,9 @@ const LOCAL_API_EXAMPLES = [
     'vLLM / SGLang: http://localhost:8000/v1',
     'Ollama(OpenAI互換): http://localhost:11434/v1',
 ] as const;
+
+const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
+const WEB_LLM_LENGTH_WARNING = 'WebLLM の文脈長または出力上限に達したため、ここで応答を打ち切りました。必要なら直近のやり取りを前提に続けて質問してください。';
 
 const getErrorMessage = (error: unknown) => {
     if (error instanceof Error && error.message.trim().length > 0) {
@@ -111,7 +115,7 @@ const toWebLlmMessages = (
             role: message.role,
             content,
         }];
-    });
+    }).slice(-WEB_LLM_PROMPT_MESSAGE_LIMIT);
 
     if (systemPrompt.trim().length === 0) {
         return conversationMessages;
@@ -707,6 +711,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         requestIdRef.current = requestId;
 
         let assistantText = '';
+        let webllmFinishReason: string | null = null;
 
         setError(null);
         setInput('');
@@ -767,7 +772,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 });
 
                 for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
-                    const delta = chunk.choices[0]?.delta?.content;
+                    const choice = chunk.choices[0];
+                    if (choice?.finish_reason) {
+                        webllmFinishReason = choice.finish_reason;
+                    }
+
+                    const delta = choice?.delta?.content;
                     if (typeof delta !== 'string' || delta.length === 0) {
                         continue;
                     }
@@ -777,6 +787,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
                 if (assistantText.length === 0) {
                     assistantText = await engine.getMessage();
+                }
+
+                if (webllmFinishReason === 'length') {
+                    await resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
                 }
             } else {
                 const controller = new AbortController();
@@ -804,9 +818,16 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             }
 
             finalizeAssistantText(assistantText);
+            if (webllmFinishReason === 'length' && mountedRef.current && requestIdRef.current === requestId) {
+                setError(WEB_LLM_LENGTH_WARNING);
+            }
         } catch (generationError) {
             if (generationError instanceof DOMException && generationError.name === 'AbortError') {
                 return;
+            }
+
+            if (activeMode === 'webllm') {
+                await resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
             }
 
             if (mountedRef.current && requestIdRef.current === requestId) {
@@ -845,11 +866,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setError(null);
         invalidateActiveRequest();
         interruptLocalLlmGeneration();
+        if (activeMode === 'webllm') {
+            void resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
+        }
         localApiChatAbortRef.current?.abort();
         localApiChatAbortRef.current = null;
         setIsGenerating(false);
         finalizeStreamingMessages();
-    }, [finalizeStreamingMessages, invalidateActiveRequest, isGenerating]);
+    }, [activeMode, finalizeStreamingMessages, invalidateActiveRequest, isGenerating, selectedWebLlmModel]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {

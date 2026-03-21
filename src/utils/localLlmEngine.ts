@@ -145,3 +145,11 @@ export const getLocalLlmGpuVendor = async () => {
 export const interruptLocalLlmGeneration = () => {
     engineInstance?.interruptGenerate();
 };
+
+export const resetLocalLlmChat = async (modelId?: string) => {
+    if (!engineInstance) {
+        return;
+    }
+
+    await engineInstance.resetChat(false, modelId ?? loadedModelId ?? undefined);
+};
