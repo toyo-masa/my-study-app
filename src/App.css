@@ -584,6 +584,17 @@
   line-height: 1.55;
 }
 
+.local-llm-chat-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.local-llm-top-controls {
+  margin-top: 0.2rem;
+}
+
 .local-llm-status-chip,
 .local-llm-info-chip {
   display: inline-flex;
