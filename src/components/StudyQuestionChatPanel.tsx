@@ -480,8 +480,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setMessages(restoredMessages);
         if (hasRestoredMessages) {
             window.requestAnimationFrame(() => {
-                threadRef.current?.scrollTo({
-                    top: 0,
+                const element = threadRef.current;
+                if (!element) {
+                    return;
+                }
+                element.scrollTo({
+                    top: element.scrollHeight,
                     behavior: 'auto',
                 });
             });
