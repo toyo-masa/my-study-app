@@ -1168,6 +1168,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                     updateLastRequestPayload({
                         mode: 'webllm',
                         model: selectedWebLlmModel,
+                        orchestration: orchestration.trace,
+                        orchestrationFallback: true,
                         requests: {
                             firstPass: result.firstPassRequest,
                             secondPass: result.secondPassRequest ?? null,
@@ -1229,6 +1231,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         mode: 'openai-local',
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
+                        orchestration: orchestration.trace,
+                        orchestrationFallback: true,
                         request: {
                             model: selectedModel,
                             messages: openAiMessages,
