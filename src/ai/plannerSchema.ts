@@ -10,6 +10,13 @@ import type {
 const CAPABILITIES: Capability[] = ['deterministic_calc', 'symbolic_math'];
 const TOOL_OPS: ToolOp[] = ['evaluate', 'simplify', 'solve', 'integrate', 'differentiate'];
 const PROBLEM_TYPES: PlannerProblemType[] = ['unknown', 'symbolic_math', 'reading', 'factual', 'mixed'];
+const CAPABILITY_BY_OP: Record<ToolOp, Capability> = {
+    evaluate: 'deterministic_calc',
+    simplify: 'symbolic_math',
+    solve: 'symbolic_math',
+    integrate: 'symbolic_math',
+    differentiate: 'symbolic_math',
+};
 
 const normalizePlannerMode = (value: unknown): PlannerMode => {
     return value === 'tool_augmented_answer' ? 'tool_augmented_answer' : 'direct_answer';
@@ -57,14 +64,19 @@ const normalizeToolAction = (value: unknown): ToolAction | null => {
     }
 
     const source = value as Partial<ToolAction>;
-    const capability = CAPABILITIES.includes(source.capability as Capability)
-        ? source.capability as Capability
-        : null;
     const op = TOOL_OPS.includes(source.op as ToolOp)
         ? source.op as ToolOp
         : null;
+    const requestedCapability = CAPABILITIES.includes(source.capability as Capability)
+        ? source.capability as Capability
+        : null;
 
-    if (!capability || !op) {
+    if (!op) {
+        return null;
+    }
+
+    const capability = CAPABILITY_BY_OP[op] ?? requestedCapability;
+    if (!capability) {
         return null;
     }
 

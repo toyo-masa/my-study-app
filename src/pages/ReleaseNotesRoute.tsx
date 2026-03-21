@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.49.11',
+        date: '2026年3月21日 19:43',
+        improvements: [
+            'ローカルLLMチャットと学習中の AI チャットで、補助ツールの action を実行前に正規化し、planner の出力が少しぶれても適切な capability へ載せ替えて続行しやすくしました。',
+            'planner の指示文を補強し、`evaluate` は deterministic_calc 専用という制約をより明確にして、補助ツール呼び出しの整合性を高めました。',
+        ],
+        fixes: [
+            'planner が `symbolic_math + evaluate` のような不正な組み合わせを返すと、補助ツールが `INVALID_OPERATION` で即失敗して回答が早期終了する問題を修正しました。',
+            '厳密計算が必要な質問でも、capability と op の組み合わせがわずかに崩れただけで tool 経路が使えなくなる不安定さを抑えました。',
+        ],
+    },
+    {
         version: '1.49.10',
         date: '2026年3月21日 19:12',
         improvements: [

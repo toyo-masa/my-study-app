@@ -43,6 +43,7 @@ export const buildPlannerSystemPrompt = () => {
         '厳密計算や決定的な外部処理が必要なときだけ tool_augmented_answer を選んでください。',
         '現時点で使える補助能力は deterministic_calc または symbolic_math だけです。',
         'deterministic_calc の op は evaluate、symbolic_math の op は simplify / solve / integrate / differentiate です。',
+        'capability と op の組み合わせは必ず一致させてください。evaluate は deterministic_calc にしか使えません。',
         '積分・微分・方程式の解・式の簡約が必要なら symbolic_math を使ってください。',
         'deterministic_calc.evaluate は四則演算、分数、小数化、既に得た式の数値評価など、決定的な評価だけに使ってください。',
         'nextAction は必ず 1 件以下です。複数 action を同時に返してはいけません。',
