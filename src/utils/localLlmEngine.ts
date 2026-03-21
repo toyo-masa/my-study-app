@@ -1,6 +1,17 @@
 import type { InitProgressCallback, InitProgressReport, WebWorkerMLCEngine } from '@mlc-ai/web-llm';
 
-export const LOCAL_LLM_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
+export const WEB_LLM_QWEN_MODEL_OPTIONS = [
+    { value: 'Qwen3-0.6B-q4f16_1-MLC', label: 'Qwen3 0.6B' },
+    { value: 'Qwen3-1.7B-q4f16_1-MLC', label: 'Qwen3 1.7B' },
+    { value: 'Qwen3-4B-q4f16_1-MLC', label: 'Qwen3 4B' },
+    { value: 'Qwen3-8B-q4f16_1-MLC', label: 'Qwen3 8B' },
+    { value: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC', label: 'Qwen2.5 0.5B Instruct' },
+    { value: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC', label: 'Qwen2.5 1.5B Instruct' },
+    { value: 'Qwen2.5-3B-Instruct-q4f16_1-MLC', label: 'Qwen2.5 3B Instruct' },
+    { value: 'Qwen2.5-7B-Instruct-q4f16_1-MLC', label: 'Qwen2.5 7B Instruct' },
+] as const;
+
+export const DEFAULT_WEB_LLM_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
 
 type LocalLlmSupport = {
     supported: boolean;
@@ -11,6 +22,7 @@ let workerInstance: Worker | null = null;
 let engineInstance: WebWorkerMLCEngine | null = null;
 let enginePromise: Promise<WebWorkerMLCEngine> | null = null;
 let progressListener: InitProgressCallback | null = null;
+let loadedModelId: string | null = null;
 
 const forwardProgress = (report: InitProgressReport) => {
     progressListener?.(report);
@@ -63,16 +75,31 @@ export const getLocalLlmSupport = (): LocalLlmSupport => {
     };
 };
 
-export const hasLoadedLocalLlmEngine = () => {
-    return engineInstance !== null;
+export const hasLoadedLocalLlmEngine = (modelId?: string) => {
+    if (!engineInstance || !loadedModelId) {
+        return false;
+    }
+
+    if (!modelId) {
+        return true;
+    }
+
+    return loadedModelId === modelId;
 };
 
-export const ensureLocalLlmEngine = async (listener?: InitProgressCallback) => {
+export const ensureLocalLlmEngine = async (
+    modelId = DEFAULT_WEB_LLM_MODEL_ID,
+    listener?: InitProgressCallback
+) => {
     progressListener = listener ?? null;
 
     if (engineInstance) {
         if (listener) {
             engineInstance.setInitProgressCallback(forwardProgress);
+        }
+        if (loadedModelId !== modelId) {
+            await engineInstance.reload(modelId);
+            loadedModelId = modelId;
         }
         return engineInstance;
     }
@@ -82,20 +109,30 @@ export const ensureLocalLlmEngine = async (listener?: InitProgressCallback) => {
             const webllm = await import('@mlc-ai/web-llm');
             const engine = await webllm.CreateWebWorkerMLCEngine(
                 createWorker(),
-                LOCAL_LLM_MODEL_ID,
+                modelId,
                 {
                     initProgressCallback: forwardProgress,
                 }
             );
             engineInstance = engine;
+            loadedModelId = modelId;
             return engine;
         })().catch((error: unknown) => {
             enginePromise = null;
+            loadedModelId = null;
             throw error;
         });
     }
 
-    return enginePromise;
+    const engine = await enginePromise;
+    if (loadedModelId !== modelId) {
+        if (listener) {
+            engine.setInitProgressCallback(forwardProgress);
+        }
+        await engine.reload(modelId);
+        loadedModelId = modelId;
+    }
+    return engine;
 };
 
 export const getLocalLlmGpuVendor = async () => {

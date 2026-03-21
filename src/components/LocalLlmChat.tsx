@@ -5,12 +5,13 @@ import { BackButton } from './BackButton';
 import { MarkdownText } from './MarkdownText';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import {
+    DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
     getLocalLlmGpuVendor,
     getLocalLlmSupport,
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
-    LOCAL_LLM_MODEL_ID,
+    WEB_LLM_QWEN_MODEL_OPTIONS,
 } from '../utils/localLlmEngine';
 import {
     fetchOpenAiCompatibleModelIds,
@@ -36,6 +37,7 @@ interface LocalLlmChatProps {
     onBack: () => void;
     localLlmSettings: LocalLlmSettings;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+    onWebLlmModelChange: (modelId: string) => void;
 }
 
 const LOCAL_API_EXAMPLES = [
@@ -130,16 +132,53 @@ const formatOptionalWebLlmSetting = (value: number | null) => {
     return value === null ? '既定値' : String(value);
 };
 
+type ParsedAssistantMessage = {
+    thinkContent: string | null;
+    answerContent: string;
+};
+
+const parseAssistantMessageContent = (content: string): ParsedAssistantMessage => {
+    const thinkStart = content.indexOf('<think>');
+    if (thinkStart === -1) {
+        return {
+            thinkContent: null,
+            answerContent: content,
+        };
+    }
+
+    const thinkTagLength = '<think>'.length;
+    const thinkEnd = content.indexOf('</think>', thinkStart + thinkTagLength);
+    const leadingContent = content.slice(0, thinkStart).trim();
+
+    if (thinkEnd === -1) {
+        return {
+            thinkContent: content.slice(thinkStart + thinkTagLength).trim(),
+            answerContent: leadingContent,
+        };
+    }
+
+    const trailingContent = content.slice(thinkEnd + '</think>'.length).trim();
+    const answerContent = [leadingContent, trailingContent]
+        .filter((segment) => segment.length > 0)
+        .join('\n\n');
+
+    return {
+        thinkContent: content.slice(thinkStart + thinkTagLength, thinkEnd).trim(),
+        answerContent,
+    };
+};
+
 const buildEmptySession = (
     mode: LocalLlmMode,
-    fallbackLocalModelId: string
+    fallbackLocalModelId: string,
+    fallbackWebLlmModelId: string
 ): StoredLocalLlmChatSession => {
     const now = new Date().toISOString();
     return {
         id: crypto.randomUUID(),
         title: '新しいチャット',
         mode,
-        modelId: mode === 'webllm' ? LOCAL_LLM_MODEL_ID : fallbackLocalModelId.trim(),
+        modelId: mode === 'webllm' ? fallbackWebLlmModelId : fallbackLocalModelId.trim(),
         messages: [],
         createdAt: now,
         updatedAt: now,
@@ -150,6 +189,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     onBack,
     localLlmSettings,
     onLocalLlmModeChange,
+    onWebLlmModelChange,
 }) => {
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const initialSessionsRef = useRef<StoredLocalLlmChatSession[] | null>(null);
@@ -158,7 +198,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }
 
     const initialSessions = initialSessionsRef.current ?? [];
-    const initialSession = initialSessions[0] ?? buildEmptySession(localLlmSettings.preferredMode, localLlmSettings.defaultModelId);
+    const initialSession = initialSessions[0] ?? buildEmptySession(
+        localLlmSettings.preferredMode,
+        localLlmSettings.defaultModelId,
+        localLlmSettings.webllmModelId
+    );
 
     const [chatSessions, setChatSessions] = useState<StoredLocalLlmChatSession[]>(initialSessions.length > 0 ? initialSessions : [initialSession]);
     const [currentSessionId, setCurrentSessionId] = useState(initialSession.id);
@@ -167,7 +211,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [loadProgress, setLoadProgress] = useState<InitProgressReport | null>(null);
     const [isModelLoading, setIsModelLoading] = useState(false);
-    const [isModelReady, setIsModelReady] = useState(() => hasLoadedLocalLlmEngine());
+    const [isModelReady, setIsModelReady] = useState(() => hasLoadedLocalLlmEngine(localLlmSettings.webllmModelId));
     const [isGenerating, setIsGenerating] = useState(false);
     const [gpuVendor, setGpuVendor] = useState('');
     const [apiKey, setApiKey] = useState('');
@@ -189,13 +233,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
 
     const activeMode = localLlmSettings.preferredMode;
+    const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
     const webllmSystemPrompt = localLlmSettings.webllmSystemPrompt.trim();
     const webllmTemperature = localLlmSettings.webllmTemperature;
     const webllmTopP = localLlmSettings.webllmTopP;
     const webllmMaxTokens = localLlmSettings.webllmMaxTokens;
     const webllmPresencePenalty = localLlmSettings.webllmPresencePenalty;
     const selectedModel = activeMode === 'webllm'
-        ? LOCAL_LLM_MODEL_ID
+        ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
     const canSend = input.trim().length > 0
         && !isGenerating
@@ -225,13 +270,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [invalidateActiveRequest]);
 
     const createFreshSession = useCallback((mode: LocalLlmMode) => {
-        const nextSession = buildEmptySession(mode, localLlmSettings.defaultModelId);
+        const nextSession = buildEmptySession(mode, localLlmSettings.defaultModelId, selectedWebLlmModel);
         setChatSessions((previous) => sortLocalLlmChatSessions([nextSession, ...previous.filter((session) => session.id !== nextSession.id)]));
         setCurrentSessionId(nextSession.id);
         setMessages([]);
         setSelectedLocalApiModel(mode === 'openai-local' ? nextSession.modelId : localLlmSettings.defaultModelId);
         resetViewState();
-    }, [localLlmSettings.defaultModelId, resetViewState]);
+    }, [localLlmSettings.defaultModelId, resetViewState, selectedWebLlmModel]);
 
     const handleModeChange = useCallback((nextMode: LocalLlmMode) => {
         if (nextMode === activeMode) {
@@ -260,7 +305,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         if (targetSession.mode !== activeMode) {
             onLocalLlmModeChange(targetSession.mode);
         }
-    }, [activeMode, cancelActiveWork, chatSessions, currentSessionId, localLlmSettings.defaultModelId, onLocalLlmModeChange, resetViewState]);
+        if (
+            targetSession.mode === 'webllm'
+            && targetSession.modelId
+            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === targetSession.modelId)
+            && targetSession.modelId !== selectedWebLlmModel
+        ) {
+            onWebLlmModelChange(targetSession.modelId);
+        }
+    }, [activeMode, cancelActiveWork, chatSessions, currentSessionId, localLlmSettings.defaultModelId, onLocalLlmModeChange, onWebLlmModelChange, resetViewState, selectedWebLlmModel]);
 
     const handleCreateNewChat = useCallback(() => {
         if (isGenerating) {
@@ -286,6 +339,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         if (initialSession.mode !== localLlmSettings.preferredMode) {
             modeChangeReasonRef.current = 'session-load';
             onLocalLlmModeChange(initialSession.mode);
+        }
+        if (
+            initialSession.mode === 'webllm'
+            && initialSession.modelId
+            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === initialSession.modelId)
+            && initialSession.modelId !== selectedWebLlmModel
+        ) {
+            onWebLlmModelChange(initialSession.modelId);
         }
 
         return () => {
@@ -315,6 +376,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             }
         })();
     }, [isModelReady]);
+
+    useEffect(() => {
+        setIsModelReady(hasLoadedLocalLlmEngine(selectedWebLlmModel));
+        setLoadProgress(null);
+    }, [selectedWebLlmModel]);
 
     useEffect(() => {
         if (previousModeRef.current === activeMode) {
@@ -360,7 +426,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             id: currentSessionId,
             title: buildSessionTitle(storedMessages),
             mode: activeMode,
-            modelId: activeMode === 'webllm' ? LOCAL_LLM_MODEL_ID : selectedModel,
+            modelId: activeMode === 'webllm' ? selectedWebLlmModel : selectedModel,
             messages: storedMessages,
             createdAt: chatSessions.find((session) => session.id === currentSessionId)?.createdAt ?? now,
             updatedAt: now,
@@ -383,7 +449,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 ...previous.filter((session) => session.id !== currentSessionId),
             ]);
         });
-    }, [activeMode, chatSessions, currentSessionId, messages, selectedModel]);
+    }, [activeMode, chatSessions, currentSessionId, messages, selectedModel, selectedWebLlmModel]);
 
     const handleLoadModel = useCallback(async () => {
         if (!webllmSupport.supported || isModelLoading || isModelReady) {
@@ -395,7 +461,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setLoadProgress(null);
 
         try {
-            await ensureLocalLlmEngine((report) => {
+            await ensureLocalLlmEngine(selectedWebLlmModel, (report) => {
                 if (!mountedRef.current) {
                     return;
                 }
@@ -422,7 +488,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 setIsModelLoading(false);
             }
         }
-    }, [isModelLoading, isModelReady, webllmSupport.supported]);
+    }, [isModelLoading, isModelReady, selectedWebLlmModel, webllmSupport.supported]);
 
     const handleClearChat = useCallback(() => {
         if (isGenerating) {
@@ -570,7 +636,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         try {
             if (activeMode === 'webllm') {
-                const engine = await ensureLocalLlmEngine();
+                const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
                 const stream = await engine.chat.completions.create({
                     messages: toWebLlmMessages([...messages, userMessage], webllmSystemPrompt),
                     stream: true,
@@ -650,6 +716,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         webllmMaxTokens,
         webllmPresencePenalty,
         messages,
+        selectedWebLlmModel,
         selectedModel,
     ]);
 
@@ -748,7 +815,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                             {activeMode === 'webllm' ? (
                                 <>
                                     <span className="local-llm-info-chip"><Cpu size={14} /> WebLLM + WebGPU</span>
-                                    <span className="local-llm-info-chip"><Bot size={14} /> 現在のモデル: {LOCAL_LLM_MODEL_ID}</span>
+                                    <span className="local-llm-info-chip"><Bot size={14} /> 現在のモデル: {selectedWebLlmModel}</span>
                                     <span className="local-llm-info-chip">
                                         <ShieldCheck size={14} />
                                         {webllmSystemPrompt.length > 0 ? 'システムプロンプト設定あり' : 'システムプロンプトなし'}
@@ -780,6 +847,27 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 <p className="local-llm-helper-text">
                                     初回はモデルをブラウザへダウンロードするため、読み込みに時間がかかります。外出先でも、対応ブラウザならサーバーなしで使えます。
                                 </p>
+
+                                <div className="local-llm-settings-grid">
+                                    <label className="local-llm-field">
+                                        <span className="local-llm-field-label">WebLLM モデル</span>
+                                        <select
+                                            className="local-llm-input"
+                                            value={selectedWebLlmModel}
+                                            onChange={(event) => onWebLlmModelChange(event.target.value)}
+                                            disabled={isGenerating || isModelLoading}
+                                        >
+                                            {WEB_LLM_QWEN_MODEL_OPTIONS.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span className="local-llm-field-note">
+                                            Qwen 系モデルだけを切り替えられます。モデルを変えたあとは、選んだモデルで読み込み直します。
+                                        </span>
+                                    </label>
+                                </div>
 
                                 {!webllmSupport.supported && (
                                     <div className="local-llm-alert is-error">
@@ -946,7 +1034,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                     </p>
                                 </div>
                             ) : (
-                                messages.map((message) => (
+                                messages.map((message) => {
+                                    const parsedAssistantMessage = message.role === 'assistant'
+                                        ? parseAssistantMessageContent(message.content)
+                                        : null;
+
+                                    return (
                                     <div
                                         key={message.id}
                                         className={`local-llm-message ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}
@@ -956,7 +1049,32 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         </div>
                                         <div className={`local-llm-message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
                                             {message.role === 'assistant' ? (
-                                                <MarkdownText content={message.content} className="local-llm-markdown" />
+                                                <div className="local-llm-assistant-stack">
+                                                    {parsedAssistantMessage?.thinkContent && (
+                                                        <details
+                                                            className="local-llm-think-block"
+                                                            open={message.isStreaming ? true : undefined}
+                                                        >
+                                                            <summary className="local-llm-think-summary">
+                                                                {message.isStreaming ? '思考中...' : '思考過程を表示'}
+                                                            </summary>
+                                                            <div className="local-llm-think-body">
+                                                                <MarkdownText
+                                                                    content={parsedAssistantMessage.thinkContent}
+                                                                    className="local-llm-markdown local-llm-think-markdown"
+                                                                />
+                                                            </div>
+                                                        </details>
+                                                    )}
+                                                    {parsedAssistantMessage?.answerContent.trim().length
+                                                        ? (
+                                                            <MarkdownText
+                                                                content={parsedAssistantMessage.answerContent}
+                                                                className="local-llm-markdown"
+                                                            />
+                                                        )
+                                                        : null}
+                                                </div>
                                             ) : (
                                                 <div className="local-llm-plain-text">{message.content}</div>
                                             )}
@@ -968,7 +1086,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                             )}
                                         </div>
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                             <div ref={bottomRef} />
                         </div>

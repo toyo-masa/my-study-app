@@ -147,6 +147,10 @@ function App() {
                   ...localLlmSettings,
                   preferredMode,
                 })}
+                onWebLlmModelChange={(webllmModelId) => handleLocalLlmSettingsChange({
+                  ...localLlmSettings,
+                  webllmModelId,
+                })}
               />
             )}
           />

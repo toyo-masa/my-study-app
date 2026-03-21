@@ -1,5 +1,7 @@
+import { DEFAULT_WEB_LLM_MODEL_ID, WEB_LLM_QWEN_MODEL_OPTIONS } from './localLlmEngine';
 export type ThemeMode = 'light' | 'dark' | 'monokai';
 export type LocalLlmMode = 'webllm' | 'openai-local';
+
 export interface HandwritingSettings {
     allowTouchDrawing: boolean;
 }
@@ -7,6 +9,7 @@ export interface LocalLlmSettings {
     preferredMode: LocalLlmMode;
     baseUrl: string;
     defaultModelId: string;
+    webllmModelId: string;
     webllmSystemPrompt: string;
     webllmEnableThinking: boolean;
     webllmTemperature: number | null;
@@ -34,6 +37,7 @@ const DEFAULT_SETTINGS = {
         preferredMode: 'webllm' as LocalLlmMode,
         baseUrl: 'http://localhost:1234/v1',
         defaultModelId: '',
+        webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
         webllmSystemPrompt: '',
         webllmEnableThinking: true,
         webllmTemperature: null,
@@ -115,6 +119,14 @@ const normalizeLocalLlmModelId = (value: unknown): string => {
     return typeof value === 'string' ? value.trim() : '';
 };
 
+const normalizeWebLlmModelId = (value: unknown): string => {
+    const modelId = typeof value === 'string' ? value.trim() : '';
+    if (WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === modelId)) {
+        return modelId;
+    }
+    return DEFAULT_WEB_LLM_MODEL_ID;
+};
+
 const normalizeLocalLlmSystemPrompt = (value: unknown): string => {
     return typeof value === 'string' ? value.trim() : '';
 };
@@ -159,6 +171,7 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         preferredMode: normalizeLocalLlmMode(source.preferredMode),
         baseUrl: normalizeLocalLlmBaseUrl(source.baseUrl),
         defaultModelId: normalizeLocalLlmModelId(source.defaultModelId),
+        webllmModelId: normalizeWebLlmModelId(source.webllmModelId),
         webllmSystemPrompt: normalizeLocalLlmSystemPrompt(source.webllmSystemPrompt),
         webllmEnableThinking: normalizeWebLlmEnableThinking(source.webllmEnableThinking),
         webllmTemperature: normalizeOptionalFiniteNumber(source.webllmTemperature, 0, 2),

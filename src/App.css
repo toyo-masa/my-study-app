@@ -891,6 +891,46 @@
   margin: 0.95rem 0;
 }
 
+.local-llm-assistant-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.local-llm-think-block {
+  border: 1px solid rgba(var(--primary-color-rgb, 99, 102, 241), 0.18);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-color) 92%, var(--primary-color) 8%);
+  overflow: hidden;
+}
+
+.local-llm-think-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  user-select: none;
+}
+
+.local-llm-think-summary::-webkit-details-marker {
+  display: none;
+}
+
+.local-llm-think-block[open] .local-llm-think-summary {
+  border-bottom: 1px solid rgba(var(--primary-color-rgb, 99, 102, 241), 0.14);
+}
+
+.local-llm-think-body {
+  padding: 0.8rem;
+}
+
+.local-llm-think-markdown {
+  color: var(--text-secondary);
+  font-size: 0.93rem;
+}
+
 .local-llm-streaming-indicator {
   margin-top: 0.65rem;
   display: inline-flex;

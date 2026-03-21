@@ -6,11 +6,13 @@ import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 interface LocalLlmChatRouteProps {
     localLlmSettings: LocalLlmSettings;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+    onWebLlmModelChange: (modelId: string) => void;
 }
 
 export const LocalLlmChatRoute: React.FC<LocalLlmChatRouteProps> = ({
     localLlmSettings,
     onLocalLlmModeChange,
+    onWebLlmModelChange,
 }) => {
     const navigate = useNavigate();
 
@@ -19,6 +21,7 @@ export const LocalLlmChatRoute: React.FC<LocalLlmChatRouteProps> = ({
             onBack={() => navigate('/')}
             localLlmSettings={localLlmSettings}
             onLocalLlmModeChange={onLocalLlmModeChange}
+            onWebLlmModelChange={onWebLlmModelChange}
         />
     );
 };
