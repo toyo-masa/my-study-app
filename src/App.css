@@ -764,9 +764,8 @@
 }
 
 .local-llm-thread {
-  min-height: 360px;
-  max-height: 56vh;
-  overflow-y: auto;
+  min-height: 240px;
+  overflow: visible;
   border: 1px solid var(--border-color);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-color) 96%, var(--primary-color) 4%);
@@ -777,7 +776,7 @@
 }
 
 .local-llm-thread-empty {
-  min-height: 320px;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   align-items: center;
