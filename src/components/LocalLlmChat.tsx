@@ -223,6 +223,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const previousModeRef = useRef<LocalLlmMode>(localLlmSettings.preferredMode);
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
     const copyRequestResetTimeoutRef = useRef<number | null>(null);
+    const currentSessionIdRef = useRef(currentSessionId);
+    const activeGenerationSessionRef = useRef<{
+        sessionId: string;
+        mode: LocalLlmMode;
+        modelId: string;
+        createdAt: string;
+    } | null>(null);
 
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
@@ -275,6 +282,53 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const canSend = input.trim().length > 0
         && !isGenerating
         && (activeMode === 'webllm' ? isModelReady : selectedModel.length > 0);
+
+    const syncSessionMessages = useCallback((params: {
+        sessionId: string;
+        mode: LocalLlmMode;
+        modelId: string;
+        createdAt: string;
+        viewMessages: LocalChatMessage[];
+    }) => {
+        const storedMessages = toStoredMessages(params.viewMessages);
+        const now = new Date().toISOString();
+        const nextSession: StoredLocalLlmChatSession = {
+            id: params.sessionId,
+            title: buildSessionTitle(storedMessages),
+            mode: params.mode,
+            modelId: params.modelId,
+            messages: storedMessages,
+            createdAt: params.createdAt,
+            updatedAt: now,
+        };
+
+        setChatSessions((previous) => {
+            const existing = previous.find((session) => session.id === params.sessionId);
+            const resolvedCreatedAt = existing?.createdAt ?? params.createdAt;
+            const resolvedSession: StoredLocalLlmChatSession = {
+                ...nextSession,
+                createdAt: resolvedCreatedAt,
+            };
+            const isSame = existing
+                && existing.title === resolvedSession.title
+                && existing.mode === resolvedSession.mode
+                && existing.modelId === resolvedSession.modelId
+                && JSON.stringify(existing.messages) === JSON.stringify(resolvedSession.messages);
+
+            if (isSame) {
+                return previous;
+            }
+
+            return sortLocalLlmChatSessions([
+                resolvedSession,
+                ...previous.filter((session) => session.id !== params.sessionId),
+            ]);
+        });
+
+        if (mountedRef.current && currentSessionIdRef.current === params.sessionId) {
+            setMessages(params.viewMessages);
+        }
+    }, []);
 
     const invalidateActiveRequest = useCallback(() => {
         requestIdRef.current += 1;
@@ -347,7 +401,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             return;
         }
 
-        cancelActiveWork();
+        if (!isGenerating) {
+            cancelActiveWork();
+        }
         modeChangeReasonRef.current = targetSession.mode !== activeMode ? 'session-load' : null;
         setCurrentSessionId(targetSession.id);
         setMessages(toViewMessages(targetSession.messages));
@@ -358,10 +414,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         );
         resetViewState();
 
-        if (targetSession.mode !== activeMode) {
+        if (!isGenerating && targetSession.mode !== activeMode) {
             onLocalLlmModeChange(targetSession.mode);
         }
         if (
+            !isGenerating &&
             targetSession.mode === 'webllm'
             && targetSession.modelId
             && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === targetSession.modelId)
@@ -369,7 +426,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         ) {
             onWebLlmModelChange(targetSession.modelId);
         }
-    }, [activeMode, cancelActiveWork, chatSessions, currentSessionId, localLlmSettings.defaultModelId, onLocalLlmModeChange, onWebLlmModelChange, resetViewState, selectedWebLlmModel]);
+    }, [activeMode, cancelActiveWork, chatSessions, currentSessionId, isGenerating, localLlmSettings.defaultModelId, onLocalLlmModeChange, onWebLlmModelChange, resetViewState, selectedWebLlmModel]);
 
     const handleCreateNewChat = useCallback(() => {
         if (isGenerating) {
@@ -452,6 +509,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [currentSessionId, resetCopiedRequestState]);
 
     useEffect(() => {
+        currentSessionIdRef.current = currentSessionId;
+    }, [currentSessionId]);
+
+    useEffect(() => {
         lastScrollYRef.current = window.scrollY;
 
         let touchStartY: number | null = null;
@@ -527,12 +588,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         }
 
         previousModeRef.current = activeMode;
-        cancelActiveWork();
 
         if (modeChangeReasonRef.current === 'session-load') {
             modeChangeReasonRef.current = null;
             return;
         }
+
+        cancelActiveWork();
 
         if (messages.length > 0) {
             createFreshSession(activeMode);
@@ -560,11 +622,17 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         const now = new Date().toISOString();
         const storedMessages = toStoredMessages(messages);
+        const persistedMode = isGenerating
+            ? (chatSessions.find((session) => session.id === currentSessionId)?.mode ?? activeMode)
+            : activeMode;
+        const persistedModelId = isGenerating
+            ? (chatSessions.find((session) => session.id === currentSessionId)?.modelId ?? (activeMode === 'webllm' ? selectedWebLlmModel : selectedModel))
+            : (activeMode === 'webllm' ? selectedWebLlmModel : selectedModel);
         const nextSession: StoredLocalLlmChatSession = {
             id: currentSessionId,
             title: buildSessionTitle(storedMessages),
-            mode: activeMode,
-            modelId: activeMode === 'webllm' ? selectedWebLlmModel : selectedModel,
+            mode: persistedMode,
+            modelId: persistedModelId,
             messages: storedMessages,
             createdAt: chatSessions.find((session) => session.id === currentSessionId)?.createdAt ?? now,
             updatedAt: now,
@@ -587,7 +655,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 ...previous.filter((session) => session.id !== currentSessionId),
             ]);
         });
-    }, [activeMode, chatSessions, currentSessionId, messages, selectedModel, selectedWebLlmModel]);
+    }, [activeMode, chatSessions, currentSessionId, isGenerating, messages, selectedModel, selectedWebLlmModel]);
 
     const handleLoadModel = useCallback(async () => {
         if (!webllmSupport.supported || isModelLoading || isModelReady) {
@@ -723,6 +791,40 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [activeMode, handleFetchModels, localLlmSettings.baseUrl]);
 
     useEffect(() => {
+        if (isGenerating || !currentSession) {
+            return;
+        }
+
+        if (currentSession.mode !== activeMode) {
+            modeChangeReasonRef.current = 'session-load';
+            onLocalLlmModeChange(currentSession.mode);
+            return;
+        }
+
+        if (
+            currentSession.mode === 'webllm'
+            && currentSession.modelId
+            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === currentSession.modelId)
+            && currentSession.modelId !== selectedWebLlmModel
+        ) {
+            onWebLlmModelChange(currentSession.modelId);
+            return;
+        }
+
+        if (currentSession.mode === 'openai-local') {
+            setSelectedLocalApiModel(currentSession.modelId || localLlmSettings.defaultModelId);
+        }
+    }, [
+        activeMode,
+        currentSession,
+        isGenerating,
+        localLlmSettings.defaultModelId,
+        onLocalLlmModeChange,
+        onWebLlmModelChange,
+        selectedWebLlmModel,
+    ]);
+
+    useEffect(() => {
         if (activeMode !== 'webllm' || !webllmSupport.supported) {
             autoLoadWebLlmKeyRef.current = null;
             return;
@@ -769,13 +871,31 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         let assistantText = '';
         let webllmHitFinalLengthLimit = false;
+        let generationMessages: LocalChatMessage[] = [...messages, userMessage, pendingAssistantMessage];
+        const generationSessionId = currentSessionId;
+        const generationSessionMode = activeMode;
+        const generationSessionModelId = activeMode === 'webllm' ? selectedWebLlmModel : selectedModel;
+        const generationSessionCreatedAt = currentSession?.createdAt ?? new Date().toISOString();
+
+        activeGenerationSessionRef.current = {
+            sessionId: generationSessionId,
+            mode: generationSessionMode,
+            modelId: generationSessionModelId,
+            createdAt: generationSessionCreatedAt,
+        };
 
         setError(null);
         setInput('');
         setIsGenerating(true);
         setWebllmGenerationPhase(null);
         shouldAutoScrollRef.current = true;
-        setMessages((previous) => [...previous, userMessage, pendingAssistantMessage]);
+        syncSessionMessages({
+            sessionId: generationSessionId,
+            mode: generationSessionMode,
+            modelId: generationSessionModelId,
+            createdAt: generationSessionCreatedAt,
+            viewMessages: generationMessages,
+        });
 
         const updateAssistantText = (nextText: string) => {
             assistantText = nextText;
@@ -783,7 +903,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 return;
             }
 
-            setMessages((previous) => previous.map((message) => (
+            generationMessages = generationMessages.map((message) => (
                 message.id === assistantMessageId
                     ? {
                         ...message,
@@ -791,7 +911,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         isStreaming: true,
                     }
                     : message
-            )));
+            ));
+
+            syncSessionMessages({
+                sessionId: generationSessionId,
+                mode: generationSessionMode,
+                modelId: generationSessionModelId,
+                createdAt: generationSessionCreatedAt,
+                viewMessages: generationMessages,
+            });
         };
 
         const finalizeAssistantText = (finalText: string) => {
@@ -799,20 +927,25 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 return;
             }
 
-            setMessages((previous) => previous.filter((message) => {
-                if (message.id !== assistantMessageId) {
-                    return true;
-                }
-                return finalText.length > 0;
-            }).map((message) => (
-                message.id === assistantMessageId
-                    ? {
-                        ...message,
-                        content: finalText,
-                        isStreaming: false,
-                    }
-                    : message
-            )));
+            generationMessages = generationMessages
+                .filter((message) => message.id !== assistantMessageId || finalText.length > 0)
+                .map((message) => (
+                    message.id === assistantMessageId
+                        ? {
+                            ...message,
+                            content: finalText,
+                            isStreaming: false,
+                        }
+                        : message
+                ));
+
+            syncSessionMessages({
+                sessionId: generationSessionId,
+                mode: generationSessionMode,
+                modelId: generationSessionModelId,
+                createdAt: generationSessionCreatedAt,
+                viewMessages: generationMessages,
+            });
         };
 
         try {
@@ -913,10 +1046,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 setIsGenerating(false);
                 setWebllmGenerationPhase(null);
             }
+            if (requestIdRef.current === requestId) {
+                activeGenerationSessionRef.current = null;
+            }
         }
     }, [
         activeMode,
         apiKey,
+        currentSession?.createdAt,
+        currentSessionId,
         input,
         isGenerating,
         isModelReady,
@@ -934,6 +1072,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         messages,
         selectedWebLlmModel,
         selectedModel,
+        syncSessionMessages,
         updateLastRequestPayload,
     ]);
 
@@ -942,18 +1081,20 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             return;
         }
 
+        const activeGeneration = activeGenerationSessionRef.current;
         setError(null);
         invalidateActiveRequest();
         interruptLocalLlmGeneration();
-        if (activeMode === 'webllm') {
-            void resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
+        if (activeGeneration?.mode === 'webllm') {
+            void resetLocalLlmChat(activeGeneration.modelId).catch(() => undefined);
         }
         localApiChatAbortRef.current?.abort();
         localApiChatAbortRef.current = null;
+        activeGenerationSessionRef.current = null;
         setIsGenerating(false);
         setWebllmGenerationPhase(null);
         finalizeStreamingMessages();
-    }, [activeMode, finalizeStreamingMessages, invalidateActiveRequest, isGenerating, selectedWebLlmModel]);
+    }, [finalizeStreamingMessages, invalidateActiveRequest, isGenerating]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
