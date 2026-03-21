@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Bot, Clock3, Cpu, Download, LoaderCircle, Plus, Send, ShieldCheck, Trash2 } from 'lucide-react';
 import type { ChatCompletionChunk, ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import { BackButton } from './BackButton';
+import { MarkdownText } from './MarkdownText';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import {
     ensureLocalLlmEngine,
@@ -954,7 +955,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                             {message.role === 'user' ? 'You' : 'Local LLM'}
                                         </div>
                                         <div className={`local-llm-message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
-                                            {message.content}
+                                            {message.role === 'assistant' ? (
+                                                <MarkdownText content={message.content} className="local-llm-markdown" />
+                                            ) : (
+                                                <div className="local-llm-plain-text">{message.content}</div>
+                                            )}
                                             {message.isStreaming && (
                                                 <span className="local-llm-streaming-indicator">
                                                     <LoaderCircle size={14} className="spin" />

@@ -818,9 +818,12 @@
   max-width: min(84%, 720px);
   border-radius: 16px;
   padding: 0.85rem 0.95rem;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.6;
+}
+
+.local-llm-plain-text {
+  white-space: pre-wrap;
 }
 
 .local-llm-message-bubble.is-user {
@@ -833,6 +836,60 @@
   background: var(--surface-color);
   color: var(--text-color);
   border: 1px solid var(--border-color);
+}
+
+.local-llm-markdown {
+  font-size: 0.98rem;
+}
+
+.local-llm-markdown p,
+.local-llm-markdown ul,
+.local-llm-markdown ol,
+.local-llm-markdown pre,
+.local-llm-markdown blockquote {
+  margin: 0 0 0.85rem;
+}
+
+.local-llm-markdown p:last-child,
+.local-llm-markdown ul:last-child,
+.local-llm-markdown ol:last-child,
+.local-llm-markdown pre:last-child,
+.local-llm-markdown blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.local-llm-markdown ul,
+.local-llm-markdown ol {
+  padding-left: 1.4rem;
+}
+
+.local-llm-markdown li + li {
+  margin-top: 0.3rem;
+}
+
+.local-llm-markdown h1,
+.local-llm-markdown h2,
+.local-llm-markdown h3,
+.local-llm-markdown h4 {
+  margin: 0 0 0.75rem;
+  line-height: 1.35;
+}
+
+.local-llm-markdown h1 {
+  font-size: 1.25rem;
+}
+
+.local-llm-markdown h2 {
+  font-size: 1.12rem;
+}
+
+.local-llm-markdown h3,
+.local-llm-markdown h4 {
+  font-size: 1rem;
+}
+
+.local-llm-markdown .katex-display {
+  margin: 0.95rem 0;
 }
 
 .local-llm-streaming-indicator {
