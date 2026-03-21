@@ -250,6 +250,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const mountedRef = useRef(true);
     const requestIdRef = useRef(0);
     const shouldAutoScrollRef = useRef(true);
+    const isComposingRef = useRef(false);
+    const lastScrollYRef = useRef(0);
     const localApiModelListAbortRef = useRef<AbortController | null>(null);
     const localApiChatAbortRef = useRef<AbortController | null>(null);
     const previousModeRef = useRef<LocalLlmMode>(localLlmSettings.preferredMode);
@@ -273,15 +275,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         requestIdRef.current += 1;
     }, []);
 
-    const updateAutoScrollPreference = useCallback(() => {
+    const isNearBottom = useCallback(() => {
         const bottomElement = bottomRef.current;
         if (!bottomElement || typeof window === 'undefined') {
-            shouldAutoScrollRef.current = true;
-            return;
+            return true;
         }
 
         const distanceFromViewportBottom = bottomElement.getBoundingClientRect().top - window.innerHeight;
-        shouldAutoScrollRef.current = distanceFromViewportBottom <= 160;
+        return distanceFromViewportBottom <= 160;
     }, []);
 
     const scrollToBottom = useCallback((force = false) => {
@@ -415,20 +416,61 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, []);
 
     useEffect(() => {
-        updateAutoScrollPreference();
+        lastScrollYRef.current = window.scrollY;
+
+        let touchStartY: number | null = null;
 
         const handleWindowScroll = () => {
-            updateAutoScrollPreference();
+            const currentScrollY = window.scrollY;
+
+            if (currentScrollY < lastScrollYRef.current - 2) {
+                shouldAutoScrollRef.current = false;
+            } else if (currentScrollY > lastScrollYRef.current + 2 && isNearBottom()) {
+                shouldAutoScrollRef.current = true;
+            }
+
+            lastScrollYRef.current = currentScrollY;
+        };
+
+        const handleWheel = (event: WheelEvent) => {
+            if (event.deltaY < -2) {
+                shouldAutoScrollRef.current = false;
+            } else if (event.deltaY > 2 && isNearBottom()) {
+                shouldAutoScrollRef.current = true;
+            }
+        };
+
+        const handleTouchStart = (event: TouchEvent) => {
+            touchStartY = event.touches[0]?.clientY ?? null;
+        };
+
+        const handleTouchMove = (event: TouchEvent) => {
+            const currentTouchY = event.touches[0]?.clientY;
+            if (touchStartY === null || currentTouchY === undefined) {
+                return;
+            }
+
+            if (currentTouchY > touchStartY + 4) {
+                shouldAutoScrollRef.current = false;
+            } else if (currentTouchY < touchStartY - 4 && isNearBottom()) {
+                shouldAutoScrollRef.current = true;
+            }
         };
 
         window.addEventListener('scroll', handleWindowScroll, { passive: true });
+        window.addEventListener('wheel', handleWheel, { passive: true });
+        window.addEventListener('touchstart', handleTouchStart, { passive: true });
+        window.addEventListener('touchmove', handleTouchMove, { passive: true });
         window.addEventListener('resize', handleWindowScroll);
 
         return () => {
             window.removeEventListener('scroll', handleWindowScroll);
+            window.removeEventListener('wheel', handleWheel);
+            window.removeEventListener('touchstart', handleTouchStart);
+            window.removeEventListener('touchmove', handleTouchMove);
             window.removeEventListener('resize', handleWindowScroll);
         };
-    }, [updateAutoScrollPreference]);
+    }, [isNearBottom]);
 
     useEffect(() => {
         scrollToBottom();
@@ -810,6 +852,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [finalizeStreamingMessages, invalidateActiveRequest, isGenerating]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
+            return;
+        }
+
         if (event.key !== 'Enter' || event.shiftKey) {
             return;
         }
@@ -1186,6 +1232,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 className="local-llm-textarea"
                                 value={input}
                                 onChange={(event) => setInput(event.target.value)}
+                                onCompositionStart={() => {
+                                    isComposingRef.current = true;
+                                }}
+                                onCompositionEnd={() => {
+                                    isComposingRef.current = false;
+                                }}
                                 onKeyDown={handleTextareaKeyDown}
                                 placeholder={activeMode === 'webllm'
                                     ? (isModelReady ? 'ローカルLLMに質問を入力してください' : '先にモデルを読み込んでください')
