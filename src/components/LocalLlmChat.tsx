@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Check, Clock3, Copy, LoaderCircle, Plus, Send, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Check, Clock3, Copy, LoaderCircle, MoreHorizontal, Plus, Send, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import { BackButton } from './BackButton';
 import { MarkdownText } from './MarkdownText';
@@ -215,6 +215,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
     const [copiedAnswerMessageId, setCopiedAnswerMessageId] = useState<string | null>(null);
+    const [openSessionMenuId, setOpenSessionMenuId] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -501,6 +502,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         }
 
         cancelActiveWork();
+        setOpenSessionMenuId(null);
         const nextSessions = sortLocalLlmChatSessions(chatSessions.filter((session) => session.id !== sessionId));
         setChatSessions(nextSessions);
 
@@ -508,6 +510,14 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             selectSessionForView(nextSessions[0] ?? null);
         }
     }, [cancelActiveWork, chatSessions, currentSessionId, isGenerating, selectSessionForView]);
+
+    const handleToggleSessionMenu = useCallback((sessionId: string) => {
+        if (isGenerating) {
+            return;
+        }
+
+        setOpenSessionMenuId((previous) => previous === sessionId ? null : sessionId);
+    }, [isGenerating]);
 
     const updateLastRequestPayload = useCallback((payload: unknown) => {
         setLastRequestPayload(JSON.stringify(payload, null, 2));
@@ -584,7 +594,42 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setLastRequestPayload(null);
         resetCopiedRequestState();
         resetCopiedAnswerState();
+        setOpenSessionMenuId(null);
     }, [currentSessionId, resetCopiedAnswerState, resetCopiedRequestState]);
+
+    useEffect(() => {
+        if (openSessionMenuId === null) {
+            return;
+        }
+
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                setOpenSessionMenuId(null);
+                return;
+            }
+
+            if (target.closest('.local-llm-session-menu')) {
+                return;
+            }
+
+            setOpenSessionMenuId(null);
+        };
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setOpenSessionMenuId(null);
+            }
+        };
+
+        window.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [openSessionMenuId]);
 
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
@@ -657,8 +702,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     useEffect(() => {
         setIsModelReady(hasLoadedLocalLlmEngine(selectedWebLlmModel));
-        setLoadProgress(null);
-    }, [selectedWebLlmModel]);
+        if (!isModelLoading) {
+            setLoadProgress(null);
+        }
+    }, [isModelLoading, selectedWebLlmModel]);
 
     useEffect(() => {
         if (previousModeRef.current === activeMode) {
@@ -915,6 +962,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             return;
         }
 
+        if (isModelLoading) {
+            return;
+        }
+
         const autoLoadKey = `${activeMode}:${selectedWebLlmModel}`;
         if (hasLoadedLocalLlmEngine(selectedWebLlmModel) || autoLoadWebLlmKeyRef.current === autoLoadKey) {
             return;
@@ -922,7 +973,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         autoLoadWebLlmKeyRef.current = autoLoadKey;
         void handleLoadModel();
-    }, [activeMode, handleLoadModel, selectedWebLlmModel, webllmSupport.supported]);
+    }, [activeMode, handleLoadModel, isModelLoading, selectedWebLlmModel, webllmSupport.supported]);
 
     const handleSend = useCallback(async () => {
         const trimmed = input.trim();
@@ -1237,16 +1288,31 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         {formatSessionTime(session.updatedAt)}
                                     </div>
                                 </button>
-                                <button
-                                    type="button"
-                                    className="menu-btn local-llm-session-delete"
-                                    onClick={() => handleDeleteSession(session.id)}
-                                    disabled={isGenerating}
-                                    aria-label="会話履歴を削除"
-                                    title="会話履歴を削除"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
+                                <div className="local-llm-session-menu">
+                                    <button
+                                        type="button"
+                                        className="menu-btn local-llm-session-menu-trigger"
+                                        onClick={() => handleToggleSessionMenu(session.id)}
+                                        disabled={isGenerating}
+                                        aria-label="会話履歴メニューを開く"
+                                        title="メニュー"
+                                    >
+                                        <MoreHorizontal size={16} />
+                                    </button>
+                                    {openSessionMenuId === session.id && (
+                                        <div className="local-llm-session-menu-popover" role="menu" aria-label="会話履歴メニュー">
+                                            <button
+                                                type="button"
+                                                className="local-llm-session-menu-item danger"
+                                                onClick={() => handleDeleteSession(session.id)}
+                                                role="menuitem"
+                                            >
+                                                <Trash2 size={16} />
+                                                削除する
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>

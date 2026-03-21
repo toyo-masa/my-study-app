@@ -457,8 +457,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
     useEffect(() => {
         setIsModelReady(hasLoadedLocalLlmEngine(selectedWebLlmModel));
-        setLoadProgress(null);
-    }, [selectedWebLlmModel]);
+        if (!isModelLoading) {
+            setLoadProgress(null);
+        }
+    }, [isModelLoading, selectedWebLlmModel]);
 
     useEffect(() => {
         cancelActiveWork();
@@ -679,6 +681,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             return;
         }
 
+        if (isModelLoading) {
+            return;
+        }
+
         const autoLoadKey = `${activeMode}:${selectedWebLlmModel}`;
         if (hasLoadedLocalLlmEngine(selectedWebLlmModel) || autoLoadWebLlmKeyRef.current === autoLoadKey) {
             return;
@@ -686,7 +692,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         autoLoadWebLlmKeyRef.current = autoLoadKey;
         void handleLoadModel();
-    }, [activeMode, handleLoadModel, selectedWebLlmModel, webllmSupport.supported]);
+    }, [activeMode, handleLoadModel, isModelLoading, selectedWebLlmModel, webllmSupport.supported]);
 
     const handleSend = useCallback(async () => {
         const trimmed = input.trim();
