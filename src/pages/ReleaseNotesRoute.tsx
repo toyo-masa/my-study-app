@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.37.1',
+        date: '2026年3月21日 09:50',
+        improvements: [
+            'ローカルLLMチャットの WebLLM 側の固定モデルを Qwen3 系に切り替え、日本語の試用を始めやすくしました。',
+            '外出先で WebLLM モードを使う場合でも、Qwen 系モデルを前提にした確認がしやすくなりました。',
+        ],
+        fixes: [
+            'WebLLM 側が Llama 3.2 固定のままで、Qwen を使いたい意図と画面の実際のモデルがずれていた問題を修正しました。',
+            'ローカルAPI 側では Qwen 系を選べても、WebLLM 側だけ別系統モデルになっていた分かりにくさを改善しました。',
+        ],
+    },
+    {
         version: '1.37.0',
         date: '2026年3月21日 09:33',
         improvements: [

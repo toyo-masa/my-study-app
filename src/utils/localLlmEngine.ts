@@ -1,6 +1,6 @@
 import type { InitProgressCallback, InitProgressReport, WebWorkerMLCEngine } from '@mlc-ai/web-llm';
 
-export const LOCAL_LLM_MODEL_ID = 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+export const LOCAL_LLM_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
 
 type LocalLlmSupport = {
     supported: boolean;
