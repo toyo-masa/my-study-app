@@ -15,6 +15,8 @@ export const WEB_LLM_QWEN_NON_THINKING_DEFAULTS = {
 export const WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET = 1024;
 export const WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS = 768;
 export const WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY = 1.5;
+export const WEB_LLM_QWEN_THINKING_BUDGET_OPTIONS = [1024, 2048, 4096, 8192, 16384] as const;
+export const WEB_LLM_QWEN_FINAL_ANSWER_MAX_TOKENS_OPTIONS = [768, 1024, 1280, 1536, 1792, 2048] as const;
 
 export interface HandwritingSettings {
     allowTouchDrawing: boolean;
@@ -178,6 +180,22 @@ const normalizeWebLlmEnableThinking = (value: unknown): boolean => {
     return value !== false;
 };
 
+const normalizeWebLlmThinkingBudget = (value: unknown): number => {
+    const parsed = normalizeOptionalFiniteNumber(value, 1, 32768, true);
+    if (parsed !== null && WEB_LLM_QWEN_THINKING_BUDGET_OPTIONS.includes(parsed as typeof WEB_LLM_QWEN_THINKING_BUDGET_OPTIONS[number])) {
+        return parsed;
+    }
+    return WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET;
+};
+
+const normalizeWebLlmFinalAnswerMaxTokens = (value: unknown): number => {
+    const parsed = normalizeOptionalFiniteNumber(value, 1, 32768, true);
+    if (parsed !== null && WEB_LLM_QWEN_FINAL_ANSWER_MAX_TOKENS_OPTIONS.includes(parsed as typeof WEB_LLM_QWEN_FINAL_ANSWER_MAX_TOKENS_OPTIONS[number])) {
+        return parsed;
+    }
+    return WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS;
+};
+
 export const getWebLlmQwenDefaultSampling = (enableThinking: boolean) => {
     return enableThinking ? WEB_LLM_QWEN_THINKING_DEFAULTS : WEB_LLM_QWEN_NON_THINKING_DEFAULTS;
 };
@@ -199,8 +217,8 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         webllmEnableThinking,
         webllmTemperature: normalizeOptionalFiniteNumber(source.webllmTemperature, 0, 2) ?? defaultSampling.temperature,
         webllmTopP: normalizeOptionalFiniteNumber(source.webllmTopP, 0.01, 1) ?? defaultSampling.topP,
-        webllmThinkingBudget: normalizeOptionalFiniteNumber(source.webllmThinkingBudget, 1, 32768, true) ?? WEB_LLM_QWEN_DEFAULT_THINKING_BUDGET,
-        webllmFinalAnswerMaxTokens: normalizeOptionalFiniteNumber(source.webllmFinalAnswerMaxTokens, 1, 32768, true) ?? WEB_LLM_QWEN_DEFAULT_FINAL_ANSWER_MAX_TOKENS,
+        webllmThinkingBudget: normalizeWebLlmThinkingBudget(source.webllmThinkingBudget),
+        webllmFinalAnswerMaxTokens: normalizeWebLlmFinalAnswerMaxTokens(source.webllmFinalAnswerMaxTokens),
         webllmPresencePenalty: normalizeOptionalFiniteNumber(source.webllmPresencePenalty, -2, 2) ?? WEB_LLM_QWEN_DEFAULT_PRESENCE_PENALTY,
     };
 }

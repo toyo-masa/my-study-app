@@ -12,6 +12,30 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.45.2',
+        date: '2026年3月21日 15:12',
+        improvements: [
+            '設定サイドバーの `final_answer_max_tokens` も固定候補から選べるようにし、WebLLM の最終回答長を段階的に調整しやすくしました。',
+            '`thinking_budget` と `final_answer_max_tokens` の両方を選択式に揃え、WebLLM の生成調整を同じ感覚で切り替えられるようにしました。',
+        ],
+        fixes: [
+            'これまで `final_answer_max_tokens` だけ自由入力だったため、候補比較がしにくく、値の再現性が揃いにくかった問題を改善しました。',
+            'WebLLM の 2段階生成パラメータで片方だけ手入力になっていた不統一を解消し、設定値の管理を安定させました。',
+        ],
+    },
+    {
+        version: '1.45.1',
+        date: '2026年3月21日 15:10',
+        improvements: [
+            '設定サイドバーの `thinking_budget` を固定候補から選べるようにし、WebLLM の長い思考量を段階的に調整しやすくしました。',
+            '候補は 1024 / 2048 / 4096 / 8192 / 16384 に絞り、試行錯誤しやすい選択式にしました。',
+        ],
+        fixes: [
+            'これまで `thinking_budget` は自由入力だったため、極端な値や中途半端な値を入れやすく、再現性を保ちにくい問題を改善しました。',
+            'WebLLM の 2段階生成を調整するときに値の比較がしづらかったため、代表的な予算だけをすぐ切り替えられるようにしました。',
+        ],
+    },
+    {
         version: '1.45.0',
         date: '2026年3月21日 14:53',
         improvements: [
