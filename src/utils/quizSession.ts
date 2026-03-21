@@ -303,21 +303,20 @@ export function buildReviewDueResumeSession(
     const completedQuestionIdSet = new Set(
         getCompletedQuestionIdsFromSuspendedSession(session).filter((questionId) => availableQuestionById.has(questionId))
     );
-    const savedIncompleteQuestionIds = savedQuestions
-        .map((question) => question.id!)
-        .filter((questionId) => !completedQuestionIdSet.has(questionId));
+    const savedQuestionIds = savedQuestions.map((question) => question.id!);
 
     const mergedQuestionIds: number[] = [];
     const mergedQuestionIdSet = new Set<number>();
     const appendQuestionId = (questionId: number) => {
-        if (!availableQuestionById.has(questionId) || completedQuestionIdSet.has(questionId) || mergedQuestionIdSet.has(questionId)) {
+        if (!availableQuestionById.has(questionId) || mergedQuestionIdSet.has(questionId)) {
             return;
         }
         mergedQuestionIds.push(questionId);
         mergedQuestionIdSet.add(questionId);
     };
 
-    savedIncompleteQuestionIds.forEach(appendQuestionId);
+    // 復習再開時も完了済み問題を保持し、最終的な回答履歴が分割されないようにする。
+    savedQuestionIds.forEach(appendQuestionId);
     currentReviewQuestionIds.forEach(appendQuestionId);
 
     const mergedQuestions = mergedQuestionIds
@@ -325,9 +324,12 @@ export function buildReviewDueResumeSession(
         .filter((question): question is Question => Boolean(question));
 
     const savedCurrentQuestionId = savedQuestions[Math.min(session.currentQuestionIndex, Math.max(savedQuestions.length - 1, 0))]?.id;
-    const currentQuestionId = savedCurrentQuestionId !== undefined && mergedQuestionIdSet.has(savedCurrentQuestionId)
+    const firstIncompleteQuestionId = mergedQuestionIds.find((questionId) => !completedQuestionIdSet.has(questionId));
+    const currentQuestionId = savedCurrentQuestionId !== undefined
+        && mergedQuestionIdSet.has(savedCurrentQuestionId)
+        && !completedQuestionIdSet.has(savedCurrentQuestionId)
         ? savedCurrentQuestionId
-        : mergedQuestionIds[0];
+        : firstIncompleteQuestionId ?? mergedQuestionIds[0];
 
     return filterSuspendedSessionByQuestionIds(session, mergedQuestions, currentQuestionId);
 }
