@@ -1,5 +1,5 @@
 export interface OpenAiCompatibleMessage {
-    role: 'user' | 'assistant';
+    role: 'system' | 'user' | 'assistant';
     content: string;
 }
 

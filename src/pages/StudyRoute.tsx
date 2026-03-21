@@ -7,6 +7,7 @@ import type { HandwritingPadState } from '../components/HandwritingPad';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
@@ -34,13 +35,21 @@ import {
     mergeCompletedQuestionIds,
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
+import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 
 interface StudyRouteProps {
     allowTouchDrawing: boolean;
     reviewBoardFeedbackBlockSize: number;
+    localLlmSettings: LocalLlmSettings;
+    onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
 }
 
-export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing, reviewBoardFeedbackBlockSize }) => {
+export const StudyRoute: React.FC<StudyRouteProps> = ({
+    allowTouchDrawing,
+    reviewBoardFeedbackBlockSize,
+    localLlmSettings,
+    onLocalLlmModeChange,
+}) => {
     const navigate = useNavigate();
     const location = useLocation();
     const historyFromState = location.state?.history as QuizHistory | undefined;
@@ -72,6 +81,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing, revie
     const [handwritingMap, setHandwritingMap] = useState<Record<string, HandwritingPadState>>({});
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
+    const [isMobileLayout, setIsMobileLayout] = useState(() => isMobileViewport());
+    const [rightPanelOpen, setRightPanelOpen] = useState(() => !isMobileViewport());
     const [endTime, setEndTime] = useState<Date>(new Date());
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
@@ -151,11 +162,26 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing, revie
         setHandwritingMap({});
         setIsTestCompleted(false);
         setSidebarOpen(!isMobileViewport());
+        setIsMobileLayout(isMobileViewport());
+        setRightPanelOpen(!isMobileViewport());
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyQuestionsModal(false);
         resetSessionNotices();
     }, [sessionKey, resetSessionNotices]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            const mobile = isMobileViewport();
+            setIsMobileLayout(mobile);
+            if (!mobile) {
+                setRightPanelOpen(true);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const buildStudySessionForSave = ({
         questions: targetQuestions,
@@ -1453,6 +1479,20 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing, revie
                 : historyMode === 'review_due'
                     ? '復習中'
                     : undefined;
+    const showStudyQuestionChat = activeQuizSet?.type === 'mixed' && !isTestCompleted;
+    const resolvedRightPanelOpen = showStudyQuestionChat ? (isMobileLayout ? rightPanelOpen : true) : false;
+    const handleToggleSidebar = () => {
+        if (isMobileLayout && showStudyQuestionChat) {
+            setRightPanelOpen(false);
+        }
+        setSidebarOpen(!sidebarOpen);
+    };
+    const handleToggleRightPanel = () => {
+        if (isMobileLayout) {
+            setSidebarOpen(false);
+        }
+        setRightPanelOpen(!resolvedRightPanelOpen);
+    };
 
     return (
         <QuizSessionLayout
@@ -1463,7 +1503,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing, revie
             hideMenuButton={isTestCompleted}
             onBack={handleBackToDetail}
             sessionBadge={!isTestCompleted ? reviewHeaderBadge : undefined}
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            onToggleSidebar={handleToggleSidebar}
             onCloseSidebar={() => setSidebarOpen(false)}
             sidebarContent={
                 <Sidebar
@@ -1479,6 +1519,22 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({ allowTouchDrawing, revie
                     confidences={confidences}
                 />
             }
+            showRightPanel={showStudyQuestionChat}
+            rightPanelOpen={resolvedRightPanelOpen}
+            rightPanelModal={isMobileLayout}
+            showRightPanelToggle={showStudyQuestionChat && isMobileLayout}
+            onToggleRightPanel={handleToggleRightPanel}
+            onCloseRightPanel={() => setRightPanelOpen(false)}
+            rightPanelContent={showStudyQuestionChat && currentQuestion && activeQuizSet?.id !== undefined ? (
+                <StudyQuestionChatPanel
+                    quizSetId={activeQuizSet.id}
+                    question={currentQuestion}
+                    questionIndex={currentQuestionIndex}
+                    showAnswer={showAnswerForCurrent}
+                    localLlmSettings={localLlmSettings}
+                    onLocalLlmModeChange={onLocalLlmModeChange}
+                />
+            ) : null}
         >
             {isTestCompleted ? (
                 <TestResult
