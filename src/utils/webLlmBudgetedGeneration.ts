@@ -48,10 +48,12 @@ type RunWebLlmBudgetedGenerationOptions = {
 const buildFinalizePrompt = () => {
     return [
         '/no_think',
-        'ここまでの内容を踏まえて、最終回答だけを出してください。',
-        '新しい長い思考は不要です。',
+        '上の内容を踏まえて、日本語で最終回答を整えて出してください。',
+        '新しい長い思考や別解の再検討は不要です。',
         '最初からやり直さないでください。',
-        '結論と必要最小限の説明だけを簡潔に出してください。',
+        'すでに得られている結果を整理して、必要最小限の根拠を2〜4文で添えてください。',
+        '<think> タグや独白は出力しないでください。',
+        '式・条件・単位・結論のうち必要なものは省略しないでください。',
     ].join('\n');
 };
 
@@ -147,6 +149,11 @@ const buildDisplayCarryText = (partialText: string) => {
 
 const buildCarryAssistantText = (partialText: string) => {
     if (hasClosedThinkTag(partialText)) {
+        const answerContent = parseAssistantMessageContent(partialText).answerContent.trim();
+        if (answerContent.length > 0) {
+            return answerContent;
+        }
+
         return partialText;
     }
 

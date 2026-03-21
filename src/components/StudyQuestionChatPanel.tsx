@@ -89,7 +89,7 @@ const toViewMessages = (messages: StoredLocalLlmChatMessage[]): LocalChatMessage
     }));
 };
 
-const buildQuestionContextPrompt = (question: Question, questionIndex: number, showAnswer: boolean) => {
+const buildQuestionContextUserPrompt = (question: Question, questionIndex: number, showAnswer: boolean) => {
     const questionType = question.questionType === 'memorization' ? 'memorization' : 'quiz';
     const parts: string[] = [
         'あなたは学習中のユーザーを支援する日本語の問題解説アシスタントです。',
@@ -138,7 +138,8 @@ const buildQuestionContextPrompt = (question: Question, questionIndex: number, s
 
 const toWebLlmMessages = (
     messages: LocalChatMessage[],
-    systemPrompt: string
+    systemPrompt: string,
+    leadingUserPrompt = ''
 ): ChatCompletionMessageParam[] => {
     const conversationMessages = messages.flatMap((message) => {
         const content = toPromptMessageContent(message);
@@ -152,22 +153,27 @@ const toWebLlmMessages = (
         }];
     }).slice(-WEB_LLM_PROMPT_MESSAGE_LIMIT);
 
-    if (systemPrompt.trim().length === 0) {
-        return conversationMessages;
-    }
-
-    return [
-        {
+    const leadingMessages: ChatCompletionMessageParam[] = [];
+    if (systemPrompt.trim().length > 0) {
+        leadingMessages.push({
             role: 'system',
             content: systemPrompt.trim(),
-        },
-        ...conversationMessages,
-    ];
+        });
+    }
+    if (leadingUserPrompt.trim().length > 0) {
+        leadingMessages.push({
+            role: 'user',
+            content: leadingUserPrompt.trim(),
+        });
+    }
+
+    return [...leadingMessages, ...conversationMessages];
 };
 
 const toOpenAiMessages = (
     messages: LocalChatMessage[],
-    systemPrompt: string
+    systemPrompt: string,
+    leadingUserPrompt = ''
 ): OpenAiCompatibleMessage[] => {
     const conversationMessages = messages.flatMap((message) => {
         const content = toPromptMessageContent(message);
@@ -181,17 +187,21 @@ const toOpenAiMessages = (
         }];
     });
 
-    if (systemPrompt.trim().length === 0) {
-        return conversationMessages;
-    }
-
-    return [
-        {
+    const leadingMessages: OpenAiCompatibleMessage[] = [];
+    if (systemPrompt.trim().length > 0) {
+        leadingMessages.push({
             role: 'system',
             content: systemPrompt.trim(),
-        },
-        ...conversationMessages,
-    ];
+        });
+    }
+    if (leadingUserPrompt.trim().length > 0) {
+        leadingMessages.push({
+            role: 'user',
+            content: leadingUserPrompt.trim(),
+        });
+    }
+
+    return [...leadingMessages, ...conversationMessages];
 };
 
 const toProgressPercent = (progress: InitProgressReport | null) => {
@@ -293,14 +303,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         && !isGenerating
         && questionId !== null
         && (activeMode === 'webllm' ? isModelReady : selectedModel.length > 0);
-    const questionContextPrompt = useMemo(() => {
-        return buildQuestionContextPrompt(question, questionIndex, showAnswer);
+    const questionContextUserPrompt = useMemo(() => {
+        return buildQuestionContextUserPrompt(question, questionIndex, showAnswer);
     }, [question, questionIndex, showAnswer]);
-    const combinedWebLlmSystemPrompt = useMemo(() => {
-        return [localLlmSettings.webllmSystemPrompt.trim(), questionContextPrompt]
-            .filter((segment) => segment.length > 0)
-            .join('\n\n');
-    }, [localLlmSettings.webllmSystemPrompt, questionContextPrompt]);
+    const webllmSystemPrompt = useMemo(() => {
+        return localLlmSettings.webllmSystemPrompt.trim();
+    }, [localLlmSettings.webllmSystemPrompt]);
 
     const invalidateActiveRequest = useCallback(() => {
         requestIdRef.current += 1;
@@ -684,7 +692,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
                 const result = await runWebLlmBudgetedGeneration({
                     engine,
-                    messages: toWebLlmMessages([...messages, userMessage], combinedWebLlmSystemPrompt),
+                    messages: toWebLlmMessages(
+                        [...messages, userMessage],
+                        webllmSystemPrompt,
+                        questionContextUserPrompt
+                    ),
                     enableThinking: localLlmSettings.webllmEnableThinking,
                     firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
                     firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
@@ -715,7 +727,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 const finalText = await streamOpenAiCompatibleChat({
                     baseUrl: localLlmSettings.baseUrl,
                     model: selectedModel,
-                    messages: toOpenAiMessages([...messages, userMessage], questionContextPrompt),
+                    messages: toOpenAiMessages(
+                        [...messages, userMessage],
+                        '',
+                        questionContextUserPrompt
+                    ),
                     apiKey: apiKey.trim() || undefined,
                     signal: controller.signal,
                     onDelta: (delta) => {
@@ -760,7 +776,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [
         activeMode,
         apiKey,
-        combinedWebLlmSystemPrompt,
         input,
         isGenerating,
         isModelReady,
@@ -773,10 +788,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         localLlmSettings.webllmSecondPassTemperature,
         localLlmSettings.webllmSecondPassTopP,
         messages,
-        questionContextPrompt,
         questionId,
+        questionContextUserPrompt,
         selectedModel,
         selectedWebLlmModel,
+        webllmSystemPrompt,
         webllmFirstPassThinkingBudget,
         webllmSecondPassFinalAnswerMaxTokens,
     ]);
