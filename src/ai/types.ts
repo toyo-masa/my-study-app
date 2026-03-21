@@ -1,26 +1,59 @@
-export type Capability = 'deterministic_calc' | 'symbolic_math';
-export type ToolOp = 'evaluate' | 'simplify' | 'solve' | 'integrate' | 'differentiate';
-export type PlannerProblemType = 'unknown' | 'symbolic_math' | 'reading' | 'factual' | 'mixed';
-export type PlannerMode = 'direct_answer' | 'tool_augmented_answer';
+export type ToolName =
+    | 'deterministic_evaluate'
+    | 'symbolic_simplify'
+    | 'symbolic_solve'
+    | 'symbolic_integrate'
+    | 'symbolic_differentiate';
 
-export type ToolAction = {
-    capability: Capability;
-    op: ToolOp;
-    payload: Record<string, unknown>;
+export type FallbackReason =
+    | 'tool_not_needed'
+    | 'selection_failed'
+    | 'selection_invalid'
+    | 'tool_failed'
+    | 'final_answer_failed'
+    | 'max_steps_reached';
+
+export type ToolDefinition = {
+    type: 'function';
+    function: {
+        name: ToolName;
+        description: string;
+        parameters: {
+            type: 'object';
+            properties: Record<string, {
+                type: 'string';
+                description?: string;
+            }>;
+            required?: string[];
+        };
+    };
 };
 
-export type PlannerDecision = {
-    mode: PlannerMode;
-    problemType: PlannerProblemType;
-    neededCapabilities: Capability[];
-    factsToAdd: string[];
-    done: boolean;
-    nextAction: ToolAction | null;
+export type FunctionCallingToolCall = {
+    id: string;
+    type: 'function';
+    function: {
+        name: ToolName;
+        arguments: string;
+    };
+    source: 'native' | 'manual';
+};
+
+export type ToolInvocation = {
+    id: string;
+    name: ToolName;
+    arguments: Record<string, unknown>;
+    rawArguments: string;
+    source: 'native' | 'manual';
+};
+
+export type ToolExecutionRequest = {
+    name: ToolName;
+    arguments: Record<string, unknown>;
 };
 
 export type ToolExecutionResult = {
-    capability: Capability;
-    op: string;
+    name: ToolName;
     success: boolean;
     outputText: string;
     exactValue?: string;
@@ -28,86 +61,105 @@ export type ToolExecutionResult = {
     errorCode?: string;
 };
 
-export type OrchestrationPromptMessage = {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-};
+export type FunctionCallingPromptMessage =
+    | {
+        role: 'system';
+        content: string;
+    }
+    | {
+        role: 'user';
+        content: string;
+    }
+    | {
+        role: 'assistant';
+        content?: string | null;
+        toolCalls?: FunctionCallingToolCall[];
+    }
+    | {
+        role: 'tool';
+        content: string;
+        toolCallId: string;
+    };
 
-export type OrchestrationConversationMessage = {
+export type FunctionCallingConversationMessage = {
     role: 'user' | 'assistant';
     content: string;
 };
 
-export type PlannerTraceEntry = {
+export type SelectionTraceEntry = {
     step: number;
-    attempt: number;
+    strategy: 'native' | 'manual';
     request: {
-        messages: OrchestrationPromptMessage[];
+        messages: FunctionCallingPromptMessage[];
         maxTokens: number;
         temperature: number | null;
         topP: number | null;
         presencePenalty: number | null;
+        stream: false;
+        tools: ToolDefinition[] | null;
+        toolChoice: 'auto' | 'none' | null;
+        extraBody: Record<string, unknown> | null;
     };
     rawResponse: string;
-    parsedDecision: PlannerDecision | null;
+    toolInvocations: ToolInvocation[];
+    readyForFinalAnswer: boolean;
 };
 
-export type ToolTraceEntry = {
+export type ToolCallTraceEntry = {
     step: number;
-    request: ToolAction;
+    request: ToolInvocation;
     response: ToolExecutionResult;
 };
 
-export type ExplainerTraceEntry = {
+export type FinalAnswerTraceEntry = {
     request: {
-        messages: OrchestrationPromptMessage[];
+        messages: FunctionCallingPromptMessage[];
         maxTokens: number;
         temperature: number | null;
         topP: number | null;
         presencePenalty: number | null;
-        stream: boolean;
+        stream: true;
     };
 };
 
-export type OrchestrationTrace = {
-    planner: PlannerTraceEntry[];
-    tools: ToolTraceEntry[];
-    explainer: ExplainerTraceEntry | null;
+export type FunctionCallingTrace = {
+    selection: SelectionTraceEntry[];
+    toolCalls: ToolCallTraceEntry[];
+    finalAnswer: FinalAnswerTraceEntry | null;
+    fallbackReason: FallbackReason | null;
+    fallbackNotice: string | null;
     errors: string[];
 };
 
-export type OrchestrationState = {
+export type FunctionCallingState = {
     originalUserMessage: string;
     syntheticContext: string;
-    problemType: PlannerProblemType;
-    neededCapabilities: Capability[];
-    facts: string[];
     toolResults: ToolExecutionResult[];
     stepCount: number;
-    done: boolean;
-    toolRequiredButUnavailable: boolean;
-    trace: OrchestrationTrace;
+    trace: FunctionCallingTrace;
 };
 
-export type PlannerLlmResult = {
+export type SelectionLlmResult = {
     text: string;
-    request: PlannerTraceEntry['request'];
+    toolCalls: FunctionCallingToolCall[];
+    request: SelectionTraceEntry['request'];
 };
 
-export type ExplainerLlmResult = {
+export type FinalAnswerLlmResult = {
     text: string;
-    request: ExplainerTraceEntry['request'];
+    request: FinalAnswerTraceEntry['request'];
 };
 
-export type ToolAugmentedOrchestrationResult =
+export type FunctionCallingResult =
     | {
         kind: 'direct_answer';
-        trace: OrchestrationTrace;
+        trace: FunctionCallingTrace;
+        fallbackNotice: string | null;
+        fallbackContext: string | null;
     }
     | {
         kind: 'tool_augmented_answer';
         displayText: string;
         historyText: string;
-        trace: OrchestrationTrace;
-        state: OrchestrationState;
+        trace: FunctionCallingTrace;
     };

@@ -1,128 +1,285 @@
 import { toAssistantHistoryText } from '../utils/webLlmBudgetedGeneration';
-import { buildExplainerSystemPrompt, buildExplainerUserPrompt, buildPlannerSystemPrompt, buildPlannerUserPrompt } from './prompts';
-import { parsePlannerDecision, stringifyToolAction } from './plannerSchema';
+import {
+    buildFallbackContext,
+    buildFinalAnswerSystemPrompt,
+    buildFinalAnswerUserPrompt,
+    buildManualToolSelectionSystemPrompt,
+    buildNativeToolSelectionSystemPrompt,
+    buildToolSelectionUserPrompt,
+} from './prompts';
 import type {
-    Capability,
-    ExplainerLlmResult,
-    OrchestrationConversationMessage,
-    OrchestrationPromptMessage,
-    OrchestrationState,
-    OrchestrationTrace,
-    PlannerDecision,
-    PlannerLlmResult,
-    PlannerProblemType,
-    ToolAction,
-    ToolAugmentedOrchestrationResult,
+    FallbackReason,
+    FinalAnswerLlmResult,
+    FunctionCallingConversationMessage,
+    FunctionCallingPromptMessage,
+    FunctionCallingResult,
+    FunctionCallingState,
+    FunctionCallingToolCall,
+    FunctionCallingTrace,
+    SelectionLlmResult,
+    ToolExecutionRequest,
     ToolExecutionResult,
+    ToolInvocation,
+    ToolName,
 } from './types';
 
 const MAX_TOOL_STEPS = 4;
+const FALLBACK_NOTICE = '補助ツールを使えなかったため通常回答に切り替えます';
 
-type PlannerRunner = (messages: OrchestrationPromptMessage[]) => Promise<PlannerLlmResult>;
-type ExplainerRunner = (
-    messages: OrchestrationPromptMessage[],
+type SelectionRunner = (messages: FunctionCallingPromptMessage[]) => Promise<SelectionLlmResult>;
+type FinalAnswerRunner = (
+    messages: FunctionCallingPromptMessage[],
     onDelta: (text: string) => void
-) => Promise<ExplainerLlmResult>;
-type ToolRunner = (action: ToolAction) => Promise<ToolExecutionResult>;
+) => Promise<FinalAnswerLlmResult>;
+type ToolRunner = (request: ToolExecutionRequest) => Promise<ToolExecutionResult>;
 
-type RunToolAugmentedOrchestrationOptions = {
+type RunFunctionCallingLoopOptions = {
     originalUserMessage: string;
     syntheticContext: string;
-    conversationMessages: OrchestrationConversationMessage[];
-    runPlanner: PlannerRunner;
-    runExplainer: ExplainerRunner;
+    conversationMessages: FunctionCallingConversationMessage[];
+    runManualSelection: SelectionRunner;
+    runFinalAnswer: FinalAnswerRunner;
     runTool: ToolRunner;
     onDisplayText: (text: string) => void;
+    runNativeSelection?: SelectionRunner;
 };
 
-const createEmptyTrace = (): OrchestrationTrace => ({
-    planner: [],
-    tools: [],
-    explainer: null,
+type ParsedSelection = {
+    toolInvocations: ToolInvocation[];
+    readyForFinalAnswer: boolean;
+};
+
+const createEmptyTrace = (): FunctionCallingTrace => ({
+    selection: [],
+    toolCalls: [],
+    finalAnswer: null,
+    fallbackReason: null,
+    fallbackNotice: null,
     errors: [],
 });
-
-const appendUniqueFacts = (target: string[], additions: string[]) => {
-    const next = [...target];
-    additions.forEach((fact) => {
-        if (!next.includes(fact)) {
-            next.push(fact);
-        }
-    });
-    return next;
-};
-
-const appendUniqueCapabilities = (target: Capability[], additions: Capability[]) => {
-    const next = [...target];
-    additions.forEach((capability) => {
-        if (!next.includes(capability)) {
-            next.push(capability);
-        }
-    });
-    return next;
-};
 
 const createInitialState = (
     originalUserMessage: string,
     syntheticContext: string
-): OrchestrationState => ({
+): FunctionCallingState => ({
     originalUserMessage,
     syntheticContext,
-    problemType: 'unknown',
-    neededCapabilities: [],
-    facts: [],
     toolResults: [],
     stepCount: 0,
-    done: false,
-    toolRequiredButUnavailable: false,
     trace: createEmptyTrace(),
 });
 
-const buildPlannerMessages = (
-    state: OrchestrationState,
-    conversationMessages: OrchestrationConversationMessage[],
-    invalidPreviousResponse?: string
-): OrchestrationPromptMessage[] => {
-    return [
-        {
-            role: 'system',
-            content: buildPlannerSystemPrompt(),
-        },
-        {
-            role: 'user',
-            content: buildPlannerUserPrompt(state, conversationMessages, invalidPreviousResponse),
-        },
-    ];
+const getTraceErrorMessage = (error: unknown) => {
+    if (error instanceof Error && error.message.trim().length > 0) {
+        return error.message.trim();
+    }
+    if (typeof error === 'string' && error.trim().length > 0) {
+        return error.trim();
+    }
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.trim().length > 0) {
+        return error.message.trim();
+    }
+    return '';
 };
 
-const buildExplainerMessages = (
-    state: OrchestrationState,
-    conversationMessages: OrchestrationConversationMessage[]
-): OrchestrationPromptMessage[] => {
-    return [
-        {
-            role: 'system',
-            content: buildExplainerSystemPrompt(),
-        },
-        {
-            role: 'user',
-            content: buildExplainerUserPrompt(state, conversationMessages),
-        },
-    ];
-};
-
-const applyPlannerDecisionToState = (state: OrchestrationState, decision: PlannerDecision) => {
-    state.problemType = decision.problemType as PlannerProblemType;
-    state.neededCapabilities = appendUniqueCapabilities(state.neededCapabilities, decision.neededCapabilities);
-    state.facts = appendUniqueFacts(state.facts, decision.factsToAdd);
-    if (decision.done) {
-        state.done = true;
+const appendTraceError = (trace: FunctionCallingTrace, code: string, error?: unknown) => {
+    trace.errors.push(code);
+    const detail = getTraceErrorMessage(error);
+    if (detail.length > 0) {
+        trace.errors.push(`${code}_detail:${detail}`);
     }
 };
 
-const buildUnavailableToolResult = (action: ToolAction, errorCode: string, outputText: string): ToolExecutionResult => ({
-    capability: action.capability,
-    op: action.op,
+const normalizeToolName = (value: unknown): ToolName | null => {
+    switch (value) {
+    case 'deterministic_evaluate':
+    case 'symbolic_simplify':
+    case 'symbolic_solve':
+    case 'symbolic_integrate':
+    case 'symbolic_differentiate':
+        return value;
+    default:
+        return null;
+    }
+};
+
+const stripThinkTags = (text: string) => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+const unwrapCodeFence = (text: string) => {
+    const trimmed = text.trim();
+    const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return fencedMatch?.[1]?.trim() ?? trimmed;
+};
+
+const parseToolCallPayload = (
+    payloadText: string,
+    id: string,
+    source: 'native' | 'manual'
+): ToolInvocation | null => {
+    try {
+        const parsed = JSON.parse(unwrapCodeFence(payloadText)) as {
+            name?: unknown;
+            arguments?: unknown;
+        };
+
+        const name = normalizeToolName(parsed?.name);
+        if (!name || !parsed || typeof parsed !== 'object' || !parsed.arguments || typeof parsed.arguments !== 'object' || Array.isArray(parsed.arguments)) {
+            return null;
+        }
+
+        return {
+            id,
+            name,
+            arguments: parsed.arguments as Record<string, unknown>,
+            rawArguments: JSON.stringify(parsed.arguments),
+            source,
+        };
+    } catch {
+        return null;
+    }
+};
+
+const parseNativeToolCalls = (toolCalls: FunctionCallingToolCall[]): ToolInvocation[] => {
+    return toolCalls.flatMap((toolCall) => {
+        const name = normalizeToolName(toolCall.function.name);
+        if (!name) {
+            return [];
+        }
+
+        try {
+            const parsedArguments = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+            if (!parsedArguments || typeof parsedArguments !== 'object' || Array.isArray(parsedArguments)) {
+                return [];
+            }
+
+            return [{
+                id: toolCall.id,
+                name,
+                arguments: parsedArguments,
+                rawArguments: toolCall.function.arguments,
+                source: 'native' as const,
+            }];
+        } catch {
+            return [];
+        }
+    });
+};
+
+const parseManualSelectionText = (text: string): ParsedSelection | null => {
+    const normalizedText = unwrapCodeFence(stripThinkTags(text));
+    const toolCallMatch = normalizedText.match(/<tool_call>([\s\S]*?)<\/tool_call>/i);
+    if (toolCallMatch?.[1]) {
+        const invocation = parseToolCallPayload(toolCallMatch[1], 'manual-tool-call', 'manual');
+        if (invocation) {
+            return {
+                toolInvocations: [invocation],
+                readyForFinalAnswer: false,
+            };
+        }
+    }
+
+    const finalMatch = normalizedText.match(/<final>([\s\S]*?)<\/final>/i);
+    if (finalMatch) {
+        return {
+            toolInvocations: [],
+            readyForFinalAnswer: true,
+        };
+    }
+
+    const compact = normalizedText.replace(/\s+/g, '').toUpperCase();
+    if (compact === 'NO_TOOL' || compact === '<FINAL>NO_TOOL</FINAL>') {
+        return {
+            toolInvocations: [],
+            readyForFinalAnswer: true,
+        };
+    }
+
+    return null;
+};
+
+const parseSelectionResult = (result: SelectionLlmResult): ParsedSelection | null => {
+    const nativeToolInvocations = parseNativeToolCalls(result.toolCalls);
+    if (nativeToolInvocations.length > 0) {
+        return {
+            toolInvocations: nativeToolInvocations,
+            readyForFinalAnswer: false,
+        };
+    }
+
+    return parseManualSelectionText(result.text);
+};
+
+const buildNativeSelectionMessages = (
+    state: FunctionCallingState,
+    conversationMessages: FunctionCallingConversationMessage[]
+): FunctionCallingPromptMessage[] => [
+    {
+        role: 'system',
+        content: buildNativeToolSelectionSystemPrompt(),
+    },
+    {
+        role: 'user',
+        content: buildToolSelectionUserPrompt(state, conversationMessages),
+    },
+];
+
+const buildManualSelectionMessages = (
+    state: FunctionCallingState,
+    conversationMessages: FunctionCallingConversationMessage[],
+    repairMode = false
+): FunctionCallingPromptMessage[] => [
+    {
+        role: 'system',
+        content: buildManualToolSelectionSystemPrompt(),
+    },
+    {
+        role: 'user',
+        content: buildToolSelectionUserPrompt(state, conversationMessages, repairMode),
+    },
+];
+
+const buildFinalAnswerMessages = (
+    state: FunctionCallingState,
+    conversationMessages: FunctionCallingConversationMessage[]
+): FunctionCallingPromptMessage[] => [
+    {
+        role: 'system',
+        content: buildFinalAnswerSystemPrompt(),
+    },
+    {
+        role: 'user',
+        content: buildFinalAnswerUserPrompt(state, conversationMessages),
+    },
+];
+
+const toRawSelectionResponse = (result: SelectionLlmResult) => {
+    if (result.text.trim().length > 0) {
+        return result.text;
+    }
+    if (result.toolCalls.length > 0) {
+        return JSON.stringify(result.toolCalls);
+    }
+    return '';
+};
+
+const createDirectAnswerResult = (
+    state: FunctionCallingState,
+    fallbackReason: FallbackReason,
+    shouldNotify: boolean
+): FunctionCallingResult => {
+    state.trace.fallbackReason = fallbackReason;
+    state.trace.fallbackNotice = shouldNotify ? FALLBACK_NOTICE : null;
+
+    return {
+        kind: 'direct_answer',
+        trace: state.trace,
+        fallbackNotice: shouldNotify ? FALLBACK_NOTICE : null,
+        fallbackContext: state.toolResults.length > 0 ? buildFallbackContext(state.toolResults) : null,
+    };
+};
+
+const buildUnavailableToolResult = (request: ToolInvocation, errorCode: string, outputText: string): ToolExecutionResult => ({
+    name: request.name,
     success: false,
     outputText,
     errorCode,
@@ -138,135 +295,130 @@ const normalizeToolErrorCode = (error: unknown) => {
     return 'TOOL_EXECUTION_FAILED';
 };
 
-const getTraceErrorMessage = (error: unknown) => {
-    if (error instanceof Error && error.message.trim().length > 0) {
-        return error.message.trim();
-    }
-    if (typeof error === 'string' && error.trim().length > 0) {
-        return error.trim();
-    }
-    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.trim().length > 0) {
-        return error.message.trim();
-    }
-    return '';
+const executeSelection = async (
+    state: FunctionCallingState,
+    conversationMessages: FunctionCallingConversationMessage[],
+    step: number,
+    strategy: 'native' | 'manual',
+    runner: SelectionRunner,
+    repairMode = false
+) => {
+    const messages = strategy === 'native'
+        ? buildNativeSelectionMessages(state, conversationMessages)
+        : buildManualSelectionMessages(state, conversationMessages, repairMode);
+    const result = await runner(messages);
+    const parsed = parseSelectionResult(result);
+
+    state.trace.selection.push({
+        step,
+        strategy,
+        request: result.request,
+        rawResponse: toRawSelectionResponse(result),
+        toolInvocations: parsed?.toolInvocations ?? [],
+        readyForFinalAnswer: parsed?.readyForFinalAnswer ?? false,
+    });
+
+    return parsed;
 };
 
-const appendTraceError = (trace: OrchestrationTrace, code: string, error?: unknown) => {
-    trace.errors.push(code);
-    const detail = getTraceErrorMessage(error);
-    if (detail.length > 0) {
-        trace.errors.push(`${code}_detail:${detail}`);
-    }
-};
-
-export async function runToolAugmentedOrchestration({
+export async function runFunctionCallingLoop({
     originalUserMessage,
     syntheticContext,
     conversationMessages,
-    runPlanner,
-    runExplainer,
+    runManualSelection,
+    runFinalAnswer,
     runTool,
     onDisplayText,
-}: RunToolAugmentedOrchestrationOptions): Promise<ToolAugmentedOrchestrationResult> {
+    runNativeSelection,
+}: RunFunctionCallingLoopOptions): Promise<FunctionCallingResult> {
     const state = createInitialState(originalUserMessage, syntheticContext);
-    let previousActionKey: string | null = null;
-    let shouldFallbackToDirectAnswer = false;
 
     for (let step = 0; step < MAX_TOOL_STEPS; step += 1) {
-        let invalidResponse: string | undefined;
-        let decision: PlannerDecision | null = null;
+        let selection: ParsedSelection | null = null;
 
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-            const plannerMessages = buildPlannerMessages(state, conversationMessages, invalidResponse);
-            let plannerResult: PlannerLlmResult;
+        if (runNativeSelection) {
             try {
-                plannerResult = await runPlanner(plannerMessages);
+                selection = await executeSelection(state, conversationMessages, step, 'native', runNativeSelection);
             } catch (error) {
-                appendTraceError(state.trace, 'planner_runner_failed', error);
-                if (state.stepCount === 0 && state.toolResults.length === 0 && state.facts.length === 0) {
-                    return {
-                        kind: 'direct_answer',
-                        trace: state.trace,
-                    };
+                appendTraceError(state.trace, 'selection_native_failed', error);
+            }
+        }
+
+        if (!selection) {
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                try {
+                    selection = await executeSelection(
+                        state,
+                        conversationMessages,
+                        step,
+                        'manual',
+                        runManualSelection,
+                        attempt === 1
+                    );
+                } catch (error) {
+                    appendTraceError(state.trace, attempt === 0 ? 'selection_manual_failed' : 'selection_manual_repair_failed', error);
+                    selection = null;
                 }
-                state.done = true;
-                break;
+
+                if (selection) {
+                    break;
+                }
             }
-            decision = parsePlannerDecision(plannerResult.text);
-
-            state.trace.planner.push({
-                step,
-                attempt,
-                request: plannerResult.request,
-                rawResponse: plannerResult.text,
-                parsedDecision: decision,
-            });
-
-            if (decision) {
-                break;
-            }
-
-            invalidResponse = plannerResult.text;
         }
 
-        if (state.done && !decision) {
-            break;
+        if (!selection) {
+            appendTraceError(state.trace, 'selection_invalid');
+            return createDirectAnswerResult(state, 'selection_invalid', true);
         }
 
-        if (!decision) {
-            state.trace.errors.push('planner_invalid_json');
-            if (state.stepCount === 0 && state.toolResults.length === 0 && state.facts.length === 0) {
+        if (selection.toolInvocations.length === 0) {
+            if (state.toolResults.length === 0) {
+                return createDirectAnswerResult(state, 'tool_not_needed', false);
+            }
+
+            onDisplayText('補助ツールを使用して回答を整理しています…');
+            const finalAnswerMessages = buildFinalAnswerMessages(state, conversationMessages);
+
+            try {
+                const finalAnswer = await runFinalAnswer(finalAnswerMessages, onDisplayText);
+                state.trace.finalAnswer = {
+                    request: finalAnswer.request,
+                };
+
+                const displayText = finalAnswer.text.trim();
                 return {
-                    kind: 'direct_answer',
+                    kind: 'tool_augmented_answer',
+                    displayText,
+                    historyText: toAssistantHistoryText(displayText) || displayText,
                     trace: state.trace,
                 };
+            } catch (error) {
+                appendTraceError(state.trace, 'final_answer_failed', error);
+                return createDirectAnswerResult(state, 'final_answer_failed', true);
             }
-            state.done = true;
-            break;
         }
 
-        applyPlannerDecisionToState(state, decision);
-
-        if (decision.mode === 'direct_answer' && state.stepCount === 0 && state.toolResults.length === 0) {
-            return {
-                kind: 'direct_answer',
-                trace: state.trace,
-            };
-        }
-
-        if (decision.done || !decision.nextAction) {
-            state.done = true;
-            break;
-        }
-
-        const nextAction = decision.nextAction;
-        const nextActionKey = stringifyToolAction(nextAction);
-        if (previousActionKey === nextActionKey) {
-            state.trace.errors.push('planner_repeated_same_action');
-            state.done = true;
-            break;
-        }
-        previousActionKey = nextActionKey;
-
+        const invocation = selection.toolInvocations[0];
         try {
-            const toolResult = await runTool(nextAction);
-            state.toolResults.push(toolResult);
-            state.trace.tools.push({
+            const result = await runTool({
+                name: invocation.name,
+                arguments: invocation.arguments,
+            });
+            state.toolResults.push(result);
+            state.trace.toolCalls.push({
                 step,
-                request: nextAction,
-                response: toolResult,
+                request: invocation,
+                response: result,
             });
             state.stepCount += 1;
 
-            if (!toolResult.success) {
-                state.toolRequiredButUnavailable = true;
-                state.done = true;
-                break;
+            if (!result.success) {
+                return createDirectAnswerResult(state, 'tool_failed', true);
             }
         } catch (error) {
             const errorCode = normalizeToolErrorCode(error);
             const unavailableResult = buildUnavailableToolResult(
-                nextAction,
+                invocation,
                 errorCode,
                 errorCode === 'UNAUTHORIZED'
                     ? '補助ツールを利用するにはログインが必要です。'
@@ -274,47 +426,16 @@ export async function runToolAugmentedOrchestration({
             );
 
             state.toolResults.push(unavailableResult);
-            state.trace.tools.push({
+            state.trace.toolCalls.push({
                 step,
-                request: nextAction,
+                request: invocation,
                 response: unavailableResult,
             });
-            state.toolRequiredButUnavailable = true;
             state.stepCount += 1;
-            state.done = true;
-            break;
+            return createDirectAnswerResult(state, 'tool_failed', true);
         }
     }
 
-    state.done = true;
-    onDisplayText('補助ツールを使用して回答を整理しています…');
-
-    const explainerMessages = buildExplainerMessages(state, conversationMessages);
-    let explainerResult: ExplainerLlmResult | null = null;
-    try {
-        explainerResult = await runExplainer(explainerMessages, onDisplayText);
-    } catch (error) {
-        appendTraceError(state.trace, 'explainer_runner_failed', error);
-        shouldFallbackToDirectAnswer = true;
-    }
-
-    if (shouldFallbackToDirectAnswer || !explainerResult) {
-        return {
-            kind: 'direct_answer',
-            trace: state.trace,
-        };
-    }
-
-    state.trace.explainer = {
-        request: explainerResult.request,
-    };
-
-    const displayText = explainerResult.text.trim();
-    return {
-        kind: 'tool_augmented_answer',
-        displayText,
-        historyText: toAssistantHistoryText(displayText) || displayText,
-        trace: state.trace,
-        state,
-    };
+    appendTraceError(state.trace, 'max_steps_reached');
+    return createDirectAnswerResult(state, 'max_steps_reached', true);
 }

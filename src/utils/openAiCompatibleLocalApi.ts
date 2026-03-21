@@ -1,7 +1,20 @@
-export interface OpenAiCompatibleMessage {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-}
+import type { FunctionCallingToolCall, ToolDefinition } from '../ai/types';
+
+export type OpenAiCompatibleMessage =
+    | {
+        role: 'system' | 'user';
+        content: string;
+    }
+    | {
+        role: 'assistant';
+        content?: string | null;
+        tool_calls?: FunctionCallingToolCall[];
+    }
+    | {
+        role: 'tool';
+        content: string;
+        tool_call_id: string;
+    };
 
 type ChatTuningParams = {
     temperature?: number | null;
@@ -9,6 +22,12 @@ type ChatTuningParams = {
     maxTokens?: number | null;
     presencePenalty?: number | null;
     repetitionPenalty?: number | null;
+};
+
+type ToolSelectionParams = {
+    tools?: ToolDefinition[] | null;
+    toolChoice?: 'auto' | 'none' | null;
+    extraBody?: Record<string, unknown> | null;
 };
 
 type StreamChatParams = {
@@ -26,7 +45,7 @@ type ChatOnceParams = {
     messages: OpenAiCompatibleMessage[];
     apiKey?: string;
     signal?: AbortSignal;
-} & ChatTuningParams;
+} & ChatTuningParams & ToolSelectionParams;
 
 const buildEndpoint = (baseUrl: string, path: string) => {
     return `${baseUrl.replace(/\/+$/, '')}${path}`;
@@ -36,7 +55,7 @@ const buildChatRequestBody = (
     model: string,
     messages: OpenAiCompatibleMessage[],
     stream: boolean,
-    params: ChatTuningParams
+    params: ChatTuningParams & ToolSelectionParams
 ) => {
     const payload: Record<string, unknown> = {
         model,
@@ -58,6 +77,16 @@ const buildChatRequestBody = (
     }
     if (typeof params.repetitionPenalty === 'number') {
         payload.repetition_penalty = params.repetitionPenalty;
+    }
+    if (Array.isArray(params.tools) && params.tools.length > 0) {
+        payload.tools = params.tools;
+    }
+    if (params.toolChoice) {
+        payload.tool_choice = params.toolChoice;
+    }
+
+    if (params.extraBody && typeof params.extraBody === 'object') {
+        Object.assign(payload, params.extraBody);
     }
 
     return payload;
@@ -121,25 +150,75 @@ const getResponseErrorMessage = async (response: Response) => {
     return `ローカルAPIの応答に失敗しました (${response.status} ${response.statusText}).`;
 };
 
-const extractAssistantMessage = (payload: unknown): string => {
+const normalizeToolCalls = (value: unknown): FunctionCallingToolCall[] => {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value.flatMap((item, index) => {
+        if (!item || typeof item !== 'object') {
+            return [];
+        }
+
+        const candidate = item as {
+            id?: unknown;
+            type?: unknown;
+            function?: {
+                name?: unknown;
+                arguments?: unknown;
+            };
+        };
+
+        if (!candidate.function || typeof candidate.function !== 'object') {
+            return [];
+        }
+
+        const name = candidate.function.name;
+        const rawArguments = candidate.function.arguments;
+        if (typeof name !== 'string' || typeof rawArguments !== 'string') {
+            return [];
+        }
+
+        return [{
+            id: typeof candidate.id === 'string' && candidate.id.trim().length > 0
+                ? candidate.id
+                : `tool-call-${index}`,
+            type: 'function',
+            function: {
+                name: name as FunctionCallingToolCall['function']['name'],
+                arguments: rawArguments,
+            },
+            source: 'native',
+        }];
+    });
+};
+
+const extractAssistantResponse = (payload: unknown) => {
     if (!payload || typeof payload !== 'object' || !('choices' in payload) || !Array.isArray(payload.choices)) {
-        return '';
+        return { text: '', toolCalls: [] as FunctionCallingToolCall[] };
     }
 
     const firstChoice = payload.choices[0];
     if (!firstChoice || typeof firstChoice !== 'object') {
-        return '';
+        return { text: '', toolCalls: [] as FunctionCallingToolCall[] };
     }
 
-    if ('message' in firstChoice && firstChoice.message && typeof firstChoice.message === 'object' && 'content' in firstChoice.message) {
-        return extractTextContent(firstChoice.message.content);
+    if ('message' in firstChoice && firstChoice.message && typeof firstChoice.message === 'object') {
+        const text = 'content' in firstChoice.message ? extractTextContent(firstChoice.message.content) : '';
+        const toolCalls = 'tool_calls' in firstChoice.message
+            ? normalizeToolCalls(firstChoice.message.tool_calls)
+            : [];
+        return { text, toolCalls };
     }
 
-    if ('delta' in firstChoice && firstChoice.delta && typeof firstChoice.delta === 'object' && 'content' in firstChoice.delta) {
-        return extractTextContent(firstChoice.delta.content);
+    if ('delta' in firstChoice && firstChoice.delta && typeof firstChoice.delta === 'object') {
+        return {
+            text: 'content' in firstChoice.delta ? extractTextContent(firstChoice.delta.content) : '',
+            toolCalls: [],
+        };
     }
 
-    return '';
+    return { text: '', toolCalls: [] as FunctionCallingToolCall[] };
 };
 
 const processSseEvent = (eventBlock: string, onDelta: (delta: string) => void) => {
@@ -159,7 +238,7 @@ const processSseEvent = (eventBlock: string, onDelta: (delta: string) => void) =
     }
 
     const parsed = JSON.parse(payloadText) as unknown;
-    const deltaText = extractAssistantMessage(parsed);
+    const deltaText = extractAssistantResponse(parsed).text;
 
     if (deltaText.length > 0) {
         onDelta(deltaText);
@@ -239,7 +318,7 @@ export const streamOpenAiCompatibleChat = async ({
     const contentType = response.headers.get('content-type') ?? '';
     if (!response.body || !contentType.includes('text/event-stream')) {
         const payload = await response.json();
-        const text = extractAssistantMessage(payload);
+        const text = extractAssistantResponse(payload).text;
         if (text.length === 0) {
             throw new Error('ローカルAPIから応答本文を取得できませんでした。');
         }
@@ -308,6 +387,9 @@ export const createOpenAiCompatibleChat = async ({
     maxTokens,
     presencePenalty,
     repetitionPenalty,
+    tools,
+    toolChoice,
+    extraBody,
 }: ChatOnceParams) => {
     const response = await fetch(buildEndpoint(baseUrl, '/chat/completions'), {
         method: 'POST',
@@ -318,6 +400,9 @@ export const createOpenAiCompatibleChat = async ({
             maxTokens,
             presencePenalty,
             repetitionPenalty,
+            tools,
+            toolChoice,
+            extraBody,
         })),
         signal,
     });
@@ -327,13 +412,14 @@ export const createOpenAiCompatibleChat = async ({
     }
 
     const payload = await response.json();
-    const text = extractAssistantMessage(payload);
-    if (text.length === 0) {
+    const { text, toolCalls } = extractAssistantResponse(payload);
+    if (text.length === 0 && toolCalls.length === 0) {
         throw new Error('ローカルAPIから応答本文を取得できませんでした。');
     }
 
     return {
         text,
+        toolCalls,
         raw: payload,
     };
 };

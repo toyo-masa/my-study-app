@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.50.0',
+        date: '2026年3月21日 20:59',
+        improvements: [
+            'ローカルLLMチャットと学習中の AI チャットで、補助ツールの呼び出しを planner 専用 JSON から tool-call 風ループへ置き換え、必要なときだけ外部ツールを使う流れに刷新しました。',
+            'OpenAI互換ローカルAPIでは native tool_calls を優先し、WebLLM の Qwen 系モデルでは manual tool-calling を使う形に切り分けて、環境ごとに安定しやすい補助ツール経路へ整理しました。',
+        ],
+        fixes: [
+            '補助ツールを使うはずの質問で planner JSON が壊れると誤答や早期終了につながっていた問題を見直し、壊れたときは通常回答へ切り替える通知を出して処理を続けるようにしました。',
+            '補助ツールが途中で失敗した場合でも、確定済みのツール結果を引き継いだまま通常回答へ戻せるようにして、途中まで得た結果が失われにくくなりました。',
+        ],
+    },
+    {
         version: '1.49.13',
         date: '2026年3月21日 19:57',
         improvements: [

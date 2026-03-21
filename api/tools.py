@@ -13,9 +13,12 @@ from sympy.parsing.sympy_parser import (
 
 
 TRANSFORMATIONS = standard_transformations + (convert_xor,)
-ALLOWED_OPERATIONS = {
-    "deterministic_calc": {"evaluate"},
-    "symbolic_math": {"simplify", "solve", "integrate", "differentiate"},
+ALLOWED_TOOL_NAMES = {
+    "deterministic_evaluate",
+    "symbolic_simplify",
+    "symbolic_solve",
+    "symbolic_integrate",
+    "symbolic_differentiate",
 }
 ALLOWED_NAMES = {
     "pi": sp.pi,
@@ -121,12 +124,11 @@ def _resolve_symbol(variable_name: str | None, expression: sp.Expr) -> sp.Symbol
     raise ValueError("変数を一意に特定できませんでした。")
 
 
-def _tool_result(capability: str, op: str, output_text: str, exact_value: str | None = None, latex: str | None = None) -> dict:
+def _tool_result(name: str, output_text: str, exact_value: str | None = None, latex: str | None = None) -> dict:
     return {
         "success": True,
         "result": {
-            "capability": capability,
-            "op": op,
+            "name": name,
             "success": True,
             "outputText": output_text,
             "exactValue": exact_value,
@@ -141,14 +143,14 @@ def _handle_evaluate(expr_text: str) -> dict:
     exact_value = str(simplified)
     numeric_value = sp.N(simplified)
     output_text = str(numeric_value) if len(simplified.free_symbols) == 0 else exact_value
-    return _tool_result("deterministic_calc", "evaluate", output_text, exact_value, sp.latex(simplified))
+    return _tool_result("deterministic_evaluate", output_text, exact_value, sp.latex(simplified))
 
 
 def _handle_simplify(expr_text: str) -> dict:
     expression = _parse_expression(expr_text)
     simplified = sp.simplify(expression)
     exact_value = str(simplified)
-    return _tool_result("symbolic_math", "simplify", exact_value, exact_value, sp.latex(simplified))
+    return _tool_result("symbolic_simplify", exact_value, exact_value, sp.latex(simplified))
 
 
 def _handle_solve(expr_text: str, variable_name: str | None) -> dict:
@@ -163,7 +165,7 @@ def _handle_solve(expr_text: str, variable_name: str | None) -> dict:
 
     solutions = sp.solve(expression, variable)
     exact_value = str(solutions)
-    return _tool_result("symbolic_math", "solve", exact_value, exact_value, None)
+    return _tool_result("symbolic_solve", exact_value, exact_value, None)
 
 
 def _handle_integrate(payload: dict) -> dict:
@@ -188,7 +190,7 @@ def _handle_integrate(payload: dict) -> dict:
         result = sp.integrate(expression, variable)
 
     exact_value = str(result)
-    return _tool_result("symbolic_math", "integrate", exact_value, exact_value, sp.latex(result))
+    return _tool_result("symbolic_integrate", exact_value, exact_value, sp.latex(result))
 
 
 def _handle_differentiate(payload: dict) -> dict:
@@ -203,36 +205,65 @@ def _handle_differentiate(payload: dict) -> dict:
     )
     result = sp.diff(expression, variable)
     exact_value = str(result)
-    return _tool_result("symbolic_math", "differentiate", exact_value, exact_value, sp.latex(result))
+    return _tool_result("symbolic_differentiate", exact_value, exact_value, sp.latex(result))
 
 
-def _dispatch_tool(capability: str, op: str, payload: dict) -> dict:
-    if capability == "deterministic_calc" and op == "evaluate":
-        expr_text = str(payload.get("expr", "")).strip()
+def _dispatch_tool(name: str, arguments: dict) -> dict:
+    if name == "deterministic_evaluate":
+        expr_text = str(arguments.get("expr", "")).strip()
         if not expr_text:
             raise ValueError("expr が必要です。")
         return _handle_evaluate(expr_text)
 
-    if capability == "symbolic_math" and op == "simplify":
-        expr_text = str(payload.get("expr", "")).strip()
+    if name == "symbolic_simplify":
+        expr_text = str(arguments.get("expr", "")).strip()
         if not expr_text:
             raise ValueError("expr が必要です。")
         return _handle_simplify(expr_text)
 
-    if capability == "symbolic_math" and op == "solve":
-        expr_text = str(payload.get("expr", "")).strip()
+    if name == "symbolic_solve":
+        expr_text = str(arguments.get("expr", "")).strip()
         if not expr_text:
             raise ValueError("expr が必要です。")
-        variable_name = str(payload.get("variable")).strip() if payload.get("variable") is not None else None
+        variable_name = str(arguments.get("variable")).strip() if arguments.get("variable") is not None else None
         return _handle_solve(expr_text, variable_name)
 
-    if capability == "symbolic_math" and op == "integrate":
-        return _handle_integrate(payload)
+    if name == "symbolic_integrate":
+        return _handle_integrate(arguments)
 
-    if capability == "symbolic_math" and op == "differentiate":
-        return _handle_differentiate(payload)
+    if name == "symbolic_differentiate":
+        return _handle_differentiate(arguments)
 
-    raise ValueError("未対応の operation です。")
+    raise ValueError("未対応の function name です。")
+
+
+def _normalize_tool_request(body: dict) -> tuple[str, dict] | None:
+    name = body.get("name")
+    arguments = body.get("arguments")
+
+    if isinstance(name, str) and isinstance(arguments, dict):
+        return name, arguments
+
+    capability = body.get("capability")
+    op = body.get("op")
+    payload = body.get("payload")
+
+    if not isinstance(payload, dict) or not isinstance(capability, str) or not isinstance(op, str):
+        return None
+
+    mapping = {
+        ("deterministic_calc", "evaluate"): "deterministic_evaluate",
+        ("symbolic_math", "simplify"): "symbolic_simplify",
+        ("symbolic_math", "solve"): "symbolic_solve",
+        ("symbolic_math", "integrate"): "symbolic_integrate",
+        ("symbolic_math", "differentiate"): "symbolic_differentiate",
+    }
+
+    tool_name = mapping.get((capability, op))
+    if tool_name is None:
+        return None
+
+    return tool_name, payload
 
 
 class handler(BaseHTTPRequestHandler):
@@ -246,24 +277,23 @@ class handler(BaseHTTPRequestHandler):
             _json_response(self, 400, {"error": "不正な JSON です", "code": "INVALID_JSON"})
             return
 
-        capability = body.get("capability")
-        op = body.get("op")
-        payload = body.get("payload")
-
-        if capability not in ALLOWED_OPERATIONS:
-            _json_response(self, 400, {"error": "未対応の capability です", "code": "INVALID_CAPABILITY"})
+        normalized = _normalize_tool_request(body)
+        if normalized is None:
+            _json_response(self, 400, {"error": "未対応の function name です", "code": "INVALID_TOOL_NAME"})
             return
 
-        if op not in ALLOWED_OPERATIONS[capability]:
-            _json_response(self, 400, {"error": "未対応の operation です", "code": "INVALID_OPERATION"})
+        tool_name, arguments = normalized
+
+        if tool_name not in ALLOWED_TOOL_NAMES:
+            _json_response(self, 400, {"error": "未対応の function name です", "code": "INVALID_TOOL_NAME"})
             return
 
-        if not isinstance(payload, dict):
-            _json_response(self, 400, {"error": "payload は object で指定してください", "code": "INVALID_PAYLOAD"})
+        if not isinstance(arguments, dict):
+            _json_response(self, 400, {"error": "arguments は object で指定してください", "code": "INVALID_ARGUMENTS"})
             return
 
         try:
-            result = _dispatch_tool(capability, op, payload)
+            result = _dispatch_tool(tool_name, arguments)
             _json_response(self, 200, result)
         except ValueError as error:
             _json_response(self, 400, {"error": str(error), "code": "INVALID_PAYLOAD"})

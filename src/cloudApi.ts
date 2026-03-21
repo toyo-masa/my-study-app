@@ -10,7 +10,7 @@ import type {
     SuspendedSession,
     SuspendedSessionSlotKey,
 } from './types';
-import type { ToolAction, ToolExecutionResult } from './ai/types';
+import type { ToolExecutionRequest, ToolExecutionResult } from './ai/types';
 
 export class ApiError extends Error {
     status: number;
@@ -266,7 +266,7 @@ export const cloudApi = {
         });
     },
 
-    async runMathTool(request: ToolAction): Promise<ToolExecutionResult> {
+    async runMathTool(request: ToolExecutionRequest): Promise<ToolExecutionResult> {
         const response = await fetchApi<{ success: boolean; result: ToolExecutionResult }>('/api/tools', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

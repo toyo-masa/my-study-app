@@ -4,13 +4,14 @@ import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web
 import type { Question } from '../types';
 import { cloudApi } from '../cloudApi';
 import {
-    runOpenAiExplainer,
-    runOpenAiPlanner,
-    runWebLlmExplainer,
-    runWebLlmPlanner,
+    runOpenAiFinalAnswer,
+    runOpenAiSelection,
+    runWebLlmFinalAnswer,
+    runWebLlmSelection,
 } from '../ai/llmRunners';
-import { runToolAugmentedOrchestration } from '../ai/solverOrchestrator';
-import type { OrchestrationConversationMessage } from '../ai/types';
+import { FUNCTION_TOOLS } from '../ai/prompts';
+import { runFunctionCallingLoop } from '../ai/solverOrchestrator';
+import type { FunctionCallingConversationMessage } from '../ai/types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
 import { MarkdownText } from './MarkdownText';
@@ -218,7 +219,7 @@ const toOpenAiMessages = (
     return [...leadingMessages, ...conversationMessages];
 };
 
-const toConversationMessages = (messages: LocalChatMessage[]): OrchestrationConversationMessage[] => {
+const toConversationMessages = (messages: LocalChatMessage[]): FunctionCallingConversationMessage[] => {
     return messages.flatMap((message) => {
         const content = toPromptMessageContent(message);
         if (content.trim().length === 0) {
@@ -747,6 +748,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         let assistantText = '';
         let webllmHitFinalLengthLimit = false;
+        let functionCallingFallbackNotice: string | null = null;
+        let functionCallingFallbackContext: string | null = null;
 
         setError(null);
         setInput('');
@@ -797,43 +800,50 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             const conversationMessages = toConversationMessages([...messages, userMessage]);
             if (activeMode === 'webllm') {
                 const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
-                const orchestration = await runToolAugmentedOrchestration({
+                const functionCalling = await runFunctionCallingLoop({
                     originalUserMessage: trimmed,
                     syntheticContext: questionContextUserPrompt,
                     conversationMessages,
-                    runPlanner: (plannerMessages) => runWebLlmPlanner({
+                    runManualSelection: (selectionMessages) => runWebLlmSelection({
                         engine,
-                        messages: plannerMessages,
+                        messages: selectionMessages,
                         maxTokens: 320,
                         temperature: 0.2,
                         topP: 0.8,
                         presencePenalty: 0,
                     }),
-                    runExplainer: (explainerMessages, onDelta) => runWebLlmExplainer({
+                    runFinalAnswer: (finalAnswerMessages, onDelta) => runWebLlmFinalAnswer({
                         engine,
-                        messages: explainerMessages,
+                        messages: finalAnswerMessages,
                         maxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
                         temperature: localLlmSettings.webllmSecondPassTemperature,
                         topP: localLlmSettings.webllmSecondPassTopP,
                         presencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
                         onDelta,
                     }),
-                    runTool: (action) => cloudApi.runMathTool(action),
+                    runTool: (request) => cloudApi.runMathTool(request),
                     onDisplayText: updateAssistantText,
                 });
 
-                if (orchestration.kind === 'tool_augmented_answer') {
+                if (functionCalling.kind === 'tool_augmented_answer') {
                     updateLastRequestPayload({
                         mode: 'webllm',
                         model: selectedWebLlmModel,
-                        orchestration: orchestration.trace,
+                        functionCallingTrace: functionCalling.trace,
                     });
-                    assistantText = orchestration.displayText;
+                    assistantText = functionCalling.displayText;
                 } else {
+                    functionCallingFallbackNotice = functionCalling.fallbackNotice;
+                    functionCallingFallbackContext = functionCalling.fallbackContext;
+                    const leadingUserPrompt = [functionCallingFallbackNotice, functionCallingFallbackContext]
+                        .filter((value): value is string => Boolean(value && value.trim().length > 0))
+                        .join('\n\n');
                     const webLlmMessages = toWebLlmMessages(
                         [...messages, userMessage],
                         webllmSystemPrompt,
-                        questionContextUserPrompt
+                        [questionContextUserPrompt, leadingUserPrompt]
+                            .filter((value) => value.trim().length > 0)
+                            .join('\n\n')
                     );
                     const result = await runWebLlmBudgetedGeneration({
                         engine,
@@ -847,7 +857,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         secondPassTemperature: localLlmSettings.webllmSecondPassTemperature,
                         secondPassTopP: localLlmSettings.webllmSecondPassTopP,
                         secondPassPresencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
-                        onDisplayText: updateAssistantText,
+                        onDisplayText: (nextText) => {
+                            const prefix = functionCallingFallbackNotice?.trim().length
+                                ? `${functionCallingFallbackNotice}\n\n`
+                                : '';
+                            updateAssistantText(prefix + nextText);
+                        },
                         onPhaseChange: (phase) => {
                             if (!mountedRef.current || requestIdRef.current !== requestId) {
                                 return;
@@ -858,8 +873,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     updateLastRequestPayload({
                         mode: 'webllm',
                         model: selectedWebLlmModel,
-                        orchestration: orchestration.trace,
-                        orchestrationFallback: true,
+                        functionCallingTrace: functionCalling.trace,
+                        functionCallingFallback: Boolean(functionCalling.fallbackNotice),
                         requests: {
                             firstPass: result.firstPassRequest,
                             secondPass: result.secondPassRequest ?? null,
@@ -867,7 +882,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         secondPassTrigger: result.secondPassTrigger,
                     });
 
-                    assistantText = result.displayText;
+                    const prefix = functionCallingFallbackNotice?.trim().length
+                        ? `${functionCallingFallbackNotice}\n\n`
+                        : '';
+                    assistantText = prefix + result.displayText;
                     webllmHitFinalLengthLimit = result.usedSecondPass && result.secondFinishReason === 'length';
                     if (result.firstFinishReason === 'length' || result.secondFinishReason === 'length') {
                         await resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
@@ -876,14 +894,30 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             } else {
                 const controller = new AbortController();
                 localApiChatAbortRef.current = controller;
-                const orchestration = await runToolAugmentedOrchestration({
+                const functionCalling = await runFunctionCallingLoop({
                     originalUserMessage: trimmed,
                     syntheticContext: questionContextUserPrompt,
                     conversationMessages,
-                    runPlanner: (plannerMessages) => runOpenAiPlanner({
+                    runNativeSelection: (selectionMessages) => runOpenAiSelection({
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        messages: plannerMessages,
+                        messages: selectionMessages,
+                        apiKey: apiKey.trim() || undefined,
+                        signal: controller.signal,
+                        maxTokens: 320,
+                        temperature: 0.2,
+                        topP: 0.8,
+                        presencePenalty: 0,
+                        tools: FUNCTION_TOOLS,
+                        toolChoice: 'auto',
+                        extraBody: {
+                            enable_thinking: false,
+                        },
+                    }),
+                    runManualSelection: (selectionMessages) => runOpenAiSelection({
+                        baseUrl: localLlmSettings.baseUrl,
+                        model: selectedModel,
+                        messages: selectionMessages,
                         apiKey: apiKey.trim() || undefined,
                         signal: controller.signal,
                         maxTokens: 320,
@@ -891,10 +925,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         topP: 0.8,
                         presencePenalty: 0,
                     }),
-                    runExplainer: (explainerMessages, onDelta) => runOpenAiExplainer({
+                    runFinalAnswer: (finalAnswerMessages, onDelta) => runOpenAiFinalAnswer({
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        messages: explainerMessages,
+                        messages: finalAnswerMessages,
                         apiKey: apiKey.trim() || undefined,
                         signal: controller.signal,
                         maxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
@@ -903,36 +937,51 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         presencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
                         onDelta,
                     }),
-                    runTool: (action) => cloudApi.runMathTool(action),
+                    runTool: (request) => cloudApi.runMathTool(request),
                     onDisplayText: updateAssistantText,
                 });
 
-                if (orchestration.kind === 'tool_augmented_answer') {
+                if (functionCalling.kind === 'tool_augmented_answer') {
                     updateLastRequestPayload({
                         mode: 'openai-local',
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        orchestration: orchestration.trace,
+                        functionCallingTrace: functionCalling.trace,
                     });
-                    assistantText = orchestration.displayText;
+                    assistantText = functionCalling.displayText;
                 } else {
+                    functionCallingFallbackNotice = functionCalling.fallbackNotice;
+                    functionCallingFallbackContext = functionCalling.fallbackContext;
+                    const leadingUserPrompt = [functionCallingFallbackNotice, functionCallingFallbackContext]
+                        .filter((value): value is string => Boolean(value && value.trim().length > 0))
+                        .join('\n\n');
                     const openAiMessages = toOpenAiMessages(
                         [...messages, userMessage],
                         '',
-                        questionContextUserPrompt
+                        [questionContextUserPrompt, leadingUserPrompt]
+                            .filter((value) => value.trim().length > 0)
+                            .join('\n\n')
                     );
                     updateLastRequestPayload({
                         mode: 'openai-local',
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        orchestration: orchestration.trace,
-                        orchestrationFallback: true,
+                        functionCallingTrace: functionCalling.trace,
+                        functionCallingFallback: Boolean(functionCalling.fallbackNotice),
                         request: {
                             model: selectedModel,
                             messages: openAiMessages,
                             stream: true,
                         },
                     });
+
+                    const noticePrefix = functionCallingFallbackNotice?.trim().length
+                        ? `${functionCallingFallbackNotice}\n\n`
+                        : '';
+                    if (noticePrefix.length > 0) {
+                        assistantText = noticePrefix;
+                        updateAssistantText(assistantText);
+                    }
 
                     const finalText = await streamOpenAiCompatibleChat({
                         baseUrl: localLlmSettings.baseUrl,
@@ -946,8 +995,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         },
                     });
 
-                    if (assistantText.length === 0) {
-                        assistantText = finalText;
+                    if (assistantText.length === 0 || assistantText === noticePrefix) {
+                        assistantText += finalText;
                     }
                 }
 

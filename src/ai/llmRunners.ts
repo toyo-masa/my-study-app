@@ -8,20 +8,25 @@ import {
     streamOpenAiCompatibleChat,
     type OpenAiCompatibleMessage,
 } from '../utils/openAiCompatibleLocalApi';
-import type { ExplainerLlmResult, OrchestrationPromptMessage, PlannerLlmResult } from './types';
+import type {
+    FinalAnswerLlmResult,
+    FunctionCallingPromptMessage,
+    SelectionLlmResult,
+    ToolDefinition,
+} from './types';
 
-type WebLlmPlannerParams = {
+type WebLlmSelectionParams = {
     engine: WebWorkerMLCEngine;
-    messages: OrchestrationPromptMessage[];
+    messages: FunctionCallingPromptMessage[];
     maxTokens: number;
-    temperature: number;
-    topP: number;
+    temperature: number | null;
+    topP: number | null;
     presencePenalty: number | null;
 };
 
-type WebLlmExplainerParams = {
+type WebLlmFinalAnswerParams = {
     engine: WebWorkerMLCEngine;
-    messages: OrchestrationPromptMessage[];
+    messages: FunctionCallingPromptMessage[];
     maxTokens: number;
     temperature: number | null;
     topP: number | null;
@@ -29,22 +34,25 @@ type WebLlmExplainerParams = {
     onDelta: (text: string) => void;
 };
 
-type OpenAiPlannerParams = {
+type OpenAiSelectionParams = {
     baseUrl: string;
     model: string;
-    messages: OrchestrationPromptMessage[];
+    messages: FunctionCallingPromptMessage[];
     apiKey?: string;
     signal?: AbortSignal;
     maxTokens: number;
-    temperature: number;
-    topP: number;
+    temperature: number | null;
+    topP: number | null;
     presencePenalty: number | null;
+    tools?: ToolDefinition[] | null;
+    toolChoice?: 'auto' | 'none' | null;
+    extraBody?: Record<string, unknown> | null;
 };
 
-type OpenAiExplainerParams = {
+type OpenAiFinalAnswerParams = {
     baseUrl: string;
     model: string;
-    messages: OrchestrationPromptMessage[];
+    messages: FunctionCallingPromptMessage[];
     apiKey?: string;
     signal?: AbortSignal;
     maxTokens: number;
@@ -54,18 +62,119 @@ type OpenAiExplainerParams = {
     onDelta: (text: string) => void;
 };
 
-const toWebLlmMessages = (messages: OrchestrationPromptMessage[]): ChatCompletionMessageParam[] => {
-    return messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-    }));
+const renderToolCallsForManual = (message: Extract<FunctionCallingPromptMessage, { role: 'assistant' }>) => {
+    if (!Array.isArray(message.toolCalls) || message.toolCalls.length === 0) {
+        return '';
+    }
+
+    return message.toolCalls.flatMap((toolCall) => {
+        try {
+            return [`<tool_call>${JSON.stringify({
+                name: toolCall.function.name,
+                arguments: JSON.parse(toolCall.function.arguments),
+            })}</tool_call>`];
+        } catch {
+            return [];
+        }
+    }).join('\n');
 };
 
-const toOpenAiMessages = (messages: OrchestrationPromptMessage[]): OpenAiCompatibleMessage[] => {
-    return messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-    }));
+const toWebLlmMessages = (messages: FunctionCallingPromptMessage[]): ChatCompletionMessageParam[] => {
+    const result: ChatCompletionMessageParam[] = [];
+
+    messages.forEach((message) => {
+        if (message.role === 'system' || message.role === 'user') {
+            const content = message.content.trim();
+            if (content.length === 0) {
+                return;
+            }
+            result.push({ role: message.role, content });
+            return;
+        }
+
+        if (message.role === 'assistant') {
+            const parts = [
+                typeof message.content === 'string' ? message.content.trim() : '',
+                renderToolCallsForManual(message),
+            ].filter((part) => part.length > 0);
+
+            if (parts.length === 0) {
+                return;
+            }
+
+            result.push({
+                role: 'assistant',
+                content: parts.join('\n'),
+            });
+            return;
+        }
+
+        const content = message.content.trim();
+        if (content.length === 0) {
+            return;
+        }
+
+        result.push({
+            role: 'user',
+            content: `<tool_result id="${message.toolCallId}">\n${content}\n</tool_result>`,
+        });
+    });
+
+    return result;
+};
+
+const toOpenAiMessages = (messages: FunctionCallingPromptMessage[]): OpenAiCompatibleMessage[] => {
+    const result: OpenAiCompatibleMessage[] = [];
+
+    messages.forEach((message) => {
+        if (message.role === 'system' || message.role === 'user') {
+            const content = message.content.trim();
+            if (content.length === 0) {
+                return;
+            }
+            result.push({ role: message.role, content });
+            return;
+        }
+
+        if (message.role === 'assistant') {
+            if ((!message.content || message.content.trim().length === 0) && (!message.toolCalls || message.toolCalls.length === 0)) {
+                return;
+            }
+
+            result.push({
+                role: 'assistant',
+                content: typeof message.content === 'string' ? message.content : '',
+                tool_calls: message.toolCalls,
+            });
+            return;
+        }
+
+        result.push({
+            role: 'tool',
+            content: message.content,
+            tool_call_id: message.toolCallId,
+        });
+    });
+
+    return result;
+};
+
+const extractWebLlmText = (value: unknown): string => {
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (!Array.isArray(value)) {
+        return '';
+    }
+    return value.map((part) => {
+        if (typeof part === 'string') {
+            return part;
+        }
+        if (part && typeof part === 'object' && 'text' in part && typeof part.text === 'string') {
+            return part.text;
+        }
+        return '';
+    }).join('');
 };
 
 const runWebLlmStreamText = async ({
@@ -78,7 +187,7 @@ const runWebLlmStreamText = async ({
     onDelta,
 }: {
     engine: WebWorkerMLCEngine;
-    messages: OrchestrationPromptMessage[];
+    messages: FunctionCallingPromptMessage[];
     maxTokens: number;
     temperature: number | null;
     topP: number | null;
@@ -114,36 +223,45 @@ const runWebLlmStreamText = async ({
     return text;
 };
 
-export const runWebLlmPlanner = async ({
+export const runWebLlmSelection = async ({
     engine,
     messages,
     maxTokens,
     temperature,
     topP,
     presencePenalty,
-}: WebLlmPlannerParams): Promise<PlannerLlmResult> => {
-    const text = await runWebLlmStreamText({
-        engine,
-        messages,
-        maxTokens,
+}: WebLlmSelectionParams): Promise<SelectionLlmResult> => {
+    await engine.resetChat(false);
+
+    const response = await engine.chat.completions.create({
+        messages: toWebLlmMessages(messages),
+        max_tokens: maxTokens,
         temperature,
-        topP,
-        presencePenalty,
+        top_p: topP,
+        presence_penalty: presencePenalty,
+        stream: false,
     });
+
+    const text = extractWebLlmText(response.choices?.[0]?.message?.content);
 
     return {
         text,
+        toolCalls: [],
         request: {
             messages,
             maxTokens,
             temperature,
             topP,
             presencePenalty,
+            stream: false,
+            tools: null,
+            toolChoice: null,
+            extraBody: null,
         },
     };
 };
 
-export const runWebLlmExplainer = async ({
+export const runWebLlmFinalAnswer = async ({
     engine,
     messages,
     maxTokens,
@@ -151,7 +269,7 @@ export const runWebLlmExplainer = async ({
     topP,
     presencePenalty,
     onDelta,
-}: WebLlmExplainerParams): Promise<ExplainerLlmResult> => {
+}: WebLlmFinalAnswerParams): Promise<FinalAnswerLlmResult> => {
     const text = await runWebLlmStreamText({
         engine,
         messages,
@@ -175,7 +293,7 @@ export const runWebLlmExplainer = async ({
     };
 };
 
-export const runOpenAiPlanner = async ({
+export const runOpenAiSelection = async ({
     baseUrl,
     model,
     messages,
@@ -185,7 +303,10 @@ export const runOpenAiPlanner = async ({
     temperature,
     topP,
     presencePenalty,
-}: OpenAiPlannerParams): Promise<PlannerLlmResult> => {
+    tools,
+    toolChoice,
+    extraBody,
+}: OpenAiSelectionParams): Promise<SelectionLlmResult> => {
     const response = await createOpenAiCompatibleChat({
         baseUrl,
         model,
@@ -196,21 +317,29 @@ export const runOpenAiPlanner = async ({
         temperature,
         topP,
         presencePenalty,
+        tools,
+        toolChoice,
+        extraBody,
     });
 
     return {
         text: response.text,
+        toolCalls: response.toolCalls,
         request: {
             messages,
             maxTokens,
             temperature,
             topP,
             presencePenalty,
+            stream: false,
+            tools: tools ?? null,
+            toolChoice: toolChoice ?? null,
+            extraBody: extraBody ?? null,
         },
     };
 };
 
-export const runOpenAiExplainer = async ({
+export const runOpenAiFinalAnswer = async ({
     baseUrl,
     model,
     messages,
@@ -221,7 +350,7 @@ export const runOpenAiExplainer = async ({
     topP,
     presencePenalty,
     onDelta,
-}: OpenAiExplainerParams): Promise<ExplainerLlmResult> => {
+}: OpenAiFinalAnswerParams): Promise<FinalAnswerLlmResult> => {
     let text = '';
     const finalText = await streamOpenAiCompatibleChat({
         baseUrl,

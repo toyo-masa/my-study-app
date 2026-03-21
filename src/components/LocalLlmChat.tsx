@@ -5,13 +5,14 @@ import { BackButton } from './BackButton';
 import { MarkdownText } from './MarkdownText';
 import { cloudApi } from '../cloudApi';
 import {
-    runOpenAiExplainer,
-    runOpenAiPlanner,
-    runWebLlmExplainer,
-    runWebLlmPlanner,
+    runOpenAiFinalAnswer,
+    runOpenAiSelection,
+    runWebLlmFinalAnswer,
+    runWebLlmSelection,
 } from '../ai/llmRunners';
-import { runToolAugmentedOrchestration } from '../ai/solverOrchestrator';
-import type { OrchestrationConversationMessage } from '../ai/types';
+import { runFunctionCallingLoop } from '../ai/solverOrchestrator';
+import { FUNCTION_TOOLS } from '../ai/prompts';
+import type { FunctionCallingConversationMessage } from '../ai/types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
 import {
@@ -81,7 +82,8 @@ const getCopyableAssistantContent = (content: string) => {
 
 const toWebLlmMessages = (
     messages: LocalChatMessage[],
-    systemPrompt: string
+    systemPrompt: string,
+    leadingUserPrompt = ''
 ): ChatCompletionMessageParam[] => {
     const conversationMessages = messages.flatMap((message) => {
         const content = toPromptMessageContent(message);
@@ -95,21 +97,29 @@ const toWebLlmMessages = (
         }];
     }).slice(-WEB_LLM_PROMPT_MESSAGE_LIMIT);
 
-    if (systemPrompt.trim().length === 0) {
-        return conversationMessages;
-    }
-
-    return [
-        {
+    const leadingMessages: ChatCompletionMessageParam[] = [];
+    if (systemPrompt.trim().length > 0) {
+        leadingMessages.push({
             role: 'system',
             content: systemPrompt.trim(),
-        },
-        ...conversationMessages,
-    ];
+        });
+    }
+    if (leadingUserPrompt.trim().length > 0) {
+        leadingMessages.push({
+            role: 'user',
+            content: leadingUserPrompt.trim(),
+        });
+    }
+
+    return [...leadingMessages, ...conversationMessages];
 };
 
-const toOpenAiMessages = (messages: LocalChatMessage[]): OpenAiCompatibleMessage[] => {
-    return messages.flatMap((message) => {
+const toOpenAiMessages = (
+    messages: LocalChatMessage[],
+    systemPrompt = '',
+    leadingUserPrompt = ''
+): OpenAiCompatibleMessage[] => {
+    const conversationMessages = messages.flatMap((message) => {
         const content = toPromptMessageContent(message);
         if (content.trim().length === 0) {
             return [];
@@ -120,9 +130,25 @@ const toOpenAiMessages = (messages: LocalChatMessage[]): OpenAiCompatibleMessage
             content,
         }];
     });
+
+    const leadingMessages: OpenAiCompatibleMessage[] = [];
+    if (systemPrompt.trim().length > 0) {
+        leadingMessages.push({
+            role: 'system',
+            content: systemPrompt.trim(),
+        });
+    }
+    if (leadingUserPrompt.trim().length > 0) {
+        leadingMessages.push({
+            role: 'user',
+            content: leadingUserPrompt.trim(),
+        });
+    }
+
+    return [...leadingMessages, ...conversationMessages];
 };
 
-const toConversationMessages = (messages: LocalChatMessage[]): OrchestrationConversationMessage[] => {
+const toConversationMessages = (messages: LocalChatMessage[]): FunctionCallingConversationMessage[] => {
     return messages.flatMap((message) => {
         const content = toPromptMessageContent(message);
         if (content.trim().length === 0) {
@@ -1028,6 +1054,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         let assistantText = '';
         let webllmHitFinalLengthLimit = false;
+        let functionCallingFallbackNotice: string | null = null;
+        let functionCallingFallbackContext: string | null = null;
         let generationMessages: LocalChatMessage[] = [...messages, userMessage, pendingAssistantMessage];
         const generationSessionId = currentSessionId;
         const generationSessionMode = activeMode;
@@ -1109,42 +1137,51 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             const conversationMessages = toConversationMessages([...messages, userMessage]);
             if (activeMode === 'webllm') {
                 const engine = await ensureLocalLlmEngine(selectedWebLlmModel);
-                const orchestration = await runToolAugmentedOrchestration({
+                const functionCalling = await runFunctionCallingLoop({
                     originalUserMessage: trimmed,
                     syntheticContext: webllmSystemPrompt.trim().length > 0
                         ? `補助指示:\n${webllmSystemPrompt.trim()}`
                         : '',
                     conversationMessages,
-                    runPlanner: (plannerMessages) => runWebLlmPlanner({
+                    runManualSelection: (selectionMessages) => runWebLlmSelection({
                         engine,
-                        messages: plannerMessages,
+                        messages: selectionMessages,
                         maxTokens: 320,
                         temperature: 0.2,
                         topP: 0.8,
                         presencePenalty: 0,
                     }),
-                    runExplainer: (explainerMessages, onDelta) => runWebLlmExplainer({
+                    runFinalAnswer: (finalAnswerMessages, onDelta) => runWebLlmFinalAnswer({
                         engine,
-                        messages: explainerMessages,
+                        messages: finalAnswerMessages,
                         maxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
                         temperature: webllmSecondPassTemperature,
                         topP: webllmSecondPassTopP,
                         presencePenalty: webllmSecondPassPresencePenalty,
                         onDelta,
                     }),
-                    runTool: (action) => cloudApi.runMathTool(action),
+                    runTool: (request) => cloudApi.runMathTool(request),
                     onDisplayText: updateAssistantText,
                 });
 
-                if (orchestration.kind === 'tool_augmented_answer') {
+                if (functionCalling.kind === 'tool_augmented_answer') {
                     updateLastRequestPayload({
                         mode: 'webllm',
                         model: selectedWebLlmModel,
-                        orchestration: orchestration.trace,
+                        functionCallingTrace: functionCalling.trace,
                     });
-                    assistantText = orchestration.displayText;
+                    assistantText = functionCalling.displayText;
                 } else {
-                    const webLlmMessages = toWebLlmMessages([...messages, userMessage], webllmSystemPrompt);
+                    functionCallingFallbackNotice = functionCalling.fallbackNotice;
+                    functionCallingFallbackContext = functionCalling.fallbackContext;
+                    const leadingUserPrompt = [functionCallingFallbackNotice, functionCallingFallbackContext]
+                        .filter((value): value is string => Boolean(value && value.trim().length > 0))
+                        .join('\n\n');
+                    const webLlmMessages = toWebLlmMessages(
+                        [...messages, userMessage],
+                        webllmSystemPrompt,
+                        leadingUserPrompt
+                    );
                     const result = await runWebLlmBudgetedGeneration({
                         engine,
                         messages: webLlmMessages,
@@ -1157,7 +1194,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         secondPassTemperature: webllmSecondPassTemperature,
                         secondPassTopP: webllmSecondPassTopP,
                         secondPassPresencePenalty: webllmSecondPassPresencePenalty,
-                        onDisplayText: updateAssistantText,
+                        onDisplayText: (nextText) => {
+                            const prefix = functionCallingFallbackNotice?.trim().length
+                                ? `${functionCallingFallbackNotice}\n\n`
+                                : '';
+                            updateAssistantText(prefix + nextText);
+                        },
                         onPhaseChange: (phase) => {
                             if (!mountedRef.current || requestIdRef.current !== requestId) {
                                 return;
@@ -1168,8 +1210,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                     updateLastRequestPayload({
                         mode: 'webllm',
                         model: selectedWebLlmModel,
-                        orchestration: orchestration.trace,
-                        orchestrationFallback: true,
+                        functionCallingTrace: functionCalling.trace,
+                        functionCallingFallback: Boolean(functionCalling.fallbackNotice),
                         requests: {
                             firstPass: result.firstPassRequest,
                             secondPass: result.secondPassRequest ?? null,
@@ -1177,7 +1219,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         secondPassTrigger: result.secondPassTrigger,
                     });
 
-                    assistantText = result.displayText;
+                    const prefix = functionCallingFallbackNotice?.trim().length
+                        ? `${functionCallingFallbackNotice}\n\n`
+                        : '';
+                    assistantText = prefix + result.displayText;
                     webllmHitFinalLengthLimit = result.usedSecondPass && result.secondFinishReason === 'length';
                     if (result.firstFinishReason === 'length' || result.secondFinishReason === 'length') {
                         await resetLocalLlmChat(selectedWebLlmModel).catch(() => undefined);
@@ -1186,14 +1231,30 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             } else {
                 const controller = new AbortController();
                 localApiChatAbortRef.current = controller;
-                const orchestration = await runToolAugmentedOrchestration({
+                const functionCalling = await runFunctionCallingLoop({
                     originalUserMessage: trimmed,
                     syntheticContext: '',
                     conversationMessages,
-                    runPlanner: (plannerMessages) => runOpenAiPlanner({
+                    runNativeSelection: (selectionMessages) => runOpenAiSelection({
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        messages: plannerMessages,
+                        messages: selectionMessages,
+                        apiKey: apiKey.trim() || undefined,
+                        signal: controller.signal,
+                        maxTokens: 320,
+                        temperature: 0.2,
+                        topP: 0.8,
+                        presencePenalty: 0,
+                        tools: FUNCTION_TOOLS,
+                        toolChoice: 'auto',
+                        extraBody: {
+                            enable_thinking: false,
+                        },
+                    }),
+                    runManualSelection: (selectionMessages) => runOpenAiSelection({
+                        baseUrl: localLlmSettings.baseUrl,
+                        model: selectedModel,
+                        messages: selectionMessages,
                         apiKey: apiKey.trim() || undefined,
                         signal: controller.signal,
                         maxTokens: 320,
@@ -1201,10 +1262,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         topP: 0.8,
                         presencePenalty: 0,
                     }),
-                    runExplainer: (explainerMessages, onDelta) => runOpenAiExplainer({
+                    runFinalAnswer: (finalAnswerMessages, onDelta) => runOpenAiFinalAnswer({
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        messages: explainerMessages,
+                        messages: finalAnswerMessages,
                         apiKey: apiKey.trim() || undefined,
                         signal: controller.signal,
                         maxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
@@ -1213,32 +1274,49 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         presencePenalty: webllmSecondPassPresencePenalty,
                         onDelta,
                     }),
-                    runTool: (action) => cloudApi.runMathTool(action),
+                    runTool: (request) => cloudApi.runMathTool(request),
                     onDisplayText: updateAssistantText,
                 });
 
-                if (orchestration.kind === 'tool_augmented_answer') {
+                if (functionCalling.kind === 'tool_augmented_answer') {
                     updateLastRequestPayload({
                         mode: 'openai-local',
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        orchestration: orchestration.trace,
+                        functionCallingTrace: functionCalling.trace,
                     });
-                    assistantText = orchestration.displayText;
+                    assistantText = functionCalling.displayText;
                 } else {
-                    const openAiMessages = toOpenAiMessages([...messages, userMessage]);
+                    functionCallingFallbackNotice = functionCalling.fallbackNotice;
+                    functionCallingFallbackContext = functionCalling.fallbackContext;
+                    const leadingUserPrompt = [functionCallingFallbackNotice, functionCallingFallbackContext]
+                        .filter((value): value is string => Boolean(value && value.trim().length > 0))
+                        .join('\n\n');
+                    const openAiMessages = toOpenAiMessages(
+                        [...messages, userMessage],
+                        '',
+                        leadingUserPrompt
+                    );
                     updateLastRequestPayload({
                         mode: 'openai-local',
                         baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
-                        orchestration: orchestration.trace,
-                        orchestrationFallback: true,
+                        functionCallingTrace: functionCalling.trace,
+                        functionCallingFallback: Boolean(functionCalling.fallbackNotice),
                         request: {
                             model: selectedModel,
                             messages: openAiMessages,
                             stream: true,
                         },
                     });
+
+                    const noticePrefix = functionCallingFallbackNotice?.trim().length
+                        ? `${functionCallingFallbackNotice}\n\n`
+                        : '';
+                    if (noticePrefix.length > 0) {
+                        assistantText = noticePrefix;
+                        updateAssistantText(assistantText);
+                    }
 
                     const finalText = await streamOpenAiCompatibleChat({
                         baseUrl: localLlmSettings.baseUrl,
@@ -1252,8 +1330,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         },
                     });
 
-                    if (assistantText.length === 0) {
-                        assistantText = finalText;
+                    if (assistantText.length === 0 || assistantText === noticePrefix) {
+                        assistantText += finalText;
                     }
                 }
 
