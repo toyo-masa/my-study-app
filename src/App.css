@@ -976,6 +976,11 @@
   justify-content: flex-end;
 }
 
+.local-llm-bottom-anchor {
+  height: calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+
 .spin {
   animation: local-llm-spin 0.9s linear infinite;
 }

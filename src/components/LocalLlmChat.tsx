@@ -1248,7 +1248,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                     );
                                 })
                             )}
-                            <div ref={bottomRef} />
                         </div>
 
                         <div className="local-llm-composer">
@@ -1292,6 +1291,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 )}
                             </div>
                         </div>
+                        <div ref={bottomRef} className="local-llm-bottom-anchor" aria-hidden="true" />
                     </section>
                 </div>
             </div>
