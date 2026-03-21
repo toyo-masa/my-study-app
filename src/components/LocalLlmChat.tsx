@@ -843,6 +843,17 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 onLocalLlmModeChange('webllm');
             }
             if (modelId.length > 0) {
+                if (currentSession) {
+                    setChatSessions((previous) => previous.map((session) => (
+                        session.id === currentSession.id
+                            ? {
+                                ...session,
+                                mode: 'webllm',
+                                modelId,
+                            }
+                            : session
+                    )));
+                }
                 onWebLlmModelChange(modelId);
             }
             return;
@@ -853,9 +864,20 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             if (activeMode !== 'openai-local') {
                 onLocalLlmModeChange('openai-local');
             }
+            if (currentSession) {
+                setChatSessions((previous) => previous.map((session) => (
+                    session.id === currentSession.id
+                        ? {
+                            ...session,
+                            mode: 'openai-local',
+                            modelId,
+                        }
+                        : session
+                )));
+            }
             setSelectedLocalApiModel(modelId);
         }
-    }, [activeMode, onLocalLlmModeChange, onWebLlmModelChange]);
+    }, [activeMode, currentSession, onLocalLlmModeChange, onWebLlmModelChange]);
 
     const handleFetchModels = useCallback(async () => {
         if (activeMode !== 'openai-local' || localApiModelListAbortRef.current || localLlmSettings.baseUrl.trim().length === 0) {
@@ -1272,10 +1294,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
                     <div className="local-llm-sidebar-list">
                         {chatSessions.map((session) => (
-                            <div key={session.id} className="local-llm-session-row">
+                            <div
+                                key={session.id}
+                                className={`local-llm-session-item ${session.id === currentSessionId ? 'active' : ''}`}
+                            >
                                 <button
                                     type="button"
-                                    className={`local-llm-session-item local-llm-session-select ${session.id === currentSessionId ? 'active' : ''}`}
+                                    className="local-llm-session-select"
                                     onClick={() => handleSelectSession(session.id)}
                                 >
                                     <div className="local-llm-session-title">{session.title}</div>

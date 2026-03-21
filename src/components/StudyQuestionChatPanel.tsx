@@ -937,6 +937,17 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             const modelId = value.slice('webllm:'.length);
             onLocalLlmModeChange('webllm');
             if (modelId.length > 0) {
+                if (questionId !== null) {
+                    setStoredSessions((previous) => previous.map((session) => (
+                        session.quizSetId === quizSetId && session.questionId === questionId
+                            ? {
+                                ...session,
+                                mode: 'webllm',
+                                modelId,
+                            }
+                            : session
+                    )));
+                }
                 onWebLlmModelChange(modelId);
             }
             return;
@@ -945,9 +956,20 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         if (value.startsWith('openai-local:')) {
             const modelId = value.slice('openai-local:'.length).trim();
             onLocalLlmModeChange('openai-local');
+            if (questionId !== null) {
+                setStoredSessions((previous) => previous.map((session) => (
+                    session.quizSetId === quizSetId && session.questionId === questionId
+                        ? {
+                            ...session,
+                            mode: 'openai-local',
+                            modelId,
+                        }
+                        : session
+                )));
+            }
             setSelectedLocalApiModel(modelId);
         }
-    }, [onLocalLlmModeChange, onWebLlmModelChange]);
+    }, [onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
