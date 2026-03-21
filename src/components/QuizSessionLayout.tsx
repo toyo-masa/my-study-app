@@ -44,6 +44,9 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
     rightPanelContent,
     children,
 }) => {
+    const showDockedRightPanel = showRightPanel && !rightPanelModal;
+    const showModalRightPanel = showRightPanel && rightPanelModal;
+
     return (
         <>
             <header className="app-header">
@@ -90,7 +93,7 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
                             key="content"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0 }}
+                            style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0, width: '100%', overflow: 'hidden' }}
                         >
                             <AnimatePresence>
                                 {sidebarOpen && showSidebar && (
@@ -110,23 +113,11 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
                                 </aside>
                             )}
 
-                            <main className={`content-area ${showRightPanel && !rightPanelModal && rightPanelOpen ? 'with-right-panel' : ''}`}>{children}</main>
+                            <main className={`content-area ${showDockedRightPanel && rightPanelOpen ? 'with-right-panel' : ''}`}>{children}</main>
 
-                            <AnimatePresence>
-                                {showRightPanel && rightPanelModal && rightPanelOpen && (
-                                    <motion.div
-                                        className="right-panel-overlay"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        onClick={onCloseRightPanel}
-                                    />
-                                )}
-                            </AnimatePresence>
-
-                            {showRightPanel && (
+                            {showDockedRightPanel && (
                                 <aside
-                                    className={`right-panel-container ${rightPanelModal ? 'modal' : 'docked'} ${rightPanelOpen ? 'open' : 'closed'}`}
+                                    className={`right-panel-container docked ${rightPanelOpen ? 'open' : 'closed'}`}
                                 >
                                     {rightPanelContent}
                                 </aside>
@@ -135,6 +126,29 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
                     )}
                 </AnimatePresence>
             </div>
+
+            {showModalRightPanel && (
+                <>
+                    <AnimatePresence>
+                        {rightPanelOpen && (
+                            <motion.div
+                                className="right-panel-overlay"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={onCloseRightPanel}
+                            />
+                        )}
+                    </AnimatePresence>
+
+                    <aside
+                        className={`right-panel-container modal ${rightPanelOpen ? 'open' : 'closed'}`}
+                        aria-hidden={!rightPanelOpen}
+                    >
+                        {rightPanelContent}
+                    </aside>
+                </>
+            )}
         </>
     );
 };
