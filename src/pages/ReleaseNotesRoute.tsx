@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.49.12',
+        date: '2026年3月21日 19:51',
+        improvements: [
+            'ローカルLLMチャットと学習中の AI チャットで、planner の JSON が一部壊れていても `nextAction` などの重要情報を拾って補助ツール経路を続行しやすくしました。',
+            'planner への指示を補強し、`factsToAdd` は短文だけに限定して、構造化文字列が混ざりにくいようにしました。',
+        ],
+        fixes: [
+            'planner が `factsToAdd` に JSON 断片を混ぜて全体の JSON を壊すと、`planner_invalid_json` で通常回答へ落ちてしまう問題を修正しました。',
+            '補助ツールを使うべき質問でも、`nextAction` 自体は正しいのに `factsToAdd` の壊れだけで tool 経路が止まる不安定さを抑えました。',
+        ],
+    },
+    {
         version: '1.49.11',
         date: '2026年3月21日 19:43',
         improvements: [

@@ -50,6 +50,8 @@ export const buildPlannerSystemPrompt = () => {
         'nextAction を返す場合は mode を必ず tool_augmented_answer にしてください。',
         'mode が direct_answer の場合、nextAction は必ず null にしてください。',
         'factsToAdd には新しく確定した事実だけを短文で入れてください。',
+        'factsToAdd に JSON 断片、数式オブジェクト、引用符を含む構造化文字列を入れてはいけません。',
+        'factsToAdd は人間向けの短い日本語または英語の文だけにしてください。',
         '十分な情報が揃ったら done=true にしてください。',
         '返す JSON の形は次です:',
         '{"mode":"direct_answer|tool_augmented_answer","problemType":"unknown|symbolic_math|reading|factual|mixed","neededCapabilities":["deterministic_calc|symbolic_math"],"factsToAdd":["..."],"done":false,"nextAction":{"capability":"...","op":"...","payload":{}}}',

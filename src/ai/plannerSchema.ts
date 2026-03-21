@@ -137,6 +137,123 @@ const extractFirstJsonObject = (raw: string) => {
     return null;
 };
 
+const extractJsonStringValue = (raw: string, key: string) => {
+    const pattern = new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`);
+    const match = raw.match(pattern);
+    return match?.[1] ?? null;
+};
+
+const extractJsonBooleanValue = (raw: string, key: string) => {
+    const pattern = new RegExp(`"${key}"\\s*:\\s*(true|false)`);
+    const match = raw.match(pattern);
+    if (!match) {
+        return null;
+    }
+    return match[1] === 'true';
+};
+
+const extractJsonArrayText = (raw: string, key: string) => {
+    const pattern = new RegExp(`"${key}"\\s*:\\s*\\[([\\s\\S]*?)\\]`);
+    const match = raw.match(pattern);
+    return match?.[1] ?? null;
+};
+
+const extractJsonObjectText = (raw: string, key: string) => {
+    const keyIndex = raw.indexOf(`"${key}"`);
+    if (keyIndex === -1) {
+        return null;
+    }
+
+    const colonIndex = raw.indexOf(':', keyIndex);
+    if (colonIndex === -1) {
+        return null;
+    }
+
+    const start = raw.indexOf('{', colonIndex);
+    if (start === -1) {
+        return null;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+
+    for (let index = start; index < raw.length; index += 1) {
+        const char = raw[index];
+
+        if (inString) {
+            if (isEscaped) {
+                isEscaped = false;
+                continue;
+            }
+            if (char === '\\') {
+                isEscaped = true;
+                continue;
+            }
+            if (char === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (char === '"') {
+            inString = true;
+            continue;
+        }
+
+        if (char === '{') {
+            depth += 1;
+        } else if (char === '}') {
+            depth -= 1;
+            if (depth === 0) {
+                return raw.slice(start, index + 1);
+            }
+        }
+    }
+
+    return null;
+};
+
+const parseMalformedPlannerDecision = (raw: string): PlannerDecision | null => {
+    const mode = normalizePlannerMode(extractJsonStringValue(raw, 'mode'));
+    const problemType = normalizeProblemType(extractJsonStringValue(raw, 'problemType'));
+    const done = extractJsonBooleanValue(raw, 'done') === true;
+
+    const neededCapabilitiesText = extractJsonArrayText(raw, 'neededCapabilities');
+    const neededCapabilities = appendCapabilityIfMissing(
+        normalizeCapabilityList(
+            neededCapabilitiesText
+                ? CAPABILITIES.filter((capability) => neededCapabilitiesText.includes(capability))
+                : []
+        ),
+        null
+    );
+
+    const nextActionText = extractJsonObjectText(raw, 'nextAction');
+    let nextAction: ToolAction | null = null;
+    if (nextActionText) {
+        try {
+            nextAction = normalizeToolAction(JSON.parse(nextActionText) as unknown);
+        } catch {
+            nextAction = null;
+        }
+    }
+    const normalizedMode = nextAction && !done ? 'tool_augmented_answer' : mode;
+
+    if (normalizedMode === 'tool_augmented_answer' && !done && nextAction === null) {
+        return null;
+    }
+
+    return {
+        mode: normalizedMode,
+        problemType,
+        neededCapabilities: appendCapabilityIfMissing(neededCapabilities, nextAction?.capability ?? null),
+        factsToAdd: [],
+        done,
+        nextAction,
+    };
+};
+
 export const parsePlannerDecision = (raw: string): PlannerDecision | null => {
     const trimmed = raw.trim();
     const candidates = [trimmed, extractFirstJsonObject(trimmed)].filter((value): value is string => Boolean(value));
@@ -171,7 +288,10 @@ export const parsePlannerDecision = (raw: string): PlannerDecision | null => {
 
             return decision;
         } catch {
-            // noop
+            const salvaged = parseMalformedPlannerDecision(candidate);
+            if (salvaged) {
+                return salvaged;
+            }
         }
     }
 
