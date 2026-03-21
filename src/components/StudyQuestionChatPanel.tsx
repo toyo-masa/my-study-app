@@ -727,12 +727,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [isFetchingModels, localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
 
     useEffect(() => {
-        if (localLlmSettings.baseUrl.trim().length === 0) {
+        if (activeMode !== 'openai-local' || localLlmSettings.baseUrl.trim().length === 0) {
             return;
         }
 
         void handleFetchModels();
-    }, [handleFetchModels, localLlmSettings.baseUrl]);
+    }, [activeMode, handleFetchModels, localLlmSettings.baseUrl]);
 
     useEffect(() => {
         if (activeMode !== 'webllm' || !webllmSupport.supported) {
@@ -1002,7 +1002,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const handleModelOptionChange = useCallback((value: string) => {
         if (value.startsWith('webllm:')) {
             const modelId = value.slice('webllm:'.length);
-            onLocalLlmModeChange('webllm');
+            if (activeMode !== 'webllm') {
+                onLocalLlmModeChange('webllm');
+            }
             if (modelId.length > 0) {
                 if (questionId !== null) {
                     setStoredSessions((previous) => previous.map((session) => (
@@ -1015,14 +1017,18 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             : session
                     )));
                 }
-                onWebLlmModelChange(modelId);
+                if (modelId !== selectedWebLlmModel) {
+                    onWebLlmModelChange(modelId);
+                }
             }
             return;
         }
 
         if (value.startsWith('openai-local:')) {
             const modelId = value.slice('openai-local:'.length).trim();
-            onLocalLlmModeChange('openai-local');
+            if (activeMode !== 'openai-local') {
+                onLocalLlmModeChange('openai-local');
+            }
             if (questionId !== null) {
                 setStoredSessions((previous) => previous.map((session) => (
                     session.quizSetId === quizSetId && session.questionId === questionId
@@ -1032,11 +1038,13 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             modelId,
                         }
                         : session
-                )));
+                    )));
             }
-            setSelectedLocalApiModel(modelId);
+            if (modelId !== selectedLocalApiModel) {
+                setSelectedLocalApiModel(modelId);
+            }
         }
-    }, [onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId]);
+    }, [activeMode, onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId, selectedLocalApiModel, selectedWebLlmModel]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {

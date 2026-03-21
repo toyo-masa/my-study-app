@@ -78,14 +78,22 @@ function App() {
   }
 
   const isStudyOrMemRoute = location.pathname.includes('/study') || location.pathname.includes('/memorization');
-  const handleLocalLlmModeChange = (preferredMode: 'webllm' | 'openai-local') => handleLocalLlmSettingsChange((previous) => ({
-    ...previous,
-    preferredMode,
-  }));
-  const handleWebLlmModelChange = (webllmModelId: string) => handleLocalLlmSettingsChange((previous) => ({
-    ...previous,
-    webllmModelId,
-  }));
+  const handleLocalLlmModeChange = (preferredMode: 'webllm' | 'openai-local') => handleLocalLlmSettingsChange((previous) => (
+    previous.preferredMode === preferredMode
+      ? previous
+      : {
+        ...previous,
+        preferredMode,
+      }
+  ));
+  const handleWebLlmModelChange = (webllmModelId: string) => handleLocalLlmSettingsChange((previous) => (
+    previous.webllmModelId === webllmModelId
+      ? previous
+      : {
+        ...previous,
+        webllmModelId,
+      }
+  ));
 
   return (
     <div className={`app-container ${isStudyOrMemRoute ? 'study-mode-active' : ''}`}>
