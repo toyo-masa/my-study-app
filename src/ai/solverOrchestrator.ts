@@ -149,6 +149,7 @@ export async function runToolAugmentedOrchestration({
 }: RunToolAugmentedOrchestrationOptions): Promise<ToolAugmentedOrchestrationResult> {
     const state = createInitialState(originalUserMessage, syntheticContext);
     let previousActionKey: string | null = null;
+    let shouldFallbackToDirectAnswer = false;
 
     for (let step = 0; step < MAX_TOOL_STEPS; step += 1) {
         let invalidResponse: string | undefined;
@@ -156,7 +157,20 @@ export async function runToolAugmentedOrchestration({
 
         for (let attempt = 0; attempt < 2; attempt += 1) {
             const plannerMessages = buildPlannerMessages(state, conversationMessages, invalidResponse);
-            const plannerResult = await runPlanner(plannerMessages);
+            let plannerResult: PlannerLlmResult;
+            try {
+                plannerResult = await runPlanner(plannerMessages);
+            } catch {
+                state.trace.errors.push('planner_runner_failed');
+                if (state.stepCount === 0 && state.toolResults.length === 0 && state.facts.length === 0) {
+                    return {
+                        kind: 'direct_answer',
+                        trace: state.trace,
+                    };
+                }
+                state.done = true;
+                break;
+            }
             decision = parsePlannerDecision(plannerResult.text);
 
             state.trace.planner.push({
@@ -172,6 +186,10 @@ export async function runToolAugmentedOrchestration({
             }
 
             invalidResponse = plannerResult.text;
+        }
+
+        if (state.done && !decision) {
+            break;
         }
 
         if (!decision) {
@@ -251,7 +269,21 @@ export async function runToolAugmentedOrchestration({
     onDisplayText('計算ツールを使用して回答を整理しています…');
 
     const explainerMessages = buildExplainerMessages(state, conversationMessages);
-    const explainerResult = await runExplainer(explainerMessages, onDisplayText);
+    let explainerResult: ExplainerLlmResult | null = null;
+    try {
+        explainerResult = await runExplainer(explainerMessages, onDisplayText);
+    } catch {
+        state.trace.errors.push('explainer_runner_failed');
+        shouldFallbackToDirectAnswer = true;
+    }
+
+    if (shouldFallbackToDirectAnswer || !explainerResult) {
+        return {
+            kind: 'direct_answer',
+            trace: state.trace,
+        };
+    }
+
     state.trace.explainer = {
         request: explainerResult.request,
     };
