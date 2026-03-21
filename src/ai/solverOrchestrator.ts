@@ -138,6 +138,27 @@ const normalizeToolErrorCode = (error: unknown) => {
     return 'TOOL_EXECUTION_FAILED';
 };
 
+const getTraceErrorMessage = (error: unknown) => {
+    if (error instanceof Error && error.message.trim().length > 0) {
+        return error.message.trim();
+    }
+    if (typeof error === 'string' && error.trim().length > 0) {
+        return error.trim();
+    }
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.trim().length > 0) {
+        return error.message.trim();
+    }
+    return '';
+};
+
+const appendTraceError = (trace: OrchestrationTrace, code: string, error?: unknown) => {
+    trace.errors.push(code);
+    const detail = getTraceErrorMessage(error);
+    if (detail.length > 0) {
+        trace.errors.push(`${code}_detail:${detail}`);
+    }
+};
+
 export async function runToolAugmentedOrchestration({
     originalUserMessage,
     syntheticContext,
@@ -160,8 +181,8 @@ export async function runToolAugmentedOrchestration({
             let plannerResult: PlannerLlmResult;
             try {
                 plannerResult = await runPlanner(plannerMessages);
-            } catch {
-                state.trace.errors.push('planner_runner_failed');
+            } catch (error) {
+                appendTraceError(state.trace, 'planner_runner_failed', error);
                 if (state.stepCount === 0 && state.toolResults.length === 0 && state.facts.length === 0) {
                     return {
                         kind: 'direct_answer',
@@ -272,8 +293,8 @@ export async function runToolAugmentedOrchestration({
     let explainerResult: ExplainerLlmResult | null = null;
     try {
         explainerResult = await runExplainer(explainerMessages, onDisplayText);
-    } catch {
-        state.trace.errors.push('explainer_runner_failed');
+    } catch (error) {
+        appendTraceError(state.trace, 'explainer_runner_failed', error);
         shouldFallbackToDirectAnswer = true;
     }
 

@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.49.6',
+        date: '2026年3月21日 18:07',
+        improvements: [
+            'ローカルLLMチャットと学習中の AI チャットで、数学ツール経路が失敗したときの詳細原因を送信内容コピーから確認できるようにしました。',
+            'planner や explainer の失敗時も、短いエラーコードだけでなく内部メッセージまで追えるようにして、数学ツールまわりの切り分けをしやすくしました。',
+        ],
+        fixes: [
+            '`planner_runner_failed` や `explainer_runner_failed` だけでは何が起きたか分からず、数学ツールが使われない原因を追いにくかった問題を改善しました。',
+            'tool 経路の fallback trace に例外メッセージを残すようにして、どの段階で落ちたのかを画面から確認できるようにしました。',
+        ],
+    },
+    {
         version: '1.49.5',
         date: '2026年3月21日 18:01',
         improvements: [
