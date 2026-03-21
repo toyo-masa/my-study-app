@@ -53,14 +53,65 @@ const getErrorMessage = (error: unknown) => {
     return 'ローカルLLMの処理に失敗しました。';
 };
 
+type ParsedAssistantMessage = {
+    thinkContent: string | null;
+    answerContent: string;
+};
+
+function parseAssistantMessageContent(content: string): ParsedAssistantMessage {
+    const thinkStart = content.indexOf('<think>');
+    if (thinkStart === -1) {
+        return {
+            thinkContent: null,
+            answerContent: content,
+        };
+    }
+
+    const thinkTagLength = '<think>'.length;
+    const thinkEnd = content.indexOf('</think>', thinkStart + thinkTagLength);
+    const leadingContent = content.slice(0, thinkStart).trim();
+
+    if (thinkEnd === -1) {
+        return {
+            thinkContent: content.slice(thinkStart + thinkTagLength).trim(),
+            answerContent: leadingContent,
+        };
+    }
+
+    const trailingContent = content.slice(thinkEnd + '</think>'.length).trim();
+    const answerContent = [leadingContent, trailingContent]
+        .filter((segment) => segment.length > 0)
+        .join('\n\n');
+
+    return {
+        thinkContent: content.slice(thinkStart + thinkTagLength, thinkEnd).trim(),
+        answerContent,
+    };
+}
+
+const toPromptMessageContent = (message: LocalChatMessage) => {
+    if (message.role !== 'assistant') {
+        return message.content;
+    }
+
+    return parseAssistantMessageContent(message.content).answerContent.trim();
+};
+
 const toWebLlmMessages = (
     messages: LocalChatMessage[],
     systemPrompt: string
 ): ChatCompletionMessageParam[] => {
-    const conversationMessages = messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-    }));
+    const conversationMessages = messages.flatMap((message) => {
+        const content = toPromptMessageContent(message);
+        if (content.trim().length === 0) {
+            return [];
+        }
+
+        return [{
+            role: message.role,
+            content,
+        }];
+    });
 
     if (systemPrompt.trim().length === 0) {
         return conversationMessages;
@@ -76,10 +127,17 @@ const toWebLlmMessages = (
 };
 
 const toOpenAiMessages = (messages: LocalChatMessage[]): OpenAiCompatibleMessage[] => {
-    return messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-    }));
+    return messages.flatMap((message) => {
+        const content = toPromptMessageContent(message);
+        if (content.trim().length === 0) {
+            return [];
+        }
+
+        return [{
+            role: message.role,
+            content,
+        }];
+    });
 };
 
 const toProgressPercent = (progress: InitProgressReport | null) => {
@@ -130,42 +188,6 @@ const formatSessionTime = (value: string) => {
 
 const formatOptionalWebLlmSetting = (value: number | null) => {
     return value === null ? '既定値' : String(value);
-};
-
-type ParsedAssistantMessage = {
-    thinkContent: string | null;
-    answerContent: string;
-};
-
-const parseAssistantMessageContent = (content: string): ParsedAssistantMessage => {
-    const thinkStart = content.indexOf('<think>');
-    if (thinkStart === -1) {
-        return {
-            thinkContent: null,
-            answerContent: content,
-        };
-    }
-
-    const thinkTagLength = '<think>'.length;
-    const thinkEnd = content.indexOf('</think>', thinkStart + thinkTagLength);
-    const leadingContent = content.slice(0, thinkStart).trim();
-
-    if (thinkEnd === -1) {
-        return {
-            thinkContent: content.slice(thinkStart + thinkTagLength).trim(),
-            answerContent: leadingContent,
-        };
-    }
-
-    const trailingContent = content.slice(thinkEnd + '</think>'.length).trim();
-    const answerContent = [leadingContent, trailingContent]
-        .filter((segment) => segment.length > 0)
-        .join('\n\n');
-
-    return {
-        thinkContent: content.slice(thinkStart + thinkTagLength, thinkEnd).trim(),
-        answerContent,
-    };
 };
 
 const buildEmptySession = (
