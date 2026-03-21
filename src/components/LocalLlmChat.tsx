@@ -49,6 +49,10 @@ interface LocalLlmChatProps {
 
 const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
 const WEB_LLM_LENGTH_WARNING = 'WebLLM の上限に達したため、最終回答も途中で打ち切られました。必要なら続きを短く区切って質問してください。';
+const LOCAL_LLM_BASE_SYSTEM_PROMPT = [
+    'ユーザーの最新の依頼や質問内容を最優先にしてください。',
+    '回答の詳しさ・長さ・形式は、ユーザーがこの会話で求めた内容に合わせてください。',
+].join('\n');
 
 const getErrorMessage = (error: unknown) => {
     if (error instanceof Error && error.message.trim().length > 0) {
@@ -241,7 +245,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
-    const webllmSystemPrompt = localLlmSettings.webllmSystemPrompt.trim();
+    const webllmSystemPrompt = useMemo(() => {
+        const customPrompt = localLlmSettings.webllmSystemPrompt.trim();
+        return customPrompt.length > 0
+            ? `${LOCAL_LLM_BASE_SYSTEM_PROMPT}\n${customPrompt}`
+            : LOCAL_LLM_BASE_SYSTEM_PROMPT;
+    }, [localLlmSettings.webllmSystemPrompt]);
     const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
     const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
     const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;

@@ -381,7 +381,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             ...localLlmSettings,
                                                             webllmSystemPrompt: event.target.value,
                                                         })}
-                                                        placeholder="例: あなたは簡潔に日本語で答える学習補助アシスタントです。"
+                                                        placeholder="例: 数式は必要に応じて示し、ユーザーが求めた詳しさと形式に合わせて日本語で回答してください。"
                                                         rows={5}
                                                         style={{ resize: 'vertical', minHeight: 120 }}
                                                     />
