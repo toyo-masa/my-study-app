@@ -110,7 +110,7 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
                                 </aside>
                             )}
 
-                            <main className={`content-area ${showRightPanel ? 'with-right-panel' : ''}`}>{children}</main>
+                            <main className={`content-area ${showRightPanel && !rightPanelModal && rightPanelOpen ? 'with-right-panel' : ''}`}>{children}</main>
 
                             <AnimatePresence>
                                 {showRightPanel && rightPanelModal && rightPanelOpen && (

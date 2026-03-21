@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Download, LoaderCircle, Send, ShieldCheck, Square, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Bot, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionChunk, ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
@@ -7,6 +7,7 @@ import { MarkdownText } from './MarkdownText';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
+    getLocalLlmSupport,
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
     resetLocalLlmChat,
@@ -40,7 +41,6 @@ interface StudyQuestionChatPanelProps {
     localLlmSettings: LocalLlmSettings;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
     onWebLlmModelChange: (modelId: string) => void;
-    onClose: () => void;
 }
 
 const LOCAL_API_EXAMPLES = [
@@ -238,7 +238,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     localLlmSettings,
     onLocalLlmModeChange,
     onWebLlmModelChange,
-    onClose,
 }) => {
     const questionId = question.id ?? null;
     const initialSessionsRef = useRef<StoredStudyQuestionChatSession[] | null>(null);
@@ -269,7 +268,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     ));
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
-    const [hasLoadedModelList, setHasLoadedModelList] = useState(false);
     const threadRef = useRef<HTMLDivElement>(null);
     const mountedRef = useRef(true);
     const requestIdRef = useRef(0);
@@ -277,12 +275,44 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const isComposingRef = useRef(false);
     const localApiModelListAbortRef = useRef<AbortController | null>(null);
     const localApiChatAbortRef = useRef<AbortController | null>(null);
+    const autoLoadWebLlmKeyRef = useRef<string | null>(null);
 
+    const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
+    const localApiSelectableModels = useMemo(() => {
+        const modelIds = new Set<string>();
+        const sessionModelId = initialSession?.mode === 'openai-local'
+            ? initialSession.modelId.trim()
+            : '';
+        const preferredModelId = localLlmSettings.defaultModelId.trim();
+        const currentLocalModelId = selectedLocalApiModel.trim();
+
+        if (sessionModelId.length > 0) {
+            modelIds.add(sessionModelId);
+        }
+        if (preferredModelId.length > 0) {
+            modelIds.add(preferredModelId);
+        }
+        if (currentLocalModelId.length > 0) {
+            modelIds.add(currentLocalModelId);
+        }
+
+        availableModels.forEach((modelId) => {
+            const trimmed = modelId.trim();
+            if (trimmed.length > 0) {
+                modelIds.add(trimmed);
+            }
+        });
+
+        return Array.from(modelIds);
+    }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
+    const selectedModelOptionValue = activeMode === 'webllm'
+        ? `webllm:${selectedWebLlmModel}`
+        : (selectedLocalApiModel.trim().length > 0 ? `openai-local:${selectedLocalApiModel.trim()}` : '');
     const canSend = input.trim().length > 0
         && !isGenerating
         && questionId !== null
@@ -304,7 +334,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setInput('');
         setError(null);
         setLocalApiFetchError(null);
-        setHasLoadedModelList(false);
         setAvailableModels([]);
     }, []);
 
@@ -385,12 +414,33 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         const session = findStudyQuestionChatSession(storedSessionsRef.current, quizSetId, questionId);
         setMessages(session ? toViewMessages(session.messages) : []);
+        if (session?.mode === 'webllm') {
+            onLocalLlmModeChange('webllm');
+            if (
+                session.modelId
+                && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === session.modelId)
+                && session.modelId !== selectedWebLlmModel
+            ) {
+                onWebLlmModelChange(session.modelId);
+            }
+        } else if (session?.mode === 'openai-local') {
+            onLocalLlmModeChange('openai-local');
+        }
         setSelectedLocalApiModel(
             session?.mode === 'openai-local'
                 ? (session.modelId || localLlmSettings.defaultModelId)
                 : localLlmSettings.defaultModelId
         );
-    }, [cancelActiveWork, localLlmSettings.defaultModelId, questionId, quizSetId, resetTransientState]);
+    }, [
+        cancelActiveWork,
+        localLlmSettings.defaultModelId,
+        onLocalLlmModeChange,
+        onWebLlmModelChange,
+        questionId,
+        quizSetId,
+        resetTransientState,
+        selectedWebLlmModel,
+    ]);
 
     useEffect(() => {
         if (activeMode !== 'openai-local') {
@@ -402,9 +452,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
     useEffect(() => {
         setAvailableModels([]);
-        setHasLoadedModelList(false);
         setLocalApiFetchError(null);
-    }, [activeMode, localLlmSettings.baseUrl]);
+    }, [localLlmSettings.baseUrl]);
 
     useEffect(() => {
         if (questionId === null) {
@@ -495,7 +544,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [isModelLoading, isModelReady, selectedWebLlmModel]);
 
     const handleFetchModels = useCallback(async () => {
-        if (activeMode !== 'openai-local' || isFetchingModels || localLlmSettings.baseUrl.trim().length === 0) {
+        if (isFetchingModels || localLlmSettings.baseUrl.trim().length === 0) {
             return;
         }
 
@@ -506,13 +555,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setError(null);
         setLocalApiFetchError(null);
         setIsFetchingModels(true);
-        setHasLoadedModelList(false);
         setAvailableModels([]);
 
         try {
             const modelIds = await fetchOpenAiCompatibleModelIds(
                 localLlmSettings.baseUrl,
-                apiKey.trim() || undefined,
+                undefined,
                 controller.signal
             );
 
@@ -521,22 +569,19 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             }
 
             setAvailableModels(modelIds);
-            setHasLoadedModelList(true);
             setSelectedLocalApiModel((previous) => {
-                if (selectedModel.length > 0 && modelIds.includes(selectedModel)) {
-                    return selectedModel;
-                }
                 const preferredModel = localLlmSettings.defaultModelId.trim();
+                const currentLocalModel = previous.trim();
+                if (currentLocalModel.length > 0 && modelIds.includes(currentLocalModel)) {
+                    return currentLocalModel;
+                }
                 if (preferredModel.length > 0 && modelIds.includes(preferredModel)) {
                     return preferredModel;
-                }
-                if (previous.trim().length > 0 && modelIds.includes(previous.trim())) {
-                    return previous.trim();
                 }
                 if (modelIds.length === 1) {
                     return modelIds[0];
                 }
-                return '';
+                return currentLocalModel;
             });
         } catch (fetchError) {
             if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
@@ -554,7 +599,30 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 setIsFetchingModels(false);
             }
         }
-    }, [activeMode, apiKey, isFetchingModels, localLlmSettings.baseUrl, localLlmSettings.defaultModelId, selectedModel]);
+    }, [isFetchingModels, localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
+
+    useEffect(() => {
+        if (localLlmSettings.baseUrl.trim().length === 0) {
+            return;
+        }
+
+        void handleFetchModels();
+    }, [handleFetchModels, localLlmSettings.baseUrl]);
+
+    useEffect(() => {
+        if (activeMode !== 'webllm' || !webllmSupport.supported) {
+            autoLoadWebLlmKeyRef.current = null;
+            return;
+        }
+
+        const autoLoadKey = `${activeMode}:${selectedWebLlmModel}`;
+        if (hasLoadedLocalLlmEngine(selectedWebLlmModel) || autoLoadWebLlmKeyRef.current === autoLoadKey) {
+            return;
+        }
+
+        autoLoadWebLlmKeyRef.current = autoLoadKey;
+        void handleLoadModel();
+    }, [activeMode, handleLoadModel, selectedWebLlmModel, webllmSupport.supported]);
 
     const handleSend = useCallback(async () => {
         const trimmed = input.trim();
@@ -567,7 +635,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
 
         if (activeMode === 'openai-local' && selectedModel.length === 0) {
-            setError('ローカルAPIモードでは送信前にモデル名を選択または入力してください。');
+            setError('ローカルAPIモードでは送信前にモデルを選択してください。');
             return;
         }
 
@@ -764,6 +832,23 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setError(null);
     }, [isGenerating]);
 
+    const handleModelOptionChange = useCallback((value: string) => {
+        if (value.startsWith('webllm:')) {
+            const modelId = value.slice('webllm:'.length);
+            onLocalLlmModeChange('webllm');
+            if (modelId.length > 0) {
+                onWebLlmModelChange(modelId);
+            }
+            return;
+        }
+
+        if (value.startsWith('openai-local:')) {
+            const modelId = value.slice('openai-local:'.length).trim();
+            onLocalLlmModeChange('openai-local');
+            setSelectedLocalApiModel(modelId);
+        }
+    }, [onLocalLlmModeChange, onWebLlmModelChange]);
+
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
             return;
@@ -777,132 +862,62 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         void handleSend();
     }, [handleSend]);
 
-    const questionTypeLabel = question.questionType === 'memorization' ? '暗記問題' : '選択問題';
-
     return (
         <div className="study-question-chat-panel">
             <div className="study-question-chat-panel-header">
                 <div className="study-question-chat-panel-head">
                     <div>
                         <h2>AIチャット</h2>
-                        <p>問題{questionIndex + 1}について質問できます。{showAnswer ? '解答後なので解説込みで質問できます。' : '解答前なのでヒント中心で応答します。'}</p>
+                        <p>問題{questionIndex + 1}について質問できます。{showAnswer ? '解説込みで相談できます。' : 'ヒント中心で答えます。'}</p>
                     </div>
                     <div className="study-question-chat-head-actions">
-                        <span className={`local-llm-status-chip ${(activeMode === 'webllm' ? isModelReady : selectedModel.length > 0) ? 'is-ready' : 'is-muted'}`}>
-                            {activeMode === 'webllm'
-                                ? (isModelReady ? '送信可能' : '未初期化')
-                                : (selectedModel.length > 0 ? '送信可能' : 'モデル未選択')}
-                        </span>
                         <button
                             type="button"
-                            className="menu-btn right-panel-close-btn"
-                            onClick={onClose}
-                            aria-label="AIチャットを閉じる"
-                            title="閉じる"
+                            className="menu-btn right-panel-clear-btn"
+                            onClick={handleClearChat}
+                            disabled={messages.length === 0 || isGenerating}
+                            aria-label="この問題の会話をクリア"
+                            title="クリア"
                         >
-                            <X size={18} />
+                            <Trash2 size={18} />
                         </button>
                     </div>
                 </div>
 
-                <div className="study-question-chat-meta">
-                    <span className="local-llm-info-chip"><Bot size={14} /> {questionTypeLabel}</span>
-                    <span className="local-llm-info-chip"><ShieldCheck size={14} /> {showAnswer ? '解答後' : '解答前'}</span>
-                    <span className="local-llm-info-chip"><Bot size={14} /> 現在のモデル: {selectedModel || '未選択'}</span>
-                </div>
-
-                <div className="local-llm-mode-tabs" role="tablist" aria-label="問題チャットの実行モード">
-                    <button
-                        type="button"
-                        className={`local-llm-mode-tab ${activeMode === 'webllm' ? 'active' : ''}`}
-                        onClick={() => onLocalLlmModeChange('webllm')}
-                        role="tab"
-                        aria-selected={activeMode === 'webllm'}
+                <div className="study-question-chat-field-row">
+                    <select
+                        className="local-llm-input"
+                        value={selectedModelOptionValue}
+                        onChange={(event) => handleModelOptionChange(event.target.value)}
+                        disabled={isGenerating || isModelLoading}
                     >
-                        WebLLM
-                    </button>
-                    <button
-                        type="button"
-                        className={`local-llm-mode-tab ${activeMode === 'openai-local' ? 'active' : ''}`}
-                        onClick={() => onLocalLlmModeChange('openai-local')}
-                        role="tab"
-                        aria-selected={activeMode === 'openai-local'}
-                    >
-                        OpenAI互換ローカルAPI
-                    </button>
-                </div>
-
-                {activeMode === 'webllm' ? (
-                    <>
-                        <div className="study-question-chat-field-row">
-                            <select
-                                className="local-llm-input"
-                                value={selectedWebLlmModel}
-                                onChange={(event) => onWebLlmModelChange(event.target.value)}
-                                disabled={isGenerating || isModelLoading}
-                            >
-                                {WEB_LLM_QWEN_MODEL_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                        {option.label}
+                        <optgroup label="WebLLM">
+                            {WEB_LLM_QWEN_MODEL_OPTIONS.map((option) => (
+                                <option key={option.value} value={`webllm:${option.value}`}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </optgroup>
+                        {localApiSelectableModels.length > 0 && (
+                            <optgroup label="ローカルAPI">
+                                {localApiSelectableModels.map((modelId) => (
+                                    <option key={modelId} value={`openai-local:${modelId}`}>
+                                        {modelId}
                                     </option>
                                 ))}
-                            </select>
-                        </div>
-                        <div className="study-question-chat-actions">
-                            <button
-                                type="button"
-                                className="nav-btn"
-                                onClick={() => { void handleLoadModel(); }}
-                                disabled={isModelLoading || isModelReady}
-                            >
-                                {isModelLoading ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}
-                                {isModelReady ? 'モデル読み込み済み' : 'モデルを読み込む'}
-                            </button>
-                            <button
-                                type="button"
-                                className="nav-btn"
-                                onClick={handleClearChat}
-                                disabled={messages.length === 0 || isGenerating}
-                            >
-                                <Trash2 size={16} />
-                                この問題の会話をクリア
-                            </button>
-                        </div>
-                    </>
-                ) : (
+                            </optgroup>
+                        )}
+                    </select>
+                    {isModelLoading && activeMode === 'webllm' && (
+                        <span className="local-llm-inline-status">
+                            <LoaderCircle size={15} className="spin" />
+                            読み込み中
+                        </span>
+                    )}
+                </div>
+
+                {activeMode === 'openai-local' && (
                     <>
-                        <div className="study-question-chat-field-row">
-                            {hasLoadedModelList && availableModels.length > 0 ? (
-                                <select
-                                    className="local-llm-input"
-                                    value={selectedModel}
-                                    onChange={(event) => setSelectedLocalApiModel(event.target.value)}
-                                >
-                                    <option value="">モデルを選択してください</option>
-                                    {availableModels.map((modelId) => (
-                                        <option key={modelId} value={modelId}>{modelId}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="local-llm-input"
-                                    value={selectedLocalApiModel}
-                                    onChange={(event) => setSelectedLocalApiModel(event.target.value)}
-                                    placeholder={localLlmSettings.defaultModelId || 'Qwen3.5 などのモデル名を入力'}
-                                    spellCheck={false}
-                                />
-                            )}
-                            <button
-                                type="button"
-                                className="nav-btn"
-                                onClick={() => { void handleFetchModels(); }}
-                                disabled={isFetchingModels || localLlmSettings.baseUrl.trim().length === 0}
-                            >
-                                {isFetchingModels ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}
-                                一覧取得
-                            </button>
-                        </div>
                         <input
                             type="password"
                             className="local-llm-input"
@@ -946,7 +961,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     </div>
                 )}
 
-                {localApiFetchError && (
+                {activeMode === 'webllm' && !webllmSupport.supported && (
+                    <div className="local-llm-alert is-error">
+                        <AlertTriangle size={18} />
+                        <span>{webllmSupport.reason}</span>
+                    </div>
+                )}
+
+                {activeMode === 'openai-local' && localApiFetchError && (
                     <div className="local-llm-alert is-error">
                         <AlertTriangle size={18} />
                         <span>{localApiFetchError}</span>

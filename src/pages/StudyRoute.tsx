@@ -45,6 +45,14 @@ interface StudyRouteProps {
     onWebLlmModelChange: (modelId: string) => void;
 }
 
+const isStudyChatDrawerViewport = (): boolean => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(max-width: 1200px)').matches;
+};
+
 export const StudyRoute: React.FC<StudyRouteProps> = ({
     allowTouchDrawing,
     reviewBoardFeedbackBlockSize,
@@ -84,7 +92,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     const [isTestCompleted, setIsTestCompleted] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
     const [isMobileLayout, setIsMobileLayout] = useState(() => isMobileViewport());
-    const [rightPanelOpen, setRightPanelOpen] = useState(() => !isMobileViewport());
+    const [isRightPanelModal, setIsRightPanelModal] = useState(() => isStudyChatDrawerViewport());
+    const [rightPanelOpen, setRightPanelOpen] = useState(false);
     const [endTime, setEndTime] = useState<Date>(new Date());
     const [activeHistory, setActiveHistory] = useState<QuizHistory | null>(null);
     const [historyMode, setHistoryMode] = useState<HistoryMode>('normal');
@@ -165,7 +174,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         setIsTestCompleted(false);
         setSidebarOpen(!isMobileViewport());
         setIsMobileLayout(isMobileViewport());
-        setRightPanelOpen(!isMobileViewport());
+        setIsRightPanelModal(isStudyChatDrawerViewport());
+        setRightPanelOpen(false);
         setActiveHistory(null);
         setHistoryMode('normal');
         setShowEmptyQuestionsModal(false);
@@ -175,6 +185,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     useEffect(() => {
         const handleResize = () => {
             setIsMobileLayout(isMobileViewport());
+            setIsRightPanelModal(isStudyChatDrawerViewport());
         };
 
         window.addEventListener('resize', handleResize);
@@ -1519,7 +1530,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             }
             showRightPanel={showStudyQuestionChat}
             rightPanelOpen={resolvedRightPanelOpen}
-            rightPanelModal={isMobileLayout}
+            rightPanelModal={isRightPanelModal}
             showRightPanelToggle={showStudyQuestionChat}
             onToggleRightPanel={handleToggleRightPanel}
             onCloseRightPanel={() => setRightPanelOpen(false)}
@@ -1532,7 +1543,6 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                     localLlmSettings={localLlmSettings}
                     onLocalLlmModeChange={onLocalLlmModeChange}
                     onWebLlmModelChange={onWebLlmModelChange}
-                    onClose={() => setRightPanelOpen(false)}
                 />
             ) : null}
         >
