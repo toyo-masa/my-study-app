@@ -1175,19 +1175,34 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                                                     {message.isStreaming ? '思考中...' : '思考過程を表示'}
                                                                 </summary>
                                                                 <div className="local-llm-think-body">
-                                                                    <MarkdownText
-                                                                        content={segment.content}
-                                                                        className="local-llm-markdown local-llm-think-markdown"
-                                                                    />
+                                                                    {message.isStreaming ? (
+                                                                        <div className="local-llm-streaming-text local-llm-think-markdown">
+                                                                            {segment.content}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <MarkdownText
+                                                                            content={segment.content}
+                                                                            className="local-llm-markdown local-llm-think-markdown"
+                                                                        />
+                                                                    )}
                                                                 </div>
                                                             </details>
                                                         )
                                                         : (
-                                                            <MarkdownText
-                                                                key={`${message.id}-answer-${index}`}
-                                                                content={segment.content}
-                                                                className="local-llm-markdown"
-                                                            />
+                                                            message.isStreaming ? (
+                                                                <div
+                                                                    key={`${message.id}-answer-${index}`}
+                                                                    className="local-llm-streaming-text"
+                                                                >
+                                                                    {segment.content}
+                                                                </div>
+                                                            ) : (
+                                                                <MarkdownText
+                                                                    key={`${message.id}-answer-${index}`}
+                                                                    content={segment.content}
+                                                                    className="local-llm-markdown"
+                                                                />
+                                                            )
                                                         )
                                                 ))}
                                             </div>

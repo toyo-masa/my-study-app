@@ -1046,6 +1046,12 @@
   font-size: 0.93rem;
 }
 
+.local-llm-streaming-text {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  font-size: 0.98rem;
+}
+
 .local-llm-streaming-indicator {
   margin-top: 0.65rem;
   display: inline-flex;
