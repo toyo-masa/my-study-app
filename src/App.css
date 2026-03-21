@@ -519,15 +519,38 @@
 .local-llm-session-menu {
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 0.35rem 0 0;
 }
 
 .local-llm-session-menu-trigger {
-  width: 2.5rem;
-  height: 100%;
-  min-height: 100%;
-  border: none;
-  background: transparent;
-  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0.1rem 0.2rem;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.local-llm-session-menu-trigger:hover,
+.local-llm-session-menu-trigger:focus-visible {
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--surface-color) 84%, var(--primary-color) 16%);
+  outline: none;
+}
+
+.local-llm-session-menu-trigger.is-disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
 }
 
 .local-llm-session-menu-popover {

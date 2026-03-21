@@ -569,7 +569,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [isNearBottom]);
 
     const handleLoadModel = useCallback(async () => {
-        if (isModelLoading || isModelReady) {
+        if (isModelLoading || hasLoadedLocalLlmEngine(selectedWebLlmModel)) {
             return;
         }
 
@@ -605,7 +605,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 setIsModelLoading(false);
             }
         }
-    }, [isModelLoading, isModelReady, selectedWebLlmModel]);
+    }, [isModelLoading, selectedWebLlmModel]);
 
     const handleFetchModels = useCallback(async () => {
         if (isFetchingModels || localLlmSettings.baseUrl.trim().length === 0) {

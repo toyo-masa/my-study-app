@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Check, Clock3, Copy, LoaderCircle, MoreHorizontal, Plus, Send, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Check, Clock3, Copy, LoaderCircle, Plus, Send, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import { BackButton } from './BackButton';
 import { MarkdownText } from './MarkdownText';
@@ -518,6 +518,18 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setOpenSessionMenuId((previous) => previous === sessionId ? null : sessionId);
     }, [isGenerating]);
 
+    const handleSessionMenuTriggerKeyDown = useCallback((
+        event: React.KeyboardEvent<HTMLSpanElement>,
+        sessionId: string
+    ) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+        }
+
+        event.preventDefault();
+        handleToggleSessionMenu(sessionId);
+    }, [handleToggleSessionMenu]);
+
     const updateLastRequestPayload = useCallback((payload: unknown) => {
         setLastRequestPayload(JSON.stringify(payload, null, 2));
         resetCopiedRequestState();
@@ -785,7 +797,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [activeMode, chatSessions, currentSessionId, isGenerating, messages, selectedModel, selectedWebLlmModel]);
 
     const handleLoadModel = useCallback(async () => {
-        if (!webllmSupport.supported || isModelLoading || isModelReady) {
+        if (!webllmSupport.supported || isModelLoading || hasLoadedLocalLlmEngine(selectedWebLlmModel)) {
             return;
         }
 
@@ -821,7 +833,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 setIsModelLoading(false);
             }
         }
-    }, [isModelLoading, isModelReady, selectedWebLlmModel, webllmSupport.supported]);
+    }, [isModelLoading, selectedWebLlmModel, webllmSupport.supported]);
 
     const handleClearChat = useCallback(() => {
         if (isGenerating) {
@@ -1278,16 +1290,22 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                     </div>
                                 </button>
                                 <div className="local-llm-session-menu">
-                                    <button
-                                        type="button"
-                                        className="menu-btn local-llm-session-menu-trigger"
-                                        onClick={() => handleToggleSessionMenu(session.id)}
-                                        disabled={isGenerating}
+                                    <span
+                                        className={`local-llm-session-menu-trigger ${isGenerating ? 'is-disabled' : ''}`}
+                                        onClick={() => {
+                                            if (!isGenerating) {
+                                                handleToggleSessionMenu(session.id);
+                                            }
+                                        }}
+                                        onKeyDown={(event) => handleSessionMenuTriggerKeyDown(event, session.id)}
+                                        role="button"
+                                        tabIndex={isGenerating ? -1 : 0}
                                         aria-label="会話履歴メニューを開く"
                                         title="メニュー"
+                                        aria-disabled={isGenerating}
                                     >
-                                        <MoreHorizontal size={16} />
-                                    </button>
+                                        …
+                                    </span>
                                     {openSessionMenuId === session.id && (
                                         <div className="local-llm-session-menu-popover" role="menu" aria-label="会話履歴メニュー">
                                             <button
