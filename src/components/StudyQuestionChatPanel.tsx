@@ -465,16 +465,27 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     useEffect(() => {
         cancelActiveWork();
         resetTransientState();
-        shouldAutoScrollRef.current = true;
 
         if (questionId === null) {
+            shouldAutoScrollRef.current = true;
             setMessages([]);
             setSelectedLocalApiModel(localLlmSettings.defaultModelId);
             return;
         }
 
         const session = findStudyQuestionChatSession(storedSessionsRef.current, quizSetId, questionId);
-        setMessages(session ? toViewMessages(session.messages) : []);
+        const restoredMessages = session ? toViewMessages(session.messages) : [];
+        const hasRestoredMessages = restoredMessages.length > 0;
+        shouldAutoScrollRef.current = !hasRestoredMessages;
+        setMessages(restoredMessages);
+        if (hasRestoredMessages) {
+            window.requestAnimationFrame(() => {
+                threadRef.current?.scrollTo({
+                    top: 0,
+                    behavior: 'auto',
+                });
+            });
+        }
         if (session?.mode === 'webllm') {
             onLocalLlmModeChange('webllm');
             if (
