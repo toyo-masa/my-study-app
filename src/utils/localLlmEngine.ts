@@ -1,3 +1,4 @@
+import { ModelType, prebuiltAppConfig } from '@mlc-ai/web-llm';
 import type { InitProgressCallback, InitProgressReport, WebWorkerMLCEngine } from '@mlc-ai/web-llm';
 
 export type WebLlmModelOption = {
@@ -18,9 +19,28 @@ export const WEB_LLM_QWEN_MODEL_OPTIONS = [
 
 export const DEFAULT_WEB_LLM_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
 
+const PREBUILT_WEB_LLM_MODEL_OPTIONS: WebLlmModelOption[] = prebuiltAppConfig.model_list
+    .filter((modelRecord) => (
+        modelRecord.model_type === undefined
+        || modelRecord.model_type === ModelType.LLM
+    ))
+    .map((modelRecord) => ({
+        value: modelRecord.model_id,
+        label: modelRecord.model_id,
+    }));
+
 export const getWebLlmModelOptions = (customModelId?: string): WebLlmModelOption[] => {
     const normalizedCustomModelId = typeof customModelId === 'string' ? customModelId.trim() : '';
-    const baseOptions: WebLlmModelOption[] = [...WEB_LLM_QWEN_MODEL_OPTIONS];
+    const knownOptions = new Map<string, WebLlmModelOption>();
+
+    PREBUILT_WEB_LLM_MODEL_OPTIONS.forEach((option) => {
+        knownOptions.set(option.value, option);
+    });
+    WEB_LLM_QWEN_MODEL_OPTIONS.forEach((option) => {
+        knownOptions.set(option.value, option);
+    });
+
+    const baseOptions: WebLlmModelOption[] = Array.from(knownOptions.values());
 
     if (
         normalizedCustomModelId.length > 0
