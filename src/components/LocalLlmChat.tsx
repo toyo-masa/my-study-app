@@ -38,6 +38,7 @@ type LocalChatMessage = {
     role: 'user' | 'assistant';
     content: string;
     isStreaming?: boolean;
+    generationDurationMs?: number;
 };
 
 interface LocalLlmChatProps {
@@ -73,6 +74,25 @@ const toPromptMessageContent = (message: LocalChatMessage) => {
 const getCopyableAssistantContent = (content: string) => {
     const answerContent = parseAssistantMessageContent(content).answerContent.trim();
     return answerContent.length > 0 ? answerContent : content.trim();
+};
+
+const getCopyableMessageContent = (message: LocalChatMessage) => {
+    return message.role === 'assistant'
+        ? getCopyableAssistantContent(message.content)
+        : message.content.trim();
+};
+
+const formatGenerationDuration = (durationMs: number) => {
+    const seconds = durationMs / 1000;
+    if (seconds < 10) {
+        return `思考時間 ${seconds.toFixed(1)}秒`;
+    }
+    if (seconds < 60) {
+        return `思考時間 ${Math.round(seconds)}秒`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.round(seconds % 60);
+    return `思考時間 ${minutes}分${remainingSeconds}秒`;
 };
 
 const toWebLlmMessages = (
@@ -126,10 +146,11 @@ const toProgressPercent = (progress: InitProgressReport | null) => {
 };
 
 const toStoredMessages = (messages: LocalChatMessage[]): StoredLocalLlmChatMessage[] => {
-    return messages.map(({ id, role, content }) => ({
+    return messages.map(({ id, role, content, generationDurationMs }) => ({
         id,
         role,
         content,
+        generationDurationMs,
     })).filter((message) => message.content.trim().length > 0);
 };
 
@@ -219,7 +240,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     ));
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
-    const [copiedAnswerMessageId, setCopiedAnswerMessageId] = useState<string | null>(null);
+    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [openSessionMenuId, setOpenSessionMenuId] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
@@ -430,12 +451,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setDidCopyRequestPayload(false);
     }, []);
 
-    const resetCopiedAnswerState = useCallback(() => {
+    const resetCopiedMessageState = useCallback(() => {
         if (copyAnswerResetTimeoutRef.current !== null) {
             window.clearTimeout(copyAnswerResetTimeoutRef.current);
             copyAnswerResetTimeoutRef.current = null;
         }
-        setCopiedAnswerMessageId(null);
+        setCopiedMessageId(null);
     }, []);
 
     const createFreshSession = useCallback((mode: LocalLlmMode) => {
@@ -454,7 +475,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             setSelectedLocalApiModel(localLlmSettings.defaultModelId);
             setLastRequestPayload(null);
             resetCopiedRequestState();
-            resetCopiedAnswerState();
+            resetCopiedMessageState();
             resetViewState();
             return;
         }
@@ -469,7 +490,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         );
         setLastRequestPayload(null);
         resetCopiedRequestState();
-        resetCopiedAnswerState();
+        resetCopiedMessageState();
         resetViewState();
 
         if (targetSession.mode !== activeMode) {
@@ -487,7 +508,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         localLlmSettings.defaultModelId,
         onLocalLlmModeChange,
         onWebLlmModelChange,
-        resetCopiedAnswerState,
+        resetCopiedMessageState,
         resetCopiedRequestState,
         resetViewState,
         selectedWebLlmModel,
@@ -581,24 +602,24 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         }
     }, [lastRequestPayload, resetCopiedRequestState]);
 
-    const handleCopyAssistantMessage = useCallback(async (messageId: string, content: string) => {
-        const copyableContent = getCopyableAssistantContent(content);
+    const handleCopyMessage = useCallback(async (message: LocalChatMessage) => {
+        const copyableContent = getCopyableMessageContent(message);
         if (copyableContent.length === 0) {
             return;
         }
 
         try {
             await navigator.clipboard.writeText(copyableContent);
-            resetCopiedAnswerState();
-            setCopiedAnswerMessageId(messageId);
+            resetCopiedMessageState();
+            setCopiedMessageId(message.id);
             copyAnswerResetTimeoutRef.current = window.setTimeout(() => {
-                setCopiedAnswerMessageId(null);
+                setCopiedMessageId(null);
                 copyAnswerResetTimeoutRef.current = null;
             }, 2000);
         } catch {
-            setError('回答内容をコピーできませんでした。');
+            setError(message.role === 'assistant' ? '回答内容をコピーできませんでした。' : '質問内容をコピーできませんでした。');
         }
-    }, [resetCopiedAnswerState]);
+    }, [resetCopiedMessageState]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -632,9 +653,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     useEffect(() => {
         setLastRequestPayload(null);
         resetCopiedRequestState();
-        resetCopiedAnswerState();
+        resetCopiedMessageState();
         setOpenSessionMenuId(null);
-    }, [currentSessionId, resetCopiedAnswerState, resetCopiedRequestState]);
+    }, [currentSessionId, resetCopiedMessageState, resetCopiedRequestState]);
 
     useEffect(() => {
         if (openSessionMenuId === null) {
@@ -1034,6 +1055,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         let assistantText = '';
         let webllmHitFinalLengthLimit = false;
+        const generationStartedAt = performance.now();
         let generationMessages: LocalChatMessage[] = [...messages, userMessage, pendingAssistantMessage];
         const generationSessionId = currentSessionId;
         const generationSessionMode = activeMode;
@@ -1124,6 +1146,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 return;
             }
 
+            const generationDurationMs = Math.max(0, performance.now() - generationStartedAt);
             streamingPendingTextRef.current = finalText;
             streamingRenderedTextRef.current = finalText;
             clearStreamingFlushTimer();
@@ -1137,6 +1160,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                             ...message,
                             content: finalText,
                             isStreaming: false,
+                            generationDurationMs,
                         }
                         : message
                 ));
@@ -1566,18 +1590,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         <div className={`local-llm-message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
                                             {message.role === 'assistant' ? (
                                                 <div className="local-llm-assistant-stack">
-                                                    <div className="local-llm-assistant-actions">
-                                                        <button
-                                                            type="button"
-                                                            className="menu-btn local-llm-message-copy-btn"
-                                                            onClick={() => { void handleCopyAssistantMessage(message.id, message.content); }}
-                                                            disabled={getCopyableAssistantContent(message.content).length === 0}
-                                                            aria-label="回答内容をコピー"
-                                                            title="回答内容をコピー"
-                                                        >
-                                                            {copiedAnswerMessageId === message.id ? <Check size={16} /> : <Copy size={16} />}
-                                                        </button>
-                                                    </div>
                                                     {parsedAssistantMessageSegments?.map((segment, index) => (
                                                         segment.type === 'think'
                                                             ? (
@@ -1632,6 +1644,26 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                                         : '生成中'}
                                                 </span>
                                             )}
+                                        </div>
+                                        <div className="local-llm-message-footer">
+                                            <div className="local-llm-message-meta">
+                                                {message.role === 'assistant' && !message.isStreaming && typeof message.generationDurationMs === 'number' && message.generationDurationMs > 0 && (
+                                                    <span>{formatGenerationDuration(message.generationDurationMs)}</span>
+                                                )}
+                                            </div>
+                                            <div className="local-llm-message-actions">
+                                                <button
+                                                    type="button"
+                                                    className="menu-btn local-llm-mini-btn"
+                                                    onClick={() => { void handleCopyMessage(message); }}
+                                                    disabled={getCopyableMessageContent(message).length === 0}
+                                                    aria-label={message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー'}
+                                                    title={message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー'}
+                                                >
+                                                    {copiedMessageId === message.id ? <Check size={14} /> : <Copy size={14} />}
+                                                    <span>コピー</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                     );

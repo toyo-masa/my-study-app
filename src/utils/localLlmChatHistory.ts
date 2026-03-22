@@ -4,6 +4,7 @@ export type StoredLocalLlmChatMessage = {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    generationDurationMs?: number;
 };
 
 export type StoredLocalLlmChatSession = {
@@ -44,6 +45,9 @@ const normalizeMessages = (value: unknown): StoredLocalLlmChatMessage[] => {
                 : crypto.randomUUID(),
             role: source.role === 'assistant' ? 'assistant' : 'user',
             content: typeof source.content === 'string' ? source.content : '',
+            generationDurationMs: typeof source.generationDurationMs === 'number' && Number.isFinite(source.generationDurationMs) && source.generationDurationMs > 0
+                ? source.generationDurationMs
+                : undefined,
         };
     }).filter((item) => item.content.trim().length > 0);
 };

@@ -1029,6 +1029,42 @@
   flex-shrink: 0;
 }
 
+.local-llm-message-footer {
+  width: min(84%, 720px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.local-llm-message.is-user .local-llm-message-footer {
+  flex-direction: row-reverse;
+}
+
+.local-llm-message-meta {
+  min-height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.local-llm-message-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.local-llm-mini-btn {
+  min-height: 1.7rem;
+  padding: 0 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
 .local-llm-think-block {
   border: 1px solid rgba(var(--primary-color-rgb, 99, 102, 241), 0.18);
   border-radius: 12px;
