@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
@@ -17,6 +17,7 @@ import {
 } from '../utils/settings';
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
+import { getWebLlmModelOptions } from '../utils/localLlmEngine';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -82,6 +83,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
     const exampleCorrectCount = 3;
     const exampleCorrectDays = Math.max(1, reviewIntervalSettings.correctIntervalDays * exampleCorrectCount);
+    const webLlmModelOptions = useMemo(
+        () => getWebLlmModelOptions(localLlmSettings.webllmModelId),
+        [localLlmSettings.webllmModelId]
+    );
 
     const parseOptionalNumberInput = (value: string): number | null => {
         const trimmed = value.trim();
@@ -370,22 +375,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <div className="review-settings-card">
                                                 <h4 className="review-settings-card-title">WebLLM モデル</h4>
                                                 <p className="review-settings-note">
-                                                    既定候補にない WebLLM の modelId を使いたい場合は、ここで直接指定できます。
+                                                    利用可能な候補から選択できます。保存済みの候補外 modelId がある場合は、その値も `(カスタム)` として表示します。
                                                 </p>
                                                 <div className="review-settings-grid">
                                                     <label className="review-setting-item">
-                                                        <span className="review-setting-label">WebLLM モデルID</span>
-                                                        <input
-                                                            type="text"
+                                                        <span className="review-setting-label">WebLLM モデル</span>
+                                                        <select
                                                             className="setting-select"
                                                             value={localLlmSettings.webllmModelId}
                                                             onChange={(event) => onLocalLlmSettingsChange({
                                                                 ...localLlmSettings,
                                                                 webllmModelId: event.target.value,
                                                             })}
-                                                            placeholder="Qwen3-14B-q4f16_1-MLC など"
-                                                            spellCheck={false}
-                                                        />
+                                                        >
+                                                            {webLlmModelOptions.map((option) => (
+                                                                <option key={option.value} value={option.value}>
+                                                                    {option.label}
+                                                                </option>
+                                                            ))}
+                                                        </select>
                                                     </label>
                                                 </div>
                                             </div>
