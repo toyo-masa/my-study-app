@@ -916,6 +916,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  content-visibility: auto;
+  contain-intrinsic-size: 220px;
 }
 
 .local-llm-message.is-user {

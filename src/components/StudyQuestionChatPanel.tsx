@@ -4,7 +4,7 @@ import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
-import { MarkdownText } from './MarkdownText';
+import { LocalLlmMessageItem } from './LocalLlmMessageItem';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
@@ -28,7 +28,6 @@ import {
 } from '../utils/studyQuestionChatHistory';
 import {
     parseAssistantMessageContent,
-    parseAssistantMessageSegments,
     runWebLlmBudgetedGeneration,
     type WebLlmGenerationPhase,
 } from '../utils/webLlmBudgetedGeneration';
@@ -89,19 +88,6 @@ const getCopyableMessageContent = (message: LocalChatMessage) => {
     return message.role === 'assistant'
         ? getCopyableAssistantContent(message.content)
         : message.content.trim();
-};
-
-const formatGenerationDuration = (durationMs: number) => {
-    const seconds = durationMs / 1000;
-    if (seconds < 10) {
-        return `思考時間 ${seconds.toFixed(1)}秒`;
-    }
-    if (seconds < 60) {
-        return `思考時間 ${Math.round(seconds)}秒`;
-    }
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.round(seconds % 60);
-    return `思考時間 ${minutes}分${remainingSeconds}秒`;
 };
 
 const toStoredMessages = (messages: LocalChatMessage[]): StoredLocalLlmChatMessage[] => {
@@ -1248,100 +1234,19 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             </p>
                         </div>
                     ) : (
-                        messages.map((message) => {
-                            const parsedAssistantMessageSegments = message.role === 'assistant'
-                                ? parseAssistantMessageSegments(message.content)
-                                : null;
-
-                            return (
-                                <div
-                                    key={message.id}
-                                    className={`local-llm-message ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}
-                                >
-                                    <div className="local-llm-message-role">
-                                        {message.role === 'user' ? 'You' : 'Local LLM'}
-                                    </div>
-                                    <div className={`local-llm-message-bubble ${message.role === 'user' ? 'is-user' : 'is-assistant'}`}>
-                                        {message.role === 'assistant' ? (
-                                            <div className="local-llm-assistant-stack">
-                                                {parsedAssistantMessageSegments?.map((segment, index) => (
-                                                    segment.type === 'think'
-                                                        ? (
-                                                            <details
-                                                                key={`${message.id}-think-${index}`}
-                                                                className="local-llm-think-block"
-                                                                open={message.isStreaming ? true : undefined}
-                                                            >
-                                                                <summary className="local-llm-think-summary">
-                                                                    {message.isStreaming ? '思考中...' : '思考過程を表示'}
-                                                                </summary>
-                                                                <div className="local-llm-think-body">
-                                                                    {message.isStreaming ? (
-                                                                        <div className="local-llm-streaming-text local-llm-think-markdown">
-                                                                            {segment.content}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <MarkdownText
-                                                                            content={segment.content}
-                                                                            className="local-llm-markdown local-llm-think-markdown"
-                                                                        />
-                                                                    )}
-                                                                </div>
-                                                            </details>
-                                                        )
-                                                        : (
-                                                            message.isStreaming ? (
-                                                                <div
-                                                                    key={`${message.id}-answer-${index}`}
-                                                                    className="local-llm-streaming-text"
-                                                                >
-                                                                    {segment.content}
-                                                                </div>
-                                                            ) : (
-                                                                <MarkdownText
-                                                                    key={`${message.id}-answer-${index}`}
-                                                                    content={segment.content}
-                                                                    className="local-llm-markdown"
-                                                                />
-                                                            )
-                                                        )
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="local-llm-plain-text">{message.content}</div>
-                                        )}
-                                        {message.isStreaming && (
-                                            <span className="local-llm-streaming-indicator">
-                                                <LoaderCircle size={14} className="spin" />
-                                                {activeMode === 'webllm' && webllmGenerationPhase === 'finalizing'
-                                                    ? '最終回答を生成中'
-                                                    : '生成中'}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="local-llm-message-footer">
-                                        <div className="local-llm-message-meta">
-                                            {message.role === 'assistant' && !message.isStreaming && typeof message.generationDurationMs === 'number' && message.generationDurationMs > 0 && (
-                                                <span>{formatGenerationDuration(message.generationDurationMs)}</span>
-                                            )}
-                                        </div>
-                                        <div className="local-llm-message-actions">
-                                            <button
-                                                type="button"
-                                                className="menu-btn local-llm-mini-btn"
-                                                onClick={() => { void handleCopyMessage(message); }}
-                                                disabled={getCopyableMessageContent(message).length === 0}
-                                                aria-label={message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー'}
-                                                title={message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー'}
-                                            >
-                                                {copiedMessageId === message.id ? <Check size={14} /> : <Copy size={14} />}
-                                                <span>コピー</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
+                        messages.map((message) => (
+                            <LocalLlmMessageItem
+                                key={message.id}
+                                message={message}
+                                isCopied={copiedMessageId === message.id}
+                                onCopy={handleCopyMessage}
+                                streamingLabel={message.isStreaming
+                                    ? (activeMode === 'webllm' && webllmGenerationPhase === 'finalizing'
+                                        ? '最終回答を生成中'
+                                        : '生成中')
+                                    : undefined}
+                            />
+                        ))
                     )}
                 </div>
 
