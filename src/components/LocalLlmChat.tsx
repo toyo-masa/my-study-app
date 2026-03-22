@@ -243,6 +243,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
     const copyRequestResetTimeoutRef = useRef<number | null>(null);
     const copyAnswerResetTimeoutRef = useRef<number | null>(null);
+    const backNavigationTimeoutRef = useRef<number | null>(null);
     const currentSessionIdRef = useRef(currentSessionId);
     const activeGenerationSessionRef = useRef<{
         sessionId: string;
@@ -629,6 +630,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             }
             if (copyAnswerResetTimeoutRef.current !== null) {
                 window.clearTimeout(copyAnswerResetTimeoutRef.current);
+            }
+            if (backNavigationTimeoutRef.current !== null) {
+                window.clearTimeout(backNavigationTimeoutRef.current);
             }
             clearStreamingFlushTimer();
             cancelActiveWork();
@@ -1312,6 +1316,44 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         finalizeStreamingMessages();
     }, [clearStreamingFlushTimer, finalizeStreamingMessages, invalidateActiveRequest, isGenerating]);
 
+    const handleBackNavigation = useCallback(() => {
+        shouldAutoScrollRef.current = false;
+        setOpenSessionMenuId(null);
+        resetCopiedRequestState();
+        resetCopiedMessageState();
+
+        if (isGenerating) {
+            handleStopGeneration();
+        } else {
+            clearStreamingFlushTimer();
+            flushStreamingUpdateRef.current = null;
+            invalidateActiveRequest();
+            interruptLocalLlmGeneration();
+            localApiModelListAbortRef.current?.abort();
+            localApiModelListAbortRef.current = null;
+            localApiChatAbortRef.current?.abort();
+            localApiChatAbortRef.current = null;
+            setWebllmGenerationPhase(null);
+        }
+
+        if (backNavigationTimeoutRef.current !== null) {
+            window.clearTimeout(backNavigationTimeoutRef.current);
+        }
+
+        backNavigationTimeoutRef.current = window.setTimeout(() => {
+            backNavigationTimeoutRef.current = null;
+            onBack();
+        }, 0);
+    }, [
+        clearStreamingFlushTimer,
+        handleStopGeneration,
+        invalidateActiveRequest,
+        isGenerating,
+        onBack,
+        resetCopiedMessageState,
+        resetCopiedRequestState,
+    ]);
+
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
             return;
@@ -1328,7 +1370,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     return (
         <div className="local-llm-page">
             <div className="local-llm-header">
-                <BackButton className="nav-btn" onClick={onBack} />
+                <BackButton className="nav-btn" onClick={handleBackNavigation} />
                 <div>
                     <h1 className="local-llm-title">ローカルLLMチャット（試作）</h1>
                     <p className="local-llm-subtitle">
