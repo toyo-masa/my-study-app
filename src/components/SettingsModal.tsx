@@ -412,6 +412,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             </div>
 
                                             <div className="review-settings-card">
+                                                <h4 className="review-settings-card-title">生成中の表示</h4>
+                                                <p className="review-settings-note">
+                                                    長文生成中の体感速度を優先したい場合は、更新頻度を落とす軽量表示へ切り替えられます。WebLLM とローカルAPI の両方に適用します。
+                                                </p>
+                                                <div className="appearance-grid local-llm-settings-mode-grid">
+                                                    <button
+                                                        type="button"
+                                                        className={`appearance-option ${localLlmSettings.webllmStreamingRenderMode === 'live' ? 'active' : ''}`}
+                                                        onClick={() => onLocalLlmSettingsChange({
+                                                            ...localLlmSettings,
+                                                            webllmStreamingRenderMode: 'live',
+                                                        })}
+                                                    >
+                                                        <div className="appearance-preview light"></div>
+                                                        <span>現行表示</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`appearance-option ${localLlmSettings.webllmStreamingRenderMode === 'lightweight' ? 'active' : ''}`}
+                                                        onClick={() => onLocalLlmSettingsChange({
+                                                            ...localLlmSettings,
+                                                            webllmStreamingRenderMode: 'lightweight',
+                                                        })}
+                                                    >
+                                                        <div className="appearance-preview dark"></div>
+                                                        <span>軽量表示</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="review-settings-card">
                                                 <h4 className="review-settings-card-title">WebLLM 生成パラメータ</h4>
                                                 <p className="review-settings-note">
                                                     1回目は `temperature 0.6 / top_p 0.95 / thinking_budget 1024` から始め、2回目は `/no_think` を付けて最終回答へ移ります。

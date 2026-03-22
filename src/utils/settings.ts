@@ -1,6 +1,7 @@
 import { DEFAULT_WEB_LLM_MODEL_ID } from './localLlmEngine';
 export type ThemeMode = 'light' | 'dark' | 'monokai';
 export type LocalLlmMode = 'webllm' | 'openai-local';
+export type LocalLlmStreamingRenderMode = 'live' | 'lightweight';
 
 export const WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS = {
     temperature: 0.6,
@@ -27,6 +28,7 @@ export interface LocalLlmSettings {
     baseUrl: string;
     defaultModelId: string;
     webllmModelId: string;
+    webllmStreamingRenderMode: LocalLlmStreamingRenderMode;
     webllmSystemPrompt: string;
     webllmEnableThinking: boolean;
     webllmFirstPassTemperature: number | null;
@@ -59,6 +61,7 @@ const DEFAULT_SETTINGS = {
         baseUrl: 'http://localhost:1234/v1',
         defaultModelId: '',
         webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
+        webllmStreamingRenderMode: 'live' as LocalLlmStreamingRenderMode,
         webllmSystemPrompt: '',
         webllmEnableThinking: true,
         webllmFirstPassTemperature: WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
@@ -142,6 +145,10 @@ const normalizeLocalLlmBaseUrl = (value: unknown): string => {
 
 const normalizeLocalLlmModelId = (value: unknown): string => {
     return typeof value === 'string' ? value.trim() : '';
+};
+
+const normalizeLocalLlmStreamingRenderMode = (value: unknown): LocalLlmStreamingRenderMode => {
+    return value === 'lightweight' ? 'lightweight' : 'live';
 };
 
 const normalizeWebLlmModelId = (value: unknown): string => {
@@ -240,6 +247,7 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         baseUrl: normalizeLocalLlmBaseUrl(source.baseUrl),
         defaultModelId: normalizeLocalLlmModelId(source.defaultModelId),
         webllmModelId: normalizeWebLlmModelId(source.webllmModelId),
+        webllmStreamingRenderMode: normalizeLocalLlmStreamingRenderMode(source.webllmStreamingRenderMode),
         webllmSystemPrompt: normalizeLocalLlmSystemPrompt(source.webllmSystemPrompt),
         webllmEnableThinking,
         webllmFirstPassTemperature: normalizeOptionalFiniteNumber(

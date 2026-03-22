@@ -49,6 +49,7 @@ interface LocalLlmChatProps {
 
 const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
 const WEB_LLM_LENGTH_WARNING = 'WebLLM の上限に達したため、最終回答も途中で打ち切られました。必要なら続きを短く区切って質問してください。';
+const STREAMING_RENDER_INTERVAL_MS = 80;
 const LOCAL_LLM_BASE_SYSTEM_PROMPT = [
     'ユーザーの最新の依頼や質問内容を最優先にしてください。',
     '回答の詳しさ・長さ・形式は、ユーザーがこの会話で求めた内容に合わせてください。',
@@ -242,6 +243,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         modelId: string;
         createdAt: string;
     } | null>(null);
+    const streamingPendingTextRef = useRef('');
+    const streamingRenderedTextRef = useRef('');
+    const streamingFlushTimerRef = useRef<number | null>(null);
+    const flushStreamingUpdateRef = useRef<(() => void) | null>(null);
 
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
@@ -376,7 +381,16 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         });
     }, [isGenerating]);
 
+    const clearStreamingFlushTimer = useCallback(() => {
+        if (streamingFlushTimerRef.current !== null) {
+            window.clearTimeout(streamingFlushTimerRef.current);
+            streamingFlushTimerRef.current = null;
+        }
+    }, []);
+
     const finalizeStreamingMessages = useCallback(() => {
+        clearStreamingFlushTimer();
+        flushStreamingUpdateRef.current?.();
         setMessages((previous) => previous
             .filter((message) => !(message.role === 'assistant' && message.isStreaming && message.content.trim().length === 0))
             .map((message) => (
@@ -387,7 +401,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                     }
                     : message
             )));
-    }, []);
+        flushStreamingUpdateRef.current = null;
+    }, [clearStreamingFlushTimer]);
 
     const resetViewState = useCallback(() => {
         setInput('');
@@ -608,10 +623,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             if (copyAnswerResetTimeoutRef.current !== null) {
                 window.clearTimeout(copyAnswerResetTimeoutRef.current);
             }
+            clearStreamingFlushTimer();
             cancelActiveWork();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [cancelActiveWork, clearStreamingFlushTimer]);
 
     useEffect(() => {
         setLastRequestPayload(null);
@@ -1036,6 +1052,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setIsGenerating(true);
         setWebllmGenerationPhase(null);
         shouldAutoScrollRef.current = true;
+        streamingPendingTextRef.current = '';
+        streamingRenderedTextRef.current = '';
+        clearStreamingFlushTimer();
         syncSessionMessages({
             sessionId: generationSessionId,
             mode: generationSessionMode,
@@ -1044,8 +1063,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             viewMessages: generationMessages,
         });
 
-        const updateAssistantText = (nextText: string) => {
-            assistantText = nextText;
+        const commitAssistantText = (nextText: string) => {
             if (!mountedRef.current || requestIdRef.current !== requestId) {
                 return;
             }
@@ -1069,10 +1087,47 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             });
         };
 
+        const flushPendingAssistantText = () => {
+            clearStreamingFlushTimer();
+            const nextText = streamingPendingTextRef.current;
+            if (nextText === streamingRenderedTextRef.current) {
+                return;
+            }
+            streamingRenderedTextRef.current = nextText;
+            commitAssistantText(nextText);
+        };
+
+        flushStreamingUpdateRef.current = flushPendingAssistantText;
+
+        const updateAssistantText = (nextText: string) => {
+            assistantText = nextText;
+            streamingPendingTextRef.current = nextText;
+
+            if (localLlmSettings.webllmStreamingRenderMode !== 'lightweight') {
+                streamingRenderedTextRef.current = nextText;
+                commitAssistantText(nextText);
+                return;
+            }
+
+            if (streamingFlushTimerRef.current !== null) {
+                return;
+            }
+
+            streamingFlushTimerRef.current = window.setTimeout(() => {
+                streamingFlushTimerRef.current = null;
+                flushPendingAssistantText();
+            }, STREAMING_RENDER_INTERVAL_MS);
+        };
+
         const finalizeAssistantText = (finalText: string) => {
             if (!mountedRef.current || requestIdRef.current !== requestId) {
                 return;
             }
+
+            streamingPendingTextRef.current = finalText;
+            streamingRenderedTextRef.current = finalText;
+            clearStreamingFlushTimer();
+            flushStreamingUpdateRef.current = null;
 
             generationMessages = generationMessages
                 .filter((message) => message.id !== assistantMessageId || finalText.length > 0)
@@ -1200,6 +1255,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [
         activeMode,
         apiKey,
+        clearStreamingFlushTimer,
         currentSession?.createdAt,
         currentSessionId,
         input,
@@ -1207,6 +1263,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         isModelReady,
         localLlmSettings.baseUrl,
         localLlmSettings.webllmEnableThinking,
+        localLlmSettings.webllmStreamingRenderMode,
         webllmSystemPrompt,
         webllmFirstPassTemperature,
         webllmFirstPassTopP,
@@ -1230,6 +1287,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         const activeGeneration = activeGenerationSessionRef.current;
         setError(null);
+        clearStreamingFlushTimer();
+        flushStreamingUpdateRef.current?.();
         invalidateActiveRequest();
         interruptLocalLlmGeneration();
         if (activeGeneration?.mode === 'webllm') {
@@ -1241,7 +1300,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setIsGenerating(false);
         setWebllmGenerationPhase(null);
         finalizeStreamingMessages();
-    }, [finalizeStreamingMessages, invalidateActiveRequest, isGenerating]);
+    }, [clearStreamingFlushTimer, finalizeStreamingMessages, invalidateActiveRequest, isGenerating]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
