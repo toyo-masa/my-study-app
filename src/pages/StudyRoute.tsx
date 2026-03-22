@@ -276,7 +276,6 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         const quizSetId = activeQuizSet.id;
         const existingSchedules = await getReviewSchedulesForQuizSet(quizSetId);
-        const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
         const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
         const reviewIntervalSettings = loadReviewIntervalSettings();
 
@@ -292,9 +291,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             const isCorrect = question.questionType === 'memorization'
                 ? confidence === 'high'
                 : (userAnswers.length === question.correctAnswers.length && userAnswers.every(a => question.correctAnswers.includes(a)));
-            const currentInterval = intervalByQuestionId.get(questionId) ?? 1;
             const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
-            const intervalDays = calculateNextInterval(isCorrect, confidence, currentInterval, reviewIntervalSettings);
+            const intervalDays = calculateNextInterval(isCorrect, confidence, currentConsecutive, reviewIntervalSettings);
             const nextDue = calculateNextDue(intervalDays);
             const consecutiveCorrect = updateConsecutiveCorrect(isCorrect, currentConsecutive);
 

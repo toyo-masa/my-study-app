@@ -104,8 +104,8 @@ export const ReviewBoardRoute: React.FC = () => {
     const [errorType, setErrorType] = useState<ReviewBoardErrorType>('none');
     const today = getTodayString();
     const reviewIntervalSettings = loadReviewIntervalSettings();
-    const exampleBaseDays = 4;
-    const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
+    const exampleCorrectCount = 3;
+    const exampleCorrectDays = Math.max(1, reviewIntervalSettings.correctIntervalDays * exampleCorrectCount);
 
     const loadData = useCallback(async (options?: { silent?: boolean }) => {
         const shouldShowLoading = !options?.silent;
@@ -561,11 +561,11 @@ export const ReviewBoardRoute: React.FC = () => {
                                             <div className="help-popover-body">
                                                 <ul className="review-board-help-list">
                                                     <li>各問題には「次に復習する予定日」があり、その予定日が今日（またはそれ以前の期限切れ）のものを表示します。</li>
-                                                    <li>この予定日は問題を解くたびに更新され、初回は基準日数1日から始まります。</li>
-                                                    <li>正解したとき: 基準日数に {reviewIntervalSettings.correctMultiplier} を掛けて四捨五入します。</li>
+                                                    <li>正解したときは、その問題の連続正解数に応じて次回日数を増やします。</li>
+                                                    <li>正解したとき: {reviewIntervalSettings.correctIntervalDays} 日 × 連続正解数 を次回日数にします。</li>
                                                     <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
-                                                    <li>採用された日数が、次に解いたときの基準日数になります。</li>
-                                                    <li>例: 基準日数が {exampleBaseDays} 日なら、正解時は {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
+                                                    <li>不正解になると連続正解数は 0 に戻り、次の正解時は 1 回目として数え直します。</li>
+                                                    <li>例: 連続正解数が {exampleCorrectCount} 回なら、正解時は {reviewIntervalSettings.correctIntervalDays} × {exampleCorrectCount} = {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
                                                     <li>見出し右側の種別フィルタ（すべて/問題集/暗記カード）は、この一覧だけに適用されます。</li>
                                                 </ul>
                                             </div>

@@ -266,7 +266,6 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         }
 
         const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
-        const intervalByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.intervalDays]));
         const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
         const reviewIntervalSettings = loadReviewIntervalSettings();
         const logByQuestionId = new Map(targetLogs.map((log) => [log.questionId, log]));
@@ -277,9 +276,8 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                 return [];
             }
 
-            const currentInterval = intervalByQuestionId.get(questionId) ?? 1;
             const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
-            const intervalDays = calculateNextInterval(log.isMemorized, 'high', currentInterval, reviewIntervalSettings);
+            const intervalDays = calculateNextInterval(log.isMemorized, 'high', currentConsecutive, reviewIntervalSettings);
             const nextDue = calculateNextDue(intervalDays);
             const consecutiveCorrect = updateConsecutiveCorrect(log.isMemorized, currentConsecutive);
 

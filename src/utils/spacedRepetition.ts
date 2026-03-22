@@ -7,20 +7,17 @@ import type { ConfidenceLevel } from '../types';
 
 export interface ReviewIntervalSettings {
     retryIntervalDays: number;
-    correctMultiplier: number;
+    correctIntervalDays: number;
 }
 
 export const DEFAULT_REVIEW_INTERVAL_SETTINGS: ReviewIntervalSettings = {
     retryIntervalDays: 1,
-    correctMultiplier: 2,
+    correctIntervalDays: 2,
 };
 
 const REVIEW_INTERVAL_SETTINGS_STORAGE_KEY = 'reviewIntervalSettings';
 const DAY_MIN = 1;
 const DAY_MAX = 365;
-const MULTIPLIER_MIN = 0.2;
-const MULTIPLIER_MAX = 10;
-
 function toLocalDateString(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -39,15 +36,12 @@ function parseNumber(value: unknown): number | null {
     return value;
 }
 
-function roundToTwo(value: number): number {
-    return Math.round(value * 100) / 100;
-}
-
 export function normalizeReviewIntervalSettings(
     value?: Partial<ReviewIntervalSettings> | null
 ): ReviewIntervalSettings {
     const source = value as (Partial<ReviewIntervalSettings> & {
         incorrectIntervalDays?: number;
+        correctDays?: number;
         highConfidenceMultiplier?: number;
     }) | null | undefined;
     const defaults = DEFAULT_REVIEW_INTERVAL_SETTINGS;
@@ -58,10 +52,15 @@ export function normalizeReviewIntervalSettings(
             DAY_MIN,
             DAY_MAX
         ),
-        correctMultiplier: clamp(
-            roundToTwo(parseNumber(source?.correctMultiplier) ?? parseNumber(source?.highConfidenceMultiplier) ?? defaults.correctMultiplier),
-            MULTIPLIER_MIN,
-            MULTIPLIER_MAX
+        correctIntervalDays: clamp(
+            Math.round(
+                parseNumber(source?.correctIntervalDays)
+                ?? parseNumber(source?.correctDays)
+                ?? parseNumber(source?.highConfidenceMultiplier)
+                ?? defaults.correctIntervalDays
+            ),
+            DAY_MIN,
+            DAY_MAX
         ),
     };
 }
@@ -90,27 +89,28 @@ export function saveReviewIntervalSettings(settings: ReviewIntervalSettings): vo
  *
  * ルール（初期値）:
  *   不正解 or 自信なし → 1日
- *   正解 → round(current * 2)
- * ※ ユーザー設定できるのは「不正解 or 自信なし」の日数と「正解時の倍率」
+ *   正解 → 正解時の基準日数 × 連続正解数
+ * ※ ユーザー設定できるのは「不正解 or 自信なし」の日数と「正解時の基準日数」
  */
 export function calculateNextInterval(
     isCorrect: boolean,
     confidence: ConfidenceLevel,
-    currentInterval: number,
+    currentConsecutiveCorrect: number,
     settings: ReviewIntervalSettings = DEFAULT_REVIEW_INTERVAL_SETTINGS
 ): number {
     const effectiveSettings = normalizeReviewIntervalSettings(settings);
-    const normalizedCurrentInterval = Number.isFinite(currentInterval)
-        ? Math.max(DAY_MIN, Math.round(currentInterval))
-        : DAY_MIN;
+    const normalizedCurrentConsecutiveCorrect = Number.isFinite(currentConsecutiveCorrect)
+        ? Math.max(0, Math.round(currentConsecutiveCorrect))
+        : 0;
 
     if (!isCorrect || confidence === 'low') {
         return effectiveSettings.retryIntervalDays;
     }
 
+    const nextCorrectCount = normalizedCurrentConsecutiveCorrect + 1;
     return Math.max(
         DAY_MIN,
-        Math.round(normalizedCurrentInterval * effectiveSettings.correctMultiplier)
+        Math.round(effectiveSettings.correctIntervalDays * nextCorrectCount)
     );
 }
 

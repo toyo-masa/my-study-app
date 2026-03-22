@@ -80,8 +80,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onLoginRequest,
     showLocalLlmSettings = false,
 }) => {
-    const exampleBaseDays = 4;
-    const exampleCorrectDays = Math.max(1, Math.round(exampleBaseDays * reviewIntervalSettings.correctMultiplier));
+    const exampleCorrectCount = 3;
+    const exampleCorrectDays = Math.max(1, reviewIntervalSettings.correctIntervalDays * exampleCorrectCount);
 
     const parseOptionalNumberInput = (value: string): number | null => {
         const trimmed = value.trim();
@@ -646,16 +646,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     />
                                                 </label>
                                                 <label className="review-setting-item">
-                                                    <span className="review-setting-label">正解時の倍率</span>
+                                                    <span className="review-setting-label">正解時の基準日数</span>
                                                     <NumericStepper
-                                                        value={reviewIntervalSettings.correctMultiplier}
-                                                        min={0.2}
-                                                        max={10}
-                                                        step={0.1}
-                                                        onChange={(value) => handleReviewSettingChange('correctMultiplier', value)}
-                                                        trailingLabel="倍"
-                                                        decreaseAriaLabel="正解時の倍率を減らす"
-                                                        increaseAriaLabel="正解時の倍率を増やす"
+                                                        value={reviewIntervalSettings.correctIntervalDays}
+                                                        min={1}
+                                                        max={365}
+                                                        step={1}
+                                                        onChange={(value) => handleReviewSettingChange('correctIntervalDays', value)}
+                                                        trailingLabel="日"
+                                                        decreaseAriaLabel="正解時の基準日数を減らす"
+                                                        increaseAriaLabel="正解時の基準日数を増やす"
                                                     />
                                                 </label>
                                             </div>
@@ -663,11 +663,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <div className="review-settings-formula">
                                                 <p className="review-settings-formula-title">次回日数の決まり方</p>
                                                 <ul className="review-settings-formula-list">
-                                                    <li>この問題を初めて解くときは、基準日数を1日として開始します。</li>
-                                                    <li>正解したとき: 基準日数に {reviewIntervalSettings.correctMultiplier} を掛けて四捨五入します。</li>
+                                                    <li>正解したときは、その問題の連続正解数に応じて次回日数を増やします。</li>
+                                                    <li>正解したとき: {reviewIntervalSettings.correctIntervalDays} 日 × 連続正解数 を次回日数にします。</li>
                                                     <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
-                                                    <li>採用された日数が、次に解いたときの基準日数になります。</li>
-                                                    <li>例: 基準日数が {exampleBaseDays} 日なら、正解時は {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
+                                                    <li>不正解になると連続正解数は 0 に戻り、次の正解時は 1 回目として数え直します。</li>
+                                                    <li>例: 連続正解数が {exampleCorrectCount} 回なら、正解時は {reviewIntervalSettings.correctIntervalDays} × {exampleCorrectCount} = {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
                                                 </ul>
                                             </div>
 
