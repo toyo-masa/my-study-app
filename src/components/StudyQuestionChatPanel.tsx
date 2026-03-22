@@ -8,7 +8,7 @@ import { LocalLlmMessageItem } from './LocalLlmMessageItem';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
-    getWebLlmModelOptions,
+    getGroupedWebLlmModelOptions,
     getLocalLlmSupport,
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
@@ -289,8 +289,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
-    const webLlmSelectableModels = useMemo(
-        () => getWebLlmModelOptions(selectedWebLlmModel),
+    const webLlmSelectableModelGroups = useMemo(
+        () => getGroupedWebLlmModelOptions(selectedWebLlmModel),
         [selectedWebLlmModel]
     );
     const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
@@ -1126,13 +1126,15 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         onChange={(event) => handleModelOptionChange(event.target.value)}
                         disabled={isGenerating || isModelLoading}
                     >
-                        <optgroup label="WebLLM">
-                            {webLlmSelectableModels.map((option) => (
-                                <option key={option.value} value={`webllm:${option.value}`}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </optgroup>
+                        {webLlmSelectableModelGroups.map((group) => (
+                            <optgroup key={group.label} label={group.label}>
+                                {group.options.map((option) => (
+                                    <option key={option.value} value={`webllm:${option.value}`}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        ))}
                         {localApiSelectableModels.length > 0 && (
                             <optgroup label="ローカルAPI">
                                 {localApiSelectableModels.map((modelId) => (

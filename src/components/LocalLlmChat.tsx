@@ -8,7 +8,7 @@ import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
-    getWebLlmModelOptions,
+    getGroupedWebLlmModelOptions,
     getLocalLlmSupport,
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
@@ -258,8 +258,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
-    const webLlmSelectableModels = useMemo(
-        () => getWebLlmModelOptions(selectedWebLlmModel),
+    const webLlmSelectableModelGroups = useMemo(
+        () => getGroupedWebLlmModelOptions(selectedWebLlmModel),
         [selectedWebLlmModel]
     );
     const webllmSystemPrompt = useMemo(() => {
@@ -1507,13 +1507,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 onChange={(event) => handleModelOptionChange(event.target.value)}
                                 disabled={isGenerating || isModelLoading}
                             >
-                                <optgroup label="WebLLM">
-                                    {webLlmSelectableModels.map((option) => (
-                                        <option key={option.value} value={`webllm:${option.value}`}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </optgroup>
+                                {webLlmSelectableModelGroups.map((group) => (
+                                    <optgroup key={group.label} label={group.label}>
+                                        {group.options.map((option) => (
+                                            <option key={option.value} value={`webllm:${option.value}`}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                ))}
                                 <optgroup label="ローカルAPI">
                                     <option value="openai-local:">ローカルAPI（モデルを手入力）</option>
                                     {localApiSelectableModels.map((modelId) => (

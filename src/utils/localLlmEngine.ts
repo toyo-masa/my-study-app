@@ -6,6 +6,11 @@ export type WebLlmModelOption = {
     label: string;
 };
 
+export type WebLlmModelOptionGroup = {
+    label: string;
+    options: WebLlmModelOption[];
+};
+
 export const WEB_LLM_QWEN_MODEL_OPTIONS = [
     { value: 'Qwen3-0.6B-q4f16_1-MLC', label: 'Qwen3 0.6B' },
     { value: 'Qwen3-1.7B-q4f16_1-MLC', label: 'Qwen3 1.7B' },
@@ -53,6 +58,78 @@ export const getWebLlmModelOptions = (customModelId?: string): WebLlmModelOption
     }
 
     return baseOptions;
+};
+
+const WEB_LLM_MODEL_GROUP_ORDER = [
+    'Qwenシリーズ',
+    'Llamaシリーズ',
+    'DeepSeekシリーズ',
+    'Hermesシリーズ',
+    'Phiシリーズ',
+    'Mistralシリーズ',
+    'Gemmaシリーズ',
+    'SmolLMシリーズ',
+    'TinyLlamaシリーズ',
+    'その他',
+    'カスタム',
+] as const;
+
+const inferWebLlmModelGroupLabel = (option: WebLlmModelOption): string => {
+    if (option.label.endsWith('(カスタム)')) {
+        return 'カスタム';
+    }
+
+    const modelId = option.value;
+    if (/^Qwen/i.test(modelId)) {
+        return 'Qwenシリーズ';
+    }
+    if (/^Llama/i.test(modelId)) {
+        return 'Llamaシリーズ';
+    }
+    if (/^DeepSeek/i.test(modelId)) {
+        return 'DeepSeekシリーズ';
+    }
+    if (/^(Hermes|OpenHermes|NeuralHermes)/i.test(modelId)) {
+        return 'Hermesシリーズ';
+    }
+    if (/^Phi/i.test(modelId) || /^phi/i.test(modelId)) {
+        return 'Phiシリーズ';
+    }
+    if (/^(Mistral|WizardMath)/i.test(modelId)) {
+        return 'Mistralシリーズ';
+    }
+    if (/^(gemma|Gemma)/i.test(modelId)) {
+        return 'Gemmaシリーズ';
+    }
+    if (/^SmolLM/i.test(modelId)) {
+        return 'SmolLMシリーズ';
+    }
+    if (/^TinyLlama/i.test(modelId)) {
+        return 'TinyLlamaシリーズ';
+    }
+    return 'その他';
+};
+
+export const getGroupedWebLlmModelOptions = (customModelId?: string): WebLlmModelOptionGroup[] => {
+    const groupedOptions = new Map<string, WebLlmModelOption[]>();
+
+    getWebLlmModelOptions(customModelId).forEach((option) => {
+        const groupLabel = inferWebLlmModelGroupLabel(option);
+        const existingOptions = groupedOptions.get(groupLabel) ?? [];
+        existingOptions.push(option);
+        groupedOptions.set(groupLabel, existingOptions);
+    });
+
+    const orderedGroups: WebLlmModelOptionGroup[] = [];
+    for (const label of WEB_LLM_MODEL_GROUP_ORDER) {
+        const options = groupedOptions.get(label);
+        if (!options || options.length === 0) {
+            continue;
+        }
+        orderedGroups.push({ label, options });
+    }
+
+    return orderedGroups;
 };
 
 type LocalLlmSupport = {

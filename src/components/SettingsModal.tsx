@@ -17,7 +17,7 @@ import {
 } from '../utils/settings';
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
-import { getWebLlmModelOptions } from '../utils/localLlmEngine';
+import { getGroupedWebLlmModelOptions } from '../utils/localLlmEngine';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -83,8 +83,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
     const exampleCorrectCount = 3;
     const exampleCorrectDays = Math.max(1, reviewIntervalSettings.correctIntervalDays * exampleCorrectCount);
-    const webLlmModelOptions = useMemo(
-        () => getWebLlmModelOptions(localLlmSettings.webllmModelId),
+    const webLlmModelOptionGroups = useMemo(
+        () => getGroupedWebLlmModelOptions(localLlmSettings.webllmModelId),
         [localLlmSettings.webllmModelId]
     );
 
@@ -388,10 +388,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 webllmModelId: event.target.value,
                                                             })}
                                                         >
-                                                            {webLlmModelOptions.map((option) => (
-                                                                <option key={option.value} value={option.value}>
-                                                                    {option.label}
-                                                                </option>
+                                                            {webLlmModelOptionGroups.map((group) => (
+                                                                <optgroup key={group.label} label={group.label}>
+                                                                    {group.options.map((option) => (
+                                                                        <option key={option.value} value={option.value}>
+                                                                            {option.label}
+                                                                        </option>
+                                                                    ))}
+                                                                </optgroup>
                                                             ))}
                                                         </select>
                                                     </label>
