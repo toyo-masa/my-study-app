@@ -1035,12 +1035,8 @@
   width: min(84%, 720px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.5rem;
-}
-
-.local-llm-message.is-user .local-llm-message-footer {
-  flex-direction: row-reverse;
 }
 
 .local-llm-message-meta {
@@ -1049,6 +1045,7 @@
   align-items: center;
   color: var(--text-secondary);
   font-size: 0.75rem;
+  margin-right: auto;
 }
 
 .local-llm-message-actions {
@@ -1058,12 +1055,12 @@
 }
 
 .local-llm-mini-btn {
-  min-height: 1.7rem;
-  padding: 0 0.5rem;
+  width: 1.95rem;
+  height: 1.95rem;
+  padding: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.74rem;
+  justify-content: center;
   color: var(--text-secondary);
 }
 

@@ -137,7 +137,6 @@ export const LocalLlmMessageItem: React.FC<LocalLlmMessageItemProps> = React.mem
                         title={message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー'}
                     >
                         {isCopied ? <Check size={14} /> : <Copy size={14} />}
-                        <span>コピー</span>
                     </button>
                 </div>
             </div>

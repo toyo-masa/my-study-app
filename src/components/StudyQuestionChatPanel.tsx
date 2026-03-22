@@ -1101,8 +1101,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             className="menu-btn right-panel-copy-btn"
                             onClick={() => { void handleCopyRequestPayload(); }}
                             disabled={!lastRequestPayload || isGenerating}
-                            aria-label="送信内容をコピー"
-                            title="送信内容をコピー"
+                            aria-label="モデルへ送ったリクエスト本文をコピー"
+                            title="モデルへ送ったリクエスト本文をコピーします"
                         >
                             {didCopyRequestPayload ? <Check size={18} /> : <Copy size={18} />}
                         </button>
