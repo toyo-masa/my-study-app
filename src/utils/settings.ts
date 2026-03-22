@@ -1,4 +1,4 @@
-import { DEFAULT_WEB_LLM_MODEL_ID, WEB_LLM_QWEN_MODEL_OPTIONS } from './localLlmEngine';
+import { DEFAULT_WEB_LLM_MODEL_ID } from './localLlmEngine';
 export type ThemeMode = 'light' | 'dark' | 'monokai';
 export type LocalLlmMode = 'webllm' | 'openai-local';
 
@@ -146,7 +146,7 @@ const normalizeLocalLlmModelId = (value: unknown): string => {
 
 const normalizeWebLlmModelId = (value: unknown): string => {
     const modelId = typeof value === 'string' ? value.trim() : '';
-    if (WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === modelId)) {
+    if (modelId.length > 0) {
         return modelId;
     }
     return DEFAULT_WEB_LLM_MODEL_ID;

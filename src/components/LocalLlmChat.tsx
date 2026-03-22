@@ -8,11 +8,11 @@ import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
+    getWebLlmModelOptions,
     getLocalLlmSupport,
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
     resetLocalLlmChat,
-    WEB_LLM_QWEN_MODEL_OPTIONS,
 } from '../utils/localLlmEngine';
 import {
     fetchOpenAiCompatibleModelIds,
@@ -245,6 +245,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
+    const webLlmSelectableModels = useMemo(
+        () => getWebLlmModelOptions(selectedWebLlmModel),
+        [selectedWebLlmModel]
+    );
     const webllmSystemPrompt = useMemo(() => {
         const customPrompt = localLlmSettings.webllmSystemPrompt.trim();
         return customPrompt.length > 0
@@ -459,7 +463,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         if (
             targetSession.mode === 'webllm'
             && targetSession.modelId
-            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === targetSession.modelId)
+            && targetSession.modelId.trim().length > 0
         ) {
             onWebLlmModelChange(targetSession.modelId);
         }
@@ -591,7 +595,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         if (
             initialSession.mode === 'webllm'
             && initialSession.modelId
-            && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === initialSession.modelId)
+            && initialSession.modelId.trim().length > 0
         ) {
             onWebLlmModelChange(initialSession.modelId);
         }
@@ -1393,7 +1397,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 disabled={isGenerating || isModelLoading}
                             >
                                 <optgroup label="WebLLM">
-                                    {WEB_LLM_QWEN_MODEL_OPTIONS.map((option) => (
+                                    {webLlmSelectableModels.map((option) => (
                                         <option key={option.value} value={`webllm:${option.value}`}>
                                             {option.label}
                                         </option>

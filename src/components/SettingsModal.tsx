@@ -368,6 +368,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             </div>
 
                                             <div className="review-settings-card">
+                                                <h4 className="review-settings-card-title">WebLLM モデル</h4>
+                                                <p className="review-settings-note">
+                                                    既定候補にない WebLLM の modelId を使いたい場合は、ここで直接指定できます。
+                                                </p>
+                                                <div className="review-settings-grid">
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">WebLLM モデルID</span>
+                                                        <input
+                                                            type="text"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.webllmModelId}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                webllmModelId: event.target.value,
+                                                            })}
+                                                            placeholder="Qwen3-14B-q4f16_1-MLC など"
+                                                            spellCheck={false}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <div className="review-settings-card">
                                                 <h4 className="review-settings-card-title">WebLLM システムプロンプト</h4>
                                                 <p className="review-settings-note">
                                                     WebLLM モードで送信するときだけ、各会話の先頭に `system` メッセージとして追加します。ローカルAPIモードには適用しません。

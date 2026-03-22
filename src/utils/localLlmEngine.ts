@@ -1,5 +1,10 @@
 import type { InitProgressCallback, InitProgressReport, WebWorkerMLCEngine } from '@mlc-ai/web-llm';
 
+export type WebLlmModelOption = {
+    value: string;
+    label: string;
+};
+
 export const WEB_LLM_QWEN_MODEL_OPTIONS = [
     { value: 'Qwen3-0.6B-q4f16_1-MLC', label: 'Qwen3 0.6B' },
     { value: 'Qwen3-1.7B-q4f16_1-MLC', label: 'Qwen3 1.7B' },
@@ -12,6 +17,23 @@ export const WEB_LLM_QWEN_MODEL_OPTIONS = [
 ] as const;
 
 export const DEFAULT_WEB_LLM_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
+
+export const getWebLlmModelOptions = (customModelId?: string): WebLlmModelOption[] => {
+    const normalizedCustomModelId = typeof customModelId === 'string' ? customModelId.trim() : '';
+    const baseOptions: WebLlmModelOption[] = [...WEB_LLM_QWEN_MODEL_OPTIONS];
+
+    if (
+        normalizedCustomModelId.length > 0
+        && !baseOptions.some((option) => option.value === normalizedCustomModelId)
+    ) {
+        baseOptions.push({
+            value: normalizedCustomModelId,
+            label: `${normalizedCustomModelId} (カスタム)`,
+        });
+    }
+
+    return baseOptions;
+};
 
 type LocalLlmSupport = {
     supported: boolean;

@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.53.0',
+        date: '2026年3月22日 09:17',
+        improvements: [
+            'WebLLM の既定候補以外でも、modelId を直接設定して使えるようにしました。',
+            '設定画面で入力したカスタム WebLLM モデルは、ローカルLLMチャットと回答画面のモデル選択にもそのまま表示されます。',
+        ],
+        fixes: [
+            'これまで WebLLM は用意済みの候補だけに固定されていて、他の対応モデルを試したくても設定できない問題を改善しました。',
+            '保存済み会話や回答画面でカスタム modelId を使いたい場合でも、候補に出ず選び直しにくい不便さを修正しました。',
+        ],
+    },
+    {
         version: '1.52.0',
         date: '2026年3月21日 23:52',
         improvements: [

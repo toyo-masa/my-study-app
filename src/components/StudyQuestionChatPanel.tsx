@@ -8,11 +8,11 @@ import { MarkdownText } from './MarkdownText';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
+    getWebLlmModelOptions,
     getLocalLlmSupport,
     hasLoadedLocalLlmEngine,
     interruptLocalLlmGeneration,
     resetLocalLlmChat,
-    WEB_LLM_QWEN_MODEL_OPTIONS,
 } from '../utils/localLlmEngine';
 import {
     fetchOpenAiCompatibleModelIds,
@@ -277,6 +277,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
+    const webLlmSelectableModels = useMemo(
+        () => getWebLlmModelOptions(selectedWebLlmModel),
+        [selectedWebLlmModel]
+    );
     const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
     const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
     const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;
@@ -490,7 +494,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             onLocalLlmModeChange('webllm');
             if (
                 session.modelId
-                && WEB_LLM_QWEN_MODEL_OPTIONS.some((option) => option.value === session.modelId)
+                && session.modelId.trim().length > 0
             ) {
                 onWebLlmModelChange(session.modelId);
             }
@@ -1054,7 +1058,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         disabled={isGenerating || isModelLoading}
                     >
                         <optgroup label="WebLLM">
-                            {WEB_LLM_QWEN_MODEL_OPTIONS.map((option) => (
+                            {webLlmSelectableModels.map((option) => (
                                 <option key={option.value} value={`webllm:${option.value}`}>
                                     {option.label}
                                 </option>
