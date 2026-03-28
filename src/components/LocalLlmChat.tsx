@@ -1498,7 +1498,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                     </optgroup>
                                 ))}
                                 <optgroup label="ローカルAPI">
-                                    <option value="openai-local:">ローカルAPI（モデルを手入力）</option>
+                                    <option value="openai-local:">ローカルAPI（モデルを選択または入力）</option>
                                     {localApiSelectableModels.map((modelId) => (
                                         <option key={modelId} value={`openai-local:${modelId}`}>
                                             {modelId}
@@ -1535,6 +1535,30 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         />
                                     </label>
                                 )}
+                                <div className="local-llm-field" style={{ gridColumn: '1 / -1' }}>
+                                    <span className="local-llm-field-label">接続先</span>
+                                    <div className="local-llm-status-row" style={{ marginTop: 0 }}>
+                                        <span className="local-llm-info-chip">{localLlmSettings.baseUrl}</span>
+                                        <button
+                                            type="button"
+                                            className="nav-btn"
+                                            onClick={() => { void handleFetchModels(); }}
+                                            disabled={isFetchingModels || localLlmSettings.baseUrl.trim().length === 0}
+                                        >
+                                            {isFetchingModels ? 'モデル一覧を取得中…' : 'モデル一覧を再取得'}
+                                        </button>
+                                        {availableModels.length > 0 && (
+                                            <span className="local-llm-status-chip is-ready">
+                                                {availableModels.length} 件取得
+                                            </span>
+                                        )}
+                                        {availableModels.length === 0 && !isFetchingModels && !localApiFetchError && (
+                                            <span className="local-llm-status-chip is-muted">
+                                                モデル一覧未取得
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
