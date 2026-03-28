@@ -243,7 +243,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
     const copyRequestResetTimeoutRef = useRef<number | null>(null);
     const copyAnswerResetTimeoutRef = useRef<number | null>(null);
-    const backNavigationTimeoutRef = useRef<number | null>(null);
     const currentSessionIdRef = useRef(currentSessionId);
     const activeGenerationSessionRef = useRef<{
         sessionId: string;
@@ -630,9 +629,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             }
             if (copyAnswerResetTimeoutRef.current !== null) {
                 window.clearTimeout(copyAnswerResetTimeoutRef.current);
-            }
-            if (backNavigationTimeoutRef.current !== null) {
-                window.clearTimeout(backNavigationTimeoutRef.current);
             }
             clearStreamingFlushTimer();
             cancelActiveWork();
@@ -1321,34 +1317,19 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setOpenSessionMenuId(null);
         resetCopiedRequestState();
         resetCopiedMessageState();
-
-        if (isGenerating) {
-            handleStopGeneration();
-        } else {
-            clearStreamingFlushTimer();
-            flushStreamingUpdateRef.current = null;
-            invalidateActiveRequest();
-            interruptLocalLlmGeneration();
-            localApiModelListAbortRef.current?.abort();
-            localApiModelListAbortRef.current = null;
-            localApiChatAbortRef.current?.abort();
-            localApiChatAbortRef.current = null;
-            setWebllmGenerationPhase(null);
-        }
-
-        if (backNavigationTimeoutRef.current !== null) {
-            window.clearTimeout(backNavigationTimeoutRef.current);
-        }
-
-        backNavigationTimeoutRef.current = window.setTimeout(() => {
-            backNavigationTimeoutRef.current = null;
-            onBack();
-        }, 0);
+        clearStreamingFlushTimer();
+        flushStreamingUpdateRef.current = null;
+        invalidateActiveRequest();
+        interruptLocalLlmGeneration();
+        localApiModelListAbortRef.current?.abort();
+        localApiModelListAbortRef.current = null;
+        localApiChatAbortRef.current?.abort();
+        localApiChatAbortRef.current = null;
+        activeGenerationSessionRef.current = null;
+        onBack();
     }, [
         clearStreamingFlushTimer,
-        handleStopGeneration,
         invalidateActiveRequest,
-        isGenerating,
         onBack,
         resetCopiedMessageState,
         resetCopiedRequestState,

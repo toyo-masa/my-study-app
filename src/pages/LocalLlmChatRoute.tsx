@@ -18,7 +18,7 @@ export const LocalLlmChatRoute: React.FC<LocalLlmChatRouteProps> = ({
 
     return (
         <LocalLlmChat
-            onBack={() => navigate('/')}
+            onBack={() => navigate('/', { flushSync: true })}
             localLlmSettings={localLlmSettings}
             onLocalLlmModeChange={onLocalLlmModeChange}
             onWebLlmModelChange={onWebLlmModelChange}

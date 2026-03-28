@@ -51,6 +51,20 @@ const buildEndpoint = (baseUrl: string, path: string) => {
     return `${baseUrl.replace(/\/+$/, '')}${path}`;
 };
 
+const buildLocalApiFetchFailureMessage = (baseUrl: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const originHint = origin.length > 0
+        ? `現在の画面 origin は ${origin} です。`
+        : '';
+
+    return [
+        `ローカルAPIへ接続できませんでした (${baseUrl})。`,
+        'Ollama が起動していること、Base URL が正しいこと、ブラウザから localhost へ接続できることを確認してください。',
+        originHint,
+        'Ollama を使っている場合は、OLLAMA_ORIGINS にこの origin を追加するか、http://127.0.0.1 でアプリを開き直してください。',
+    ].filter((part) => part.length > 0).join(' ');
+};
+
 const buildChatRequestBody = (
     model: string,
     messages: OpenAiCompatibleMessage[],
@@ -255,11 +269,19 @@ export const fetchOpenAiCompatibleModelIds = async (
     apiKey?: string,
     signal?: AbortSignal
 ) => {
-    const response = await fetch(buildEndpoint(baseUrl, '/models'), {
-        method: 'GET',
-        headers: buildHeaders(apiKey),
-        signal,
-    });
+    let response: Response;
+    try {
+        response = await fetch(buildEndpoint(baseUrl, '/models'), {
+            method: 'GET',
+            headers: buildHeaders(apiKey),
+            signal,
+        });
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw error;
+        }
+        throw new Error(buildLocalApiFetchFailureMessage(baseUrl));
+    }
 
     if (!response.ok) {
         throw new Error(await getResponseErrorMessage(response));
@@ -298,18 +320,26 @@ export const streamOpenAiCompatibleChat = async ({
     presencePenalty,
     repetitionPenalty,
 }: StreamChatParams) => {
-    const response = await fetch(buildEndpoint(baseUrl, '/chat/completions'), {
-        method: 'POST',
-        headers: buildHeaders(apiKey, true),
-        body: JSON.stringify(buildChatRequestBody(model, messages, true, {
-            temperature,
-            topP,
-            maxTokens,
-            presencePenalty,
-            repetitionPenalty,
-        })),
-        signal,
-    });
+    let response: Response;
+    try {
+        response = await fetch(buildEndpoint(baseUrl, '/chat/completions'), {
+            method: 'POST',
+            headers: buildHeaders(apiKey, true),
+            body: JSON.stringify(buildChatRequestBody(model, messages, true, {
+                temperature,
+                topP,
+                maxTokens,
+                presencePenalty,
+                repetitionPenalty,
+            })),
+            signal,
+        });
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw error;
+        }
+        throw new Error(buildLocalApiFetchFailureMessage(baseUrl));
+    }
 
     if (!response.ok) {
         throw new Error(await getResponseErrorMessage(response));
@@ -391,21 +421,29 @@ export const createOpenAiCompatibleChat = async ({
     toolChoice,
     extraBody,
 }: ChatOnceParams) => {
-    const response = await fetch(buildEndpoint(baseUrl, '/chat/completions'), {
-        method: 'POST',
-        headers: buildHeaders(apiKey),
-        body: JSON.stringify(buildChatRequestBody(model, messages, false, {
-            temperature,
-            topP,
-            maxTokens,
-            presencePenalty,
-            repetitionPenalty,
-            tools,
-            toolChoice,
-            extraBody,
-        })),
-        signal,
-    });
+    let response: Response;
+    try {
+        response = await fetch(buildEndpoint(baseUrl, '/chat/completions'), {
+            method: 'POST',
+            headers: buildHeaders(apiKey),
+            body: JSON.stringify(buildChatRequestBody(model, messages, false, {
+                temperature,
+                topP,
+                maxTokens,
+                presencePenalty,
+                repetitionPenalty,
+                tools,
+                toolChoice,
+                extraBody,
+            })),
+            signal,
+        });
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw error;
+        }
+        throw new Error(buildLocalApiFetchFailureMessage(baseUrl));
+    }
 
     if (!response.ok) {
         throw new Error(await getResponseErrorMessage(response));
