@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
@@ -15,6 +15,12 @@ import {
     type LocalLlmSettings,
     type ThemeMode,
 } from '../utils/settings';
+import { fetchOpenAiCompatibleModelIds } from '../utils/openAiCompatibleLocalApi';
+import {
+    DEFAULT_LOCAL_API_BASE_URL,
+    findLocalApiProviderByBaseUrl,
+    LOCAL_API_PROVIDER_PRESETS,
+} from '../utils/localApiProviders';
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 import { getGroupedWebLlmModelOptions } from '../utils/localLlmEngine';
@@ -87,6 +93,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         () => getGroupedWebLlmModelOptions(localLlmSettings.webllmModelId),
         [localLlmSettings.webllmModelId]
     );
+    const matchedLocalApiProvider = useMemo(
+        () => findLocalApiProviderByBaseUrl(localLlmSettings.baseUrl),
+        [localLlmSettings.baseUrl]
+    );
+    const localApiModelPlaceholder = matchedLocalApiProvider?.exampleModelId ?? 'qwen3.5:4b';
+    const [availableLocalApiModels, setAvailableLocalApiModels] = useState<string[]>([]);
+    const [isFetchingLocalApiModels, setIsFetchingLocalApiModels] = useState(false);
+    const [localApiModelFetchError, setLocalApiModelFetchError] = useState<string | null>(null);
+    const [localApiModelFetchNonce, setLocalApiModelFetchNonce] = useState(0);
+    const localApiModelOptions = useMemo(() => {
+        const modelIds = new Set<string>();
+        const preferredModelId = localLlmSettings.defaultModelId.trim();
+
+        if (preferredModelId.length > 0) {
+            modelIds.add(preferredModelId);
+        }
+
+        availableLocalApiModels.forEach((modelId) => {
+            const trimmed = modelId.trim();
+            if (trimmed.length > 0) {
+                modelIds.add(trimmed);
+            }
+        });
+
+        return Array.from(modelIds);
+    }, [availableLocalApiModels, localLlmSettings.defaultModelId]);
+    const hasLocalApiBaseUrl = localLlmSettings.baseUrl.trim().length > 0;
+    const visibleLocalApiModelOptions = hasLocalApiBaseUrl ? localApiModelOptions : [];
+    const visibleLocalApiModelFetchError = hasLocalApiBaseUrl ? localApiModelFetchError : null;
+    const isVisibleLocalApiModelFetchInFlight = hasLocalApiBaseUrl ? isFetchingLocalApiModels : false;
 
     const parseOptionalNumberInput = (value: string): number | null => {
         const trimmed = value.trim();
@@ -97,6 +133,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const parsed = Number.parseFloat(trimmed);
         return Number.isFinite(parsed) ? parsed : null;
     };
+
+    useEffect(() => {
+        if (!isOpen || !showLocalLlmSettings) {
+            return;
+        }
+
+        const trimmedBaseUrl = localLlmSettings.baseUrl.trim();
+        if (trimmedBaseUrl.length === 0) {
+            return;
+        }
+
+        const controller = new AbortController();
+        let active = true;
+
+        void Promise.resolve().then(() => {
+            if (!active) {
+                return;
+            }
+            setAvailableLocalApiModels([]);
+            setLocalApiModelFetchError(null);
+            setIsFetchingLocalApiModels(true);
+        });
+
+        void fetchOpenAiCompatibleModelIds(trimmedBaseUrl, undefined, controller.signal)
+            .then((modelIds) => {
+                if (!active) {
+                    return;
+                }
+                setAvailableLocalApiModels(modelIds);
+            })
+            .catch((error: unknown) => {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    return;
+                }
+                if (!active) {
+                    return;
+                }
+                setLocalApiModelFetchError(
+                    error instanceof Error && error.message.trim().length > 0
+                        ? error.message
+                        : 'ローカルAPI のモデル一覧を取得できませんでした。'
+                );
+            })
+            .finally(() => {
+                if (!active) {
+                    return;
+                }
+                setIsFetchingLocalApiModels(false);
+            });
+
+        return () => {
+            active = false;
+            controller.abort();
+        };
+    }, [isOpen, localApiModelFetchNonce, localLlmSettings.baseUrl, showLocalLlmSettings]);
 
     const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, nextValue: number) => {
         const nextSettings = normalizeReviewIntervalSettings({
@@ -325,7 +416,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             <div className="review-settings-card">
                                                 <h4 className="review-settings-card-title">ローカルAPI接続先</h4>
                                                 <p className="review-settings-note">
-                                                    LM Studio は通常 `http://localhost:1234/v1`、vLLM / SGLang は `http://localhost:8000/v1` を使います。
+                                                    学習アプリから単体PCのローカルAPIを叩く用途では Ollama をおすすめします。vLLM は Linux + 対応GPU を使う常設環境向けです。
+                                                </p>
+                                                <div className="appearance-grid local-llm-settings-provider-grid">
+                                                    {LOCAL_API_PROVIDER_PRESETS.map((preset) => (
+                                                        <button
+                                                            key={preset.id}
+                                                            type="button"
+                                                            className={`appearance-option ${matchedLocalApiProvider?.id === preset.id ? 'active' : ''}`}
+                                                            onClick={() => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                baseUrl: preset.baseUrl,
+                                                            })}
+                                                        >
+                                                            <div className={`appearance-preview ${preset.id === 'ollama' ? 'dark' : preset.id === 'vllm' ? 'monokai' : 'light'}`}></div>
+                                                            <span>{preset.label}</span>
+                                                            <small>{preset.baseUrl}</small>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <p className="review-settings-note" style={{ marginTop: '0.9rem' }}>
+                                                    候補を選ぶと Base URL だけ自動で入ります。モデル名は `/v1/models` から自動取得できるので、空欄のままでも構いません。
                                                 </p>
                                                 <div className="review-settings-grid">
                                                     <label className="review-setting-item">
@@ -338,29 +449,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 baseUrl: event.target.value,
                                                             })}
-                                                            placeholder="http://localhost:1234/v1"
+                                                            placeholder={DEFAULT_LOCAL_API_BASE_URL}
                                                             spellCheck={false}
                                                         />
                                                     </label>
                                                     <label className="review-setting-item">
                                                         <span className="review-setting-label">既定モデル名</span>
-                                                        <input
-                                                            type="text"
-                                                            className="setting-select"
-                                                            value={localLlmSettings.defaultModelId}
-                                                            onChange={(event) => onLocalLlmSettingsChange({
-                                                                ...localLlmSettings,
-                                                                defaultModelId: event.target.value,
-                                                            })}
-                                                            placeholder="Qwen/Qwen3.5-0.8B など"
-                                                            spellCheck={false}
-                                                        />
+                                                        {visibleLocalApiModelOptions.length > 0 ? (
+                                                            <select
+                                                                className="setting-select"
+                                                                value={localLlmSettings.defaultModelId}
+                                                                onChange={(event) => onLocalLlmSettingsChange({
+                                                                    ...localLlmSettings,
+                                                                    defaultModelId: event.target.value,
+                                                                })}
+                                                            >
+                                                                <option value="">未設定（チャット画面で選ぶ）</option>
+                                                                {visibleLocalApiModelOptions.map((modelId) => (
+                                                                    <option key={modelId} value={modelId}>
+                                                                        {modelId}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <input
+                                                                type="text"
+                                                                className="setting-select"
+                                                                value={localLlmSettings.defaultModelId}
+                                                                onChange={(event) => onLocalLlmSettingsChange({
+                                                                    ...localLlmSettings,
+                                                                    defaultModelId: event.target.value,
+                                                                })}
+                                                                placeholder={`${localApiModelPlaceholder} など`}
+                                                                spellCheck={false}
+                                                            />
+                                                        )}
                                                     </label>
                                                 </div>
 
                                                 <p className="review-settings-note" style={{ marginTop: '0.9rem', marginBottom: 0 }}>
-                                                    APIキーはここには保存せず、チャット画面を開いている間だけ入力します。
+                                                    APIキーはここには保存せず、チャット画面を開いている間だけ入力します。Ollama とローカルの vLLM は通常 APIキーなしで使えます。
                                                 </p>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginTop: '0.9rem', alignItems: 'center' }}>
+                                                    <button
+                                                        type="button"
+                                                        className="nav-btn"
+                                                        onClick={() => setLocalApiModelFetchNonce((previous) => previous + 1)}
+                                                        disabled={isVisibleLocalApiModelFetchInFlight || !hasLocalApiBaseUrl}
+                                                    >
+                                                        {isVisibleLocalApiModelFetchInFlight ? 'モデル一覧を取得中…' : 'モデル一覧を再取得'}
+                                                    </button>
+                                                    {visibleLocalApiModelOptions.length > 0 && (
+                                                        <span className="review-settings-note" style={{ margin: 0 }}>
+                                                            {visibleLocalApiModelOptions.length} 件のモデルを取得しました。
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {visibleLocalApiModelFetchError && (
+                                                    <p className="review-settings-note" style={{ marginTop: '0.75rem', marginBottom: 0, color: 'var(--error-color)' }}>
+                                                        {visibleLocalApiModelFetchError}
+                                                    </p>
+                                                )}
 
                                                 <button
                                                     type="button"

@@ -2713,8 +2713,20 @@ button.appearance-option.active {
   font-weight: 500;
 }
 
+.appearance-option small {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
 .local-llm-settings-mode-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.local-llm-settings-provider-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .settings-footer {

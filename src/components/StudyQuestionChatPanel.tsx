@@ -31,6 +31,10 @@ import {
     runWebLlmBudgetedGeneration,
     type WebLlmGenerationPhase,
 } from '../utils/webLlmBudgetedGeneration';
+import {
+    findLocalApiProviderByBaseUrl,
+    LOCAL_API_PROVIDER_PRESETS,
+} from '../utils/localApiProviders';
 
 type LocalChatMessage = {
     id: string;
@@ -49,12 +53,6 @@ interface StudyQuestionChatPanelProps {
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
     onWebLlmModelChange: (modelId: string) => void;
 }
-
-const LOCAL_API_EXAMPLES = [
-    'LM Studio: http://localhost:1234/v1',
-    'vLLM / SGLang: http://localhost:8000/v1',
-    'Ollama(OpenAI互換): http://localhost:11434/v1',
-] as const;
 
 const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
 const WEB_LLM_LENGTH_WARNING = 'WebLLM の上限に達したため、最終回答も途中で打ち切られました。必要なら続きを短く区切って質問してください。';
@@ -297,6 +295,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
     const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;
     const webllmSecondPassFinalAnswerMaxTokens = localLlmSettings.webllmSecondPassFinalAnswerMaxTokens;
+    const matchedLocalApiProvider = useMemo(
+        () => findLocalApiProviderByBaseUrl(localLlmSettings.baseUrl),
+        [localLlmSettings.baseUrl]
+    );
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
@@ -329,7 +331,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
     const selectedModelOptionValue = activeMode === 'webllm'
         ? `webllm:${selectedWebLlmModel}`
-        : (selectedLocalApiModel.trim().length > 0 ? `openai-local:${selectedLocalApiModel.trim()}` : '');
+        : `openai-local:${selectedLocalApiModel.trim()}`;
     const canSend = input.trim().length > 0
         && !isGenerating
         && questionId !== null
@@ -1096,6 +1098,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 {webllmGenerationPhase === 'thinking' ? '思考中' : '最終回答を生成中'}
                             </span>
                         )}
+                        {isFetchingModels && activeMode === 'openai-local' && (
+                            <span className="local-llm-inline-status">
+                                <LoaderCircle size={15} className="spin" />
+                                接続確認中
+                            </span>
+                        )}
                         <button
                             type="button"
                             className="menu-btn right-panel-copy-btn"
@@ -1135,15 +1143,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 ))}
                             </optgroup>
                         ))}
-                        {localApiSelectableModels.length > 0 && (
-                            <optgroup label="ローカルAPI">
-                                {localApiSelectableModels.map((modelId) => (
-                                    <option key={modelId} value={`openai-local:${modelId}`}>
-                                        {modelId}
-                                    </option>
-                                ))}
-                            </optgroup>
-                        )}
+                        <optgroup label="ローカルAPI">
+                            <option value="openai-local:">ローカルAPI（モデルを選択）</option>
+                            {localApiSelectableModels.map((modelId) => (
+                                <option key={modelId} value={`openai-local:${modelId}`}>
+                                    {modelId}
+                                </option>
+                            ))}
+                        </optgroup>
                     </select>
                     {isModelLoading && activeMode === 'webllm' && (
                         <span className="local-llm-inline-status">
@@ -1164,6 +1171,16 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             autoComplete="off"
                             spellCheck={false}
                         />
+                        {(selectedLocalApiModel.trim().length === 0 || localApiFetchError !== null || localApiSelectableModels.length === 0) && (
+                            <input
+                                type="text"
+                                className="local-llm-input"
+                                value={selectedLocalApiModel}
+                                onChange={(event) => setSelectedLocalApiModel(event.target.value)}
+                                placeholder={localLlmSettings.defaultModelId || `${matchedLocalApiProvider?.exampleModelId ?? 'qwen3.5:4b'} などのモデル名を入力`}
+                                spellCheck={false}
+                            />
+                        )}
                         <div className="study-question-chat-actions">
                             <button
                                 type="button"
@@ -1176,8 +1193,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             </button>
                         </div>
                         <div className="study-question-chat-examples">
-                            {LOCAL_API_EXAMPLES.map((example) => (
-                                <span key={example} className="local-llm-info-chip">{example}</span>
+                            {LOCAL_API_PROVIDER_PRESETS.map((preset) => (
+                                <span key={preset.id} className="local-llm-info-chip">
+                                    {preset.label}: {preset.baseUrl}
+                                </span>
                             ))}
                         </div>
                     </>

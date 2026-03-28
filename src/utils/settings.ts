@@ -1,4 +1,5 @@
 import { DEFAULT_WEB_LLM_MODEL_ID } from './localLlmEngine';
+import { DEFAULT_LOCAL_API_BASE_URL } from './localApiProviders';
 export type ThemeMode = 'light' | 'dark' | 'monokai';
 export type LocalLlmMode = 'webllm' | 'openai-local';
 export type LocalLlmStreamingRenderMode = 'live' | 'lightweight';
@@ -58,7 +59,7 @@ const DEFAULT_SETTINGS = {
     } as HandwritingSettings,
     localLlmSettings: {
         preferredMode: 'webllm' as LocalLlmMode,
-        baseUrl: 'http://localhost:1234/v1',
+        baseUrl: DEFAULT_LOCAL_API_BASE_URL,
         defaultModelId: '',
         webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
         webllmStreamingRenderMode: 'live' as LocalLlmStreamingRenderMode,

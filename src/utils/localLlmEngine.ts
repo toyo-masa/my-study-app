@@ -24,10 +24,25 @@ export const WEB_LLM_QWEN_MODEL_OPTIONS = [
 
 export const DEFAULT_WEB_LLM_MODEL_ID = 'Qwen3-1.7B-q4f16_1-MLC';
 
+const VISIBLE_PREBUILT_WEB_LLM_MODEL_PATTERNS = [
+    /^Llama-3\.2-(?:1B|3B)-Instruct-q4f16_1-MLC$/,
+    /^Llama-3\.1-8B-Instruct-q4f16_1-MLC$/,
+    /^DeepSeek-R1-Distill-(?:Qwen-7B|Llama-8B)-q4f16_1-MLC$/,
+    /^Hermes-3-Llama-3\.(?:2-3B|1-8B)-q4f16_1-MLC$/,
+    /^Phi-3\.5-mini-instruct-q4f16_1-MLC$/,
+    /^Mistral-7B-Instruct-v0\.3-q4f16_1-MLC$/,
+    /^gemma-2-(?:2b|9b)(?:-jpn)?-it-q4f16_1-MLC$/,
+    /^SmolLM2-(?:1\.7B|360M)-Instruct-q4f16_1-MLC$/,
+] as const;
+
+const shouldShowPrebuiltWebLlmModel = (modelId: string) => {
+    return VISIBLE_PREBUILT_WEB_LLM_MODEL_PATTERNS.some((pattern) => pattern.test(modelId));
+};
+
 const PREBUILT_WEB_LLM_MODEL_OPTIONS: WebLlmModelOption[] = prebuiltAppConfig.model_list
     .filter((modelRecord) => (
-        modelRecord.model_type === undefined
-        || modelRecord.model_type === ModelType.LLM
+        (modelRecord.model_type === undefined || modelRecord.model_type === ModelType.LLM)
+        && shouldShowPrebuiltWebLlmModel(modelRecord.model_id)
     ))
     .map((modelRecord) => ({
         value: modelRecord.model_id,
