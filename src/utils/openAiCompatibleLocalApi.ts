@@ -40,6 +40,18 @@ type StreamChatParams = {
     extraBody?: Record<string, unknown> | null;
 } & ChatTuningParams;
 
+type OllamaThinkMode = boolean | 'low' | 'medium' | 'high';
+
+type StreamOllamaNativeChatParams = {
+    baseUrl: string;
+    model: string;
+    messages: OpenAiCompatibleMessage[];
+    signal?: AbortSignal;
+    think?: OllamaThinkMode | null;
+    onThinkingDelta?: (delta: string) => void;
+    onContentDelta?: (delta: string) => void;
+} & ChatTuningParams;
+
 type ChatOnceParams = {
     baseUrl: string;
     model: string;
@@ -50,6 +62,17 @@ type ChatOnceParams = {
 
 const buildEndpoint = (baseUrl: string, path: string) => {
     return `${baseUrl.replace(/\/+$/, '')}${path}`;
+};
+
+const buildOllamaNativeChatEndpoint = (baseUrl: string) => {
+    const normalized = baseUrl.trim().replace(/\/+$/, '');
+    if (normalized.endsWith('/v1')) {
+        return `${normalized.slice(0, -3)}/api/chat`;
+    }
+    if (normalized.endsWith('/api')) {
+        return `${normalized}/chat`;
+    }
+    return `${normalized}/api/chat`;
 };
 
 const buildLocalApiFetchFailureMessage = (baseUrl: string) => {
@@ -121,6 +144,50 @@ const buildHeaders = (apiKey?: string, withStream = false) => {
     }
 
     return headers;
+};
+
+const buildOllamaNativeChatBody = (
+    model: string,
+    messages: OpenAiCompatibleMessage[],
+    params: StreamOllamaNativeChatParams
+) => {
+    const payload: Record<string, unknown> = {
+        model,
+        messages: messages.flatMap((message) => {
+            if (message.role === 'tool') {
+                return [];
+            }
+            return [message];
+        }),
+        stream: true,
+    };
+
+    if (params.think !== null && params.think !== undefined) {
+        payload.think = params.think;
+    }
+
+    const options: Record<string, unknown> = {};
+    if (typeof params.temperature === 'number') {
+        options.temperature = params.temperature;
+    }
+    if (typeof params.topP === 'number') {
+        options.top_p = params.topP;
+    }
+    if (typeof params.maxTokens === 'number') {
+        options.num_predict = params.maxTokens;
+    }
+    if (typeof params.presencePenalty === 'number') {
+        options.presence_penalty = params.presencePenalty;
+    }
+    if (typeof params.repetitionPenalty === 'number') {
+        options.repeat_penalty = params.repetitionPenalty;
+    }
+
+    if (Object.keys(options).length > 0) {
+        payload.options = options;
+    }
+
+    return payload;
 };
 
 const extractTextContent = (value: unknown): string => {
@@ -407,6 +474,148 @@ export const streamOpenAiCompatibleChat = async ({
     }
 
     return assistantText;
+};
+
+export const streamOllamaNativeChat = async ({
+    baseUrl,
+    model,
+    messages,
+    signal,
+    think,
+    temperature,
+    topP,
+    maxTokens,
+    presencePenalty,
+    repetitionPenalty,
+    onThinkingDelta,
+    onContentDelta,
+}: StreamOllamaNativeChatParams) => {
+    let response: Response;
+    try {
+        response = await fetch(buildOllamaNativeChatEndpoint(baseUrl), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(buildOllamaNativeChatBody(model, messages, {
+                baseUrl,
+                model,
+                messages,
+                signal,
+                think,
+                temperature,
+                topP,
+                maxTokens,
+                presencePenalty,
+                repetitionPenalty,
+                onThinkingDelta,
+                onContentDelta,
+            })),
+            signal,
+        });
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw error;
+        }
+        throw new Error(buildLocalApiFetchFailureMessage(baseUrl));
+    }
+
+    if (!response.ok) {
+        throw new Error(await getResponseErrorMessage(response));
+    }
+
+    const readChunkPayload = (payload: unknown) => {
+        if (!payload || typeof payload !== 'object') {
+            return { thinking: '', content: '', done: false };
+        }
+
+        const candidate = payload as {
+            done?: unknown;
+            message?: {
+                thinking?: unknown;
+                content?: unknown;
+            };
+        };
+
+        return {
+            thinking: typeof candidate.message?.thinking === 'string' ? candidate.message.thinking : '',
+            content: typeof candidate.message?.content === 'string' ? candidate.message.content : '',
+            done: candidate.done === true,
+        };
+    };
+
+    if (!response.body) {
+        const payload = await response.json();
+        const parsed = readChunkPayload(payload);
+        if (parsed.thinking.length > 0) {
+            onThinkingDelta?.(parsed.thinking);
+        }
+        if (parsed.content.length > 0) {
+            onContentDelta?.(parsed.content);
+        }
+        return {
+            thinkingText: parsed.thinking,
+            contentText: parsed.content,
+        };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';
+    let thinkingText = '';
+    let contentText = '';
+    let streamDone = false;
+
+    while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (done) {
+            pending += decoder.decode();
+            break;
+        }
+
+        pending += decoder.decode(value, { stream: true });
+
+        let separatorIndex = pending.indexOf('\n');
+        while (separatorIndex >= 0) {
+            const line = pending.slice(0, separatorIndex).trim();
+            pending = pending.slice(separatorIndex + 1);
+
+            if (line.length > 0) {
+                const parsed = readChunkPayload(JSON.parse(line) as unknown);
+                if (parsed.thinking.length > 0) {
+                    thinkingText += parsed.thinking;
+                    onThinkingDelta?.(parsed.thinking);
+                }
+                if (parsed.content.length > 0) {
+                    contentText += parsed.content;
+                    onContentDelta?.(parsed.content);
+                }
+                if (parsed.done) {
+                    streamDone = true;
+                    break;
+                }
+            }
+
+            separatorIndex = pending.indexOf('\n');
+        }
+    }
+
+    if (!streamDone && pending.trim().length > 0) {
+        const parsed = readChunkPayload(JSON.parse(pending.trim()) as unknown);
+        if (parsed.thinking.length > 0) {
+            thinkingText += parsed.thinking;
+            onThinkingDelta?.(parsed.thinking);
+        }
+        if (parsed.content.length > 0) {
+            contentText += parsed.content;
+            onContentDelta?.(parsed.content);
+        }
+    }
+
+    return {
+        thinkingText,
+        contentText,
+    };
 };
 
 export const createOpenAiCompatibleChat = async ({

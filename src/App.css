@@ -1119,6 +1119,14 @@
   gap: 0.75rem;
 }
 
+.local-llm-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .local-llm-textarea {
   width: 100%;
   min-height: 118px;
@@ -1146,7 +1154,45 @@
 
 .local-llm-composer-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.55rem;
+  margin-left: auto;
+}
+
+.local-llm-thinking-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  align-self: flex-start;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.local-llm-thinking-toggle:hover:not(:disabled) {
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.45);
+  color: var(--text-color);
+  transform: translateY(-1px);
+}
+
+.local-llm-thinking-toggle.active {
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.55);
+  background: rgba(var(--primary-color-rgb, 244, 114, 182), 0.16);
+  color: var(--text-color);
+}
+
+.local-llm-thinking-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .local-llm-bottom-anchor {
@@ -1317,9 +1363,14 @@
   }
 
   .study-question-chat-field-row,
+  .local-llm-composer-toolbar,
   .study-question-chat-composer-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .local-llm-composer-actions {
+    margin-left: 0;
   }
 }
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Check, Copy, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bot, Brain, Check, Copy, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
@@ -19,6 +19,7 @@ import {
 } from '../utils/localLlmEngine';
 import {
     fetchOpenAiCompatibleModelIds,
+    streamOllamaNativeChat,
     streamOpenAiCompatibleChat,
     type OpenAiCompatibleMessage,
 } from '../utils/openAiCompatibleLocalApi';
@@ -89,6 +90,21 @@ const getCopyableMessageContent = (message: LocalChatMessage) => {
     return message.role === 'assistant'
         ? getCopyableAssistantContent(message.content)
         : message.content.trim();
+};
+
+const buildAssistantDisplayText = (thinkingText: string, answerText: string) => {
+    const trimmedThinking = thinkingText.trim();
+    const trimmedAnswer = answerText.trim();
+
+    if (trimmedThinking.length === 0) {
+        return answerText;
+    }
+
+    if (trimmedAnswer.length === 0) {
+        return `<think>${thinkingText}`;
+    }
+
+    return `<think>${thinkingText}</think>\n\n${answerText}`;
 };
 
 const toStoredMessages = (messages: LocalChatMessage[]): StoredLocalLlmChatMessage[] => {
@@ -271,6 +287,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
+    const [isThinkingEnabled, setIsThinkingEnabled] = useState(true);
     const threadRef = useRef<HTMLDivElement>(null);
     const mountedRef = useRef(true);
     const requestIdRef = useRef(0);
@@ -305,6 +322,17 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         () => resolveLocalApiRequestOptions(localLlmSettings),
         [localLlmSettings]
     );
+    const showThinkingToggle = activeMode === 'webllm'
+        || (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama');
+    const effectiveOllamaThink = useMemo(() => {
+        if (matchedLocalApiProvider?.id !== 'ollama') {
+            return localApiRequestOptions.ollamaThink;
+        }
+
+        return isThinkingEnabled
+            ? (localApiRequestOptions.ollamaThink ?? true)
+            : false;
+    }, [isThinkingEnabled, localApiRequestOptions.ollamaThink, matchedLocalApiProvider?.id]);
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
@@ -337,7 +365,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
     const selectedModelOptionValue = activeMode === 'webllm'
         ? `webllm:${selectedWebLlmModel}`
-        : `openai-local:${selectedLocalApiModel.trim()}`;
+        : 'openai-local';
     const canSend = input.trim().length > 0
         && !isGenerating
         && questionId !== null
@@ -720,6 +748,25 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [activeMode, handleFetchModels, localLlmSettings.baseUrl]);
 
     useEffect(() => {
+        if (activeMode === 'webllm') {
+            setIsThinkingEnabled(localLlmSettings.webllmEnableThinking);
+            return;
+        }
+
+        if (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama') {
+            setIsThinkingEnabled(localApiRequestOptions.ollamaThink !== false);
+            return;
+        }
+
+        setIsThinkingEnabled(false);
+    }, [
+        activeMode,
+        localApiRequestOptions.ollamaThink,
+        localLlmSettings.webllmEnableThinking,
+        matchedLocalApiProvider?.id,
+    ]);
+
+    useEffect(() => {
         if (activeMode !== 'webllm' || !webllmSupport.supported) {
             autoLoadWebLlmKeyRef.current = null;
             return;
@@ -869,7 +916,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 const result = await runWebLlmBudgetedGeneration({
                     engine,
                     messages: webLlmMessages,
-                    enableThinking: localLlmSettings.webllmEnableThinking,
+                    enableThinking: isThinkingEnabled,
                     firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
                     firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
                     firstPassTopP: webllmFirstPassTopP ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
@@ -913,34 +960,76 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     mode: 'openai-local',
                     baseUrl: localLlmSettings.baseUrl,
                     model: selectedModel,
-                    request: {
+                    request: matchedLocalApiProvider?.id === 'ollama'
+                        ? {
+                            model: selectedModel,
+                            messages: openAiMessages,
+                            stream: true,
+                            think: effectiveOllamaThink,
+                            options: {
+                                temperature: localApiRequestOptions.temperature,
+                                top_p: localApiRequestOptions.topP,
+                                num_predict: localApiRequestOptions.maxTokens,
+                            },
+                        }
+                        : {
+                            model: selectedModel,
+                            messages: openAiMessages,
+                            stream: true,
+                            temperature: localApiRequestOptions.temperature,
+                            top_p: localApiRequestOptions.topP,
+                            max_tokens: localApiRequestOptions.maxTokens,
+                            extra_body: localApiRequestOptions.extraBody,
+                        },
+                });
+
+                if (matchedLocalApiProvider?.id === 'ollama') {
+                    let thinkingText = '';
+                    let answerText = '';
+
+                    const finalResult = await streamOllamaNativeChat({
+                        baseUrl: localLlmSettings.baseUrl,
                         model: selectedModel,
                         messages: openAiMessages,
-                        stream: true,
+                        signal: controller.signal,
+                        think: effectiveOllamaThink,
                         temperature: localApiRequestOptions.temperature,
-                        top_p: localApiRequestOptions.topP,
-                        max_tokens: localApiRequestOptions.maxTokens,
-                        extra_body: localApiRequestOptions.extraBody,
-                    },
-                });
+                        topP: localApiRequestOptions.topP,
+                        maxTokens: localApiRequestOptions.maxTokens,
+                        onThinkingDelta: (delta) => {
+                            thinkingText += delta;
+                            assistantText = buildAssistantDisplayText(thinkingText, answerText);
+                            updateAssistantText(assistantText);
+                        },
+                        onContentDelta: (delta) => {
+                            answerText += delta;
+                            assistantText = buildAssistantDisplayText(thinkingText, answerText);
+                            updateAssistantText(assistantText);
+                        },
+                    });
 
-                const finalText = await streamOpenAiCompatibleChat({
-                    baseUrl: localLlmSettings.baseUrl,
-                    model: selectedModel,
-                    messages: openAiMessages,
-                    signal: controller.signal,
-                    temperature: localApiRequestOptions.temperature,
-                    topP: localApiRequestOptions.topP,
-                    maxTokens: localApiRequestOptions.maxTokens,
-                    extraBody: localApiRequestOptions.extraBody,
-                    onDelta: (delta) => {
-                        assistantText += delta;
-                        updateAssistantText(assistantText);
-                    },
-                });
+                    if (assistantText.length === 0) {
+                        assistantText = buildAssistantDisplayText(finalResult.thinkingText, finalResult.contentText);
+                    }
+                } else {
+                    const finalText = await streamOpenAiCompatibleChat({
+                        baseUrl: localLlmSettings.baseUrl,
+                        model: selectedModel,
+                        messages: openAiMessages,
+                        signal: controller.signal,
+                        temperature: localApiRequestOptions.temperature,
+                        topP: localApiRequestOptions.topP,
+                        maxTokens: localApiRequestOptions.maxTokens,
+                        extraBody: localApiRequestOptions.extraBody,
+                        onDelta: (delta) => {
+                            assistantText += delta;
+                            updateAssistantText(assistantText);
+                        },
+                    });
 
-                if (assistantText.length === 0) {
-                    assistantText = finalText;
+                    if (assistantText.length === 0) {
+                        assistantText = finalText;
+                    }
                 }
 
                 if (localApiChatAbortRef.current === controller) {
@@ -978,19 +1067,21 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         input,
         isGenerating,
         isModelReady,
+        isThinkingEnabled,
+        effectiveOllamaThink,
         localApiRequestOptions.extraBody,
         localApiRequestOptions.maxTokens,
         localApiRequestOptions.temperature,
         localApiRequestOptions.topP,
         localLlmSettings.baseUrl,
         localLlmSettings.webllmStreamingRenderMode,
-        localLlmSettings.webllmEnableThinking,
         webllmFirstPassTemperature,
         webllmFirstPassTopP,
         localLlmSettings.webllmFirstPassPresencePenalty,
         localLlmSettings.webllmSecondPassPresencePenalty,
         localLlmSettings.webllmSecondPassTemperature,
         localLlmSettings.webllmSecondPassTopP,
+        matchedLocalApiProvider?.id,
         messages,
         questionId,
         questionContextUserPrompt,
@@ -1064,8 +1155,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             return;
         }
 
-        if (value.startsWith('openai-local:')) {
-            const modelId = value.slice('openai-local:'.length).trim();
+        if (value === 'openai-local' || value.startsWith('openai-local:')) {
+            const modelId = value === 'openai-local'
+                ? selectedLocalApiModel.trim()
+                : value.slice('openai-local:'.length).trim();
             if (activeMode !== 'openai-local') {
                 onLocalLlmModeChange('openai-local');
             }
@@ -1160,12 +1253,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             </optgroup>
                         ))}
                         <optgroup label="ローカルAPI">
-                            <option value="openai-local:">ローカルAPI（モデルを選択）</option>
-                            {localApiSelectableModels.map((modelId) => (
-                                <option key={modelId} value={`openai-local:${modelId}`}>
-                                    {modelId}
-                                </option>
-                            ))}
+                            <option value="openai-local">ローカルAPI</option>
                         </optgroup>
                     </select>
                     {isModelLoading && activeMode === 'webllm' && (
@@ -1178,7 +1266,21 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
                 {activeMode === 'openai-local' && (
                     <>
-                        {(selectedLocalApiModel.trim().length === 0 || localApiFetchError !== null || localApiSelectableModels.length === 0) && (
+                        {localApiFetchError === null && localApiSelectableModels.length > 0 ? (
+                            <select
+                                className="local-llm-input"
+                                value={selectedLocalApiModel.trim()}
+                                onChange={(event) => handleModelOptionChange(`openai-local:${event.target.value}`)}
+                                disabled={isGenerating || isFetchingModels}
+                            >
+                                <option value="">モデルを選択してください</option>
+                                {localApiSelectableModels.map((modelId) => (
+                                    <option key={`study-local-api-model-field-${modelId}`} value={modelId}>
+                                        {modelId}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
                             <input
                                 type="text"
                                 className="local-llm-input"
@@ -1296,36 +1398,52 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         rows={4}
                         disabled={(activeMode === 'webllm' ? !isModelReady : selectedModel.length === 0) || isGenerating || questionId === null}
                     />
-                    <div className="study-question-chat-composer-actions">
-                        <button
-                            type="button"
-                            className="nav-btn"
-                            onClick={handleClearChat}
-                            disabled={messages.length === 0 || isGenerating}
-                        >
-                            <Trash2 size={16} />
-                            クリア
-                        </button>
-                        {isGenerating ? (
+                    <div className="local-llm-composer-toolbar">
+                        {showThinkingToggle ? (
                             <button
                                 type="button"
-                                className="nav-btn"
-                                onClick={handleStopGeneration}
+                                className={`local-llm-thinking-toggle ${isThinkingEnabled ? 'active' : ''}`}
+                                onClick={() => setIsThinkingEnabled((previous) => !previous)}
+                                disabled={isGenerating}
+                                aria-pressed={isThinkingEnabled}
                             >
-                                <Square size={16} />
-                                生成を中止
+                                <Brain size={15} />
+                                Thinking {isThinkingEnabled ? 'ON' : 'OFF'}
                             </button>
                         ) : (
+                            <span />
+                        )}
+                        <div className="study-question-chat-composer-actions">
                             <button
                                 type="button"
                                 className="nav-btn"
-                                onClick={() => { void handleSend(); }}
-                                disabled={!canSend}
+                                onClick={handleClearChat}
+                                disabled={messages.length === 0 || isGenerating}
                             >
-                                <Send size={16} />
-                                送信
+                                <Trash2 size={16} />
+                                クリア
                             </button>
-                        )}
+                            {isGenerating ? (
+                                <button
+                                    type="button"
+                                    className="nav-btn"
+                                    onClick={handleStopGeneration}
+                                >
+                                    <Square size={16} />
+                                    生成を中止
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="nav-btn"
+                                    onClick={() => { void handleSend(); }}
+                                    disabled={!canSend}
+                                >
+                                    <Send size={16} />
+                                    送信
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

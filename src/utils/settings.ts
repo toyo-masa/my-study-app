@@ -354,6 +354,7 @@ export type ResolvedLocalApiRequestOptions = {
     topP: number | null;
     maxTokens: number | null;
     extraBody: Record<string, unknown> | null;
+    ollamaThink: boolean | 'low' | 'medium' | 'high' | null;
 };
 
 export function resolveLocalApiRequestOptions(settings: LocalLlmSettings): ResolvedLocalApiRequestOptions {
@@ -369,6 +370,11 @@ export function resolveLocalApiRequestOptions(settings: LocalLlmSettings): Resol
         topP: settings.localApiTopP,
         maxTokens: settings.localApiMaxTokens,
         extraBody: Object.keys(extraBody).length > 0 ? extraBody : null,
+        ollamaThink: settings.localApiReasoningEffort === 'default'
+            ? null
+            : settings.localApiReasoningEffort === 'none'
+                ? false
+                : settings.localApiReasoningEffort,
     };
 }
 
