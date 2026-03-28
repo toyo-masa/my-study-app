@@ -629,7 +629,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                     console.error('Failed to save suspended session', err);
                 });
             }
-            navigate('/review-board');
+            navigate('/review-board', { flushSync: true });
             return;
         }
 
@@ -652,10 +652,13 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                 console.error('Failed to save suspended session', err);
             });
 
-            navigate(`/quiz/${quizSetId}`, { state: { expectSuspendedSession: true } });
+            navigate(`/quiz/${quizSetId}`, {
+                state: { expectSuspendedSession: true },
+                flushSync: true,
+            });
             return;
         }
-        navigate(`/quiz/${quizSetId}`);
+        navigate(`/quiz/${quizSetId}`, { flushSync: true });
     };
 
     const handleToggleMark = (questionId?: number) => {
@@ -1301,9 +1304,9 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                     onBack={() => {
                         setActiveHistory(null);
                         if (fromReviewBoardFromState) {
-                            navigate('/review-board');
+                            navigate('/review-board', { flushSync: true });
                         } else {
-                            navigate(`/quiz/${quizSetId}`);
+                            navigate(`/quiz/${quizSetId}`, { flushSync: true });
                         }
                     }}
                     onRetry={!activeHistory ? handleRetryMemorization : undefined}

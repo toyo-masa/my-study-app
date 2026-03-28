@@ -706,7 +706,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                     console.error('Failed to save suspended session', err);
                 });
             }
-            navigate('/review-board');
+            navigate('/review-board', { flushSync: true });
             return;
         }
 
@@ -731,10 +731,13 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 console.error('Failed to save suspended session', err);
             });
 
-            navigate(`/quiz/${quizSetId}`, { state: { expectSuspendedSession: true } });
+            navigate(`/quiz/${quizSetId}`, {
+                state: { expectSuspendedSession: true },
+                flushSync: true,
+            });
             return;
         }
-        navigate(`/quiz/${quizSetId}`);
+        navigate(`/quiz/${quizSetId}`, { flushSync: true });
     };
 
     const getAnsweringPhasePendingIdsForBlock = (

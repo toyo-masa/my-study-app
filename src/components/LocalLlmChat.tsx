@@ -1522,7 +1522,24 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         spellCheck={false}
                                     />
                                 </label>
-                                {(selectedLocalApiModel.trim().length === 0 || localApiFetchError !== null || localApiSelectableModels.length === 0) && (
+                                {localApiFetchError === null && localApiSelectableModels.length > 0 ? (
+                                    <label className="local-llm-field">
+                                        <span className="local-llm-field-label">モデル名</span>
+                                        <select
+                                            className="local-llm-input"
+                                            value={selectedLocalApiModel.trim()}
+                                            onChange={(event) => handleModelOptionChange(`openai-local:${event.target.value}`)}
+                                            disabled={isGenerating || isFetchingModels}
+                                        >
+                                            <option value="">モデルを選択してください</option>
+                                            {localApiSelectableModels.map((modelId) => (
+                                                <option key={`local-api-model-field-${modelId}`} value={modelId}>
+                                                    {modelId}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                ) : (
                                     <label className="local-llm-field">
                                         <span className="local-llm-field-label">モデル名</span>
                                         <input
