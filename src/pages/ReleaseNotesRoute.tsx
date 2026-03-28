@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.55.17',
+        date: '2026年3月28日 16:47',
+        improvements: [
+            'ローカルAPIチャットから APIキー入力欄を外し、Ollama 前提のローカル利用で迷わず使えるようにしました。',
+            'ローカルLLM設定に `temperature`、`top_p`、`max_tokens`、Ollama 向け `reasoning_effort` を追加し、thinking の強さなどを調整できるようにしました。',
+        ],
+        fixes: [
+            'ローカルで APIキーを使わない運用でも、毎回入力欄が表示されて設定項目が多く見えていた不便さを改善しました。',
+            'ローカルAPIでは生成パラメータを細かく変えられず、Qwen の thinking 挙動を調整しにくかった問題を改善しました。',
+        ],
+    },
+    {
         version: '1.55.16',
         date: '2026年3月28日 16:39',
         improvements: [

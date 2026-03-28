@@ -37,6 +37,7 @@ type StreamChatParams = {
     apiKey?: string;
     signal?: AbortSignal;
     onDelta: (delta: string) => void;
+    extraBody?: Record<string, unknown> | null;
 } & ChatTuningParams;
 
 type ChatOnceParams = {
@@ -314,6 +315,7 @@ export const streamOpenAiCompatibleChat = async ({
     apiKey,
     signal,
     onDelta,
+    extraBody,
     temperature,
     topP,
     maxTokens,
@@ -331,6 +333,7 @@ export const streamOpenAiCompatibleChat = async ({
                 maxTokens,
                 presencePenalty,
                 repetitionPenalty,
+                extraBody,
             })),
             signal,
         });

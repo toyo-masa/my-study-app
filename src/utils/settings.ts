@@ -1,8 +1,11 @@
 import { DEFAULT_WEB_LLM_MODEL_ID } from './localLlmEngine';
-import { DEFAULT_LOCAL_API_BASE_URL } from './localApiProviders';
+import { DEFAULT_LOCAL_API_BASE_URL, findLocalApiProviderByBaseUrl } from './localApiProviders';
 export type ThemeMode = 'light' | 'dark' | 'monokai';
 export type LocalLlmMode = 'webllm' | 'openai-local';
 export type LocalLlmStreamingRenderMode = 'live' | 'lightweight';
+export type LocalApiReasoningEffort = 'default' | 'none' | 'low' | 'medium' | 'high';
+
+export const LOCAL_API_REASONING_EFFORT_OPTIONS = ['default', 'none', 'low', 'medium', 'high'] as const;
 
 export const WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS = {
     temperature: 0.6,
@@ -28,6 +31,10 @@ export interface LocalLlmSettings {
     preferredMode: LocalLlmMode;
     baseUrl: string;
     defaultModelId: string;
+    localApiTemperature: number | null;
+    localApiTopP: number | null;
+    localApiMaxTokens: number | null;
+    localApiReasoningEffort: LocalApiReasoningEffort;
     webllmModelId: string;
     webllmStreamingRenderMode: LocalLlmStreamingRenderMode;
     webllmSystemPrompt: string;
@@ -61,6 +68,10 @@ const DEFAULT_SETTINGS = {
         preferredMode: 'webllm' as LocalLlmMode,
         baseUrl: DEFAULT_LOCAL_API_BASE_URL,
         defaultModelId: '',
+        localApiTemperature: null,
+        localApiTopP: null,
+        localApiMaxTokens: null,
+        localApiReasoningEffort: 'default' as LocalApiReasoningEffort,
         webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
         webllmStreamingRenderMode: 'live' as LocalLlmStreamingRenderMode,
         webllmSystemPrompt: '',
@@ -214,6 +225,12 @@ const normalizeWebLlmEnableThinking = (value: unknown): boolean => {
     return value !== false;
 };
 
+const normalizeLocalApiReasoningEffort = (value: unknown): LocalApiReasoningEffort => {
+    return LOCAL_API_REASONING_EFFORT_OPTIONS.includes(value as typeof LOCAL_API_REASONING_EFFORT_OPTIONS[number])
+        ? value as LocalApiReasoningEffort
+        : 'default';
+};
+
 const normalizeWebLlmFirstPassThinkingBudget = (value: unknown): number => {
     const parsed = normalizeOptionalFiniteNumber(value, 1, 32768, true);
     if (parsed !== null && WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS.includes(parsed as typeof WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS[number])) {
@@ -247,6 +264,10 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         preferredMode: normalizeLocalLlmMode(source.preferredMode),
         baseUrl: normalizeLocalLlmBaseUrl(source.baseUrl),
         defaultModelId: normalizeLocalLlmModelId(source.defaultModelId),
+        localApiTemperature: normalizeOptionalFiniteNumber(source.localApiTemperature, 0, 2),
+        localApiTopP: normalizeOptionalFiniteNumber(source.localApiTopP, 0.01, 1),
+        localApiMaxTokens: normalizeOptionalFiniteNumber(source.localApiMaxTokens, 1, 32768, true),
+        localApiReasoningEffort: normalizeLocalApiReasoningEffort(source.localApiReasoningEffort),
         webllmModelId: normalizeWebLlmModelId(source.webllmModelId),
         webllmStreamingRenderMode: normalizeLocalLlmStreamingRenderMode(source.webllmStreamingRenderMode),
         webllmSystemPrompt: normalizeLocalLlmSystemPrompt(source.webllmSystemPrompt),
@@ -326,6 +347,29 @@ export function saveLocalLlmSettings(settings: LocalLlmSettings): void {
         SETTINGS_KEYS.localLlmSettings,
         JSON.stringify(normalizeLocalLlmSettings(settings))
     );
+}
+
+export type ResolvedLocalApiRequestOptions = {
+    temperature: number | null;
+    topP: number | null;
+    maxTokens: number | null;
+    extraBody: Record<string, unknown> | null;
+};
+
+export function resolveLocalApiRequestOptions(settings: LocalLlmSettings): ResolvedLocalApiRequestOptions {
+    const matchedProvider = findLocalApiProviderByBaseUrl(settings.baseUrl);
+    const extraBody: Record<string, unknown> = {};
+
+    if (matchedProvider?.id === 'ollama' && settings.localApiReasoningEffort !== 'default') {
+        extraBody.reasoning_effort = settings.localApiReasoningEffort;
+    }
+
+    return {
+        temperature: settings.localApiTemperature,
+        topP: settings.localApiTopP,
+        maxTokens: settings.localApiMaxTokens,
+        extraBody: Object.keys(extraBody).length > 0 ? extraBody : null,
+    };
 }
 
 export function isCloudSyncEnabledInStorage(): boolean {

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
 import {
+    LOCAL_API_REASONING_EFFORT_OPTIONS,
     WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY,
     WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET,
     WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS,
@@ -488,7 +489,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 </div>
 
                                                 <p className="review-settings-note" style={{ marginTop: '0.9rem', marginBottom: 0 }}>
-                                                    APIキーはここには保存せず、チャット画面を開いている間だけ入力します。Ollama とローカルの vLLM は通常 APIキーなしで使えます。
+                                                    Ollama をローカルで使う場合は通常 APIキー不要です。モデル名は取得済み一覧からそのまま選べます。
                                                 </p>
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginTop: '0.9rem', alignItems: 'center' }}>
                                                     <button
@@ -519,6 +520,86 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 >
                                                     ローカルLLM設定を初期値に戻す
                                                 </button>
+                                            </div>
+
+                                            <div className="review-settings-card">
+                                                <h4 className="review-settings-card-title">ローカルAPI 生成パラメータ</h4>
+                                                <p className="review-settings-note">
+                                                    `temperature`、`top_p`、`max_tokens` は OpenAI互換の `/v1/chat/completions` にそのまま送ります。
+                                                    {matchedLocalApiProvider?.id === 'ollama'
+                                                        ? ' Ollama では `reasoning_effort` も送って thinking の強さを調整できます。'
+                                                        : ' thinking 制御は現在 Ollama 接続時のみ送信します。'}
+                                                </p>
+                                                <div className="review-settings-grid">
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">temperature</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.localApiTemperature ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                localApiTemperature: parseOptionalNumberInput(event.target.value),
+                                                            })}
+                                                            placeholder="未指定"
+                                                            min={0}
+                                                            max={2}
+                                                            step={0.05}
+                                                            inputMode="decimal"
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">top_p</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.localApiTopP ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                localApiTopP: parseOptionalNumberInput(event.target.value),
+                                                            })}
+                                                            placeholder="未指定"
+                                                            min={0.01}
+                                                            max={1}
+                                                            step={0.01}
+                                                            inputMode="decimal"
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">max_tokens</span>
+                                                        <input
+                                                            type="number"
+                                                            className="setting-select"
+                                                            value={localLlmSettings.localApiMaxTokens ?? ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                localApiMaxTokens: parseOptionalNumberInput(event.target.value),
+                                                            })}
+                                                            placeholder="未指定"
+                                                            min={1}
+                                                            max={32768}
+                                                            step={1}
+                                                            inputMode="numeric"
+                                                        />
+                                                    </label>
+                                                    <label className="review-setting-item">
+                                                        <span className="review-setting-label">reasoning_effort</span>
+                                                        <select
+                                                            className="setting-select"
+                                                            value={localLlmSettings.localApiReasoningEffort}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                localApiReasoningEffort: event.target.value as typeof localLlmSettings.localApiReasoningEffort,
+                                                            })}
+                                                        >
+                                                            {LOCAL_API_REASONING_EFFORT_OPTIONS.map((value) => (
+                                                                <option key={value} value={value}>
+                                                                    {value === 'default' ? 'モデル既定' : value}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </label>
+                                                </div>
                                             </div>
 
                                             <div className="review-settings-card">

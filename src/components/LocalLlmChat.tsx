@@ -4,7 +4,10 @@ import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web
 import { BackButton } from './BackButton';
 import { LocalLlmMessageItem } from './LocalLlmMessageItem';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
-import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
+import {
+    resolveLocalApiRequestOptions,
+    WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS,
+} from '../utils/settings';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
@@ -217,7 +220,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const [isModelReady, setIsModelReady] = useState(() => hasLoadedLocalLlmEngine(localLlmSettings.webllmModelId));
     const [isGenerating, setIsGenerating] = useState(false);
     const [webllmGenerationPhase, setWebllmGenerationPhase] = useState<WebLlmGenerationPhase | null>(null);
-    const [apiKey, setApiKey] = useState('');
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [selectedLocalApiModel, setSelectedLocalApiModel] = useState(() => (
         initialSession.mode === 'openai-local'
@@ -267,6 +269,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             ? `${LOCAL_LLM_BASE_SYSTEM_PROMPT}\n${customPrompt}`
             : LOCAL_LLM_BASE_SYSTEM_PROMPT;
     }, [localLlmSettings.webllmSystemPrompt]);
+    const localApiRequestOptions = useMemo(
+        () => resolveLocalApiRequestOptions(localLlmSettings),
+        [localLlmSettings]
+    );
     const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
     const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
     const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;
@@ -1211,6 +1217,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         model: selectedModel,
                         messages: openAiMessages,
                         stream: true,
+                        temperature: localApiRequestOptions.temperature,
+                        top_p: localApiRequestOptions.topP,
+                        max_tokens: localApiRequestOptions.maxTokens,
+                        extra_body: localApiRequestOptions.extraBody,
                     },
                 });
 
@@ -1218,8 +1228,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                     baseUrl: localLlmSettings.baseUrl,
                     model: selectedModel,
                     messages: openAiMessages,
-                    apiKey: apiKey.trim() || undefined,
                     signal: controller.signal,
+                    temperature: localApiRequestOptions.temperature,
+                    topP: localApiRequestOptions.topP,
+                    maxTokens: localApiRequestOptions.maxTokens,
+                    extraBody: localApiRequestOptions.extraBody,
                     onDelta: (delta) => {
                         assistantText += delta;
                         updateAssistantText(assistantText);
@@ -1264,13 +1277,16 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         }
     }, [
         activeMode,
-        apiKey,
         clearStreamingFlushTimer,
         currentSession?.createdAt,
         currentSessionId,
         input,
         isGenerating,
         isModelReady,
+        localApiRequestOptions.extraBody,
+        localApiRequestOptions.maxTokens,
+        localApiRequestOptions.temperature,
+        localApiRequestOptions.topP,
         localLlmSettings.baseUrl,
         localLlmSettings.webllmEnableThinking,
         localLlmSettings.webllmStreamingRenderMode,
@@ -1510,18 +1526,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
                         {activeMode === 'openai-local' && (
                             <div className="local-llm-settings-grid">
-                                <label className="local-llm-field">
-                                    <span className="local-llm-field-label">APIキー</span>
-                                    <input
-                                        type="password"
-                                        className="local-llm-input"
-                                        value={apiKey}
-                                        onChange={(event) => setApiKey(event.target.value)}
-                                        placeholder="必要なときだけ入力"
-                                        autoComplete="off"
-                                        spellCheck={false}
-                                    />
-                                </label>
                                 {localApiFetchError === null && localApiSelectableModels.length > 0 ? (
                                     <label className="local-llm-field">
                                         <span className="local-llm-field-label">モデル名</span>

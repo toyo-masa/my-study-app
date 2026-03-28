@@ -3,7 +3,10 @@ import { AlertTriangle, Bot, Check, Copy, LoaderCircle, Send, Square, Trash2 } f
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
-import { WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS } from '../utils/settings';
+import {
+    resolveLocalApiRequestOptions,
+    WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS,
+} from '../utils/settings';
 import { LocalLlmMessageItem } from './LocalLlmMessageItem';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
@@ -257,7 +260,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const [isModelReady, setIsModelReady] = useState(() => hasLoadedLocalLlmEngine(localLlmSettings.webllmModelId));
     const [isGenerating, setIsGenerating] = useState(false);
     const [webllmGenerationPhase, setWebllmGenerationPhase] = useState<WebLlmGenerationPhase | null>(null);
-    const [apiKey, setApiKey] = useState('');
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     const [selectedLocalApiModel, setSelectedLocalApiModel] = useState(() => (
         initialSession?.mode === 'openai-local'
@@ -298,6 +300,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const matchedLocalApiProvider = useMemo(
         () => findLocalApiProviderByBaseUrl(localLlmSettings.baseUrl),
         [localLlmSettings.baseUrl]
+    );
+    const localApiRequestOptions = useMemo(
+        () => resolveLocalApiRequestOptions(localLlmSettings),
+        [localLlmSettings]
     );
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
@@ -911,6 +917,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         model: selectedModel,
                         messages: openAiMessages,
                         stream: true,
+                        temperature: localApiRequestOptions.temperature,
+                        top_p: localApiRequestOptions.topP,
+                        max_tokens: localApiRequestOptions.maxTokens,
+                        extra_body: localApiRequestOptions.extraBody,
                     },
                 });
 
@@ -918,8 +928,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     baseUrl: localLlmSettings.baseUrl,
                     model: selectedModel,
                     messages: openAiMessages,
-                    apiKey: apiKey.trim() || undefined,
                     signal: controller.signal,
+                    temperature: localApiRequestOptions.temperature,
+                    topP: localApiRequestOptions.topP,
+                    maxTokens: localApiRequestOptions.maxTokens,
+                    extraBody: localApiRequestOptions.extraBody,
                     onDelta: (delta) => {
                         assistantText += delta;
                         updateAssistantText(assistantText);
@@ -961,11 +974,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
     }, [
         activeMode,
-        apiKey,
         clearStreamingFlushTimer,
         input,
         isGenerating,
         isModelReady,
+        localApiRequestOptions.extraBody,
+        localApiRequestOptions.maxTokens,
+        localApiRequestOptions.temperature,
+        localApiRequestOptions.topP,
         localLlmSettings.baseUrl,
         localLlmSettings.webllmStreamingRenderMode,
         localLlmSettings.webllmEnableThinking,
@@ -1162,15 +1178,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
                 {activeMode === 'openai-local' && (
                     <>
-                        <input
-                            type="password"
-                            className="local-llm-input"
-                            value={apiKey}
-                            onChange={(event) => setApiKey(event.target.value)}
-                            placeholder="必要なときだけ APIキー を入力"
-                            autoComplete="off"
-                            spellCheck={false}
-                        />
                         {(selectedLocalApiModel.trim().length === 0 || localApiFetchError !== null || localApiSelectableModels.length === 0) && (
                             <input
                                 type="text"
