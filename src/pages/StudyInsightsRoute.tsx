@@ -67,6 +67,11 @@ function shouldShowSparseLabel(index: number, total: number): boolean {
     return index % 5 === 0;
 }
 
+function getBarHeightPercent(value: number, maxValue: number): number {
+    if (value <= 0 || maxValue <= 0) return 0;
+    return Math.max(10, (value / maxValue) * 100);
+}
+
 const CountBarChart: React.FC<CountChartProps> = ({ points, emptyMessage }) => {
     const maxValue = points.reduce((max, point) => Math.max(max, point.value), 0);
 
@@ -77,11 +82,11 @@ const CountBarChart: React.FC<CountChartProps> = ({ points, emptyMessage }) => {
     return (
         <div className="study-insights-bars">
             {points.map((point, index) => {
-                const height = Math.max(10, (point.value / maxValue) * 100);
+                const height = getBarHeightPercent(point.value, maxValue);
                 return (
                     <div key={point.key} className="study-insights-bar-item" title={point.tooltip}>
                         <div className="study-insights-bar-track">
-                            <div className="study-insights-bar-fill" style={{ height: `${height}%` }} />
+                            {height > 0 && <div className="study-insights-bar-fill" style={{ height: `${height}%` }} />}
                         </div>
                         <span className="study-insights-bar-value">{point.value}</span>
                         <span className="study-insights-bar-label">
@@ -104,7 +109,7 @@ const RateBarChart: React.FC<RateChartProps> = ({ points, emptyMessage }) => {
     return (
         <div className="study-insights-bars study-insights-bars-rate">
             {points.map((point, index) => {
-                const height = point.value === null ? 0 : Math.max(10, point.value * 100);
+                const height = point.value === null ? 0 : getBarHeightPercent(point.value, 1);
                 const rateValue = point.value === null ? '—' : `${Math.round(point.value * 100)}%`;
                 return (
                     <div key={point.key} className="study-insights-bar-item" title={point.tooltip}>
