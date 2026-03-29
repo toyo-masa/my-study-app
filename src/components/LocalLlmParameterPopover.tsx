@@ -25,6 +25,7 @@ import {
     type WebLlmModelParameterSettings,
 } from '../utils/settings';
 import type { LocalApiProviderPresetId } from '../utils/localApiProviders';
+import { useOllamaModelDefaultParameters } from '../hooks/useOllamaModelDefaultParameters';
 
 type LocalLlmParameterPopoverProps = {
     activeMode: LocalLlmMode;
@@ -64,6 +65,11 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
     const effectiveIsOpen = isOpen && !disabled && selectedModelId.trim().length > 0;
     const isLocalApiMode = activeMode === 'openai-local';
     const isOllama = isLocalApiMode && matchedLocalApiProviderId === 'ollama';
+    const ollamaDefaults = useOllamaModelDefaultParameters({
+        baseUrl: localLlmSettings.baseUrl,
+        modelId: selectedModelId,
+        enabled: isOllama,
+    });
 
     const localApiParameters = useMemo(
         () => resolveLocalApiModelParameterSettings(localLlmSettings, selectedModelId),
@@ -237,7 +243,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                 <p className="local-llm-parameter-popover-note">
                                     OpenAI互換APIへ送る項目です。
                                     {isOllama
-                                        ? ' Ollama では reasoning_effort も現在モデルごとに切り替えられます。'
+                                        ? ' Ollama では空欄時に現在モデルの既定値を使い、reasoning_effort もモデルごとに切り替えられます。'
                                         : ''}
                                 </p>
                                 <div className="local-llm-parameter-grid">
@@ -251,7 +257,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                 ...current,
                                                 temperature: parseOptionalNumberInput(event.target.value),
                                             }))}
-                                            placeholder={buildDefaultPlaceholder('自動')}
+                                            placeholder={buildDefaultPlaceholder(
+                                                isOllama ? ollamaDefaults.temperature : '自動'
+                                            )}
                                             min={0}
                                             max={2}
                                             step={0.05}
@@ -268,7 +276,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                 ...current,
                                                 topP: parseOptionalNumberInput(event.target.value),
                                             }))}
-                                            placeholder={buildDefaultPlaceholder('自動')}
+                                            placeholder={buildDefaultPlaceholder(
+                                                isOllama ? ollamaDefaults.topP : '自動'
+                                            )}
                                             min={0.01}
                                             max={1}
                                             step={0.01}
@@ -285,7 +295,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                 ...current,
                                                 maxTokens: parseOptionalNumberInput(event.target.value),
                                             }))}
-                                            placeholder={buildDefaultPlaceholder('モデル既定')}
+                                            placeholder={buildDefaultPlaceholder(
+                                                isOllama ? ollamaDefaults.maxTokens : 'モデル既定'
+                                            )}
                                             min={1}
                                             max={32768}
                                             step={1}

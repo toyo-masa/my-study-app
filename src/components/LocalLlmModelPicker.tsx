@@ -151,6 +151,11 @@ export const LocalLlmModelPicker: React.FC<LocalLlmModelPickerProps> = ({
         setIsOpen(false);
     }, [onChange]);
 
+    const handleOptionPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+    }, []);
+
     return (
         <div className="local-llm-model-picker">
             <button
@@ -189,6 +194,7 @@ export const LocalLlmModelPicker: React.FC<LocalLlmModelPickerProps> = ({
                                                 key={`${group.label}:${option.value}`}
                                                 type="button"
                                                 className={`local-llm-model-picker-option ${isSelected ? 'is-selected' : ''}`}
+                                                onPointerDown={handleOptionPointerDown}
                                                 onClick={() => handleSelect(option)}
                                                 disabled={option.disabled}
                                                 role="option"

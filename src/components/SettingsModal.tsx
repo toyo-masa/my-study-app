@@ -12,6 +12,7 @@ import {
     WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS,
     WEB_LLM_QWEN_SECOND_PASS_DEFAULTS,
     WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS,
+    loadLastLocalApiModelId,
     type HandwritingSettings,
     type LocalLlmSettings,
     type ThemeMode,
@@ -24,6 +25,7 @@ import {
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 import { getGroupedWebLlmModelOptions } from '../utils/localLlmEngine';
+import { useOllamaModelDefaultParameters } from '../hooks/useOllamaModelDefaultParameters';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -96,6 +98,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         () => findLocalApiProviderByBaseUrl(localLlmSettings.baseUrl),
         [localLlmSettings.baseUrl]
     );
+    const lastLocalApiModelId = useMemo(
+        () => loadLastLocalApiModelId(localLlmSettings.baseUrl),
+        [localLlmSettings.baseUrl]
+    );
+    const settingsOllamaDefaults = useOllamaModelDefaultParameters({
+        baseUrl: localLlmSettings.baseUrl,
+        modelId: lastLocalApiModelId,
+        enabled: isOpen && matchedLocalApiProvider?.id === 'ollama',
+    });
 
     const parseOptionalNumberInput = (value: string): number | null => {
         const trimmed = value.trim();
@@ -344,7 +355,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 <p className="review-settings-note">
                                                     `temperature`、`top_p`、`max_tokens` は OpenAI互換の `/v1/chat/completions` にそのまま送ります。
                                                     {matchedLocalApiProvider?.id === 'ollama'
-                                                        ? ' Ollama では `reasoning_effort` も送って thinking の強さを調整できます。'
+                                                        ? ' Ollama では最後に選んだモデルがあればその既定値を数値で表示し、`reasoning_effort` も送って thinking の強さを調整できます。'
                                                         : ' thinking 制御は現在 Ollama 接続時のみ送信します。'}
                                                 </p>
                                                 <div className="review-settings-grid">
@@ -358,7 +369,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 localApiTemperature: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder={buildDefaultPlaceholder('自動')}
+                                                            placeholder={buildDefaultPlaceholder(
+                                                                matchedLocalApiProvider?.id === 'ollama'
+                                                                    ? settingsOllamaDefaults.temperature
+                                                                    : '自動'
+                                                            )}
                                                             min={0}
                                                             max={2}
                                                             step={0.05}
@@ -375,7 +390,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 localApiTopP: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder={buildDefaultPlaceholder('自動')}
+                                                            placeholder={buildDefaultPlaceholder(
+                                                                matchedLocalApiProvider?.id === 'ollama'
+                                                                    ? settingsOllamaDefaults.topP
+                                                                    : '自動'
+                                                            )}
                                                             min={0.01}
                                                             max={1}
                                                             step={0.01}
@@ -392,7 +411,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 localApiMaxTokens: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder={buildDefaultPlaceholder('モデル既定')}
+                                                            placeholder={buildDefaultPlaceholder(
+                                                                matchedLocalApiProvider?.id === 'ollama'
+                                                                    ? settingsOllamaDefaults.maxTokens
+                                                                    : 'モデル既定'
+                                                            )}
                                                             min={1}
                                                             max={32768}
                                                             step={1}

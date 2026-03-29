@@ -675,6 +675,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             };
 
             const isSameMessages = existing
+                && existing.mode === nextSession.mode
+                && existing.modelId === nextSession.modelId
                 && JSON.stringify(existing.messages) === JSON.stringify(nextSession.messages);
 
             if (isSameMessages) {

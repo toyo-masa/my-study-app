@@ -52,6 +52,12 @@ type StreamOllamaNativeChatParams = {
     onContentDelta?: (delta: string) => void;
 } & ChatTuningParams;
 
+export type OllamaModelDefaultParameters = {
+    temperature: number;
+    topP: number;
+    maxTokens: number;
+};
+
 type ChatOnceParams = {
     baseUrl: string;
     model: string;
@@ -73,6 +79,17 @@ const buildOllamaNativeChatEndpoint = (baseUrl: string) => {
         return `${normalized}/chat`;
     }
     return `${normalized}/api/chat`;
+};
+
+const buildOllamaShowEndpoint = (baseUrl: string) => {
+    const normalized = baseUrl.trim().replace(/\/+$/, '');
+    if (normalized.endsWith('/v1')) {
+        return `${normalized.slice(0, -3)}/api/show`;
+    }
+    if (normalized.endsWith('/api')) {
+        return `${normalized}/show`;
+    }
+    return `${normalized}/api/show`;
 };
 
 const buildLocalApiFetchFailureMessage = (baseUrl: string) => {
@@ -337,6 +354,13 @@ const processSseEvent = (eventBlock: string, onDelta: (delta: string) => void) =
 const MODEL_LIST_CACHE_TTL_MS = 5000;
 const MODEL_LIST_FETCH_TIMEOUT_MS = 8000;
 const MODEL_LIST_STORAGE_KEY_PREFIX = 'openAiCompatibleModelListCache::';
+const OLLAMA_MODEL_DEFAULTS_CACHE_TTL_MS = 60000;
+
+export const OLLAMA_FALLBACK_MODEL_DEFAULT_PARAMETERS: OllamaModelDefaultParameters = {
+    temperature: 0.8,
+    topP: 0.9,
+    maxTokens: -1,
+};
 
 type FetchModelIdsOptions = {
     force?: boolean;
@@ -349,6 +373,11 @@ type ModelListCacheEntry = {
 
 const modelListCache = new Map<string, ModelListCacheEntry>();
 const modelListInFlight = new Map<string, Promise<string[]>>();
+const ollamaModelDefaultsCache = new Map<string, {
+    defaults: OllamaModelDefaultParameters;
+    fetchedAt: number;
+}>();
+const ollamaModelDefaultsInFlight = new Map<string, Promise<OllamaModelDefaultParameters>>();
 
 const buildModelListCacheKey = (baseUrl: string, apiKey?: string) => {
     return `${baseUrl.replace(/\/+$/, '')}::${apiKey?.trim() ?? ''}`;
@@ -356,6 +385,10 @@ const buildModelListCacheKey = (baseUrl: string, apiKey?: string) => {
 
 const buildPersistedModelListStorageKey = (cacheKey: string) => {
     return `${MODEL_LIST_STORAGE_KEY_PREFIX}${cacheKey}`;
+};
+
+const buildOllamaModelDefaultsCacheKey = (baseUrl: string, model: string) => {
+    return `${baseUrl.replace(/\/+$/, '')}::${model.trim()}`;
 };
 
 const readPersistedModelListCache = (cacheKey: string): ModelListCacheEntry | null => {
@@ -403,6 +436,60 @@ const writePersistedModelListCache = (cacheKey: string, entry: ModelListCacheEnt
 };
 
 const createAbortError = () => new DOMException('The operation was aborted.', 'AbortError');
+
+const parseOllamaModelDefaultParameters = (parametersText: unknown): OllamaModelDefaultParameters => {
+    const resolved = { ...OLLAMA_FALLBACK_MODEL_DEFAULT_PARAMETERS };
+    if (typeof parametersText !== 'string') {
+        return resolved;
+    }
+
+    parametersText.split(/\r?\n/).forEach((line) => {
+        const trimmed = line.trim();
+        if (trimmed.length === 0) {
+            return;
+        }
+
+        const tokens = trimmed.split(/\s+/);
+        if (tokens.length < 2) {
+            return;
+        }
+
+        const hasParameterPrefix = tokens[0]?.toLowerCase() === 'parameter';
+        const keyIndex = hasParameterPrefix ? 1 : 0;
+        const valueIndex = hasParameterPrefix ? 2 : 1;
+        const key = tokens[keyIndex]?.toLowerCase();
+        const rawValue = tokens[valueIndex];
+
+        if (!key || rawValue === undefined) {
+            return;
+        }
+
+        if (key === 'temperature') {
+            const parsed = Number.parseFloat(rawValue);
+            if (Number.isFinite(parsed)) {
+                resolved.temperature = parsed;
+            }
+            return;
+        }
+
+        if (key === 'top_p') {
+            const parsed = Number.parseFloat(rawValue);
+            if (Number.isFinite(parsed)) {
+                resolved.topP = parsed;
+            }
+            return;
+        }
+
+        if (key === 'num_predict') {
+            const parsed = Number.parseInt(rawValue, 10);
+            if (Number.isFinite(parsed)) {
+                resolved.maxTokens = parsed;
+            }
+        }
+    });
+
+    return resolved;
+};
 
 const awaitWithAbortSignal = async <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
     if (!signal) {
@@ -561,6 +648,64 @@ export const getCachedOpenAiCompatibleModelIds = (
     }
 
     return [];
+};
+
+export const fetchOllamaModelDefaultParameters = async (
+    baseUrl: string,
+    model: string,
+    signal?: AbortSignal,
+) => {
+    const normalizedModel = model.trim();
+    if (normalizedModel.length === 0) {
+        return OLLAMA_FALLBACK_MODEL_DEFAULT_PARAMETERS;
+    }
+
+    const cacheKey = buildOllamaModelDefaultsCacheKey(baseUrl, normalizedModel);
+    const cached = ollamaModelDefaultsCache.get(cacheKey);
+    if (cached && Date.now() - cached.fetchedAt <= OLLAMA_MODEL_DEFAULTS_CACHE_TTL_MS) {
+        return cached.defaults;
+    }
+
+    const inFlight = ollamaModelDefaultsInFlight.get(cacheKey);
+    if (inFlight) {
+        return await awaitWithAbortSignal(inFlight, signal);
+    }
+
+    const requestPromise = (async () => {
+        const response = await fetch(buildOllamaShowEndpoint(baseUrl), {
+            method: 'POST',
+            headers: buildHeaders(),
+            body: JSON.stringify({
+                model: normalizedModel,
+            }),
+            signal,
+        });
+
+        if (!response.ok) {
+            throw new Error(await getResponseErrorMessage(response));
+        }
+
+        const payload = await response.json() as {
+            parameters?: unknown;
+        };
+
+        const defaults = parseOllamaModelDefaultParameters(payload.parameters);
+        ollamaModelDefaultsCache.set(cacheKey, {
+            defaults,
+            fetchedAt: Date.now(),
+        });
+        return defaults;
+    })();
+
+    ollamaModelDefaultsInFlight.set(cacheKey, requestPromise);
+
+    try {
+        return await awaitWithAbortSignal(requestPromise, signal);
+    } finally {
+        if (ollamaModelDefaultsInFlight.get(cacheKey) === requestPromise) {
+            ollamaModelDefaultsInFlight.delete(cacheKey);
+        }
+    }
 };
 
 export const streamOpenAiCompatibleChat = async ({
