@@ -66,12 +66,32 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     allowTouchDrawing,
 }) => {
     const isMemoQuestion = question.questionType === 'memorization';
+    const isShortcutIgnoredTarget = useCallback((target: EventTarget | null) => {
+        if (!(target instanceof HTMLElement)) {
+            return false;
+        }
+
+        if (target.closest('textarea, input, select, button, [contenteditable="true"]')) {
+            return true;
+        }
+
+        if (target.closest('.study-question-chat-panel, .local-llm-page, .right-panel-container')) {
+            return true;
+        }
+
+        const activeElement = document.activeElement;
+        if (!(activeElement instanceof HTMLElement)) {
+            return false;
+        }
+
+        return activeElement.closest('.study-question-chat-panel, .local-llm-page, .right-panel-container') !== null;
+    }, []);
 
     // キーボードショートカット
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
-        // メモ入力中（textarea/input にフォーカス）はショートカット無効
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+        if (isShortcutIgnoredTarget(e.target)) {
+            return;
+        }
 
         // 1-4: 選択肢トグル（クイズ問題・解答確認前のみ）
         if (!isMemoQuestion && !showAnswer && e.key >= '1' && e.key <= '4') {
@@ -114,7 +134,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             e.preventDefault();
             onConfidenceChange(confidence === 'low' ? 'high' : 'low');
         }
-    }, [isMemoQuestion, showAnswer, question.options.length, onToggleOption, onShowAnswer, onNext, onCompleteTest, isLast, confidence, onConfidenceChange, isAnswerLocked, selectedOptions.length]);
+    }, [confidence, isAnswerLocked, isLast, isMemoQuestion, isShortcutIgnoredTarget, onCompleteTest, onConfidenceChange, onNext, onShowAnswer, onToggleOption, question.options.length, selectedOptions.length, showAnswer]);
 
     useEffect(() => {
         document.addEventListener('keydown', handleKeyDown);
