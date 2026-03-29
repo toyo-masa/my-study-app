@@ -42,12 +42,13 @@ import {
     mergeCompletedQuestionIds,
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
-import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
+import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 
 interface MemorizationRouteProps {
     allowTouchDrawing: boolean;
     reviewBoardFeedbackBlockSize: number;
     localLlmSettings: LocalLlmSettings;
+    onLocalLlmSettingsChange: (settings: LocalLlmSettingsUpdater) => void;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
     onWebLlmModelChange: (modelId: string) => void;
 }
@@ -64,6 +65,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
     allowTouchDrawing,
     reviewBoardFeedbackBlockSize,
     localLlmSettings,
+    onLocalLlmSettingsChange,
     onLocalLlmModeChange,
     onWebLlmModelChange,
 }) => {
@@ -1291,7 +1293,9 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                     question={currentQuestion}
                     questionIndex={currentQuestionIndex}
                     showAnswer={showAnswerForCurrent}
+                    isPanelOpen={resolvedRightPanelOpen}
                     localLlmSettings={localLlmSettings}
+                    onLocalLlmSettingsChange={onLocalLlmSettingsChange}
                     onLocalLlmModeChange={onLocalLlmModeChange}
                     onWebLlmModelChange={onWebLlmModelChange}
                 />

@@ -27,6 +27,24 @@ export const WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS = [256, 38
 export interface HandwritingSettings {
     allowTouchDrawing: boolean;
 }
+export type LocalApiModelParameterSettings = {
+    temperature: number | null;
+    topP: number | null;
+    maxTokens: number | null;
+    reasoningEffort: LocalApiReasoningEffort;
+};
+
+export type WebLlmModelParameterSettings = {
+    firstPassTemperature: number | null;
+    firstPassTopP: number | null;
+    firstPassThinkingBudget: number;
+    firstPassPresencePenalty: number | null;
+    secondPassTemperature: number | null;
+    secondPassTopP: number | null;
+    secondPassFinalAnswerMaxTokens: number;
+    secondPassPresencePenalty: number | null;
+};
+
 export interface LocalLlmSettings {
     preferredMode: LocalLlmMode;
     baseUrl: string;
@@ -35,6 +53,7 @@ export interface LocalLlmSettings {
     localApiTopP: number | null;
     localApiMaxTokens: number | null;
     localApiReasoningEffort: LocalApiReasoningEffort;
+    localApiModelOverrides: Record<string, LocalApiModelParameterSettings>;
     webllmModelId: string;
     webllmStreamingRenderMode: LocalLlmStreamingRenderMode;
     webllmSystemPrompt: string;
@@ -47,7 +66,9 @@ export interface LocalLlmSettings {
     webllmSecondPassTopP: number | null;
     webllmSecondPassFinalAnswerMaxTokens: number | null;
     webllmSecondPassPresencePenalty: number | null;
+    webllmModelOverrides: Record<string, WebLlmModelParameterSettings>;
 }
+export type LocalLlmSettingsUpdater = LocalLlmSettings | ((previous: LocalLlmSettings) => LocalLlmSettings);
 
 const SETTINGS_KEYS = {
     theme: 'theme',
@@ -73,6 +94,7 @@ const DEFAULT_SETTINGS = {
         localApiTopP: null,
         localApiMaxTokens: null,
         localApiReasoningEffort: 'default' as LocalApiReasoningEffort,
+        localApiModelOverrides: {} as Record<string, LocalApiModelParameterSettings>,
         webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
         webllmStreamingRenderMode: 'live' as LocalLlmStreamingRenderMode,
         webllmSystemPrompt: '',
@@ -85,6 +107,7 @@ const DEFAULT_SETTINGS = {
         webllmSecondPassTopP: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP,
         webllmSecondPassFinalAnswerMaxTokens: WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS,
         webllmSecondPassPresencePenalty: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty,
+        webllmModelOverrides: {} as Record<string, WebLlmModelParameterSettings>,
     } as LocalLlmSettings,
 } as const;
 
@@ -248,6 +271,75 @@ const normalizeWebLlmSecondPassFinalAnswerMaxTokens = (value: unknown): number =
     return WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS;
 };
 
+const normalizeLocalApiModelParameterSettings = (value: unknown): LocalApiModelParameterSettings | null => {
+    if (!value || typeof value !== 'object') {
+        return null;
+    }
+
+    const source = value as Partial<LocalApiModelParameterSettings>;
+    return {
+        temperature: normalizeOptionalFiniteNumber(source.temperature, 0, 2),
+        topP: normalizeOptionalFiniteNumber(source.topP, 0.01, 1),
+        maxTokens: normalizeOptionalFiniteNumber(source.maxTokens, 1, 32768, true),
+        reasoningEffort: normalizeLocalApiReasoningEffort(source.reasoningEffort),
+    };
+};
+
+const normalizeWebLlmModelParameterSettings = (value: unknown): WebLlmModelParameterSettings | null => {
+    if (!value || typeof value !== 'object') {
+        return null;
+    }
+
+    const source = value as Partial<WebLlmModelParameterSettings>;
+    return {
+        firstPassTemperature: normalizeOptionalFiniteNumber(source.firstPassTemperature, 0, 2)
+            ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
+        firstPassTopP: normalizeOptionalFiniteNumber(source.firstPassTopP, 0.01, 1)
+            ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
+        firstPassThinkingBudget: normalizeWebLlmFirstPassThinkingBudget(source.firstPassThinkingBudget),
+        firstPassPresencePenalty: normalizeOptionalFiniteNumber(source.firstPassPresencePenalty, 0.3, 0.6)
+            ?? WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY,
+        secondPassTemperature: normalizeOptionalFiniteNumber(source.secondPassTemperature, 0.5, 0.7)
+            ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature,
+        secondPassTopP: normalizeOptionalFiniteNumber(source.secondPassTopP, 0.8, 0.9)
+            ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP,
+        secondPassFinalAnswerMaxTokens: normalizeWebLlmSecondPassFinalAnswerMaxTokens(source.secondPassFinalAnswerMaxTokens),
+        secondPassPresencePenalty: normalizeOptionalFiniteNumber(source.secondPassPresencePenalty, 0, 0.3)
+            ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty,
+    };
+};
+
+const normalizeModelOverrideMap = <T>(
+    value: unknown,
+    normalizeItem: (item: unknown) => T | null
+): Record<string, T> => {
+    if (!value || typeof value !== 'object') {
+        return {};
+    }
+
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
+        return {};
+    }
+
+    const normalized: Record<string, T> = {};
+    entries.forEach(([rawModelId, rawItem]) => {
+        const modelId = normalizeLocalLlmModelId(rawModelId);
+        if (modelId.length === 0) {
+            return;
+        }
+
+        const item = normalizeItem(rawItem);
+        if (!item) {
+            return;
+        }
+
+        normalized[modelId] = item;
+    });
+
+    return normalized;
+};
+
 export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
     const source = raw && typeof raw === 'object'
         ? raw as Partial<LocalLlmSettings> & {
@@ -269,6 +361,7 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
         localApiTopP: normalizeOptionalFiniteNumber(source.localApiTopP, 0.01, 1),
         localApiMaxTokens: normalizeOptionalFiniteNumber(source.localApiMaxTokens, 1, 32768, true),
         localApiReasoningEffort: normalizeLocalApiReasoningEffort(source.localApiReasoningEffort),
+        localApiModelOverrides: normalizeModelOverrideMap(source.localApiModelOverrides, normalizeLocalApiModelParameterSettings),
         webllmModelId: normalizeWebLlmModelId(source.webllmModelId),
         webllmStreamingRenderMode: normalizeLocalLlmStreamingRenderMode(source.webllmStreamingRenderMode),
         webllmSystemPrompt: normalizeLocalLlmSystemPrompt(source.webllmSystemPrompt),
@@ -309,6 +402,7 @@ export function normalizeLocalLlmSettings(raw: unknown): LocalLlmSettings {
             0,
             0.3
         ) ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty,
+        webllmModelOverrides: normalizeModelOverrideMap(source.webllmModelOverrides, normalizeWebLlmModelParameterSettings),
     };
 }
 
@@ -394,24 +488,141 @@ export type ResolvedLocalApiRequestOptions = {
     ollamaThink: boolean | 'low' | 'medium' | 'high' | null;
 };
 
-export function resolveLocalApiRequestOptions(settings: LocalLlmSettings): ResolvedLocalApiRequestOptions {
-    const matchedProvider = findLocalApiProviderByBaseUrl(settings.baseUrl);
-    const extraBody: Record<string, unknown> = {};
+const buildDefaultLocalApiModelParameterSettings = (settings: LocalLlmSettings): LocalApiModelParameterSettings => ({
+    temperature: settings.localApiTemperature,
+    topP: settings.localApiTopP,
+    maxTokens: settings.localApiMaxTokens,
+    reasoningEffort: settings.localApiReasoningEffort,
+});
 
-    if (matchedProvider?.id === 'ollama' && settings.localApiReasoningEffort !== 'default') {
-        extraBody.reasoning_effort = settings.localApiReasoningEffort;
+const buildDefaultWebLlmModelParameterSettings = (settings: LocalLlmSettings): WebLlmModelParameterSettings => ({
+    firstPassTemperature: settings.webllmFirstPassTemperature,
+    firstPassTopP: settings.webllmFirstPassTopP,
+    firstPassThinkingBudget: settings.webllmFirstPassThinkingBudget ?? WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET,
+    firstPassPresencePenalty: settings.webllmFirstPassPresencePenalty,
+    secondPassTemperature: settings.webllmSecondPassTemperature,
+    secondPassTopP: settings.webllmSecondPassTopP,
+    secondPassFinalAnswerMaxTokens: settings.webllmSecondPassFinalAnswerMaxTokens ?? WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS,
+    secondPassPresencePenalty: settings.webllmSecondPassPresencePenalty,
+});
+
+export function resolveLocalApiModelParameterSettings(settings: LocalLlmSettings, modelId: string): LocalApiModelParameterSettings {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    if (normalizedModelId.length === 0) {
+        return buildDefaultLocalApiModelParameterSettings(settings);
+    }
+
+    return settings.localApiModelOverrides[normalizedModelId]
+        ?? buildDefaultLocalApiModelParameterSettings(settings);
+}
+
+export function resolveWebLlmModelParameterSettings(settings: LocalLlmSettings, modelId: string): WebLlmModelParameterSettings {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    if (normalizedModelId.length === 0) {
+        return buildDefaultWebLlmModelParameterSettings(settings);
+    }
+
+    return settings.webllmModelOverrides[normalizedModelId]
+        ?? buildDefaultWebLlmModelParameterSettings(settings);
+}
+
+export function hasLocalApiModelParameterOverrides(settings: LocalLlmSettings, modelId: string): boolean {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    return normalizedModelId.length > 0 && normalizedModelId in settings.localApiModelOverrides;
+}
+
+export function hasWebLlmModelParameterOverrides(settings: LocalLlmSettings, modelId: string): boolean {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    return normalizedModelId.length > 0 && normalizedModelId in settings.webllmModelOverrides;
+}
+
+export function upsertLocalApiModelParameterSettings(
+    settings: LocalLlmSettings,
+    modelId: string,
+    nextSettings: LocalApiModelParameterSettings
+): LocalLlmSettings {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    if (normalizedModelId.length === 0) {
+        return settings;
     }
 
     return {
-        temperature: settings.localApiTemperature,
-        topP: settings.localApiTopP,
-        maxTokens: settings.localApiMaxTokens,
+        ...settings,
+        localApiModelOverrides: {
+            ...settings.localApiModelOverrides,
+            [normalizedModelId]: nextSettings,
+        },
+    };
+}
+
+export function clearLocalApiModelParameterSettings(settings: LocalLlmSettings, modelId: string): LocalLlmSettings {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    if (normalizedModelId.length === 0 || !(normalizedModelId in settings.localApiModelOverrides)) {
+        return settings;
+    }
+
+    const nextOverrides = { ...settings.localApiModelOverrides };
+    delete nextOverrides[normalizedModelId];
+
+    return {
+        ...settings,
+        localApiModelOverrides: nextOverrides,
+    };
+}
+
+export function upsertWebLlmModelParameterSettings(
+    settings: LocalLlmSettings,
+    modelId: string,
+    nextSettings: WebLlmModelParameterSettings
+): LocalLlmSettings {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    if (normalizedModelId.length === 0) {
+        return settings;
+    }
+
+    return {
+        ...settings,
+        webllmModelOverrides: {
+            ...settings.webllmModelOverrides,
+            [normalizedModelId]: nextSettings,
+        },
+    };
+}
+
+export function clearWebLlmModelParameterSettings(settings: LocalLlmSettings, modelId: string): LocalLlmSettings {
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    if (normalizedModelId.length === 0 || !(normalizedModelId in settings.webllmModelOverrides)) {
+        return settings;
+    }
+
+    const nextOverrides = { ...settings.webllmModelOverrides };
+    delete nextOverrides[normalizedModelId];
+
+    return {
+        ...settings,
+        webllmModelOverrides: nextOverrides,
+    };
+}
+
+export function resolveLocalApiRequestOptions(settings: LocalLlmSettings, modelId: string): ResolvedLocalApiRequestOptions {
+    const matchedProvider = findLocalApiProviderByBaseUrl(settings.baseUrl);
+    const resolvedSettings = resolveLocalApiModelParameterSettings(settings, modelId);
+    const extraBody: Record<string, unknown> = {};
+
+    if (matchedProvider?.id === 'ollama' && resolvedSettings.reasoningEffort !== 'default') {
+        extraBody.reasoning_effort = resolvedSettings.reasoningEffort;
+    }
+
+    return {
+        temperature: resolvedSettings.temperature,
+        topP: resolvedSettings.topP,
+        maxTokens: resolvedSettings.maxTokens,
         extraBody: Object.keys(extraBody).length > 0 ? extraBody : null,
-        ollamaThink: settings.localApiReasoningEffort === 'default'
+        ollamaThink: resolvedSettings.reasoningEffort === 'default'
             ? null
-            : settings.localApiReasoningEffort === 'none'
+            : resolvedSettings.reasoningEffort === 'none'
                 ? false
-                : settings.localApiReasoningEffort,
+                : resolvedSettings.reasoningEffort,
     };
 }
 

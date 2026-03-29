@@ -21,6 +21,7 @@ import {
     setStoredThemeMode,
     type HandwritingSettings,
     type LocalLlmSettings,
+    type LocalLlmSettingsUpdater,
     type ThemeMode,
 } from '../utils/settings';
 import {
@@ -34,7 +35,6 @@ import type { QuizSetWithMeta } from '../types';
 
 const APP_TITLE_PREFIX = 'qa';
 const APP_TITLE_SEPARATOR = ' - ';
-type LocalLlmSettingsUpdater = LocalLlmSettings | ((previous: LocalLlmSettings) => LocalLlmSettings);
 
 const buildPageTitle = (...segments: string[]): string => {
     return segments.filter(Boolean).join(APP_TITLE_SEPARATOR);

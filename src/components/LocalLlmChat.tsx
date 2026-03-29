@@ -3,11 +3,13 @@ import { AlertTriangle, ArrowUp, Bot, Brain, Check, Clock3, Copy, LoaderCircle, 
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import { BackButton } from './BackButton';
 import { LocalLlmModelPicker, type LocalLlmModelPickerOption } from './LocalLlmModelPicker';
+import { LocalLlmParameterPopover } from './LocalLlmParameterPopover';
 import { LocalLlmMessageItem } from './LocalLlmMessageItem';
-import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
+import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 import {
     loadLastLocalApiModelId,
     resolveLocalApiRequestOptions,
+    resolveWebLlmModelParameterSettings,
     saveLastLocalApiModelId,
     WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS,
 } from '../utils/settings';
@@ -41,6 +43,7 @@ import {
 } from '../utils/webLlmBudgetedGeneration';
 import { findLocalApiProviderByBaseUrl } from '../utils/localApiProviders';
 import { buildLocalApiModelOptionList } from '../utils/localApiModelOptions';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 type LocalChatMessage = {
     id: string;
@@ -53,12 +56,14 @@ type LocalChatMessage = {
 interface LocalLlmChatProps {
     onBack: () => void;
     localLlmSettings: LocalLlmSettings;
+    onLocalLlmSettingsChange: (settings: LocalLlmSettingsUpdater) => void;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
     onWebLlmModelChange: (modelId: string) => void;
 }
 
 const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
 const WEB_LLM_LENGTH_WARNING = 'WebLLM の上限に達したため、最終回答も途中で打ち切られました。必要なら続きを短く区切って質問してください。';
+const LOCAL_API_LENGTH_WARNING = 'ローカルAPI の `max_tokens` 上限に達したため、回答が途中で打ち切られました。Thinking ON のまま短い上限を設定していると、思考だけで使い切ることがあります。モデルのパラメータから `max_tokens` を空欄に戻すか、大きめにしてください。';
 const LOCAL_LLM_BASE_SYSTEM_PROMPT = [
     'ユーザーの最新の依頼や質問内容を最優先にしてください。',
     '回答の詳しさ・長さ・形式は、ユーザーがこの会話で求めた内容に合わせてください。',
@@ -215,6 +220,7 @@ const buildEmptySession = (
 export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     onBack,
     localLlmSettings,
+    onLocalLlmSettingsChange,
     onLocalLlmModeChange,
     onWebLlmModelChange,
 }) => {
@@ -258,6 +264,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const [isThinkingEnabled, setIsThinkingEnabled] = useState(true);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const mountedRef = useRef(true);
     const requestIdRef = useRef(0);
     const shouldAutoScrollRef = useRef(true);
@@ -303,8 +310,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         [localLlmSettings.baseUrl]
     );
     const localApiRequestOptions = useMemo(
-        () => resolveLocalApiRequestOptions(localLlmSettings),
-        [localLlmSettings]
+        () => resolveLocalApiRequestOptions(localLlmSettings, selectedLocalApiModel),
+        [localLlmSettings, selectedLocalApiModel]
     );
     const showThinkingToggle = activeMode === 'webllm'
         || (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama');
@@ -317,14 +324,18 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             ? (localApiRequestOptions.ollamaThink ?? true)
             : false;
     }, [isThinkingEnabled, localApiRequestOptions.ollamaThink, matchedLocalApiProvider?.id]);
-    const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
-    const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
-    const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;
-    const webllmFirstPassPresencePenalty = localLlmSettings.webllmFirstPassPresencePenalty;
-    const webllmSecondPassTemperature = localLlmSettings.webllmSecondPassTemperature;
-    const webllmSecondPassTopP = localLlmSettings.webllmSecondPassTopP;
-    const webllmSecondPassFinalAnswerMaxTokens = localLlmSettings.webllmSecondPassFinalAnswerMaxTokens;
-    const webllmSecondPassPresencePenalty = localLlmSettings.webllmSecondPassPresencePenalty;
+    const webLlmModelParameters = useMemo(
+        () => resolveWebLlmModelParameterSettings(localLlmSettings, selectedWebLlmModel),
+        [localLlmSettings, selectedWebLlmModel]
+    );
+    const webllmFirstPassTemperature = webLlmModelParameters.firstPassTemperature;
+    const webllmFirstPassTopP = webLlmModelParameters.firstPassTopP;
+    const webllmFirstPassThinkingBudget = webLlmModelParameters.firstPassThinkingBudget;
+    const webllmFirstPassPresencePenalty = webLlmModelParameters.firstPassPresencePenalty;
+    const webllmSecondPassTemperature = webLlmModelParameters.secondPassTemperature;
+    const webllmSecondPassTopP = webLlmModelParameters.secondPassTopP;
+    const webllmSecondPassFinalAnswerMaxTokens = webLlmModelParameters.secondPassFinalAnswerMaxTokens;
+    const webllmSecondPassPresencePenalty = webLlmModelParameters.secondPassPresencePenalty;
     const currentSession = useMemo(
         () => chatSessions.find((session) => session.id === currentSessionId) ?? null,
         [chatSessions, currentSessionId]
@@ -667,7 +678,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         }
 
         try {
-            await navigator.clipboard.writeText(lastRequestPayload);
+            await copyTextToClipboard(lastRequestPayload);
             resetCopiedRequestState();
             setDidCopyRequestPayload(true);
             copyRequestResetTimeoutRef.current = window.setTimeout(() => {
@@ -686,7 +697,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         }
 
         try {
-            await navigator.clipboard.writeText(copyableContent);
+            await copyTextToClipboard(copyableContent);
             resetCopiedMessageState();
             setCopiedMessageId(message.id);
             copyAnswerResetTimeoutRef.current = window.setTimeout(() => {
@@ -1377,6 +1388,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                     if (assistantText.length === 0) {
                         assistantText = buildAssistantDisplayText(finalResult.thinkingText, finalResult.contentText);
                     }
+                    if (finalResult.doneReason === 'length') {
+                        const warningText = assistantText.trim().length > 0
+                            ? `${assistantText}\n\n${LOCAL_API_LENGTH_WARNING}`
+                            : LOCAL_API_LENGTH_WARNING;
+                        assistantText = warningText;
+                        updateAssistantText(warningText);
+                    }
                 } else {
                     const finalText = await streamOpenAiCompatibleChat({
                         baseUrl: localLlmSettings.baseUrl,
@@ -1520,6 +1538,21 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         event.preventDefault();
         void handleSend();
     }, [handleSend]);
+
+    const handleComposerShellPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        if (target.closest('button, select, input, textarea, summary, a, [role="button"], [role="option"]')) {
+            return;
+        }
+
+        if (textareaRef.current && !textareaRef.current.disabled) {
+            textareaRef.current.focus();
+        }
+    }, []);
 
     return (
         <div className="local-llm-page">
@@ -1718,8 +1751,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                         </div>
 
                         <div className="local-llm-composer">
-                            <div className="local-llm-composer-shell">
+                            <div className="local-llm-composer-shell" onPointerDown={handleComposerShellPointerDown}>
                                 <textarea
+                                    ref={textareaRef}
                                     className="local-llm-textarea"
                                     value={input}
                                     onChange={(event) => setInput(event.target.value)}
@@ -1758,6 +1792,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                                 <Brain size={14} />
                                             </button>
                                         )}
+                                        <LocalLlmParameterPopover
+                                            activeMode={activeMode}
+                                            localLlmSettings={localLlmSettings}
+                                            selectedModelId={selectedModel}
+                                            selectedModelLabel={selectedModel}
+                                            matchedLocalApiProviderId={matchedLocalApiProvider?.id ?? null}
+                                            disabled={isGenerating || isModelLoading}
+                                            onLocalLlmSettingsChange={onLocalLlmSettingsChange}
+                                        />
                                     </div>
                                     <div className="local-llm-composer-actions">
                                         {isGenerating ? (

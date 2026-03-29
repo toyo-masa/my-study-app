@@ -35,12 +35,13 @@ import {
     mergeCompletedQuestionIds,
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
-import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
+import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 
 interface StudyRouteProps {
     allowTouchDrawing: boolean;
     reviewBoardFeedbackBlockSize: number;
     localLlmSettings: LocalLlmSettings;
+    onLocalLlmSettingsChange: (settings: LocalLlmSettingsUpdater) => void;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
     onWebLlmModelChange: (modelId: string) => void;
 }
@@ -57,6 +58,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     allowTouchDrawing,
     reviewBoardFeedbackBlockSize,
     localLlmSettings,
+    onLocalLlmSettingsChange,
     onLocalLlmModeChange,
     onWebLlmModelChange,
 }) => {
@@ -1573,7 +1575,9 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                     question={currentQuestion}
                     questionIndex={currentQuestionIndex}
                     showAnswer={showAnswerForCurrent}
+                    isPanelOpen={resolvedRightPanelOpen}
                     localLlmSettings={localLlmSettings}
+                    onLocalLlmSettingsChange={onLocalLlmSettingsChange}
                     onLocalLlmModeChange={onLocalLlmModeChange}
                     onWebLlmModelChange={onWebLlmModelChange}
                 />

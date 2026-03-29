@@ -2,14 +2,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowUp, Bot, Brain, Check, Copy, LoaderCircle, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
-import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
+import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 import {
     loadLastLocalApiModelId,
     resolveLocalApiRequestOptions,
+    resolveWebLlmModelParameterSettings,
     saveLastLocalApiModelId,
     WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS,
 } from '../utils/settings';
 import { LocalLlmMessageItem } from './LocalLlmMessageItem';
+import { LocalLlmParameterPopover } from './LocalLlmParameterPopover';
 import {
     DEFAULT_WEB_LLM_MODEL_ID,
     ensureLocalLlmEngine,
@@ -43,6 +45,7 @@ import {
 } from '../utils/localApiProviders';
 import { LocalLlmModelPicker, type LocalLlmModelPickerOption } from './LocalLlmModelPicker';
 import { buildLocalApiModelOptionList } from '../utils/localApiModelOptions';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 type LocalChatMessage = {
     id: string;
@@ -57,13 +60,16 @@ interface StudyQuestionChatPanelProps {
     question: Question;
     questionIndex: number;
     showAnswer: boolean;
+    isPanelOpen?: boolean;
     localLlmSettings: LocalLlmSettings;
+    onLocalLlmSettingsChange: (settings: LocalLlmSettingsUpdater) => void;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
     onWebLlmModelChange: (modelId: string) => void;
 }
 
 const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
 const WEB_LLM_LENGTH_WARNING = 'WebLLM の上限に達したため、最終回答も途中で打ち切られました。必要なら続きを短く区切って質問してください。';
+const LOCAL_API_LENGTH_WARNING = 'ローカルAPI の `max_tokens` 上限に達したため、回答が途中で打ち切られました。Thinking ON のまま短い上限を設定していると、思考だけで使い切ることがあります。モデルのパラメータから `max_tokens` を空欄に戻すか、大きめにしてください。';
 const LOCAL_LLM_BASE_SYSTEM_PROMPT = [
     'ユーザーの最新の依頼や質問内容を最優先にしてください。',
     '回答の詳しさ・長さ・形式は、ユーザーがこの会話で求めた内容に合わせてください。',
@@ -253,7 +259,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     question,
     questionIndex,
     showAnswer,
+    isPanelOpen = true,
     localLlmSettings,
+    onLocalLlmSettingsChange,
     onLocalLlmModeChange,
     onWebLlmModelChange,
 }) => {
@@ -295,6 +303,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const [isThinkingEnabled, setIsThinkingEnabled] = useState(true);
     const threadRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const mountedRef = useRef(true);
     const requestIdRef = useRef(0);
     const shouldAutoScrollRef = useRef(!hasInitialMessages);
@@ -309,6 +318,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const streamingAnimationFrameRef = useRef<number | null>(null);
     const flushStreamingUpdateRef = useRef<(() => void) | null>(null);
     const skipNextPersistenceQuestionKeyRef = useRef<string | null>(null);
+    const previousPanelOpenRef = useRef(false);
 
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
@@ -321,17 +331,25 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         () => getGroupedWebLlmModelOptions(selectedWebLlmModel),
         [selectedWebLlmModel]
     );
-    const webllmFirstPassTemperature = localLlmSettings.webllmFirstPassTemperature;
-    const webllmFirstPassTopP = localLlmSettings.webllmFirstPassTopP;
-    const webllmFirstPassThinkingBudget = localLlmSettings.webllmFirstPassThinkingBudget;
-    const webllmSecondPassFinalAnswerMaxTokens = localLlmSettings.webllmSecondPassFinalAnswerMaxTokens;
+    const webLlmModelParameters = useMemo(
+        () => resolveWebLlmModelParameterSettings(localLlmSettings, selectedWebLlmModel),
+        [localLlmSettings, selectedWebLlmModel]
+    );
+    const webllmFirstPassTemperature = webLlmModelParameters.firstPassTemperature;
+    const webllmFirstPassTopP = webLlmModelParameters.firstPassTopP;
+    const webllmFirstPassThinkingBudget = webLlmModelParameters.firstPassThinkingBudget;
+    const webllmFirstPassPresencePenalty = webLlmModelParameters.firstPassPresencePenalty;
+    const webllmSecondPassTemperature = webLlmModelParameters.secondPassTemperature;
+    const webllmSecondPassTopP = webLlmModelParameters.secondPassTopP;
+    const webllmSecondPassFinalAnswerMaxTokens = webLlmModelParameters.secondPassFinalAnswerMaxTokens;
+    const webllmSecondPassPresencePenalty = webLlmModelParameters.secondPassPresencePenalty;
     const matchedLocalApiProvider = useMemo(
         () => findLocalApiProviderByBaseUrl(localLlmSettings.baseUrl),
         [localLlmSettings.baseUrl]
     );
     const localApiRequestOptions = useMemo(
-        () => resolveLocalApiRequestOptions(localLlmSettings),
-        [localLlmSettings]
+        () => resolveLocalApiRequestOptions(localLlmSettings, selectedLocalApiModel),
+        [localLlmSettings, selectedLocalApiModel]
     );
     const showThinkingToggle = activeMode === 'webllm'
         || (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama');
@@ -464,7 +482,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
 
         try {
-            await navigator.clipboard.writeText(lastRequestPayload);
+            await copyTextToClipboard(lastRequestPayload);
             resetCopiedRequestState();
             setDidCopyRequestPayload(true);
             copyRequestResetTimeoutRef.current = window.setTimeout(() => {
@@ -483,7 +501,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
 
         try {
-            await navigator.clipboard.writeText(copyableContent);
+            await copyTextToClipboard(copyableContent);
             resetCopiedMessageState();
             setCopiedMessageId(message.id);
             copyAnswerResetTimeoutRef.current = window.setTimeout(() => {
@@ -694,6 +712,37 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     useEffect(() => {
         scrollToBottom();
     }, [messages, scrollToBottom]);
+
+    useEffect(() => {
+        if (!isPanelOpen) {
+            previousPanelOpenRef.current = false;
+            return;
+        }
+
+        const isInputDisabled = (activeMode === 'webllm' ? !isModelReady : selectedModel.length === 0)
+            || isGenerating
+            || questionId === null;
+        const justOpened = !previousPanelOpenRef.current;
+        previousPanelOpenRef.current = true;
+        if (!justOpened || isInputDisabled || typeof window === 'undefined') {
+            return;
+        }
+
+        const focusFrameId = window.requestAnimationFrame(() => {
+            const textarea = textareaRef.current;
+            if (!textarea || textarea.disabled) {
+                return;
+            }
+
+            textarea.focus();
+            const selectionStart = textarea.value.length;
+            textarea.setSelectionRange(selectionStart, selectionStart);
+        });
+
+        return () => {
+            window.cancelAnimationFrame(focusFrameId);
+        };
+    }, [activeMode, isGenerating, isModelReady, isPanelOpen, questionId, selectedModel]);
 
     const handleThreadScroll = useCallback(() => {
         shouldAutoScrollRef.current = isNearBottom();
@@ -973,11 +1022,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     firstPassThinkingBudget: webllmFirstPassThinkingBudget ?? 1024,
                     firstPassTemperature: webllmFirstPassTemperature ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
                     firstPassTopP: webllmFirstPassTopP ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
-                    firstPassPresencePenalty: localLlmSettings.webllmFirstPassPresencePenalty,
+                    firstPassPresencePenalty: webllmFirstPassPresencePenalty,
                     secondPassFinalAnswerMaxTokens: webllmSecondPassFinalAnswerMaxTokens ?? 512,
-                    secondPassTemperature: localLlmSettings.webllmSecondPassTemperature,
-                    secondPassTopP: localLlmSettings.webllmSecondPassTopP,
-                    secondPassPresencePenalty: localLlmSettings.webllmSecondPassPresencePenalty,
+                    secondPassTemperature: webllmSecondPassTemperature,
+                    secondPassTopP: webllmSecondPassTopP,
+                    secondPassPresencePenalty: webllmSecondPassPresencePenalty,
                     onDisplayText: updateAssistantText,
                     onPhaseChange: (phase) => {
                         if (!mountedRef.current || requestIdRef.current !== requestId) {
@@ -1064,6 +1113,13 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     if (assistantText.length === 0) {
                         assistantText = buildAssistantDisplayText(finalResult.thinkingText, finalResult.contentText);
                     }
+                    if (finalResult.doneReason === 'length') {
+                        const warningText = assistantText.trim().length > 0
+                            ? `${assistantText}\n\n${LOCAL_API_LENGTH_WARNING}`
+                            : LOCAL_API_LENGTH_WARNING;
+                        assistantText = warningText;
+                        updateAssistantText(warningText);
+                    }
                 } else {
                     const finalText = await streamOpenAiCompatibleChat({
                         baseUrl: localLlmSettings.baseUrl,
@@ -1129,10 +1185,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         localLlmSettings.baseUrl,
         webllmFirstPassTemperature,
         webllmFirstPassTopP,
-        localLlmSettings.webllmFirstPassPresencePenalty,
-        localLlmSettings.webllmSecondPassPresencePenalty,
-        localLlmSettings.webllmSecondPassTemperature,
-        localLlmSettings.webllmSecondPassTopP,
+        webllmFirstPassPresencePenalty,
+        webllmSecondPassPresencePenalty,
+        webllmSecondPassTemperature,
+        webllmSecondPassTopP,
         matchedLocalApiProvider?.id,
         messages,
         questionId,
@@ -1248,6 +1304,21 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         void handleSend();
     }, [handleSend]);
 
+    const handleComposerShellPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        if (target.closest('button, select, input, textarea, summary, a, [role="button"], [role="option"]')) {
+            return;
+        }
+
+        if (textareaRef.current && !textareaRef.current.disabled) {
+            textareaRef.current.focus();
+        }
+    }, []);
+
     return (
         <div className="study-question-chat-panel">
             <div className="study-question-chat-panel-body">
@@ -1360,8 +1431,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 </div>
 
                 <div className="local-llm-composer">
-                    <div className="local-llm-composer-shell">
+                    <div className="local-llm-composer-shell" onPointerDown={handleComposerShellPointerDown}>
                         <textarea
+                            ref={textareaRef}
                             className="local-llm-textarea"
                             value={input}
                             onChange={(event) => setInput(event.target.value)}
@@ -1400,6 +1472,15 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                         <Brain size={14} />
                                     </button>
                                 )}
+                                <LocalLlmParameterPopover
+                                    activeMode={activeMode}
+                                    localLlmSettings={localLlmSettings}
+                                    selectedModelId={selectedModel}
+                                    selectedModelLabel={selectedModel}
+                                    matchedLocalApiProviderId={matchedLocalApiProvider?.id ?? null}
+                                    disabled={isGenerating || isModelLoading}
+                                    onLocalLlmSettingsChange={onLocalLlmSettingsChange}
+                                />
                             </div>
                             <div className="study-question-chat-composer-actions">
                                 {isGenerating ? (

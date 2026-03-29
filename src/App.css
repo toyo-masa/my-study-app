@@ -884,8 +884,10 @@
 }
 
 .local-llm-thread {
-  min-height: 240px;
-  overflow: visible;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid var(--border-color);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-color) 96%, var(--primary-color) 4%);
@@ -897,6 +899,8 @@
 
 .local-llm-thread-shell {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
 }
@@ -913,6 +917,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  pointer-events: none;
 }
 
 .local-llm-thread-overlay-action {
@@ -928,6 +933,7 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  pointer-events: auto;
 }
 
 .local-llm-thread-overlay-action:hover:not(:disabled),
@@ -1184,6 +1190,8 @@
 }
 
 .local-llm-composer-shell {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
@@ -1405,6 +1413,186 @@
   white-space: nowrap;
 }
 
+.local-llm-parameter-popover {
+  flex: 0 0 auto;
+}
+
+.local-llm-parameter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.local-llm-parameter-trigger:hover:not(:disabled),
+.local-llm-parameter-trigger:focus-visible {
+  outline: none;
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.45);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-color);
+  transform: translateY(-1px);
+}
+
+.local-llm-parameter-trigger.active {
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.8);
+  background: rgba(var(--primary-color-rgb, 244, 114, 182), 0.18);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(var(--primary-color-rgb, 244, 114, 182), 0.18);
+}
+
+.local-llm-parameter-trigger.active:hover:not(:disabled),
+.local-llm-parameter-trigger.active:focus-visible {
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.88);
+  background: rgba(var(--primary-color-rgb, 244, 114, 182), 0.24);
+}
+
+.local-llm-parameter-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.local-llm-parameter-popover-panel {
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-color) 95%, black 5%);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+  padding: 0.9rem;
+}
+
+.local-llm-parameter-popover-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.local-llm-parameter-popover-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.local-llm-parameter-popover-subtitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.local-llm-parameter-popover-body {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.local-llm-parameter-popover-note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.local-llm-parameter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-top: 0.1rem;
+}
+
+.local-llm-parameter-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.local-llm-parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.local-llm-parameter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.local-llm-parameter-field > span {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.local-llm-parameter-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.84rem;
+  padding: 0.52rem 0.68rem;
+  box-sizing: border-box;
+}
+
+.local-llm-parameter-input:focus {
+  outline: none;
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.45);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 244, 114, 182), 0.12);
+}
+
+.local-llm-parameter-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.8rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.local-llm-parameter-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 0.42rem 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.local-llm-parameter-reset-btn:hover:not(:disabled),
+.local-llm-parameter-reset-btn:focus-visible {
+  outline: none;
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.4);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-color);
+}
+
+.local-llm-parameter-reset-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .local-llm-tooltip-target[data-tooltip]::before,
 .local-llm-tooltip-target[data-tooltip]::after {
   opacity: 0;
@@ -1581,8 +1769,7 @@
 
 .study-question-chat-thread {
   flex: 1;
-  min-height: 260px;
-  overflow-y: auto;
+  min-height: 0;
 }
 
 .study-question-chat-composer-actions {
@@ -1665,7 +1852,8 @@
     max-width: 100%;
   }
 
-  .local-llm-thinking-toggle {
+  .local-llm-thinking-toggle,
+  .local-llm-parameter-trigger {
     flex-basis: 34px;
   }
 
@@ -1673,6 +1861,10 @@
     width: 34px;
     height: 34px;
     justify-content: center;
+  }
+
+  .local-llm-parameter-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

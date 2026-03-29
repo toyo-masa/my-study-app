@@ -160,6 +160,7 @@ function App() {
           element={(
             <LocalLlmChatRoute
               localLlmSettings={localLlmSettings}
+              onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
               onLocalLlmModeChange={handleLocalLlmModeChange}
               onWebLlmModelChange={handleWebLlmModelChange}
             />
@@ -176,6 +177,7 @@ function App() {
               allowTouchDrawing={handwritingSettings.allowTouchDrawing}
               reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
               localLlmSettings={localLlmSettings}
+              onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
               onLocalLlmModeChange={handleLocalLlmModeChange}
               onWebLlmModelChange={handleWebLlmModelChange}
             />
@@ -188,6 +190,7 @@ function App() {
               allowTouchDrawing={handwritingSettings.allowTouchDrawing}
               reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
               localLlmSettings={localLlmSettings}
+              onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
               onLocalLlmModeChange={handleLocalLlmModeChange}
               onWebLlmModelChange={handleWebLlmModelChange}
             />

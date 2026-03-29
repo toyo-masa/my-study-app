@@ -190,6 +190,8 @@ const buildOllamaNativeChatBody = (
     return payload;
 };
 
+type OllamaNativeDoneReason = 'stop' | 'length' | 'unload' | string | null;
+
 const extractTextContent = (value: unknown): string => {
     if (typeof value === 'string') {
         return value;
@@ -712,11 +714,12 @@ export const streamOllamaNativeChat = async ({
 
     const readChunkPayload = (payload: unknown) => {
         if (!payload || typeof payload !== 'object') {
-            return { thinking: '', content: '', done: false };
+            return { thinking: '', content: '', done: false, doneReason: null as OllamaNativeDoneReason };
         }
 
         const candidate = payload as {
             done?: unknown;
+            done_reason?: unknown;
             message?: {
                 thinking?: unknown;
                 content?: unknown;
@@ -727,6 +730,7 @@ export const streamOllamaNativeChat = async ({
             thinking: typeof candidate.message?.thinking === 'string' ? candidate.message.thinking : '',
             content: typeof candidate.message?.content === 'string' ? candidate.message.content : '',
             done: candidate.done === true,
+            doneReason: typeof candidate.done_reason === 'string' ? candidate.done_reason : null,
         };
     };
 
@@ -742,6 +746,7 @@ export const streamOllamaNativeChat = async ({
         return {
             thinkingText: parsed.thinking,
             contentText: parsed.content,
+            doneReason: parsed.doneReason,
         };
     }
 
@@ -751,6 +756,7 @@ export const streamOllamaNativeChat = async ({
     let thinkingText = '';
     let contentText = '';
     let streamDone = false;
+    let doneReason: OllamaNativeDoneReason = null;
 
     while (!streamDone) {
         const { done, value } = await reader.read();
@@ -777,6 +783,7 @@ export const streamOllamaNativeChat = async ({
                     onContentDelta?.(parsed.content);
                 }
                 if (parsed.done) {
+                    doneReason = parsed.doneReason;
                     streamDone = true;
                     break;
                 }
@@ -796,11 +803,15 @@ export const streamOllamaNativeChat = async ({
             contentText += parsed.content;
             onContentDelta?.(parsed.content);
         }
+        if (parsed.doneReason) {
+            doneReason = parsed.doneReason;
+        }
     }
 
     return {
         thinkingText,
         contentText,
+        doneReason,
     };
 };
 
