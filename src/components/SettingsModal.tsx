@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
@@ -103,6 +103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [isFetchingLocalApiModels, setIsFetchingLocalApiModels] = useState(false);
     const [localApiModelFetchError, setLocalApiModelFetchError] = useState<string | null>(null);
     const [localApiModelFetchNonce, setLocalApiModelFetchNonce] = useState(0);
+    const lastAppliedLocalApiModelFetchNonceRef = useRef(0);
     const localApiModelOptions = useMemo(() => {
         const modelIds = new Set<string>();
         const preferredModelId = localLlmSettings.defaultModelId.trim();
@@ -147,6 +148,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         const controller = new AbortController();
         let active = true;
+        const shouldForceFetch = localApiModelFetchNonce !== lastAppliedLocalApiModelFetchNonceRef.current;
+        lastAppliedLocalApiModelFetchNonceRef.current = localApiModelFetchNonce;
 
         void Promise.resolve().then(() => {
             if (!active) {
@@ -157,7 +160,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             setIsFetchingLocalApiModels(true);
         });
 
-        void fetchOpenAiCompatibleModelIds(trimmedBaseUrl, undefined, controller.signal)
+        void fetchOpenAiCompatibleModelIds(trimmedBaseUrl, undefined, controller.signal, {
+            force: shouldForceFetch,
+        })
             .then((modelIds) => {
                 if (!active) {
                     return;

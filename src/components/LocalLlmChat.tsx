@@ -345,6 +345,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         return Array.from(modelIds);
     }, [availableModels, currentSession?.mode, currentSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
+    const shouldShowLocalApiModelSelect = activeMode === 'openai-local'
+        && localApiFetchError === null
+        && (isFetchingModels || availableModels.length > 0);
+    const selectedLocalApiModelOptionValue = localApiSelectableModels.includes(selectedLocalApiModel.trim())
+        ? selectedLocalApiModel.trim()
+        : '';
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
@@ -820,10 +826,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     useEffect(() => {
         setAvailableModels([]);
         setLocalApiFetchError(null);
+    }, [localLlmSettings.baseUrl]);
+
+    useEffect(() => {
         if (activeMode === 'openai-local' && messages.length === 0) {
             setSelectedLocalApiModel((previous) => previous.trim().length > 0 ? previous : localLlmSettings.defaultModelId);
         }
-    }, [activeMode, localLlmSettings.baseUrl, localLlmSettings.defaultModelId, messages.length]);
+    }, [activeMode, localLlmSettings.defaultModelId, messages.length]);
 
     useEffect(() => {
         if (!currentSessionId) {
@@ -921,53 +930,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         createFreshSession(activeMode);
     }, [activeMode, createFreshSession, currentSession, handleDeleteSession, isGenerating]);
 
-    const handleModelOptionChange = useCallback((value: string) => {
-        if (value.startsWith('webllm:')) {
-            const modelId = value.slice('webllm:'.length);
-            if (activeMode !== 'webllm') {
-                onLocalLlmModeChange('webllm');
-            }
-            if (modelId.length > 0) {
-                if (currentSession) {
-                    setChatSessions((previous) => previous.map((session) => (
-                        session.id === currentSession.id
-                            ? {
-                                ...session,
-                                mode: 'webllm',
-                                modelId,
-                            }
-                            : session
-                    )));
-                }
-                onWebLlmModelChange(modelId);
-            }
-            return;
-        }
-
-        if (value === 'openai-local' || value.startsWith('openai-local:')) {
-            const modelId = value === 'openai-local'
-                ? selectedLocalApiModel.trim()
-                : value.slice('openai-local:'.length).trim();
-            if (activeMode !== 'openai-local') {
-                onLocalLlmModeChange('openai-local');
-            }
-            if (currentSession) {
-                setChatSessions((previous) => previous.map((session) => (
-                    session.id === currentSession.id
-                        ? {
-                            ...session,
-                            mode: 'openai-local',
-                            modelId,
-                        }
-                        : session
-                )));
-            }
-            setSelectedLocalApiModel(modelId);
-        }
-    }, [activeMode, currentSession, onLocalLlmModeChange, onWebLlmModelChange, selectedLocalApiModel]);
-
-    const handleFetchModels = useCallback(async () => {
-        if (activeMode !== 'openai-local' || localApiModelListAbortRef.current || localLlmSettings.baseUrl.trim().length === 0) {
+    const fetchLocalApiModels = useCallback(async (options?: { force?: boolean }) => {
+        if (localApiModelListAbortRef.current || localLlmSettings.baseUrl.trim().length === 0) {
             return;
         }
 
@@ -977,13 +941,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setError(null);
         setLocalApiFetchError(null);
         setIsFetchingModels(true);
-        setAvailableModels([]);
 
         try {
             const modelIds = await fetchOpenAiCompatibleModelIds(
                 localLlmSettings.baseUrl,
                 undefined,
-                controller.signal
+                controller.signal,
+                { force: options?.force === true }
             );
 
             if (!mountedRef.current || localApiModelListAbortRef.current !== controller) {
@@ -1021,15 +985,68 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 setIsFetchingModels(false);
             }
         }
-    }, [activeMode, localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
+    }, [localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
+
+    const handleModelOptionChange = useCallback((value: string) => {
+        if (value.startsWith('webllm:')) {
+            const modelId = value.slice('webllm:'.length);
+            if (activeMode !== 'webllm') {
+                onLocalLlmModeChange('webllm');
+            }
+            if (modelId.length > 0) {
+                if (currentSession) {
+                    setChatSessions((previous) => previous.map((session) => (
+                        session.id === currentSession.id
+                            ? {
+                                ...session,
+                                mode: 'webllm',
+                                modelId,
+                            }
+                            : session
+                    )));
+                }
+                onWebLlmModelChange(modelId);
+            }
+            return;
+        }
+
+        if (value === 'openai-local' || value.startsWith('openai-local:')) {
+            const modelId = value === 'openai-local'
+                ? selectedLocalApiModel.trim()
+                : value.slice('openai-local:'.length).trim();
+            if (activeMode !== 'openai-local') {
+                onLocalLlmModeChange('openai-local');
+                void fetchLocalApiModels();
+            }
+            if (currentSession) {
+                setChatSessions((previous) => previous.map((session) => (
+                    session.id === currentSession.id
+                        ? {
+                            ...session,
+                            mode: 'openai-local',
+                            modelId,
+                        }
+                        : session
+                )));
+            }
+            setSelectedLocalApiModel(modelId);
+        }
+    }, [activeMode, currentSession, fetchLocalApiModels, onLocalLlmModeChange, onWebLlmModelChange, selectedLocalApiModel]);
+
+    const handleFetchModels = useCallback(async () => {
+        if (activeMode !== 'openai-local') {
+            return;
+        }
+        await fetchLocalApiModels({ force: true });
+    }, [activeMode, fetchLocalApiModels]);
 
     useEffect(() => {
         if (activeMode !== 'openai-local' || localLlmSettings.baseUrl.trim().length === 0) {
             return;
         }
 
-        void handleFetchModels();
-    }, [activeMode, handleFetchModels, localLlmSettings.baseUrl]);
+        void fetchLocalApiModels();
+    }, [activeMode, fetchLocalApiModels, localLlmSettings.baseUrl]);
 
     useEffect(() => {
         if (activeMode === 'webllm') {
@@ -1619,16 +1636,20 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
                         {activeMode === 'openai-local' && (
                             <div className="local-llm-settings-grid">
-                                {localApiFetchError === null && localApiSelectableModels.length > 0 ? (
+                                {shouldShowLocalApiModelSelect ? (
                                     <label className="local-llm-field">
                                         <span className="local-llm-field-label">モデル名</span>
                                         <select
                                             className="local-llm-input"
-                                            value={selectedLocalApiModel.trim()}
+                                            value={selectedLocalApiModelOptionValue}
                                             onChange={(event) => handleModelOptionChange(`openai-local:${event.target.value}`)}
-                                            disabled={isGenerating || isFetchingModels}
+                                            disabled={isGenerating || (isFetchingModels && availableModels.length === 0)}
                                         >
-                                            <option value="">モデルを選択してください</option>
+                                            <option value="">
+                                                {isFetchingModels && availableModels.length === 0
+                                                    ? 'モデル一覧を取得中…'
+                                                    : 'モデルを選択してください'}
+                                            </option>
                                             {localApiSelectableModels.map((modelId) => (
                                                 <option key={`local-api-model-field-${modelId}`} value={modelId}>
                                                     {modelId}
@@ -1650,9 +1671,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                     </label>
                                 )}
                                 <div className="local-llm-field" style={{ gridColumn: '1 / -1' }}>
-                                    <span className="local-llm-field-label">接続先</span>
+                                    <span className="local-llm-field-label">モデル一覧</span>
                                     <div className="local-llm-status-row" style={{ marginTop: 0 }}>
-                                        <span className="local-llm-info-chip">{localLlmSettings.baseUrl}</span>
                                         <button
                                             type="button"
                                             className="nav-btn"

@@ -332,47 +332,130 @@ const processSseEvent = (eventBlock: string, onDelta: (delta: string) => void) =
     };
 };
 
+const MODEL_LIST_CACHE_TTL_MS = 5000;
+
+type FetchModelIdsOptions = {
+    force?: boolean;
+};
+
+type ModelListCacheEntry = {
+    modelIds: string[];
+    fetchedAt: number;
+};
+
+const modelListCache = new Map<string, ModelListCacheEntry>();
+const modelListInFlight = new Map<string, Promise<string[]>>();
+
+const buildModelListCacheKey = (baseUrl: string, apiKey?: string) => {
+    return `${baseUrl.replace(/\/+$/, '')}::${apiKey?.trim() ?? ''}`;
+};
+
+const createAbortError = () => new DOMException('The operation was aborted.', 'AbortError');
+
+const awaitWithAbortSignal = async <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
+    if (!signal) {
+        return promise;
+    }
+
+    if (signal.aborted) {
+        throw createAbortError();
+    }
+
+    return new Promise<T>((resolve, reject) => {
+        const handleAbort = () => {
+            cleanup();
+            reject(createAbortError());
+        };
+
+        const cleanup = () => {
+            signal.removeEventListener('abort', handleAbort);
+        };
+
+        signal.addEventListener('abort', handleAbort, { once: true });
+        promise.then(
+            (value) => {
+                cleanup();
+                resolve(value);
+            },
+            (error) => {
+                cleanup();
+                reject(error);
+            }
+        );
+    });
+};
+
 export const fetchOpenAiCompatibleModelIds = async (
     baseUrl: string,
     apiKey?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: FetchModelIdsOptions,
 ) => {
-    let response: Response;
-    try {
-        response = await fetch(buildEndpoint(baseUrl, '/models'), {
-            method: 'GET',
-            headers: buildHeaders(apiKey),
-            signal,
-        });
-    } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-            throw error;
-        }
-        throw new Error(buildLocalApiFetchFailureMessage(baseUrl));
+    const cacheKey = buildModelListCacheKey(baseUrl, apiKey);
+    const force = options?.force === true;
+    const cached = modelListCache.get(cacheKey);
+
+    if (!force && cached && Date.now() - cached.fetchedAt <= MODEL_LIST_CACHE_TTL_MS) {
+        return cached.modelIds;
     }
 
-    if (!response.ok) {
-        throw new Error(await getResponseErrorMessage(response));
+    const inFlight = modelListInFlight.get(cacheKey);
+    if (!force && inFlight) {
+        return await awaitWithAbortSignal(inFlight, signal);
     }
 
-    const payload = await response.json() as {
-        data?: Array<{ id?: string } | string>;
-    };
-
-    const modelIds = Array.isArray(payload.data)
-        ? payload.data.map((item) => {
-            if (typeof item === 'string') {
-                return item.trim();
+    const requestPromise = (async () => {
+        let response: Response;
+        try {
+            response = await fetch(buildEndpoint(baseUrl, '/models'), {
+                method: 'GET',
+                headers: buildHeaders(apiKey),
+            });
+        } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                throw error;
             }
-            return typeof item?.id === 'string' ? item.id.trim() : '';
-        }).filter((item) => item.length > 0)
-        : [];
+            throw new Error(buildLocalApiFetchFailureMessage(baseUrl));
+        }
 
-    if (modelIds.length === 0) {
-        throw new Error('利用可能なモデル一覧を取得できませんでした。OpenAI互換の /v1/models を確認してください。');
+        if (!response.ok) {
+            throw new Error(await getResponseErrorMessage(response));
+        }
+
+        const payload = await response.json() as {
+            data?: Array<{ id?: string } | string>;
+        };
+
+        const modelIds = Array.isArray(payload.data)
+            ? payload.data.map((item) => {
+                if (typeof item === 'string') {
+                    return item.trim();
+                }
+                return typeof item?.id === 'string' ? item.id.trim() : '';
+            }).filter((item) => item.length > 0)
+            : [];
+
+        if (modelIds.length === 0) {
+            throw new Error('利用可能なモデル一覧を取得できませんでした。OpenAI互換の /v1/models を確認してください。');
+        }
+
+        modelListCache.set(cacheKey, {
+            modelIds,
+            fetchedAt: Date.now(),
+        });
+
+        return modelIds;
+    })();
+
+    modelListInFlight.set(cacheKey, requestPromise);
+
+    try {
+        return await awaitWithAbortSignal(requestPromise, signal);
+    } finally {
+        if (modelListInFlight.get(cacheKey) === requestPromise) {
+            modelListInFlight.delete(cacheKey);
+        }
     }
-
-    return modelIds;
 };
 
 export const streamOpenAiCompatibleChat = async ({

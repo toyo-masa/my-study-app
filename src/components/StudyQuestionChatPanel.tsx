@@ -37,7 +37,6 @@ import {
 } from '../utils/webLlmBudgetedGeneration';
 import {
     findLocalApiProviderByBaseUrl,
-    LOCAL_API_PROVIDER_PRESETS,
 } from '../utils/localApiProviders';
 
 type LocalChatMessage = {
@@ -363,6 +362,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         return Array.from(modelIds);
     }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
+    const shouldShowLocalApiModelSelect = activeMode === 'openai-local'
+        && localApiFetchError === null
+        && (isFetchingModels || availableModels.length > 0);
+    const selectedLocalApiModelOptionValue = localApiSelectableModels.includes(selectedLocalApiModel.trim())
+        ? selectedLocalApiModel.trim()
+        : '';
     const selectedModelOptionValue = activeMode === 'webllm'
         ? `webllm:${selectedWebLlmModel}`
         : 'openai-local';
@@ -388,7 +393,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setInput('');
         setError(null);
         setLocalApiFetchError(null);
-        setAvailableModels([]);
     }, []);
 
     const resetCopiedRequestState = useCallback(() => {
@@ -681,19 +685,17 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
     }, [isModelLoading, selectedWebLlmModel]);
 
-    const handleFetchModels = useCallback(async () => {
-        if (isFetchingModels || localLlmSettings.baseUrl.trim().length === 0) {
+    const fetchLocalApiModels = useCallback(async () => {
+        if (localApiModelListAbortRef.current || localLlmSettings.baseUrl.trim().length === 0) {
             return;
         }
 
-        localApiModelListAbortRef.current?.abort();
         const controller = new AbortController();
         localApiModelListAbortRef.current = controller;
 
         setError(null);
         setLocalApiFetchError(null);
         setIsFetchingModels(true);
-        setAvailableModels([]);
 
         try {
             const modelIds = await fetchOpenAiCompatibleModelIds(
@@ -737,15 +739,15 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 setIsFetchingModels(false);
             }
         }
-    }, [isFetchingModels, localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
+    }, [localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
 
     useEffect(() => {
         if (activeMode !== 'openai-local' || localLlmSettings.baseUrl.trim().length === 0) {
             return;
         }
 
-        void handleFetchModels();
-    }, [activeMode, handleFetchModels, localLlmSettings.baseUrl]);
+        void fetchLocalApiModels();
+    }, [activeMode, fetchLocalApiModels, localLlmSettings.baseUrl]);
 
     useEffect(() => {
         if (activeMode === 'webllm') {
@@ -1161,6 +1163,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 : value.slice('openai-local:'.length).trim();
             if (activeMode !== 'openai-local') {
                 onLocalLlmModeChange('openai-local');
+                void fetchLocalApiModels();
             }
             if (questionId !== null) {
                 setStoredSessions((previous) => previous.map((session) => (
@@ -1177,7 +1180,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 setSelectedLocalApiModel(modelId);
             }
         }
-    }, [activeMode, onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId, selectedLocalApiModel, selectedWebLlmModel]);
+    }, [activeMode, fetchLocalApiModels, onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId, selectedLocalApiModel, selectedWebLlmModel]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
@@ -1266,14 +1269,18 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
                 {activeMode === 'openai-local' && (
                     <>
-                        {localApiFetchError === null && localApiSelectableModels.length > 0 ? (
+                        {shouldShowLocalApiModelSelect ? (
                             <select
                                 className="local-llm-input"
-                                value={selectedLocalApiModel.trim()}
+                                value={selectedLocalApiModelOptionValue}
                                 onChange={(event) => handleModelOptionChange(`openai-local:${event.target.value}`)}
-                                disabled={isGenerating || isFetchingModels}
+                                disabled={isGenerating || (isFetchingModels && availableModels.length === 0)}
                             >
-                                <option value="">モデルを選択してください</option>
+                                <option value="">
+                                    {isFetchingModels && availableModels.length === 0
+                                        ? 'モデル一覧を取得中…'
+                                        : 'モデルを選択してください'}
+                                </option>
                                 {localApiSelectableModels.map((modelId) => (
                                     <option key={`study-local-api-model-field-${modelId}`} value={modelId}>
                                         {modelId}
@@ -1300,13 +1307,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 <Trash2 size={16} />
                                 この問題の会話をクリア
                             </button>
-                        </div>
-                        <div className="study-question-chat-examples">
-                            {LOCAL_API_PROVIDER_PRESETS.map((preset) => (
-                                <span key={preset.id} className="local-llm-info-chip">
-                                    {preset.label}: {preset.baseUrl}
-                                </span>
-                            ))}
                         </div>
                     </>
                 )}
