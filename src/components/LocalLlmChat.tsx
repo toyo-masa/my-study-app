@@ -6,7 +6,9 @@ import { LocalLlmModelPicker, type LocalLlmModelPickerOption } from './LocalLlmM
 import { LocalLlmMessageItem } from './LocalLlmMessageItem';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import {
+    loadLastLocalApiModelId,
     resolveLocalApiRequestOptions,
+    saveLastLocalApiModelId,
     WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS,
 } from '../utils/settings';
 import {
@@ -224,9 +226,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }
 
     const initialSessions = initialSessionsRef.current ?? [];
+    const initialRememberedLocalApiModelId = loadLastLocalApiModelId(localLlmSettings.baseUrl);
     const initialSession = initialSessions[0] ?? buildEmptySession(
         localLlmSettings.preferredMode,
-        localLlmSettings.defaultModelId,
+        localLlmSettings.defaultModelId || initialRememberedLocalApiModelId,
         localLlmSettings.webllmModelId
     );
 
@@ -245,8 +248,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     ));
     const [selectedLocalApiModel, setSelectedLocalApiModel] = useState(() => (
         initialSession.mode === 'openai-local'
-            ? initialSession.modelId || localLlmSettings.defaultModelId
-            : localLlmSettings.defaultModelId
+            ? initialSession.modelId || localLlmSettings.defaultModelId || initialRememberedLocalApiModelId
+            : localLlmSettings.defaultModelId || initialRememberedLocalApiModelId
     ));
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
@@ -282,6 +285,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
+    const rememberedLocalApiModelId = useMemo(
+        () => loadLastLocalApiModelId(localLlmSettings.baseUrl),
+        [localLlmSettings.baseUrl]
+    );
     const webLlmSelectableModelGroups = useMemo(
         () => getGroupedWebLlmModelOptions(selectedWebLlmModel),
         [selectedWebLlmModel]
@@ -334,8 +341,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             sessionModelId,
             preferredModelId,
             currentLocalModelId,
+            rememberedLocalApiModelId,
         ]);
-    }, [availableModels, currentSession?.mode, currentSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
+    }, [availableModels, currentSession?.mode, currentSession?.modelId, localLlmSettings.defaultModelId, rememberedLocalApiModelId, selectedLocalApiModel]);
     const selectedLocalApiModelOptionValue = localApiSelectableModels.includes(selectedLocalApiModel.trim())
         ? selectedLocalApiModel.trim()
         : '';
@@ -527,21 +535,21 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     const createFreshSession = useCallback((mode: LocalLlmMode) => {
         const initialLocalModelId = mode === 'openai-local'
-            ? (selectedLocalApiModel.trim() || localLlmSettings.defaultModelId)
-            : localLlmSettings.defaultModelId;
+            ? (selectedLocalApiModel.trim() || localLlmSettings.defaultModelId || rememberedLocalApiModelId)
+            : (localLlmSettings.defaultModelId || rememberedLocalApiModelId);
         const nextSession = buildEmptySession(mode, initialLocalModelId, selectedWebLlmModel);
         setCurrentSessionId(nextSession.id);
         setMessages([]);
-        setSelectedLocalApiModel(mode === 'openai-local' ? nextSession.modelId : localLlmSettings.defaultModelId);
+        setSelectedLocalApiModel(mode === 'openai-local' ? nextSession.modelId : (localLlmSettings.defaultModelId || rememberedLocalApiModelId));
         resetViewState();
-    }, [localLlmSettings.defaultModelId, resetViewState, selectedLocalApiModel, selectedWebLlmModel]);
+    }, [localLlmSettings.defaultModelId, rememberedLocalApiModelId, resetViewState, selectedLocalApiModel, selectedWebLlmModel]);
 
     const selectSessionForView = useCallback((targetSession: StoredLocalLlmChatSession | null) => {
         if (!targetSession) {
-            const draftSession = buildEmptySession(activeMode, localLlmSettings.defaultModelId, selectedWebLlmModel);
+            const draftSession = buildEmptySession(activeMode, localLlmSettings.defaultModelId || rememberedLocalApiModelId, selectedWebLlmModel);
             setCurrentSessionId(draftSession.id);
             setMessages([]);
-            setSelectedLocalApiModel(localLlmSettings.defaultModelId);
+            setSelectedLocalApiModel(localLlmSettings.defaultModelId || rememberedLocalApiModelId);
             setLastRequestPayload(null);
             resetCopiedRequestState();
             resetCopiedMessageState();
@@ -554,8 +562,8 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         setMessages(toViewMessages(targetSession.messages));
         setSelectedLocalApiModel(
             targetSession.mode === 'openai-local'
-                ? (targetSession.modelId || localLlmSettings.defaultModelId)
-                : localLlmSettings.defaultModelId
+                ? (targetSession.modelId || localLlmSettings.defaultModelId || rememberedLocalApiModelId)
+                : (localLlmSettings.defaultModelId || rememberedLocalApiModelId)
         );
         setLastRequestPayload(null);
         resetCopiedRequestState();
@@ -575,6 +583,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [
         activeMode,
         localLlmSettings.defaultModelId,
+        rememberedLocalApiModelId,
         onLocalLlmModeChange,
         onWebLlmModelChange,
         resetCopiedMessageState,
@@ -605,13 +614,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         if (messages.length === 0) {
             resetViewState();
             if (activeMode === 'openai-local') {
-                setSelectedLocalApiModel(localLlmSettings.defaultModelId);
+                setSelectedLocalApiModel(localLlmSettings.defaultModelId || rememberedLocalApiModelId);
             }
             return;
         }
 
         createFreshSession(activeMode);
-    }, [activeMode, cancelActiveWork, createFreshSession, isGenerating, localLlmSettings.defaultModelId, messages.length, resetViewState]);
+    }, [activeMode, cancelActiveWork, createFreshSession, isGenerating, localLlmSettings.defaultModelId, messages.length, rememberedLocalApiModelId, resetViewState]);
 
     const handleDeleteSession = useCallback((sessionId: string) => {
         if (isGenerating) {
@@ -857,9 +866,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         resetViewState();
         if (activeMode === 'openai-local') {
-            setSelectedLocalApiModel((previous) => previous.trim().length > 0 ? previous : localLlmSettings.defaultModelId);
+            setSelectedLocalApiModel((previous) => previous.trim().length > 0 ? previous : (localLlmSettings.defaultModelId || rememberedLocalApiModelId));
         }
-    }, [activeMode, cancelActiveWork, createFreshSession, localLlmSettings.defaultModelId, messages.length, resetViewState]);
+    }, [activeMode, cancelActiveWork, createFreshSession, localLlmSettings.defaultModelId, messages.length, rememberedLocalApiModelId, resetViewState]);
 
     useEffect(() => {
         setAvailableModels(getCachedOpenAiCompatibleModelIds(localLlmSettings.baseUrl));
@@ -868,9 +877,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
     useEffect(() => {
         if (activeMode === 'openai-local' && messages.length === 0) {
-            setSelectedLocalApiModel((previous) => previous.trim().length > 0 ? previous : localLlmSettings.defaultModelId);
+            setSelectedLocalApiModel((previous) => previous.trim().length > 0 ? previous : (localLlmSettings.defaultModelId || rememberedLocalApiModelId));
         }
-    }, [activeMode, localLlmSettings.defaultModelId, messages.length]);
+    }, [activeMode, localLlmSettings.defaultModelId, messages.length, rememberedLocalApiModelId]);
 
     useEffect(() => {
         if (!currentSessionId) {
@@ -996,11 +1005,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             setSelectedLocalApiModel((previous) => {
                 const currentLocalModel = previous.trim();
                 const preferredModel = localLlmSettings.defaultModelId.trim();
+                const rememberedModel = rememberedLocalApiModelId.trim();
                 if (currentLocalModel.length > 0 && modelIds.includes(currentLocalModel)) {
                     return currentLocalModel;
                 }
                 if (preferredModel.length > 0 && modelIds.includes(preferredModel)) {
                     return preferredModel;
+                }
+                if (rememberedModel.length > 0 && modelIds.includes(rememberedModel)) {
+                    return rememberedModel;
                 }
                 if (modelIds.length === 1) {
                     return modelIds[0];
@@ -1023,7 +1036,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 setIsFetchingModels(false);
             }
         }
-    }, [localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
+    }, [localLlmSettings.baseUrl, localLlmSettings.defaultModelId, rememberedLocalApiModelId]);
 
     const handleModelOptionChange = useCallback((value: string) => {
         if (value.startsWith('webllm:')) {
@@ -1055,6 +1068,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             if (modelId !== selectedLocalApiModel) {
                 setSelectedLocalApiModel(modelId);
             }
+            if (modelId.length > 0) {
+                saveLastLocalApiModelId(localLlmSettings.baseUrl, modelId);
+            }
             if (activeMode !== 'openai-local') {
                 onLocalLlmModeChange('openai-local');
                 void fetchLocalApiModels();
@@ -1071,7 +1087,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                 )));
             }
         }
-    }, [activeMode, currentSession, fetchLocalApiModels, onLocalLlmModeChange, onWebLlmModelChange, selectedLocalApiModel]);
+    }, [activeMode, currentSession, fetchLocalApiModels, localLlmSettings.baseUrl, onLocalLlmModeChange, onWebLlmModelChange, selectedLocalApiModel]);
 
     useEffect(() => {
         if (activeMode !== 'openai-local' || localLlmSettings.baseUrl.trim().length === 0) {

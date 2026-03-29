@@ -55,6 +55,7 @@ const SETTINGS_KEYS = {
     useCloudSync: 'useCloudSync',
     handwritingSettings: 'handwritingSettings',
     localLlmSettings: 'localLlmSettings',
+    lastLocalApiModelIdPrefix: 'lastLocalApiModelId::',
 } as const;
 
 const DEFAULT_SETTINGS = {
@@ -347,6 +348,42 @@ export function saveLocalLlmSettings(settings: LocalLlmSettings): void {
         SETTINGS_KEYS.localLlmSettings,
         JSON.stringify(normalizeLocalLlmSettings(settings))
     );
+}
+
+const buildLastLocalApiModelIdStorageKey = (baseUrl: string): string => {
+    return `${SETTINGS_KEYS.lastLocalApiModelIdPrefix}${encodeURIComponent(normalizeLocalLlmBaseUrl(baseUrl))}`;
+};
+
+export function loadLastLocalApiModelId(baseUrl: string): string {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+
+    try {
+        return normalizeLocalLlmModelId(localStorage.getItem(buildLastLocalApiModelIdStorageKey(baseUrl)));
+    } catch {
+        return '';
+    }
+}
+
+export function saveLastLocalApiModelId(baseUrl: string, modelId: string): void {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const normalizedModelId = normalizeLocalLlmModelId(modelId);
+    const storageKey = buildLastLocalApiModelIdStorageKey(baseUrl);
+
+    try {
+        if (normalizedModelId.length === 0) {
+            localStorage.removeItem(storageKey);
+            return;
+        }
+
+        localStorage.setItem(storageKey, normalizedModelId);
+    } catch {
+        // localStorage へ書けない場合は現在の state をそのまま使う
+    }
 }
 
 export type ResolvedLocalApiRequestOptions = {

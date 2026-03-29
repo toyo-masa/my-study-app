@@ -4,7 +4,9 @@ import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import {
+    loadLastLocalApiModelId,
     resolveLocalApiRequestOptions,
+    saveLastLocalApiModelId,
     WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS,
 } from '../utils/settings';
 import { LocalLlmMessageItem } from './LocalLlmMessageItem';
@@ -266,6 +268,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const initialSession = questionId !== null
         ? findStudyQuestionChatSession(initialSessions, quizSetId, questionId)
         : null;
+    const initialRememberedLocalApiModelId = loadLastLocalApiModelId(localLlmSettings.baseUrl);
     const hasInitialMessages = (initialSession?.messages.length ?? 0) > 0;
 
     const [storedSessions, setStoredSessions] = useState<StoredStudyQuestionChatSession[]>(initialSessions);
@@ -283,8 +286,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     ));
     const [selectedLocalApiModel, setSelectedLocalApiModel] = useState(() => (
         initialSession?.mode === 'openai-local'
-            ? (initialSession.modelId || localLlmSettings.defaultModelId)
-            : localLlmSettings.defaultModelId
+            ? (initialSession.modelId || localLlmSettings.defaultModelId || initialRememberedLocalApiModelId)
+            : localLlmSettings.defaultModelId || initialRememberedLocalApiModelId
     ));
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
@@ -310,6 +313,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
+    const rememberedLocalApiModelId = useMemo(
+        () => loadLastLocalApiModelId(localLlmSettings.baseUrl),
+        [localLlmSettings.baseUrl]
+    );
     const webLlmSelectableModelGroups = useMemo(
         () => getGroupedWebLlmModelOptions(selectedWebLlmModel),
         [selectedWebLlmModel]
@@ -351,8 +358,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             sessionModelId,
             preferredModelId,
             currentLocalModelId,
+            rememberedLocalApiModelId,
         ]);
-    }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
+    }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, rememberedLocalApiModelId, selectedLocalApiModel]);
     const selectedLocalApiModelOptionValue = localApiSelectableModels.includes(selectedLocalApiModel.trim())
         ? selectedLocalApiModel.trim()
         : '';
@@ -579,7 +587,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         if (questionId === null) {
             shouldAutoScrollRef.current = true;
             setMessages([]);
-            setSelectedLocalApiModel(localLlmSettings.defaultModelId);
+            setSelectedLocalApiModel(localLlmSettings.defaultModelId || rememberedLocalApiModelId);
             return;
         }
 
@@ -601,8 +609,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
         setSelectedLocalApiModel(
             session?.mode === 'openai-local'
-                ? (session.modelId || localLlmSettings.defaultModelId)
-                : localLlmSettings.defaultModelId
+                ? (session.modelId || localLlmSettings.defaultModelId || rememberedLocalApiModelId)
+                : (localLlmSettings.defaultModelId || rememberedLocalApiModelId)
         );
         setLastRequestPayload(null);
         resetCopiedRequestState();
@@ -610,6 +618,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [
         cancelActiveWork,
         localLlmSettings.defaultModelId,
+        rememberedLocalApiModelId,
         onLocalLlmModeChange,
         onWebLlmModelChange,
         questionId,
@@ -624,8 +633,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             return;
         }
 
-        setSelectedLocalApiModel((previous) => previous.trim().length > 0 ? previous : localLlmSettings.defaultModelId);
-    }, [activeMode, localLlmSettings.defaultModelId]);
+        setSelectedLocalApiModel((previous) => previous.trim().length > 0 ? previous : (localLlmSettings.defaultModelId || rememberedLocalApiModelId || initialRememberedLocalApiModelId));
+    }, [activeMode, initialRememberedLocalApiModelId, localLlmSettings.defaultModelId, rememberedLocalApiModelId]);
 
     useEffect(() => {
         setAvailableModels(getCachedOpenAiCompatibleModelIds(localLlmSettings.baseUrl));
@@ -747,11 +756,15 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             setSelectedLocalApiModel((previous) => {
                 const preferredModel = localLlmSettings.defaultModelId.trim();
                 const currentLocalModel = previous.trim();
+                const rememberedModel = rememberedLocalApiModelId.trim();
                 if (currentLocalModel.length > 0 && modelIds.includes(currentLocalModel)) {
                     return currentLocalModel;
                 }
                 if (preferredModel.length > 0 && modelIds.includes(preferredModel)) {
                     return preferredModel;
+                }
+                if (rememberedModel.length > 0 && modelIds.includes(rememberedModel)) {
+                    return rememberedModel;
                 }
                 if (modelIds.length === 1) {
                     return modelIds[0];
@@ -774,7 +787,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 setIsFetchingModels(false);
             }
         }
-    }, [localLlmSettings.baseUrl, localLlmSettings.defaultModelId]);
+    }, [localLlmSettings.baseUrl, localLlmSettings.defaultModelId, rememberedLocalApiModelId]);
 
     useEffect(() => {
         if (activeMode !== 'openai-local' || localLlmSettings.baseUrl.trim().length === 0) {
@@ -1199,6 +1212,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             if (modelId !== selectedLocalApiModel) {
                 setSelectedLocalApiModel(modelId);
             }
+            if (modelId.length > 0) {
+                saveLastLocalApiModelId(localLlmSettings.baseUrl, modelId);
+            }
             if (activeMode !== 'openai-local') {
                 onLocalLlmModeChange('openai-local');
                 void fetchLocalApiModels();
@@ -1215,7 +1231,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     )));
             }
         }
-    }, [activeMode, fetchLocalApiModels, onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId, selectedLocalApiModel, selectedWebLlmModel]);
+    }, [activeMode, fetchLocalApiModels, localLlmSettings.baseUrl, onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId, selectedLocalApiModel, selectedWebLlmModel]);
 
     const handleTextareaKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.nativeEvent.isComposing || isComposingRef.current || event.keyCode === 229) {
