@@ -15,11 +15,15 @@ export async function copyTextToClipboard(text: string): Promise<void> {
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.setAttribute('readonly', '');
+    textarea.setAttribute('aria-hidden', 'true');
     textarea.style.position = 'fixed';
     textarea.style.top = '0';
-    textarea.style.left = '0';
-    textarea.style.opacity = '0';
+    textarea.style.left = '-9999px';
+    textarea.style.opacity = '1';
     textarea.style.pointerEvents = 'none';
+    textarea.style.contain = 'strict';
+    textarea.style.whiteSpace = 'pre';
+    textarea.style.fontSize = '12pt';
 
     const activeElement = document.activeElement instanceof HTMLElement
         ? document.activeElement
@@ -30,7 +34,7 @@ export async function copyTextToClipboard(text: string): Promise<void> {
         : [];
 
     document.body.appendChild(textarea);
-    textarea.focus();
+    textarea.focus({ preventScroll: true });
     textarea.select();
     textarea.setSelectionRange(0, textarea.value.length);
 
@@ -42,7 +46,7 @@ export async function copyTextToClipboard(text: string): Promise<void> {
         savedRanges.forEach((range) => selection.addRange(range));
     }
 
-    activeElement?.focus();
+    activeElement?.focus({ preventScroll: true });
 
     if (!didCopy) {
         throw new Error('Clipboard copy failed');

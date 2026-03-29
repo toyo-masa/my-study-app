@@ -330,21 +330,26 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                     aria-label={`${selectedModelLabel} のパラメータ`}
                 >
                     <div className="local-llm-parameter-popover-header">
-                        <div className="local-llm-parameter-popover-title">モデルのパラメータ</div>
-                        <div className="local-llm-parameter-popover-subtitle" title={selectedModelLabel}>
-                            {selectedModelLabel}
+                        <div className="local-llm-parameter-popover-heading">
+                            <div className="local-llm-parameter-popover-title">モデルのパラメータ</div>
+                            <div className="local-llm-parameter-popover-subtitle" title={selectedModelLabel}>
+                                {selectedModelLabel}
+                            </div>
                         </div>
+                        <button
+                            type="button"
+                            className="local-llm-parameter-reset-btn"
+                            onClick={handleReset}
+                            disabled={!hasOverrides}
+                        >
+                            <RotateCcw size={14} />
+                            <span>デフォルト設定に戻す</span>
+                        </button>
                     </div>
 
                     <div className="local-llm-parameter-popover-body">
                         {isLocalApiMode ? (
                             <>
-                                <p className="local-llm-parameter-popover-note">
-                                    OpenAI互換APIへ送る項目です。
-                                    {isOllama
-                                        ? ' Ollama では空欄時に現在モデルの既定値を使い、reasoning_effort もモデルごとに切り替えられます。'
-                                        : ''}
-                                </p>
                                 <div className="local-llm-parameter-grid">
                                     <label className="local-llm-parameter-field">
                                         <span>
@@ -606,18 +611,6 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                 </div>
                             </>
                         )}
-                    </div>
-
-                    <div className="local-llm-parameter-popover-footer">
-                        <button
-                            type="button"
-                            className="local-llm-parameter-reset-btn"
-                            onClick={handleReset}
-                            disabled={!hasOverrides}
-                        >
-                            <RotateCcw size={14} />
-                            <span>このモデルの上書きを解除</span>
-                        </button>
                     </div>
                 </div>,
                 document.body

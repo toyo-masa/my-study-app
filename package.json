@@ -1,7 +1,7 @@
 {
   "name": "qa",
   "private": true,
-  "version": "1.57.17",
+  "version": "1.57.21",
   "type": "module",
   "scripts": {
     "dev": "vite",

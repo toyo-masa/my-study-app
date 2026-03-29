@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     DEFAULT_REVIEW_INTERVAL_SETTINGS,
     loadReviewIntervalSettings,
@@ -199,11 +199,11 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const handleResetHandwritingSettings = () => {
         setHandwritingSettings({ ...DEFAULT_HANDWRITING_SETTINGS });
     };
-    const handleLocalLlmSettingsChange = (settings: LocalLlmSettingsUpdater) => {
+    const handleLocalLlmSettingsChange = useCallback((settings: LocalLlmSettingsUpdater) => {
         setLocalLlmSettings((previous) => normalizeLocalLlmSettings(
             typeof settings === 'function' ? settings(previous) : settings
         ));
-    };
+    }, []);
     const handleResetLocalLlmSettings = () => {
         setLocalLlmSettings({ ...DEFAULT_LOCAL_LLM_SETTINGS });
     };

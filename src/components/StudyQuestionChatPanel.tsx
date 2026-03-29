@@ -300,7 +300,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
-    const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
+    const [isLocalApiThinkingEnabled, setIsLocalApiThinkingEnabled] = useState(false);
     const threadRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const mountedRef = useRef(true);
@@ -362,6 +362,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     );
     const showThinkingToggle = activeMode === 'webllm'
         || (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama');
+    const isThinkingEnabled = activeMode === 'webllm'
+        ? localLlmSettings.webllmEnableThinking
+        : (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama'
+            ? isLocalApiThinkingEnabled
+            : false);
     const effectiveOllamaThink = useMemo(() => {
         if (matchedLocalApiProvider?.id !== 'ollama') {
             return localApiRequestOptions.ollamaThink;
@@ -843,25 +848,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         void fetchLocalApiModels();
     }, [activeMode, fetchLocalApiModels, localLlmSettings.baseUrl]);
-
-    useEffect(() => {
-        if (activeMode === 'webllm') {
-            setIsThinkingEnabled(localLlmSettings.webllmEnableThinking);
-            return;
-        }
-
-        if (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama') {
-            setIsThinkingEnabled(localApiRequestOptions.ollamaThink !== null && localApiRequestOptions.ollamaThink !== false);
-            return;
-        }
-
-        setIsThinkingEnabled(false);
-    }, [
-        activeMode,
-        localApiRequestOptions.ollamaThink,
-        localLlmSettings.webllmEnableThinking,
-        matchedLocalApiProvider?.id,
-    ]);
 
     useEffect(() => {
         if (activeMode !== 'webllm' || !webllmSupport.supported) {
@@ -1452,7 +1438,16 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                     <button
                                         type="button"
                                         className={`local-llm-thinking-toggle local-llm-tooltip-target ${isThinkingEnabled ? 'active' : ''}`}
-                                        onClick={() => setIsThinkingEnabled((previous) => !previous)}
+                                        onClick={() => {
+                                            if (activeMode === 'webllm') {
+                                                onLocalLlmSettingsChange((previous) => ({
+                                                    ...previous,
+                                                    webllmEnableThinking: !previous.webllmEnableThinking,
+                                                }));
+                                                return;
+                                            }
+                                            setIsLocalApiThinkingEnabled((previous) => !previous);
+                                        }}
                                         disabled={isGenerating}
                                         aria-pressed={isThinkingEnabled}
                                         aria-label={isThinkingEnabled ? 'Thinking をオフにする' : 'Thinking をオンにする'}
