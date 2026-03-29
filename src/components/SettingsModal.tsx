@@ -85,6 +85,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onLoginRequest,
     showLocalLlmSettings = false,
 }) => {
+    const buildDefaultPlaceholder = (value: number | string) => `デフォルト値: ${value}`;
     const exampleCorrectCount = 3;
     const exampleCorrectDays = Math.max(1, reviewIntervalSettings.correctIntervalDays * exampleCorrectCount);
     const webLlmModelOptionGroups = useMemo(
@@ -357,7 +358,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 localApiTemperature: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder="未指定"
+                                                            placeholder={buildDefaultPlaceholder('自動')}
                                                             min={0}
                                                             max={2}
                                                             step={0.05}
@@ -374,7 +375,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 localApiTopP: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder="未指定"
+                                                            placeholder={buildDefaultPlaceholder('自動')}
                                                             min={0.01}
                                                             max={1}
                                                             step={0.01}
@@ -391,7 +392,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 ...localLlmSettings,
                                                                 localApiMaxTokens: parseOptionalNumberInput(event.target.value),
                                                             })}
-                                                            placeholder="未指定"
+                                                            placeholder={buildDefaultPlaceholder('モデル既定')}
                                                             min={1}
                                                             max={32768}
                                                             step={1}
@@ -410,7 +411,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         >
                                                             {LOCAL_API_REASONING_EFFORT_OPTIONS.map((value) => (
                                                                 <option key={value} value={value}>
-                                                                    {value === 'default' ? 'モデル既定' : value}
+                                                                    {value === 'default' ? buildDefaultPlaceholder('モデル既定') : value}
                                                                 </option>
                                                             ))}
                                                         </select>

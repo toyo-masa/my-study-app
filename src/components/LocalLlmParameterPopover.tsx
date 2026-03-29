@@ -46,6 +46,8 @@ const parseOptionalNumberInput = (value: string): number | null => {
     return Number.isFinite(parsed) ? parsed : null;
 };
 
+const buildDefaultPlaceholder = (value: number | string) => `デフォルト値: ${value}`;
+
 export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> = ({
     activeMode,
     localLlmSettings,
@@ -249,7 +251,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                 ...current,
                                                 temperature: parseOptionalNumberInput(event.target.value),
                                             }))}
-                                            placeholder="未指定"
+                                            placeholder={buildDefaultPlaceholder('自動')}
                                             min={0}
                                             max={2}
                                             step={0.05}
@@ -266,7 +268,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                 ...current,
                                                 topP: parseOptionalNumberInput(event.target.value),
                                             }))}
-                                            placeholder="未指定"
+                                            placeholder={buildDefaultPlaceholder('自動')}
                                             min={0.01}
                                             max={1}
                                             step={0.01}
@@ -283,7 +285,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                 ...current,
                                                 maxTokens: parseOptionalNumberInput(event.target.value),
                                             }))}
-                                            placeholder="未指定"
+                                            placeholder={buildDefaultPlaceholder('モデル既定')}
                                             min={1}
                                             max={32768}
                                             step={1}
@@ -303,7 +305,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                             >
                                                 {LOCAL_API_REASONING_EFFORT_OPTIONS.map((value) => (
                                                     <option key={value} value={value}>
-                                                        {value === 'default' ? 'モデル既定' : value}
+                                                        {value === 'default' ? buildDefaultPlaceholder('モデル既定') : value}
                                                     </option>
                                                 ))}
                                             </select>
@@ -330,7 +332,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                     firstPassTemperature: parseOptionalNumberInput(event.target.value)
                                                         ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
                                                 }))}
-                                                placeholder={String(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature)}
+                                                placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature)}
                                                 min={0}
                                                 max={2}
                                                 step={0.05}
@@ -348,7 +350,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                     firstPassTopP: parseOptionalNumberInput(event.target.value)
                                                         ?? WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
                                                 }))}
-                                                placeholder={String(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP)}
+                                                placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP)}
                                                 min={0.01}
                                                 max={1}
                                                 step={0.01}
@@ -383,7 +385,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                     firstPassPresencePenalty: parseOptionalNumberInput(event.target.value)
                                                         ?? WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY,
                                                 }))}
-                                                placeholder={String(WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY)}
+                                                placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY)}
                                                 min={0.3}
                                                 max={0.6}
                                                 step={0.05}
@@ -407,7 +409,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                     secondPassTemperature: parseOptionalNumberInput(event.target.value)
                                                         ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature,
                                                 }))}
-                                                placeholder={String(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature)}
+                                                placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature)}
                                                 min={0.5}
                                                 max={0.7}
                                                 step={0.05}
@@ -425,7 +427,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                     secondPassTopP: parseOptionalNumberInput(event.target.value)
                                                         ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP,
                                                 }))}
-                                                placeholder={String(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP)}
+                                                placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP)}
                                                 min={0.8}
                                                 max={0.9}
                                                 step={0.01}
@@ -460,7 +462,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                                     secondPassPresencePenalty: parseOptionalNumberInput(event.target.value)
                                                         ?? WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty,
                                                 }))}
-                                                placeholder={String(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty)}
+                                                placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty)}
                                                 min={0}
                                                 max={0.3}
                                                 step={0.05}
