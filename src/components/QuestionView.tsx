@@ -171,7 +171,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
         return backContent;
     })();
     const primaryActionLabel = (revealReadyCount !== null && revealReadyCount > 0)
-        ? `${revealReadyCount}件の回答を確認する`
+        ? `${revealReadyCount}件の回答を確認`
         : isAnswerLocked
             ? (isLast ? '完了へ進む' : '次の問題へ')
             : feedbackTimingMode === 'immediate'
@@ -310,7 +310,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                     <>
                                         <span className="stacked-action-btn-title">{primaryActionLabel}</span>
                                         <span className="stacked-action-btn-subtitle">
-                                            {`回答確認まであと${answersUntilRevealCount}`}
+                                            {`回答確認まであと${answersUntilRevealCount}問`}
                                         </span>
                                     </>
                                 ) : primaryActionLabel}
