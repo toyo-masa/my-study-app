@@ -3082,6 +3082,37 @@ button.appearance-option.active {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
+.local-llm-provider-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.local-llm-provider-pill {
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.42rem 0.88rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.local-llm-provider-pill:hover {
+  border-color: rgba(var(--primary-color-rgb, 99, 102, 241), 0.28);
+  color: var(--text-color);
+}
+
+.local-llm-provider-pill.active {
+  border-color: rgba(var(--primary-color-rgb, 99, 102, 241), 0.35);
+  background: color-mix(in srgb, var(--surface-color) 88%, var(--primary-color) 12%);
+  color: var(--text-color);
+}
+
 .settings-footer {
   padding: 1.25rem;
   border-top: 1px solid var(--border-color);

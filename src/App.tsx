@@ -52,7 +52,6 @@ function App() {
     toggleDarkMode,
     handleHandwritingSettingsChange,
     handleLocalLlmSettingsChange,
-    handleResetLocalLlmSettings,
     handleResetHandwritingSettings,
     handleReviewIntervalSettingsChange,
     handleResetReviewIntervalSettings,
@@ -130,7 +129,6 @@ function App() {
         reviewBoardSettings={reviewBoardSettings}
         onHandwritingSettingsChange={handleHandwritingSettingsChange}
         onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
-        onResetLocalLlmSettings={handleResetLocalLlmSettings}
         onResetHandwritingSettings={handleResetHandwritingSettings}
         onReviewIntervalSettingsChange={handleReviewIntervalSettingsChange}
         onResetReviewIntervalSettings={handleResetReviewIntervalSettings}
