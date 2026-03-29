@@ -26,6 +26,7 @@ import {
 } from '../utils/settings';
 import type { LocalApiProviderPresetId } from '../utils/localApiProviders';
 import { useOllamaModelDefaultParameters } from '../hooks/useOllamaModelDefaultParameters';
+import { ParameterHelpLabel } from './ParameterHelpLabel';
 
 type LocalLlmParameterPopoverProps = {
     activeMode: LocalLlmMode;
@@ -48,6 +49,13 @@ const parseOptionalNumberInput = (value: string): number | null => {
 };
 
 const buildDefaultPlaceholder = (value: number | string) => `default : ${value}`;
+
+const PARAMETER_HELP_TOOLTIPS = {
+    temperature: '出力のばらつきを調整します。低いほど安定し、高いほど表現の幅が広がります。',
+    topP: '候補トークンを上位の累積確率で絞り込みます。低いほど無難、高いほど多様になります。',
+    maxTokens: '1回の応答で生成する最大トークン数です。小さすぎると回答が途中で切れます。',
+    finalAnswerMaxTokens: '最終回答フェーズで生成する最大トークン数です。小さすぎると回答が途中で切れます。',
+} as const;
 
 export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> = ({
     activeMode,
@@ -79,15 +87,79 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
         () => resolveLocalApiModelParameterSettings(localLlmSettings, selectedModelId),
         [localLlmSettings, selectedModelId]
     );
+    const defaultLocalApiParameters = useMemo(
+        () => resolveLocalApiModelParameterSettings(localLlmSettings, ''),
+        [localLlmSettings]
+    );
     const webLlmParameters = useMemo(
         () => resolveWebLlmModelParameterSettings(localLlmSettings, selectedModelId),
         [localLlmSettings, selectedModelId]
+    );
+    const defaultWebLlmParameters = useMemo(
+        () => resolveWebLlmModelParameterSettings(localLlmSettings, ''),
+        [localLlmSettings]
     );
     const hasOverrides = useMemo(() => (
         isLocalApiMode
             ? hasLocalApiModelParameterOverrides(localLlmSettings, selectedModelId)
             : hasWebLlmModelParameterOverrides(localLlmSettings, selectedModelId)
     ), [isLocalApiMode, localLlmSettings, selectedModelId]);
+    const hasCustomParameterValues = useMemo(() => {
+        if (isLocalApiMode) {
+            if (isOllama && ollamaDefaults.isResolved) {
+                const defaultOllamaMaxTokens = ollamaDefaults.maxTokens > 0 ? ollamaDefaults.maxTokens : null;
+                return localApiParameters.temperature !== ollamaDefaults.temperature
+                    || localApiParameters.topP !== ollamaDefaults.topP
+                    || localApiParameters.maxTokens !== defaultOllamaMaxTokens
+                    || localApiParameters.reasoningEffort !== 'default';
+            }
+
+            return localApiParameters.temperature !== defaultLocalApiParameters.temperature
+                || localApiParameters.topP !== defaultLocalApiParameters.topP
+                || localApiParameters.maxTokens !== defaultLocalApiParameters.maxTokens
+                || localApiParameters.reasoningEffort !== defaultLocalApiParameters.reasoningEffort;
+        }
+
+        return webLlmParameters.firstPassTemperature !== defaultWebLlmParameters.firstPassTemperature
+            || webLlmParameters.firstPassTopP !== defaultWebLlmParameters.firstPassTopP
+            || webLlmParameters.firstPassThinkingBudget !== defaultWebLlmParameters.firstPassThinkingBudget
+            || webLlmParameters.firstPassPresencePenalty !== defaultWebLlmParameters.firstPassPresencePenalty
+            || webLlmParameters.secondPassTemperature !== defaultWebLlmParameters.secondPassTemperature
+            || webLlmParameters.secondPassTopP !== defaultWebLlmParameters.secondPassTopP
+            || webLlmParameters.secondPassFinalAnswerMaxTokens !== defaultWebLlmParameters.secondPassFinalAnswerMaxTokens
+            || webLlmParameters.secondPassPresencePenalty !== defaultWebLlmParameters.secondPassPresencePenalty;
+    }, [
+        defaultLocalApiParameters.maxTokens,
+        defaultLocalApiParameters.reasoningEffort,
+        defaultLocalApiParameters.temperature,
+        defaultLocalApiParameters.topP,
+        defaultWebLlmParameters.firstPassPresencePenalty,
+        defaultWebLlmParameters.firstPassTemperature,
+        defaultWebLlmParameters.firstPassThinkingBudget,
+        defaultWebLlmParameters.firstPassTopP,
+        defaultWebLlmParameters.secondPassFinalAnswerMaxTokens,
+        defaultWebLlmParameters.secondPassPresencePenalty,
+        defaultWebLlmParameters.secondPassTemperature,
+        defaultWebLlmParameters.secondPassTopP,
+        isLocalApiMode,
+        isOllama,
+        localApiParameters.maxTokens,
+        localApiParameters.reasoningEffort,
+        localApiParameters.temperature,
+        localApiParameters.topP,
+        ollamaDefaults.isResolved,
+        ollamaDefaults.maxTokens,
+        ollamaDefaults.temperature,
+        ollamaDefaults.topP,
+        webLlmParameters.firstPassPresencePenalty,
+        webLlmParameters.firstPassTemperature,
+        webLlmParameters.firstPassThinkingBudget,
+        webLlmParameters.firstPassTopP,
+        webLlmParameters.secondPassFinalAnswerMaxTokens,
+        webLlmParameters.secondPassPresencePenalty,
+        webLlmParameters.secondPassTemperature,
+        webLlmParameters.secondPassTopP,
+    ]);
 
     const updatePopoverPosition = useCallback(() => {
         const trigger = triggerRef.current;
@@ -239,7 +311,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
             <button
                 ref={triggerRef}
                 type="button"
-                className={`local-llm-parameter-trigger local-llm-tooltip-target ${hasOverrides ? 'active' : ''}`}
+                className={`local-llm-parameter-trigger local-llm-tooltip-target ${hasCustomParameterValues ? 'active' : ''}`}
                 onClick={() => setIsOpen((previous) => !previous)}
                 disabled={disabled || selectedModelId.trim().length === 0}
                 aria-haspopup="dialog"
@@ -275,7 +347,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                 </p>
                                 <div className="local-llm-parameter-grid">
                                     <label className="local-llm-parameter-field">
-                                        <span>temperature</span>
+                                        <span>
+                                            <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
+                                        </span>
                                         <input
                                             type="number"
                                             className="local-llm-parameter-input"
@@ -294,7 +368,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                         />
                                     </label>
                                     <label className="local-llm-parameter-field">
-                                        <span>top_p</span>
+                                        <span>
+                                            <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
+                                        </span>
                                         <input
                                             type="number"
                                             className="local-llm-parameter-input"
@@ -313,7 +389,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                         />
                                     </label>
                                     <label className="local-llm-parameter-field">
-                                        <span>max_tokens</span>
+                                        <span>
+                                            <ParameterHelpLabel label="max_tokens" tooltip={PARAMETER_HELP_TOOLTIPS.maxTokens} />
+                                        </span>
                                         <input
                                             type="number"
                                             className="local-llm-parameter-input"
@@ -364,7 +442,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                     </p>
                                     <div className="local-llm-parameter-grid">
                                         <label className="local-llm-parameter-field">
-                                            <span>temperature</span>
+                                            <span>
+                                                <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
+                                            </span>
                                             <input
                                                 type="number"
                                                 className="local-llm-parameter-input"
@@ -382,7 +462,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                             />
                                         </label>
                                         <label className="local-llm-parameter-field">
-                                            <span>top_p</span>
+                                            <span>
+                                                <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
+                                            </span>
                                             <input
                                                 type="number"
                                                 className="local-llm-parameter-input"
@@ -444,7 +526,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                     </p>
                                     <div className="local-llm-parameter-grid">
                                         <label className="local-llm-parameter-field">
-                                            <span>temperature</span>
+                                            <span>
+                                                <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
+                                            </span>
                                             <input
                                                 type="number"
                                                 className="local-llm-parameter-input"
@@ -462,7 +546,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                             />
                                         </label>
                                         <label className="local-llm-parameter-field">
-                                            <span>top_p</span>
+                                            <span>
+                                                <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
+                                            </span>
                                             <input
                                                 type="number"
                                                 className="local-llm-parameter-input"
@@ -480,7 +566,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                             />
                                         </label>
                                         <label className="local-llm-parameter-field">
-                                            <span>final_answer_max_tokens</span>
+                                            <span>
+                                                <ParameterHelpLabel label="final_answer_max_tokens" tooltip={PARAMETER_HELP_TOOLTIPS.finalAnswerMaxTokens} />
+                                            </span>
                                             <select
                                                 className="local-llm-parameter-input"
                                                 value={String(webLlmParameters.secondPassFinalAnswerMaxTokens ?? WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS)}

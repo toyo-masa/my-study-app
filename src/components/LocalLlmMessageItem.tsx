@@ -121,13 +121,17 @@ export const LocalLlmMessageItem: React.FC<LocalLlmMessageItemProps> = React.mem
                 <div className="local-llm-message-actions">
                     <button
                         type="button"
-                        className="menu-btn local-llm-mini-btn"
+                        className={`local-llm-thread-overlay-action local-llm-tooltip-target local-llm-mini-btn ${isCopied ? 'is-active' : ''}`}
                         onClick={() => { onCopy(message); }}
                         disabled={copyableContent.length === 0}
-                        aria-label={message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー'}
-                        title={message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー'}
+                        aria-label={isCopied
+                            ? 'コピーしました'
+                            : (message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー')}
+                        data-tooltip={isCopied
+                            ? 'コピーしました'
+                            : (message.role === 'assistant' ? '回答内容をコピー' : '質問内容をコピー')}
                     >
-                        {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                        {isCopied ? <Check size={16} /> : <Copy size={16} />}
                     </button>
                 </div>
             </div>

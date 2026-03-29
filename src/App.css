@@ -3048,6 +3048,30 @@ body {
   color: var(--text-secondary);
 }
 
+.parameter-help-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.parameter-help-label-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1;
+  color: inherit;
+  cursor: help;
+  user-select: none;
+}
+
+.parameter-help-label-mark:hover,
+.parameter-help-label-mark:focus-visible {
+  color: var(--primary-color);
+}
+
 .review-setting-input-wrap {
   display: flex;
   align-items: center;

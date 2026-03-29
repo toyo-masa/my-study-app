@@ -300,7 +300,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
-    const [isThinkingEnabled, setIsThinkingEnabled] = useState(true);
+    const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
     const threadRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const mountedRef = useRef(true);
@@ -851,7 +851,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
 
         if (activeMode === 'openai-local' && matchedLocalApiProvider?.id === 'ollama') {
-            setIsThinkingEnabled(localApiRequestOptions.ollamaThink !== false);
+            setIsThinkingEnabled(localApiRequestOptions.ollamaThink !== null && localApiRequestOptions.ollamaThink !== false);
             return;
         }
 

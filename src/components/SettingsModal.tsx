@@ -26,6 +26,7 @@ import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 import { getGroupedWebLlmModelOptions } from '../utils/localLlmEngine';
 import { useOllamaModelDefaultParameters } from '../hooks/useOllamaModelDefaultParameters';
+import { ParameterHelpLabel } from './ParameterHelpLabel';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -61,6 +62,13 @@ const PRESET_COLORS = [
     { name: 'Pink', value: '#ec4899' },
     { name: 'Slate', value: '#64748b' },
 ];
+
+const PARAMETER_HELP_TOOLTIPS = {
+    temperature: '出力のばらつきを調整します。低いほど安定し、高いほど表現の幅が広がります。',
+    topP: '候補トークンを上位の累積確率で絞り込みます。低いほど無難、高いほど多様になります。',
+    maxTokens: '1回の応答で生成する最大トークン数です。小さすぎると回答が途中で切れます。',
+    finalAnswerMaxTokens: '最終回答フェーズで生成する最大トークン数です。小さすぎると回答が途中で切れます。',
+} as const;
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen,
@@ -406,7 +414,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 </p>
                                                 <div className="review-settings-grid">
                                                     <label className="review-setting-item">
-                                                        <span className="review-setting-label">temperature</span>
+                                                        <span className="review-setting-label">
+                                                            <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
+                                                        </span>
                                                         <input
                                                             type="number"
                                                             className="setting-select"
@@ -427,7 +437,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         />
                                                     </label>
                                                     <label className="review-setting-item">
-                                                        <span className="review-setting-label">top_p</span>
+                                                        <span className="review-setting-label">
+                                                            <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
+                                                        </span>
                                                         <input
                                                             type="number"
                                                             className="setting-select"
@@ -448,7 +460,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         />
                                                     </label>
                                                     <label className="review-setting-item">
-                                                        <span className="review-setting-label">max_tokens</span>
+                                                        <span className="review-setting-label">
+                                                            <ParameterHelpLabel label="max_tokens" tooltip={PARAMETER_HELP_TOOLTIPS.maxTokens} />
+                                                        </span>
                                                         <input
                                                             type="number"
                                                             className="setting-select"
@@ -570,7 +584,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         </p>
                                                         <div className="review-settings-grid">
                                                             <label className="review-setting-item">
-                                                                <span className="review-setting-label">temperature</span>
+                                                                <span className="review-setting-label">
+                                                                    <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
+                                                                </span>
                                                                 <input
                                                                     type="number"
                                                                     className="setting-select"
@@ -587,7 +603,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 />
                                                             </label>
                                                             <label className="review-setting-item">
-                                                                <span className="review-setting-label">top_p</span>
+                                                                <span className="review-setting-label">
+                                                                    <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
+                                                                </span>
                                                                 <input
                                                                     type="number"
                                                                     className="setting-select"
@@ -649,7 +667,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         </p>
                                                         <div className="review-settings-grid">
                                                             <label className="review-setting-item">
-                                                                <span className="review-setting-label">temperature</span>
+                                                                <span className="review-setting-label">
+                                                                    <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
+                                                                </span>
                                                                 <input
                                                                     type="number"
                                                                     className="setting-select"
@@ -666,7 +686,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 />
                                                             </label>
                                                             <label className="review-setting-item">
-                                                                <span className="review-setting-label">top_p</span>
+                                                                <span className="review-setting-label">
+                                                                    <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
+                                                                </span>
                                                                 <input
                                                                     type="number"
                                                                     className="setting-select"
@@ -683,7 +705,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 />
                                                             </label>
                                                             <label className="review-setting-item">
-                                                                <span className="review-setting-label">final_answer_max_tokens</span>
+                                                                <span className="review-setting-label">
+                                                                    <ParameterHelpLabel label="final_answer_max_tokens" tooltip={PARAMETER_HELP_TOOLTIPS.finalAnswerMaxTokens} />
+                                                                </span>
                                                                 <select
                                                                     className="setting-select"
                                                                     value={String(localLlmSettings.webllmSecondPassFinalAnswerMaxTokens ?? WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS)}

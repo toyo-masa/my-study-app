@@ -98,7 +98,7 @@ const DEFAULT_SETTINGS = {
         webllmModelId: DEFAULT_WEB_LLM_MODEL_ID,
         webllmStreamingRenderMode: 'live' as LocalLlmStreamingRenderMode,
         webllmSystemPrompt: '',
-        webllmEnableThinking: true,
+        webllmEnableThinking: false,
         webllmFirstPassTemperature: WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
         webllmFirstPassTopP: WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
         webllmFirstPassThinkingBudget: WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET,
@@ -246,7 +246,7 @@ const normalizeOptionalFiniteNumber = (
 };
 
 const normalizeWebLlmEnableThinking = (value: unknown): boolean => {
-    return value !== false;
+    return value === true;
 };
 
 const normalizeLocalApiReasoningEffort = (value: unknown): LocalApiReasoningEffort => {
