@@ -1,7 +1,7 @@
 {
   "name": "qa",
   "private": true,
-  "version": "1.57.10",
+  "version": "1.57.13",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -27,6 +27,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.0",
     "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0"
   },
   "devDependencies": {

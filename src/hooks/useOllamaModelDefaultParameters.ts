@@ -5,6 +5,10 @@ import {
     type OllamaModelDefaultParameters,
 } from '../utils/openAiCompatibleLocalApi';
 
+type UseOllamaModelDefaultParametersResult = OllamaModelDefaultParameters & {
+    isResolved: boolean;
+};
+
 type UseOllamaModelDefaultParametersOptions = {
     baseUrl: string;
     modelId: string;
@@ -15,7 +19,7 @@ export const useOllamaModelDefaultParameters = ({
     baseUrl,
     modelId,
     enabled,
-}: UseOllamaModelDefaultParametersOptions): OllamaModelDefaultParameters => {
+}: UseOllamaModelDefaultParametersOptions): UseOllamaModelDefaultParametersResult => {
     const normalizedModelId = modelId.trim();
     const requestKey = enabled && normalizedModelId.length > 0
         ? `${baseUrl}::${normalizedModelId}`
@@ -68,10 +72,19 @@ export const useOllamaModelDefaultParameters = ({
     }, [baseUrl, enabled, normalizedModelId]);
 
     if (requestKey.length === 0) {
-        return OLLAMA_FALLBACK_MODEL_DEFAULT_PARAMETERS;
+        return {
+            ...OLLAMA_FALLBACK_MODEL_DEFAULT_PARAMETERS,
+            isResolved: false,
+        };
     }
 
     return resolvedState?.key === requestKey
-        ? resolvedState.defaults
-        : OLLAMA_FALLBACK_MODEL_DEFAULT_PARAMETERS;
+        ? {
+            ...resolvedState.defaults,
+            isResolved: true,
+        }
+        : {
+            ...OLLAMA_FALLBACK_MODEL_DEFAULT_PARAMETERS,
+            isResolved: false,
+        };
 };

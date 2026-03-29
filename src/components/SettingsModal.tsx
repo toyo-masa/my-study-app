@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
@@ -87,7 +87,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onLoginRequest,
     showLocalLlmSettings = false,
 }) => {
-    const buildDefaultPlaceholder = (value: number | string) => `デフォルト値: ${value}`;
+    const buildDefaultPlaceholder = (value: number | string) => `default : ${value}`;
     const exampleCorrectCount = 3;
     const exampleCorrectDays = Math.max(1, reviewIntervalSettings.correctIntervalDays * exampleCorrectCount);
     const webLlmModelOptionGroups = useMemo(
@@ -107,6 +107,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         modelId: lastLocalApiModelId,
         enabled: isOpen && matchedLocalApiProvider?.id === 'ollama',
     });
+    const localApiDefaultsSeededKeyRef = useRef<string | null>(null);
+    const localApiDefaultSeedKey = isOpen
+        && matchedLocalApiProvider?.id === 'ollama'
+        && lastLocalApiModelId.length > 0
+        ? `${localLlmSettings.baseUrl}::${lastLocalApiModelId}`
+        : '';
 
     const parseOptionalNumberInput = (value: string): number | null => {
         const trimmed = value.trim();
@@ -117,6 +123,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const parsed = Number.parseFloat(trimmed);
         return Number.isFinite(parsed) ? parsed : null;
     };
+
+    useEffect(() => {
+        if (localApiDefaultSeedKey.length === 0 || !settingsOllamaDefaults.isResolved) {
+            return;
+        }
+
+        if (localApiDefaultsSeededKeyRef.current === localApiDefaultSeedKey) {
+            return;
+        }
+
+        const nextTemperature = localLlmSettings.localApiTemperature ?? settingsOllamaDefaults.temperature;
+        const nextTopP = localLlmSettings.localApiTopP ?? settingsOllamaDefaults.topP;
+        const nextMaxTokens = localLlmSettings.localApiMaxTokens
+            ?? (settingsOllamaDefaults.maxTokens > 0 ? settingsOllamaDefaults.maxTokens : null);
+
+        localApiDefaultsSeededKeyRef.current = localApiDefaultSeedKey;
+
+        if (
+            nextTemperature === localLlmSettings.localApiTemperature
+            && nextTopP === localLlmSettings.localApiTopP
+            && nextMaxTokens === localLlmSettings.localApiMaxTokens
+        ) {
+            return;
+        }
+
+        onLocalLlmSettingsChange({
+            ...localLlmSettings,
+            localApiTemperature: nextTemperature,
+            localApiTopP: nextTopP,
+            localApiMaxTokens: nextMaxTokens,
+        });
+    }, [
+        localApiDefaultSeedKey,
+        localLlmSettings,
+        onLocalLlmSettingsChange,
+        settingsOllamaDefaults.isResolved,
+        settingsOllamaDefaults.maxTokens,
+        settingsOllamaDefaults.temperature,
+        settingsOllamaDefaults.topP,
+    ]);
 
     const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, nextValue: number) => {
         const nextSettings = normalizeReviewIntervalSettings({
@@ -520,7 +566,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             1回目
                                                         </h5>
                                                         <p className="review-settings-note" style={{ marginBottom: '0.9rem' }}>
-                                                            デフォルト値: `temperature {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP} / thinking_budget {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET} / presence_penalty {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY}`
+                                                            default : `temperature {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP} / thinking_budget {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET} / presence_penalty {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY}`
                                                         </p>
                                                         <div className="review-settings-grid">
                                                             <label className="review-setting-item">
@@ -569,7 +615,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 >
                                                                     {WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS.map((budget) => (
                                                                         <option key={budget} value={budget}>
-                                                                            {budget}{budget === WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET ? '（デフォルト）' : ''}
+                                                                            {budget}{budget === WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET ? ' (default)' : ''}
                                                                         </option>
                                                                     ))}
                                                                 </select>
@@ -599,7 +645,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             2回目
                                                         </h5>
                                                         <p className="review-settings-note" style={{ marginBottom: '0.9rem' }}>
-                                                            デフォルト値: `temperature {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP} / final_answer_max_tokens {WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS} / presence_penalty {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty}` で、`/no_think` を付けて最終回答を生成します。
+                                                            default : `temperature {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP} / final_answer_max_tokens {WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS} / presence_penalty {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty}` で、`/no_think` を付けて最終回答を生成します。
                                                         </p>
                                                         <div className="review-settings-grid">
                                                             <label className="review-setting-item">
@@ -648,7 +694,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 >
                                                                     {WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS.map((maxTokens) => (
                                                                         <option key={maxTokens} value={maxTokens}>
-                                                                            {maxTokens}{maxTokens === WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS ? '（デフォルト）' : ''}
+                                                                            {maxTokens}{maxTokens === WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS ? ' (default)' : ''}
                                                                         </option>
                                                                     ))}
                                                                 </select>

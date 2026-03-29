@@ -4732,6 +4732,40 @@ button.appearance-option.active {
   padding: 0;
 }
 
+.markdown-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0 0 0.85rem;
+}
+
+.markdown-table-wrapper:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.96rem;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color);
+  vertical-align: top;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--surface-color);
+  font-weight: 700;
+}
+
+.markdown-body tr:last-child td {
+  border-bottom: 1px solid var(--border-color);
+}
+
 /* Ensure math displays properly and doesn't break out of containers */
 .katex-display {
   overflow-x: auto;
