@@ -318,10 +318,18 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const previousPanelOpenRef = useRef(false);
 
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
-    const requestPayloadCopyState = useTemporaryCopiedState();
-    const messageCopyState = useTemporaryCopiedState();
-    const didCopyRequestPayload = requestPayloadCopyState.copiedKey === 'request-payload';
-    const copiedMessageId = messageCopyState.copiedKey;
+    const {
+        copiedKey: requestPayloadCopiedKey,
+        markCopied: markRequestPayloadCopied,
+        clearCopied: clearRequestPayloadCopied,
+    } = useTemporaryCopiedState();
+    const {
+        copiedKey: messageCopiedKey,
+        markCopied: markMessageCopied,
+        clearCopied: clearMessageCopied,
+    } = useTemporaryCopiedState();
+    const didCopyRequestPayload = requestPayloadCopiedKey === 'request-payload';
+    const copiedMessageId = messageCopiedKey;
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
     const rememberedLocalApiModelId = useMemo(
@@ -457,12 +465,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, []);
 
     const resetCopiedRequestState = useCallback(() => {
-        requestPayloadCopyState.clearCopied();
-    }, [requestPayloadCopyState]);
+        clearRequestPayloadCopied();
+    }, [clearRequestPayloadCopied]);
 
     const resetCopiedMessageState = useCallback(() => {
-        messageCopyState.clearCopied();
-    }, [messageCopyState]);
+        clearMessageCopied();
+    }, [clearMessageCopied]);
 
     const updateLastRequestPayload = useCallback((payload: unknown) => {
         setLastRequestPayload(JSON.stringify(payload, null, 2));
@@ -477,11 +485,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         try {
             await copyTextToClipboard(lastRequestPayload);
             resetCopiedRequestState();
-            requestPayloadCopyState.markCopied('request-payload');
+            markRequestPayloadCopied('request-payload');
         } catch {
             setError('送信内容をコピーできませんでした。');
         }
-    }, [lastRequestPayload, requestPayloadCopyState, resetCopiedRequestState]);
+    }, [lastRequestPayload, markRequestPayloadCopied, resetCopiedRequestState]);
 
     const handleCopyMessage = useCallback(async (message: LocalChatMessage) => {
         const copyableContent = getCopyableMessageContent(message);
@@ -492,11 +500,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         try {
             await copyTextToClipboard(copyableContent);
             resetCopiedMessageState();
-            messageCopyState.markCopied(message.id);
+            markMessageCopied(message.id);
         } catch {
             setError(message.role === 'assistant' ? '回答内容をコピーできませんでした。' : '質問内容をコピーできませんでした。');
         }
-    }, [messageCopyState, resetCopiedMessageState]);
+    }, [markMessageCopied, resetCopiedMessageState]);
 
     const isNearBottom = useCallback(() => {
         const element = threadRef.current;
