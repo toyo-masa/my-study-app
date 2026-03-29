@@ -46,6 +46,7 @@ function resolvePageTitle(pathname: string, quizSets: QuizSetWithMeta[]): string
     if (pathname === '/distribution-tables') return buildPageTitle(APP_TITLE_PREFIX, '統計分布表');
     if (pathname === '/local-llm-chat') return buildPageTitle(APP_TITLE_PREFIX, 'ローカルLLMチャット');
     if (pathname === '/review-board') return buildPageTitle(APP_TITLE_PREFIX, '復習ボード');
+    if (pathname === '/study-insights') return buildPageTitle(APP_TITLE_PREFIX, '学習実績');
     if (pathname === '/tutorial') return buildPageTitle(APP_TITLE_PREFIX, 'チュートリアル');
     if (pathname === '/release-notes') return buildPageTitle(APP_TITLE_PREFIX, 'リリースノート');
 

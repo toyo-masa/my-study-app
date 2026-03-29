@@ -21,6 +21,7 @@ interface AppItem {
 
 const apps: AppItem[] = [
     { id: 'distribution-sim', name: '分布シミュレーション', icon: <BarChart3 size={24} />, color: '#6366f1' },
+    { id: 'study-insights', name: '学習実績', icon: <BarChart3 size={24} />, color: '#0f766e' },
     { id: 'distribution-tables', name: '統計分布表', icon: <FileText size={24} />, color: '#8b5cf6' },
     { id: 'local-llm-chat', name: 'ローカルLLMチャット（試作）', icon: <Bot size={24} />, color: '#f59e0b' },
     { id: 'review-board', name: '復習ボード（試作）', icon: <CalendarCheck2 size={24} />, color: '#0d9488' },

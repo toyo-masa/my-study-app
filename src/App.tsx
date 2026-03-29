@@ -23,6 +23,7 @@ import { AdminRoute } from './pages/AdminRoute';
 import { NotFoundRoute } from './pages/NotFoundRoute';
 import { HistoryTableRoute } from './pages/HistoryTableRoute';
 import { TutorialHubRoute } from './pages/TutorialHubRoute';
+import { StudyInsightsRoute } from './pages/StudyInsightsRoute';
 
 function App() {
   const {
@@ -167,6 +168,7 @@ function App() {
           )}
         />
         <Route path="/review-board" element={<ReviewBoardRoute />} />
+        <Route path="/study-insights" element={<StudyInsightsRoute />} />
         <Route path="/tutorial" element={<TutorialHubRoute />} />
         {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
         <Route path="/quiz/:id/manage" element={<ManageRoute />} />
