@@ -1138,16 +1138,17 @@
 .local-llm-composer-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .local-llm-composer-settings {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -1203,20 +1204,158 @@
   border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.45);
 }
 
+.local-llm-model-picker {
+  flex: 0 1 18rem;
+  min-width: 0;
+  max-width: 18rem;
+}
+
+.local-llm-model-picker-trigger {
+  width: 100%;
+  min-width: 0;
+  max-width: 18rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.2;
+  box-sizing: border-box;
+  appearance: none;
+  padding: 0.62rem 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.local-llm-model-picker-trigger:hover:not(:disabled),
+.local-llm-model-picker-trigger:focus-visible {
+  outline: none;
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.45);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.local-llm-model-picker-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.local-llm-model-picker-trigger-label {
+  flex: 1 1 auto;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.local-llm-model-picker-trigger-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.local-llm-model-picker-trigger-icon.is-open {
+  transform: rotate(180deg);
+}
+
+.local-llm-model-picker-popover {
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-color) 94%, black 6%);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+  padding: 0.55rem;
+}
+
+.local-llm-model-picker-group + .local-llm-model-picker-group {
+  margin-top: 0.3rem;
+}
+
+.local-llm-model-picker-group-label {
+  padding: 0.4rem 0.65rem 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.local-llm-model-picker-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.local-llm-model-picker-option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  border-radius: 14px;
+  padding: 0.72rem 0.75rem;
+  font: inherit;
+  font-size: 0.94rem;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.local-llm-model-picker-option:hover:not(:disabled),
+.local-llm-model-picker-option:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--surface-color) 78%, var(--primary-color) 22%);
+}
+
+.local-llm-model-picker-option.is-selected {
+  background: rgba(var(--primary-color-rgb, 244, 114, 182), 0.78);
+  color: #fff;
+  font-weight: 700;
+}
+
+.local-llm-model-picker-option:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.local-llm-model-picker-option-check {
+  width: 1rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.local-llm-model-picker-option-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .local-llm-composer-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.55rem;
+  flex: 0 0 auto;
   margin-left: auto;
 }
 
 .local-llm-thinking-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  align-self: flex-start;
-  padding: 0.58rem 0.92rem;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.045);
@@ -1372,8 +1511,11 @@
 
 .study-question-chat-composer-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.55rem;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .spin {
@@ -1430,22 +1572,34 @@
     flex-direction: column;
   }
 
-  .local-llm-composer-toolbar,
+  .local-llm-composer-toolbar {
+    gap: 0.6rem;
+  }
+
+  .local-llm-composer-settings {
+    width: auto;
+  }
+
+  .local-llm-composer-actions,
   .study-question-chat-composer-actions {
-    flex-direction: column;
-    align-items: stretch;
+    width: auto;
+    margin-left: auto;
   }
 
-  .local-llm-composer-settings,
-  .local-llm-composer-actions {
-    margin-left: 0;
-    width: 100%;
+  .local-llm-model-picker {
+    max-width: min(18rem, 100%);
   }
 
-  .local-llm-composer-select,
-  .local-llm-thinking-toggle,
+  .local-llm-model-picker-trigger {
+    max-width: 100%;
+  }
+
+  .local-llm-thinking-toggle {
+    flex-basis: 44px;
+  }
+
   .local-llm-send-btn {
-    width: 100%;
+    width: 46px;
     justify-content: center;
   }
 }

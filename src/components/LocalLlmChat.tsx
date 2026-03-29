@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowUp, Bot, Brain, Check, Clock3, Copy, LoaderCircle, Plus, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import { BackButton } from './BackButton';
+import { LocalLlmModelPicker, type LocalLlmModelPickerOption } from './LocalLlmModelPicker';
 import { LocalLlmMessageItem } from './LocalLlmMessageItem';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
 import {
@@ -37,6 +38,7 @@ import {
     type WebLlmGenerationPhase,
 } from '../utils/webLlmBudgetedGeneration';
 import { findLocalApiProviderByBaseUrl } from '../utils/localApiProviders';
+import { buildLocalApiModelOptionList } from '../utils/localApiModelOptions';
 
 type LocalChatMessage = {
     id: string;
@@ -322,31 +324,17 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         [chatSessions, currentSessionId]
     );
     const localApiSelectableModels = useMemo(() => {
-        const modelIds = new Set<string>();
         const sessionModelId = currentSession?.mode === 'openai-local'
             ? currentSession.modelId.trim()
             : '';
         const preferredModelId = localLlmSettings.defaultModelId.trim();
         const currentLocalModelId = selectedLocalApiModel.trim();
 
-        if (sessionModelId.length > 0) {
-            modelIds.add(sessionModelId);
-        }
-        if (preferredModelId.length > 0) {
-            modelIds.add(preferredModelId);
-        }
-        if (currentLocalModelId.length > 0) {
-            modelIds.add(currentLocalModelId);
-        }
-
-        availableModels.forEach((modelId) => {
-            const trimmed = modelId.trim();
-            if (trimmed.length > 0) {
-                modelIds.add(trimmed);
-            }
-        });
-
-        return Array.from(modelIds);
+        return buildLocalApiModelOptionList(availableModels, [
+            sessionModelId,
+            preferredModelId,
+            currentLocalModelId,
+        ]);
     }, [availableModels, currentSession?.mode, currentSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
     const selectedLocalApiModelOptionValue = localApiSelectableModels.includes(selectedLocalApiModel.trim())
         ? selectedLocalApiModel.trim()
@@ -356,6 +344,50 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         : selectedLocalApiModelOptionValue.length > 0
             ? `openai-local:${selectedLocalApiModelOptionValue}`
             : 'openai-local';
+    const composerModelPickerGroups = useMemo(() => {
+        const webLlmGroups = webLlmSelectableModelGroups.map((group) => ({
+            label: group.label,
+            options: group.options.map((option) => ({
+                value: `webllm:${option.value}`,
+                label: option.label,
+            })),
+        }));
+
+        const localApiOptions: LocalLlmModelPickerOption[] = localApiSelectableModels.map((modelId) => ({
+            value: `openai-local:${modelId}`,
+            label: modelId,
+        }));
+
+        if (localApiOptions.length === 0) {
+            localApiOptions.push({
+                value: 'openai-local',
+                label: isFetchingModels && activeMode === 'openai-local'
+                    ? 'ローカルAPI（モデル取得中…）'
+                    : 'ローカルAPI（モデルを選択）',
+                disabled: true,
+            });
+        } else if (activeMode === 'openai-local' && selectedLocalApiModelOptionValue.length === 0) {
+            localApiOptions.unshift({
+                value: 'openai-local',
+                label: 'ローカルAPI（モデルを選択）',
+                disabled: true,
+            });
+        }
+
+        return [
+            ...webLlmGroups,
+            {
+                label: 'ローカルAPI',
+                options: localApiOptions,
+            },
+        ];
+    }, [
+        activeMode,
+        isFetchingModels,
+        localApiSelectableModels,
+        selectedLocalApiModelOptionValue,
+        webLlmSelectableModelGroups,
+    ]);
     const selectedModel = activeMode === 'webllm'
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
@@ -493,12 +525,15 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, []);
 
     const createFreshSession = useCallback((mode: LocalLlmMode) => {
-        const nextSession = buildEmptySession(mode, localLlmSettings.defaultModelId, selectedWebLlmModel);
+        const initialLocalModelId = mode === 'openai-local'
+            ? (selectedLocalApiModel.trim() || localLlmSettings.defaultModelId)
+            : localLlmSettings.defaultModelId;
+        const nextSession = buildEmptySession(mode, initialLocalModelId, selectedWebLlmModel);
         setCurrentSessionId(nextSession.id);
         setMessages([]);
         setSelectedLocalApiModel(mode === 'openai-local' ? nextSession.modelId : localLlmSettings.defaultModelId);
         resetViewState();
-    }, [localLlmSettings.defaultModelId, resetViewState, selectedWebLlmModel]);
+    }, [localLlmSettings.defaultModelId, resetViewState, selectedLocalApiModel, selectedWebLlmModel]);
 
     const selectSessionForView = useCallback((targetSession: StoredLocalLlmChatSession | null) => {
         if (!targetSession) {
@@ -1016,6 +1051,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             const modelId = value === 'openai-local'
                 ? selectedLocalApiModel.trim()
                 : value.slice('openai-local:'.length).trim();
+            if (modelId !== selectedLocalApiModel) {
+                setSelectedLocalApiModel(modelId);
+            }
             if (activeMode !== 'openai-local') {
                 onLocalLlmModeChange('openai-local');
                 void fetchLocalApiModels();
@@ -1028,10 +1066,9 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                             mode: 'openai-local',
                             modelId,
                         }
-                        : session
+                            : session
                 )));
             }
-            setSelectedLocalApiModel(modelId);
         }
     }, [activeMode, currentSession, fetchLocalApiModels, onLocalLlmModeChange, onWebLlmModelChange, selectedLocalApiModel]);
 
@@ -1691,34 +1728,13 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                 />
                                 <div className="local-llm-composer-toolbar">
                                     <div className="local-llm-composer-settings">
-                                        <select
-                                            className="local-llm-composer-select"
+                                        <LocalLlmModelPicker
+                                            groups={composerModelPickerGroups}
                                             value={composerModelOptionValue}
-                                            onChange={(event) => handleModelOptionChange(event.target.value)}
+                                            onChange={handleModelOptionChange}
                                             disabled={isGenerating || isModelLoading}
-                                        >
-                                            {webLlmSelectableModelGroups.map((group) => (
-                                                <optgroup key={group.label} label={group.label}>
-                                                    {group.options.map((option) => (
-                                                        <option key={option.value} value={`webllm:${option.value}`}>
-                                                            {option.label}
-                                                        </option>
-                                                    ))}
-                                                </optgroup>
-                                            ))}
-                                            <optgroup label="ローカルAPI">
-                                                <option value="openai-local">
-                                                    {isFetchingModels && activeMode === 'openai-local' && localApiSelectableModels.length === 0
-                                                        ? 'ローカルAPI（取得中…）'
-                                                        : 'ローカルAPI'}
-                                                </option>
-                                                {localApiSelectableModels.map((modelId) => (
-                                                    <option key={`local-api-composer-model-${modelId}`} value={`openai-local:${modelId}`}>
-                                                        {modelId}
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        </select>
+                                            ariaLabel="モデルを選択する"
+                                        />
                                         {showThinkingToggle && (
                                             <button
                                                 type="button"
@@ -1726,9 +1742,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                                 onClick={() => setIsThinkingEnabled((previous) => !previous)}
                                                 disabled={isGenerating}
                                                 aria-pressed={isThinkingEnabled}
+                                                aria-label={isThinkingEnabled ? 'Thinking をオフにする' : 'Thinking をオンにする'}
+                                                title={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
                                             >
                                                 <Brain size={15} />
-                                                Thinking {isThinkingEnabled ? 'ON' : 'OFF'}
                                             </button>
                                         )}
                                     </div>

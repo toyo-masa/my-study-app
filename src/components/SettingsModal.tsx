@@ -28,6 +28,7 @@ import {
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 import { getGroupedWebLlmModelOptions } from '../utils/localLlmEngine';
+import { buildLocalApiModelOptionList } from '../utils/localApiModelOptions';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -109,21 +110,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [localApiModelFetchNonce, setLocalApiModelFetchNonce] = useState(0);
     const lastAppliedLocalApiModelFetchNonceRef = useRef(0);
     const localApiModelOptions = useMemo(() => {
-        const modelIds = new Set<string>();
         const preferredModelId = localLlmSettings.defaultModelId.trim();
-
-        if (preferredModelId.length > 0) {
-            modelIds.add(preferredModelId);
-        }
-
-        availableLocalApiModels.forEach((modelId) => {
-            const trimmed = modelId.trim();
-            if (trimmed.length > 0) {
-                modelIds.add(trimmed);
-            }
-        });
-
-        return Array.from(modelIds);
+        return buildLocalApiModelOptionList(availableLocalApiModels, [preferredModelId]);
     }, [availableLocalApiModels, localLlmSettings.defaultModelId]);
     const hasLocalApiBaseUrl = localLlmSettings.baseUrl.trim().length > 0;
     const visibleLocalApiModelOptions = hasLocalApiBaseUrl ? localApiModelOptions : [];

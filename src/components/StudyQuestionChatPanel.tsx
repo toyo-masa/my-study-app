@@ -39,6 +39,8 @@ import {
 import {
     findLocalApiProviderByBaseUrl,
 } from '../utils/localApiProviders';
+import { LocalLlmModelPicker, type LocalLlmModelPickerOption } from './LocalLlmModelPicker';
+import { buildLocalApiModelOptionList } from '../utils/localApiModelOptions';
 
 type LocalChatMessage = {
     id: string;
@@ -339,31 +341,17 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         ? selectedWebLlmModel
         : selectedLocalApiModel.trim();
     const localApiSelectableModels = useMemo(() => {
-        const modelIds = new Set<string>();
         const sessionModelId = initialSession?.mode === 'openai-local'
             ? initialSession.modelId.trim()
             : '';
         const preferredModelId = localLlmSettings.defaultModelId.trim();
         const currentLocalModelId = selectedLocalApiModel.trim();
 
-        if (sessionModelId.length > 0) {
-            modelIds.add(sessionModelId);
-        }
-        if (preferredModelId.length > 0) {
-            modelIds.add(preferredModelId);
-        }
-        if (currentLocalModelId.length > 0) {
-            modelIds.add(currentLocalModelId);
-        }
-
-        availableModels.forEach((modelId) => {
-            const trimmed = modelId.trim();
-            if (trimmed.length > 0) {
-                modelIds.add(trimmed);
-            }
-        });
-
-        return Array.from(modelIds);
+        return buildLocalApiModelOptionList(availableModels, [
+            sessionModelId,
+            preferredModelId,
+            currentLocalModelId,
+        ]);
     }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
     const selectedLocalApiModelOptionValue = localApiSelectableModels.includes(selectedLocalApiModel.trim())
         ? selectedLocalApiModel.trim()
@@ -373,6 +361,50 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         : selectedLocalApiModelOptionValue.length > 0
             ? `openai-local:${selectedLocalApiModelOptionValue}`
             : 'openai-local';
+    const composerModelPickerGroups = useMemo(() => {
+        const webLlmGroups = webLlmSelectableModelGroups.map((group) => ({
+            label: group.label,
+            options: group.options.map((option) => ({
+                value: `webllm:${option.value}`,
+                label: option.label,
+            })),
+        }));
+
+        const localApiOptions: LocalLlmModelPickerOption[] = localApiSelectableModels.map((modelId) => ({
+            value: `openai-local:${modelId}`,
+            label: modelId,
+        }));
+
+        if (localApiOptions.length === 0) {
+            localApiOptions.push({
+                value: 'openai-local',
+                label: isFetchingModels && activeMode === 'openai-local'
+                    ? 'ローカルAPI（モデル取得中…）'
+                    : 'ローカルAPI（モデルを選択）',
+                disabled: true,
+            });
+        } else if (activeMode === 'openai-local' && selectedLocalApiModelOptionValue.length === 0) {
+            localApiOptions.unshift({
+                value: 'openai-local',
+                label: 'ローカルAPI（モデルを選択）',
+                disabled: true,
+            });
+        }
+
+        return [
+            ...webLlmGroups,
+            {
+                label: 'ローカルAPI',
+                options: localApiOptions,
+            },
+        ];
+    }, [
+        activeMode,
+        isFetchingModels,
+        localApiSelectableModels,
+        selectedLocalApiModelOptionValue,
+        webLlmSelectableModelGroups,
+    ]);
     const canSend = input.trim().length > 0
         && !isGenerating
         && questionId !== null
@@ -1163,6 +1195,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             const modelId = value === 'openai-local'
                 ? selectedLocalApiModel.trim()
                 : value.slice('openai-local:'.length).trim();
+            if (modelId !== selectedLocalApiModel) {
+                setSelectedLocalApiModel(modelId);
+            }
             if (activeMode !== 'openai-local') {
                 onLocalLlmModeChange('openai-local');
                 void fetchLocalApiModels();
@@ -1175,11 +1210,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             mode: 'openai-local',
                             modelId,
                         }
-                        : session
+                            : session
                     )));
-            }
-            if (modelId !== selectedLocalApiModel) {
-                setSelectedLocalApiModel(modelId);
             }
         }
     }, [activeMode, fetchLocalApiModels, onLocalLlmModeChange, onWebLlmModelChange, questionId, quizSetId, selectedLocalApiModel, selectedWebLlmModel]);
@@ -1203,7 +1235,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 <div className="study-question-chat-panel-head">
                     <div>
                         <h2>AIチャット</h2>
-                        <p>問題{questionIndex + 1}について質問できます。{showAnswer ? '解説込みで相談できます。' : 'ヒント中心で答えます。'} 送信欄のモデル表示から候補を切り替えられます。</p>
                     </div>
                     <div className="study-question-chat-head-actions">
                         {isGenerating && activeMode === 'webllm' && webllmGenerationPhase && (
@@ -1331,34 +1362,13 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         />
                         <div className="local-llm-composer-toolbar">
                             <div className="local-llm-composer-settings">
-                                <select
-                                    className="local-llm-composer-select"
+                                <LocalLlmModelPicker
+                                    groups={composerModelPickerGroups}
                                     value={composerModelOptionValue}
-                                    onChange={(event) => handleModelOptionChange(event.target.value)}
+                                    onChange={handleModelOptionChange}
                                     disabled={isGenerating || isModelLoading}
-                                >
-                                    {webLlmSelectableModelGroups.map((group) => (
-                                        <optgroup key={group.label} label={group.label}>
-                                            {group.options.map((option) => (
-                                                <option key={option.value} value={`webllm:${option.value}`}>
-                                                    {option.label}
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    ))}
-                                    <optgroup label="ローカルAPI">
-                                        <option value="openai-local">
-                                            {isFetchingModels && activeMode === 'openai-local' && localApiSelectableModels.length === 0
-                                                ? 'ローカルAPI（取得中…）'
-                                                : 'ローカルAPI'}
-                                        </option>
-                                        {localApiSelectableModels.map((modelId) => (
-                                            <option key={`study-composer-local-api-model-${modelId}`} value={`openai-local:${modelId}`}>
-                                                {modelId}
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                </select>
+                                    ariaLabel="モデルを選択する"
+                                />
                                 {showThinkingToggle && (
                                     <button
                                         type="button"
@@ -1366,9 +1376,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                         onClick={() => setIsThinkingEnabled((previous) => !previous)}
                                         disabled={isGenerating}
                                         aria-pressed={isThinkingEnabled}
+                                        aria-label={isThinkingEnabled ? 'Thinking をオフにする' : 'Thinking をオンにする'}
+                                        title={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
                                     >
                                         <Brain size={15} />
-                                        Thinking {isThinkingEnabled ? 'ON' : 'OFF'}
                                     </button>
                                 )}
                             </div>
