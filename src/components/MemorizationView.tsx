@@ -25,6 +25,7 @@ interface QuestionViewProps {
     feedbackTimingMode?: FeedbackTimingMode;
     feedbackBlockSize?: number;
     revealReadyCount?: number | null;
+    answersUntilRevealCount?: number | null;
     handwritingState?: HandwritingPadState;
     onHandwritingStateChange?: (value: HandwritingPadState) => void;
     allowTouchDrawing: boolean;
@@ -50,6 +51,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
     feedbackTimingMode = 'immediate',
     feedbackBlockSize = 5,
     revealReadyCount = null,
+    answersUntilRevealCount = null,
     handwritingState,
     onHandwritingStateChange,
     allowTouchDrawing,
@@ -57,6 +59,18 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
     const handleInputChange = (idx: number, value: string) => {
         onInputChange(idx, value);
     };
+    const primaryActionLabel = (revealReadyCount !== null && revealReadyCount > 0)
+        ? `${revealReadyCount}件の回答を確認する`
+        : isAnswerLocked
+            ? (isLastQuestion ? '完了へ進む' : '次の問題へ')
+            : feedbackTimingMode === 'immediate'
+                ? '回答を確認'
+                : '回答して次へ';
+    const shouldShowAnswerCountdown =
+        !isAnswerLocked &&
+        feedbackTimingMode !== 'immediate' &&
+        revealReadyCount === null &&
+        (answersUntilRevealCount ?? 0) > 0;
 
     return (
         <main className="memorization-content">
@@ -142,7 +156,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                     <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
                         <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                             <button
-                                className="check-answer-btn"
+                                className={`check-answer-btn${shouldShowAnswerCountdown ? ' stacked-action-btn' : ''}`}
                                 onClick={() => {
                                     const canRevealPendingAnswers = revealReadyCount !== null && revealReadyCount > 0;
                                     if (canRevealPendingAnswers) {
@@ -156,13 +170,14 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                                     onRevealAnswer();
                                 }}
                             >
-                                {(revealReadyCount !== null && revealReadyCount > 0)
-                                    ? `${revealReadyCount}件の回答を確認する`
-                                    : isAnswerLocked
-                                        ? (isLastQuestion ? '完了へ進む' : '次の問題へ')
-                                        : feedbackTimingMode === 'immediate'
-                                            ? '回答を確認'
-                                            : '回答して次へ'}
+                                {shouldShowAnswerCountdown ? (
+                                    <>
+                                        <span className="stacked-action-btn-title">{primaryActionLabel}</span>
+                                        <span className="stacked-action-btn-subtitle">
+                                            {`回答確認まであと${answersUntilRevealCount}`}
+                                        </span>
+                                    </>
+                                ) : primaryActionLabel}
                             </button>
                         </div>
                         {isAnswerLocked && feedbackTimingMode !== 'immediate' && (

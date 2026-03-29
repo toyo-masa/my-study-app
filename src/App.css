@@ -8548,6 +8548,29 @@ button.appearance-option.active {
   filter: brightness(1.1);
 }
 
+.stacked-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.stacked-action-btn-title {
+  display: block;
+}
+
+.stacked-action-btn-subtitle {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.72em;
+  opacity: 0.88;
+  font-weight: 400;
+}
+
 .judgement-buttons {
   display: flex;
   gap: 1.5rem;

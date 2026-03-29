@@ -30,6 +30,7 @@ interface QuestionViewProps {
     feedbackTimingMode: FeedbackTimingMode;
     isAnswerLocked: boolean;
     revealReadyCount?: number | null;
+    answersUntilRevealCount?: number | null;
     useNextAnswerLabel?: boolean;
     showHandwritingPad: boolean;
     handwritingState?: HandwritingPadState;
@@ -59,6 +60,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     feedbackTimingMode,
     isAnswerLocked,
     revealReadyCount = null,
+    answersUntilRevealCount = null,
     useNextAnswerLabel = false,
     showHandwritingPad,
     handwritingState,
@@ -168,6 +170,18 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
         }
         return backContent;
     })();
+    const primaryActionLabel = (revealReadyCount !== null && revealReadyCount > 0)
+        ? `${revealReadyCount}件の回答を確認する`
+        : isAnswerLocked
+            ? (isLast ? '完了へ進む' : '次の問題へ')
+            : feedbackTimingMode === 'immediate'
+                ? '解答を確認する'
+                : '回答して次へ';
+    const shouldShowAnswerCountdown =
+        !isAnswerLocked &&
+        feedbackTimingMode !== 'immediate' &&
+        revealReadyCount === null &&
+        (answersUntilRevealCount ?? 0) > 0;
 
     return (
         <div className="question-view">
@@ -291,14 +305,15 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                     if (shouldAutoSetConfidence) onConfidenceChange('high');
                                 }
                                 onShowAnswer();
-                            }} className="nav-btn action-btn">
-                                {(revealReadyCount !== null && revealReadyCount > 0)
-                                    ? `${revealReadyCount}件の回答を確認する`
-                                    : isAnswerLocked
-                                        ? (isLast ? '完了へ進む' : '次の問題へ')
-                                        : feedbackTimingMode === 'immediate'
-                                            ? '解答を確認する'
-                                            : '回答して次へ'}
+                            }} className={`nav-btn action-btn${shouldShowAnswerCountdown ? ' stacked-action-btn' : ''}`}>
+                                {shouldShowAnswerCountdown ? (
+                                    <>
+                                        <span className="stacked-action-btn-title">{primaryActionLabel}</span>
+                                        <span className="stacked-action-btn-subtitle">
+                                            {`回答確認まであと${answersUntilRevealCount}`}
+                                        </span>
+                                    </>
+                                ) : primaryActionLabel}
                             </button>
                         </div>
                     </div>

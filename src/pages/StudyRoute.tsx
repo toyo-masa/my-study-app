@@ -1435,6 +1435,27 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         return null;
     })();
+    const answersUntilRevealCount = (() => {
+        if (!currentQuestion) return null;
+        if (feedbackTimingMode === 'immediate') return null;
+        if (feedbackPhase !== 'answering') return null;
+        if (showAnswerMap[qId]) return null;
+        if (isAnswerLocked) return null;
+        if (revealReadyCount !== null && revealReadyCount > 0) return null;
+
+        const remainingUnansweredCount = questions.filter(q => answeredMap[String(q.id)] !== true).length;
+        if (remainingUnansweredCount <= 0) return null;
+
+        if (feedbackTimingMode === 'delayed_end') {
+            return remainingUnansweredCount;
+        }
+
+        const unrevealedAnsweredCount = getUnrevealedAnsweredQuestionIds().length;
+        return Math.min(
+            Math.max(1, feedbackBlockSize - unrevealedAnsweredCount),
+            remainingUnansweredCount
+        );
+    })();
     const canCompleteAfterCurrent = (() => {
         if (!currentQuestion) return false;
 
@@ -1651,6 +1672,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                         feedbackTimingMode={feedbackTimingMode}
                         isAnswerLocked={isAnswerLocked}
                         revealReadyCount={revealReadyCount}
+                        answersUntilRevealCount={answersUntilRevealCount}
                         useNextAnswerLabel={useNextAnswerLabel}
                         showHandwritingPad={true}
                         handwritingState={handwritingMap[qId]}

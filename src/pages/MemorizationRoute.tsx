@@ -1202,6 +1202,27 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
         return null;
     })();
+    const answersUntilRevealCount = (() => {
+        if (!currentQuestion) return null;
+        if (feedbackTimingMode === 'immediate') return null;
+        if (feedbackPhase !== 'answering') return null;
+        if (showAnswerMap[currentQuestionKey]) return null;
+        if (isAnswerLocked) return null;
+        if (revealReadyCount !== null && revealReadyCount > 0) return null;
+
+        const remainingUnansweredCount = questions.filter(q => answeredMap[String(q.id)] !== true).length;
+        if (remainingUnansweredCount <= 0) return null;
+
+        if (feedbackTimingMode === 'delayed_end') {
+            return remainingUnansweredCount;
+        }
+
+        const unjudgedAnsweredCount = getUnjudgedAnsweredQuestionIds().length;
+        return Math.min(
+            Math.max(1, feedbackBlockSize - unjudgedAnsweredCount),
+            remainingUnansweredCount
+        );
+    })();
     const canShowResultButton = currentQuestionIndex === questions.length - 1 ||
         (feedbackTimingMode !== 'immediate' &&
             questions.length > 0 &&
@@ -1353,6 +1374,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                             feedbackTimingMode={feedbackTimingMode}
                             feedbackBlockSize={feedbackBlockSize}
                             revealReadyCount={revealReadyCount}
+                            answersUntilRevealCount={answersUntilRevealCount}
                             handwritingState={handwritingMap[currentQuestionKey]}
                             onHandwritingStateChange={(value) => setHandwritingMap((prev) => ({ ...prev, [currentQuestionKey]: value }))}
                             allowTouchDrawing={allowTouchDrawing}
