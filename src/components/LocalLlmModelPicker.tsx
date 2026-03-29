@@ -156,13 +156,13 @@ export const LocalLlmModelPicker: React.FC<LocalLlmModelPickerProps> = ({
             <button
                 ref={triggerRef}
                 type="button"
-                className="local-llm-model-picker-trigger"
+                className="local-llm-model-picker-trigger local-llm-tooltip-target"
                 onClick={() => setIsOpen((previous) => !previous)}
                 disabled={disabled}
                 aria-haspopup="listbox"
                 aria-expanded={effectiveIsOpen}
                 aria-label={ariaLabel}
-                title={selectedOption?.label ?? 'モデルを選択'}
+                data-tooltip={selectedOption?.label ?? ariaLabel}
             >
                 <span className="local-llm-model-picker-trigger-label">
                     {selectedOption?.label ?? 'モデルを選択'}
@@ -194,7 +194,6 @@ export const LocalLlmModelPicker: React.FC<LocalLlmModelPickerProps> = ({
                                                 role="option"
                                                 aria-selected={isSelected}
                                                 data-selected={isSelected ? 'true' : undefined}
-                                                title={option.label}
                                             >
                                                 <span className="local-llm-model-picker-option-check" aria-hidden="true">
                                                     {isSelected ? <Check size={18} /> : null}

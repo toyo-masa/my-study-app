@@ -1756,12 +1756,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         {showThinkingToggle && (
                                             <button
                                                 type="button"
-                                                className={`local-llm-thinking-toggle ${isThinkingEnabled ? 'active' : ''}`}
+                                                className={`local-llm-thinking-toggle local-llm-tooltip-target ${isThinkingEnabled ? 'active' : ''}`}
                                                 onClick={() => setIsThinkingEnabled((previous) => !previous)}
                                                 disabled={isGenerating}
                                                 aria-pressed={isThinkingEnabled}
                                                 aria-label={isThinkingEnabled ? 'Thinking をオフにする' : 'Thinking をオンにする'}
-                                                title={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
+                                                data-tooltip={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
                                             >
                                                 <Brain size={14} />
                                             </button>
@@ -1771,21 +1771,21 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         {isGenerating ? (
                                             <button
                                                 type="button"
-                                                className="local-llm-send-btn is-stop"
+                                                className="local-llm-send-btn local-llm-tooltip-target is-stop"
                                                 onClick={handleStopGeneration}
                                                 aria-label="生成を中止"
-                                                title="生成を中止"
+                                                data-tooltip="生成を中止"
                                             >
                                                 <Square size={14} />
                                             </button>
                                         ) : (
                                             <button
                                                 type="button"
-                                                className="local-llm-send-btn"
+                                                className="local-llm-send-btn local-llm-tooltip-target"
                                                 onClick={() => { void handleSend(); }}
                                                 disabled={!canSend}
                                                 aria-label="送信"
-                                                title="送信"
+                                                data-tooltip="送信"
                                             >
                                                 <ArrowUp size={16} />
                                             </button>

@@ -1341,6 +1341,41 @@
   white-space: nowrap;
 }
 
+.local-llm-tooltip-target[data-tooltip]::before,
+.local-llm-tooltip-target[data-tooltip]::after {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0s linear, visibility 0s linear, transform 0s linear;
+  z-index: 3800;
+}
+
+.local-llm-tooltip-target[data-tooltip]::before {
+  bottom: calc(100% + 10px);
+  margin-bottom: 0;
+  padding: 0.5rem 0.82rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-color) 94%, black 6%);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.15;
+  transform: translateX(-50%) translateY(0);
+}
+
+.local-llm-tooltip-target[data-tooltip]::after {
+  display: none;
+  content: none;
+}
+
+.local-llm-tooltip-target[data-tooltip]:hover::before,
+.local-llm-tooltip-target[data-tooltip]:focus-visible::before {
+  opacity: 1;
+  visibility: visible;
+}
+
 .local-llm-composer-actions {
   display: flex;
   align-items: center;

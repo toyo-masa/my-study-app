@@ -309,6 +309,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const streamingRenderedTextRef = useRef('');
     const streamingFlushTimerRef = useRef<number | null>(null);
     const flushStreamingUpdateRef = useRef<(() => void) | null>(null);
+    const skipNextPersistenceQuestionKeyRef = useRef<string | null>(null);
 
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
     const activeMode = localLlmSettings.preferredMode;
@@ -586,15 +587,18 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         if (questionId === null) {
             shouldAutoScrollRef.current = true;
+            skipNextPersistenceQuestionKeyRef.current = null;
             setMessages([]);
             setSelectedLocalApiModel(localLlmSettings.defaultModelId || rememberedLocalApiModelId);
             return;
         }
 
+        const currentQuestionSessionKey = `${quizSetId}:${questionId}`;
         const session = findStudyQuestionChatSession(storedSessionsRef.current, quizSetId, questionId);
         const restoredMessages = session ? toViewMessages(session.messages) : [];
         const hasRestoredMessages = restoredMessages.length > 0;
         shouldAutoScrollRef.current = !hasRestoredMessages;
+        skipNextPersistenceQuestionKeyRef.current = currentQuestionSessionKey;
         setMessages(restoredMessages);
         if (session?.mode === 'webllm') {
             onLocalLlmModeChange('webllm');
@@ -643,6 +647,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
     useEffect(() => {
         if (questionId === null) {
+            return;
+        }
+
+        const currentQuestionSessionKey = `${quizSetId}:${questionId}`;
+        if (skipNextPersistenceQuestionKeyRef.current === currentQuestionSessionKey) {
+            skipNextPersistenceQuestionKeyRef.current = null;
             return;
         }
 
@@ -1389,12 +1399,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 {showThinkingToggle && (
                                     <button
                                         type="button"
-                                        className={`local-llm-thinking-toggle ${isThinkingEnabled ? 'active' : ''}`}
+                                        className={`local-llm-thinking-toggle local-llm-tooltip-target ${isThinkingEnabled ? 'active' : ''}`}
                                         onClick={() => setIsThinkingEnabled((previous) => !previous)}
                                         disabled={isGenerating}
                                         aria-pressed={isThinkingEnabled}
                                         aria-label={isThinkingEnabled ? 'Thinking をオフにする' : 'Thinking をオンにする'}
-                                        title={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
+                                        data-tooltip={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
                                     >
                                         <Brain size={14} />
                                     </button>
@@ -1404,21 +1414,21 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 {isGenerating ? (
                                     <button
                                         type="button"
-                                        className="local-llm-send-btn is-stop"
+                                        className="local-llm-send-btn local-llm-tooltip-target is-stop"
                                         onClick={handleStopGeneration}
                                         aria-label="生成を中止"
-                                        title="生成を中止"
+                                        data-tooltip="生成を中止"
                                     >
                                         <Square size={14} />
                                     </button>
                                 ) : (
                                     <button
                                         type="button"
-                                        className="local-llm-send-btn"
+                                        className="local-llm-send-btn local-llm-tooltip-target"
                                         onClick={() => { void handleSend(); }}
                                         disabled={!canSend}
                                         aria-label="送信"
-                                        title="送信"
+                                        data-tooltip="送信"
                                     >
                                         <ArrowUp size={16} />
                                     </button>
