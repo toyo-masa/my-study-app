@@ -1613,54 +1613,30 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
                 <div className="local-llm-main">
                     <section className="local-llm-card local-llm-chat-card">
-                        <div className="local-llm-card-head">
-                            <div>
-                                <h2>チャット</h2>
-                                <p>
-                                    送信欄のモデル表示から候補を切り替えられます。接続先や詳細設定は設定サイドバーの「ローカルLLM設定」から変更できます。Shift + Enter で改行、Enter で送信します。
-                                </p>
-                            </div>
-                            <div className="local-llm-chat-head-actions">
-                                {isGenerating && activeMode === 'webllm' && webllmGenerationPhase && (
-                                    <span className="local-llm-inline-status">
-                                        <LoaderCircle size={15} className="spin" />
-                                        {webllmGenerationPhase === 'thinking' ? '思考中' : '最終回答を生成中'}
-                                    </span>
-                                )}
-                                {isModelLoading && activeMode === 'webllm' && (
-                                    <span className="local-llm-inline-status">
-                                        <LoaderCircle size={15} className="spin" />
-                                        読み込み中
-                                    </span>
-                                )}
-                                {isFetchingModels && activeMode === 'openai-local' && availableModels.length === 0 && (
-                                    <span className="local-llm-inline-status">
-                                        <LoaderCircle size={15} className="spin" />
-                                        接続確認中
-                                    </span>
-                                )}
-                                <button
-                                    type="button"
-                                    className="menu-btn right-panel-copy-btn"
-                                    onClick={() => { void handleCopyRequestPayload(); }}
-                                    disabled={!lastRequestPayload || isGenerating}
-                                    aria-label="モデルへ送ったリクエスト本文をコピー"
-                                    title="モデルへ送ったリクエスト本文をコピーします"
-                                >
-                                    {didCopyRequestPayload ? <Check size={18} /> : <Copy size={18} />}
-                                </button>
-                                <button
-                                    type="button"
-                                    className="menu-btn right-panel-clear-btn"
-                                    onClick={handleClearChat}
-                                    disabled={(currentSession === null && messages.length === 0) || isGenerating}
-                                    aria-label="会話履歴を削除"
-                                    title="会話履歴を削除"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                            </div>
-                        </div>
+                        {(isGenerating && activeMode === 'webllm' && webllmGenerationPhase)
+                            || (isModelLoading && activeMode === 'webllm')
+                            || (isFetchingModels && activeMode === 'openai-local' && availableModels.length === 0) ? (
+                                <div className="local-llm-thread-status-row">
+                                    {isGenerating && activeMode === 'webllm' && webllmGenerationPhase && (
+                                        <span className="local-llm-inline-status">
+                                            <LoaderCircle size={15} className="spin" />
+                                            {webllmGenerationPhase === 'thinking' ? '思考中' : '最終回答を生成中'}
+                                        </span>
+                                    )}
+                                    {isModelLoading && activeMode === 'webllm' && (
+                                        <span className="local-llm-inline-status">
+                                            <LoaderCircle size={15} className="spin" />
+                                            読み込み中
+                                        </span>
+                                    )}
+                                    {isFetchingModels && activeMode === 'openai-local' && availableModels.length === 0 && (
+                                        <span className="local-llm-inline-status">
+                                            <LoaderCircle size={15} className="spin" />
+                                            接続確認中
+                                        </span>
+                                    )}
+                                </div>
+                            ) : null}
 
                         {loadProgress && activeMode === 'webllm' && (
                             <div className="local-llm-progress-block">
@@ -1698,31 +1674,55 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                             </div>
                         )}
 
-                        <div className="local-llm-thread">
-                            {messages.length === 0 ? (
-                                <div className="local-llm-thread-empty">
-                                    <Bot size={28} />
-                                    <p>
-                                        {activeMode === 'webllm'
-                                            ? (isModelReady ? 'ここからそのまま質問できます。' : '選んだ WebLLM モデルを読み込み中です。')
-                                            : (selectedModel.length > 0 ? 'ここからそのまま質問できます。' : 'ローカルAPIで使うモデルを選択してください。')}
-                                    </p>
-                                </div>
-                            ) : (
-                                messages.map((message) => (
-                                    <LocalLlmMessageItem
-                                        key={message.id}
-                                        message={message}
-                                        isCopied={copiedMessageId === message.id}
-                                        onCopy={handleCopyMessage}
-                                        streamingLabel={message.isStreaming
-                                            ? (activeMode === 'webllm' && webllmGenerationPhase === 'finalizing'
-                                                ? '最終回答を生成中'
-                                                : '生成中')
-                                            : undefined}
-                                    />
-                                ))
-                            )}
+                        <div className="local-llm-thread-shell">
+                            <div className="local-llm-thread-overlay-actions">
+                                <button
+                                    type="button"
+                                    className={`local-llm-thread-overlay-action local-llm-tooltip-target ${didCopyRequestPayload ? 'is-active' : ''}`}
+                                    onClick={() => { void handleCopyRequestPayload(); }}
+                                    disabled={!lastRequestPayload || isGenerating}
+                                    aria-label="モデルへ送ったリクエスト本文をコピー"
+                                    data-tooltip={didCopyRequestPayload ? 'コピーしました' : 'リクエスト本文をコピー'}
+                                >
+                                    {didCopyRequestPayload ? <Check size={16} /> : <Copy size={16} />}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="local-llm-thread-overlay-action local-llm-tooltip-target"
+                                    onClick={handleClearChat}
+                                    disabled={(currentSession === null && messages.length === 0) || isGenerating}
+                                    aria-label="会話履歴を削除"
+                                    data-tooltip="会話をクリア"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                            <div className="local-llm-thread local-llm-thread-with-actions">
+                                {messages.length === 0 ? (
+                                    <div className="local-llm-thread-empty">
+                                        <Bot size={28} />
+                                        <p>
+                                            {activeMode === 'webllm'
+                                                ? (isModelReady ? 'ここからそのまま質問できます。' : '選んだ WebLLM モデルを読み込み中です。')
+                                                : (selectedModel.length > 0 ? 'ここからそのまま質問できます。' : 'ローカルAPIで使うモデルを選択してください。')}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    messages.map((message) => (
+                                        <LocalLlmMessageItem
+                                            key={message.id}
+                                            message={message}
+                                            isCopied={copiedMessageId === message.id}
+                                            onCopy={handleCopyMessage}
+                                            streamingLabel={message.isStreaming
+                                                ? (activeMode === 'webllm' && webllmGenerationPhase === 'finalizing'
+                                                    ? '最終回答を生成中'
+                                                    : '生成中')
+                                                : undefined}
+                                        />
+                                    ))
+                                )}
+                            </div>
                         </div>
 
                         <div className="local-llm-composer">

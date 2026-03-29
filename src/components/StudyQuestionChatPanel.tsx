@@ -1258,12 +1258,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
     return (
         <div className="study-question-chat-panel">
-            <div className="study-question-chat-panel-header">
-                <div className="study-question-chat-panel-head">
-                    <div>
-                        <h2>AIチャット</h2>
-                    </div>
-                    <div className="study-question-chat-head-actions">
+            <div className="study-question-chat-panel-body">
+                {(isGenerating && activeMode === 'webllm' && webllmGenerationPhase) || (isFetchingModels && activeMode === 'openai-local' && availableModels.length === 0) ? (
+                    <div className="local-llm-thread-status-row">
                         {isGenerating && activeMode === 'webllm' && webllmGenerationPhase && (
                             <span className="local-llm-inline-status">
                                 <LoaderCircle size={15} className="spin" />
@@ -1276,28 +1273,8 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 接続確認中
                             </span>
                         )}
-                        <button
-                            type="button"
-                            className="menu-btn right-panel-copy-btn"
-                            onClick={() => { void handleCopyRequestPayload(); }}
-                            disabled={!lastRequestPayload || isGenerating}
-                            aria-label="モデルへ送ったリクエスト本文をコピー"
-                            title="モデルへ送ったリクエスト本文をコピーします"
-                        >
-                            {didCopyRequestPayload ? <Check size={18} /> : <Copy size={18} />}
-                        </button>
-                        <button
-                            type="button"
-                            className="menu-btn right-panel-clear-btn"
-                            onClick={handleClearChat}
-                            disabled={messages.length === 0 || isGenerating}
-                            aria-label="この問題の会話をクリア"
-                            title="クリア"
-                        >
-                            <Trash2 size={18} />
-                        </button>
                     </div>
-                </div>
+                ) : null}
 
                 {loadProgress && activeMode === 'webllm' && (
                     <div className="local-llm-progress-block">
@@ -1334,38 +1311,60 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         <span>{error}</span>
                     </div>
                 )}
-            </div>
 
-            <div className="study-question-chat-panel-body">
-                <div
-                    ref={threadRef}
-                    className="local-llm-thread study-question-chat-thread"
-                    onScroll={handleThreadScroll}
-                >
-                    {messages.length === 0 ? (
-                        <div className="local-llm-thread-empty">
-                            <Bot size={26} />
-                            <p>
-                                {showAnswer
-                                    ? 'この問題の解説や考え方について質問できます。'
-                                    : 'この問題のヒントや考え方について質問できます。答えは直接返しません。'}
-                            </p>
-                        </div>
-                    ) : (
-                        messages.map((message) => (
-                            <LocalLlmMessageItem
-                                key={message.id}
-                                message={message}
-                                isCopied={copiedMessageId === message.id}
-                                onCopy={handleCopyMessage}
-                                streamingLabel={message.isStreaming
-                                    ? (activeMode === 'webllm' && webllmGenerationPhase === 'finalizing'
-                                        ? '最終回答を生成中'
-                                        : '生成中')
-                                    : undefined}
-                            />
-                        ))
-                    )}
+                <div className="local-llm-thread-shell">
+                    <div className="local-llm-thread-overlay-actions">
+                        <button
+                            type="button"
+                            className={`local-llm-thread-overlay-action local-llm-tooltip-target ${didCopyRequestPayload ? 'is-active' : ''}`}
+                            onClick={() => { void handleCopyRequestPayload(); }}
+                            disabled={!lastRequestPayload || isGenerating}
+                            aria-label="モデルへ送ったリクエスト本文をコピー"
+                            data-tooltip={didCopyRequestPayload ? 'コピーしました' : 'リクエスト本文をコピー'}
+                        >
+                            {didCopyRequestPayload ? <Check size={16} /> : <Copy size={16} />}
+                        </button>
+                        <button
+                            type="button"
+                            className="local-llm-thread-overlay-action local-llm-tooltip-target"
+                            onClick={handleClearChat}
+                            disabled={messages.length === 0 || isGenerating}
+                            aria-label="この問題の会話をクリア"
+                            data-tooltip="会話をクリア"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                    <div
+                        ref={threadRef}
+                        className="local-llm-thread local-llm-thread-with-actions study-question-chat-thread"
+                        onScroll={handleThreadScroll}
+                    >
+                        {messages.length === 0 ? (
+                            <div className="local-llm-thread-empty">
+                                <Bot size={26} />
+                                <p>
+                                    {showAnswer
+                                        ? 'この問題の解説や考え方について質問できます。'
+                                        : 'この問題のヒントや考え方について質問できます。答えは直接返しません。'}
+                                </p>
+                            </div>
+                        ) : (
+                            messages.map((message) => (
+                                <LocalLlmMessageItem
+                                    key={message.id}
+                                    message={message}
+                                    isCopied={copiedMessageId === message.id}
+                                    onCopy={handleCopyMessage}
+                                    streamingLabel={message.isStreaming
+                                        ? (activeMode === 'webllm' && webllmGenerationPhase === 'finalizing'
+                                            ? '最終回答を生成中'
+                                            : '生成中')
+                                        : undefined}
+                                />
+                            ))
+                        )}
+                    </div>
                 </div>
 
                 <div className="local-llm-composer">
