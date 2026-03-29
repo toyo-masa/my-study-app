@@ -520,7 +520,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             1回目
                                                         </h5>
                                                         <p className="review-settings-note" style={{ marginBottom: '0.9rem' }}>
-                                                            ここで調整しない場合は `temperature {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP}` を使います。
+                                                            デフォルト値: `temperature {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP} / thinking_budget {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET} / presence_penalty {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY}`
                                                         </p>
                                                         <div className="review-settings-grid">
                                                             <label className="review-setting-item">
@@ -533,7 +533,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                         ...localLlmSettings,
                                                                         webllmFirstPassTemperature: parseOptionalNumberInput(event.target.value),
                                                                     })}
-                                                                    placeholder={String(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature)}
+                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature)}
                                                                     min={0}
                                                                     max={2}
                                                                     step={0.05}
@@ -550,7 +550,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                         ...localLlmSettings,
                                                                         webllmFirstPassTopP: parseOptionalNumberInput(event.target.value),
                                                                     })}
-                                                                    placeholder={String(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP)}
+                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP)}
                                                                     min={0.01}
                                                                     max={1}
                                                                     step={0.01}
@@ -569,7 +569,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 >
                                                                     {WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS.map((budget) => (
                                                                         <option key={budget} value={budget}>
-                                                                            {budget}
+                                                                            {budget}{budget === WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET ? '（デフォルト）' : ''}
                                                                         </option>
                                                                     ))}
                                                                 </select>
@@ -584,7 +584,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                         ...localLlmSettings,
                                                                         webllmFirstPassPresencePenalty: parseOptionalNumberInput(event.target.value),
                                                                     })}
-                                                                    placeholder={String(WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY)}
+                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY)}
                                                                     min={0.3}
                                                                     max={0.6}
                                                                     step={0.05}
@@ -599,7 +599,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                             2回目
                                                         </h5>
                                                         <p className="review-settings-note" style={{ marginBottom: '0.9rem' }}>
-                                                            `/no_think` を付けて最終回答を生成します。
+                                                            デフォルト値: `temperature {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP} / final_answer_max_tokens {WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS} / presence_penalty {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty}` で、`/no_think` を付けて最終回答を生成します。
                                                         </p>
                                                         <div className="review-settings-grid">
                                                             <label className="review-setting-item">
@@ -612,7 +612,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                         ...localLlmSettings,
                                                                         webllmSecondPassTemperature: parseOptionalNumberInput(event.target.value),
                                                                     })}
-                                                                    placeholder={String(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature)}
+                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature)}
                                                                     min={0.5}
                                                                     max={0.7}
                                                                     step={0.05}
@@ -629,7 +629,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                         ...localLlmSettings,
                                                                         webllmSecondPassTopP: parseOptionalNumberInput(event.target.value),
                                                                     })}
-                                                                    placeholder={String(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP)}
+                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP)}
                                                                     min={0.8}
                                                                     max={0.9}
                                                                     step={0.01}
@@ -648,7 +648,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                 >
                                                                     {WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS.map((maxTokens) => (
                                                                         <option key={maxTokens} value={maxTokens}>
-                                                                            {maxTokens}
+                                                                            {maxTokens}{maxTokens === WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS ? '（デフォルト）' : ''}
                                                                         </option>
                                                                     ))}
                                                                 </select>
@@ -663,7 +663,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                                         ...localLlmSettings,
                                                                         webllmSecondPassPresencePenalty: parseOptionalNumberInput(event.target.value),
                                                                     })}
-                                                                    placeholder={String(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty)}
+                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty)}
                                                                     min={0}
                                                                     max={0.3}
                                                                     step={0.05}

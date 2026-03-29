@@ -332,6 +332,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                 </p>
                                 <div className="local-llm-parameter-section">
                                     <div className="local-llm-parameter-section-title">1回目</div>
+                                    <p className="local-llm-parameter-popover-note">
+                                        デフォルト値: temperature {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP} / thinking_budget {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET} / presence_penalty {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY}
+                                    </p>
                                     <div className="local-llm-parameter-grid">
                                         <label className="local-llm-parameter-field">
                                             <span>temperature</span>
@@ -381,7 +384,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                             >
                                                 {WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS.map((budget) => (
                                                     <option key={budget} value={budget}>
-                                                        {budget}
+                                                        {budget}{budget === WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET ? '（デフォルト）' : ''}
                                                     </option>
                                                 ))}
                                             </select>
@@ -409,6 +412,9 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
 
                                 <div className="local-llm-parameter-section">
                                     <div className="local-llm-parameter-section-title">2回目</div>
+                                    <p className="local-llm-parameter-popover-note">
+                                        デフォルト値: temperature {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP} / final_answer_max_tokens {WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS} / presence_penalty {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty}
+                                    </p>
                                     <div className="local-llm-parameter-grid">
                                         <label className="local-llm-parameter-field">
                                             <span>temperature</span>
@@ -458,7 +464,7 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
                                             >
                                                 {WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS.map((maxTokens) => (
                                                     <option key={maxTokens} value={maxTokens}>
-                                                        {maxTokens}
+                                                        {maxTokens}{maxTokens === WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS ? '（デフォルト）' : ''}
                                                     </option>
                                                 ))}
                                             </select>
