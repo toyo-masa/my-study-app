@@ -3389,6 +3389,53 @@ button.appearance-option.active {
   color: var(--text-color);
 }
 
+.local-llm-connection-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
+}
+
+.local-llm-connection-check-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-color);
+  border-radius: 999px;
+  padding: 0.42rem 0.88rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.local-llm-connection-check-btn:hover:not(:disabled),
+.local-llm-connection-check-btn:focus-visible {
+  outline: none;
+  border-color: rgba(var(--primary-color-rgb, 99, 102, 241), 0.28);
+  color: var(--text-color);
+}
+
+.local-llm-connection-check-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.local-llm-connection-check-status {
+  font-size: 0.8rem;
+  color: #22c55e;
+  line-height: 1.5;
+}
+
+.local-llm-connection-check-status.is-error {
+  color: var(--error-color);
+}
+
 .settings-footer {
   padding: 1.25rem;
   border-top: 1px solid var(--border-color);

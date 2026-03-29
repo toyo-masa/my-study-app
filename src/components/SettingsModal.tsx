@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot, LoaderCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
@@ -27,6 +27,7 @@ import { NumericStepper } from './NumericStepper';
 import { getGroupedWebLlmModelOptions } from '../utils/localLlmEngine';
 import { useOllamaModelDefaultParameters } from '../hooks/useOllamaModelDefaultParameters';
 import { ParameterHelpLabel } from './ParameterHelpLabel';
+import { fetchOpenAiCompatibleModelIds } from '../utils/openAiCompatibleLocalApi';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -96,6 +97,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     showLocalLlmSettings = false,
 }) => {
     const buildDefaultPlaceholder = (value: number | string) => `default : ${value}`;
+    const [localApiConnectionCheck, setLocalApiConnectionCheck] = useState<{
+        baseUrl: string;
+        status: 'idle' | 'loading' | 'success' | 'error';
+        message: string;
+    }>({
+        baseUrl: '',
+        status: 'idle',
+        message: '',
+    });
     const exampleCorrectCount = 3;
     const exampleCorrectDays = Math.max(1, reviewIntervalSettings.correctIntervalDays * exampleCorrectCount);
     const webLlmModelOptionGroups = useMemo(
@@ -116,11 +126,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         enabled: isOpen && matchedLocalApiProvider?.id === 'ollama',
     });
     const localApiDefaultsSeededKeyRef = useRef<string | null>(null);
+    const localApiConnectionCheckRequestIdRef = useRef(0);
     const localApiDefaultSeedKey = isOpen
         && matchedLocalApiProvider?.id === 'ollama'
         && lastLocalApiModelId.length > 0
         ? `${localLlmSettings.baseUrl}::${lastLocalApiModelId}`
         : '';
+    const trimmedBaseUrl = localLlmSettings.baseUrl.trim();
+    const activeLocalApiConnectionCheck = localApiConnectionCheck.baseUrl === trimmedBaseUrl
+        ? localApiConnectionCheck
+        : { baseUrl: trimmedBaseUrl, status: 'idle' as const, message: '' };
 
     const parseOptionalNumberInput = (value: string): number | null => {
         const trimmed = value.trim();
@@ -171,6 +186,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         settingsOllamaDefaults.temperature,
         settingsOllamaDefaults.topP,
     ]);
+
+    const handleCheckLocalApiConnection = async () => {
+        const baseUrl = trimmedBaseUrl;
+        if (baseUrl.length === 0) {
+            setLocalApiConnectionCheck({
+                baseUrl: '',
+                status: 'error',
+                message: 'Base URL を入力してください。',
+            });
+            return;
+        }
+
+        const requestId = localApiConnectionCheckRequestIdRef.current + 1;
+        localApiConnectionCheckRequestIdRef.current = requestId;
+        setLocalApiConnectionCheck({
+            baseUrl,
+            status: 'loading',
+            message: '接続確認中...',
+        });
+
+        try {
+            const modelIds = await fetchOpenAiCompatibleModelIds(baseUrl, undefined, undefined, { force: true });
+            if (localApiConnectionCheckRequestIdRef.current !== requestId) {
+                return;
+            }
+            setLocalApiConnectionCheck({
+                baseUrl,
+                status: 'success',
+                message: `接続できました（${modelIds.length}件）。`,
+            });
+        } catch (error) {
+            if (localApiConnectionCheckRequestIdRef.current !== requestId) {
+                return;
+            }
+            setLocalApiConnectionCheck({
+                baseUrl,
+                status: 'error',
+                message: error instanceof Error ? error.message : 'ローカルAPIへ接続できませんでした。',
+            });
+        }
+    };
 
     const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, nextValue: number) => {
         const nextSettings = normalizeReviewIntervalSettings({
@@ -402,6 +458,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         spellCheck={false}
                                                     />
                                                 </label>
+                                                <div className="local-llm-connection-check-row">
+                                                    <button
+                                                        type="button"
+                                                        className="local-llm-connection-check-btn"
+                                                        onClick={() => { void handleCheckLocalApiConnection(); }}
+                                                        disabled={activeLocalApiConnectionCheck.status === 'loading'}
+                                                    >
+                                                        {activeLocalApiConnectionCheck.status === 'loading' && (
+                                                            <LoaderCircle size={14} className="spin" />
+                                                        )}
+                                                        <span>接続確認</span>
+                                                    </button>
+                                                    {activeLocalApiConnectionCheck.status !== 'idle' && (
+                                                        <span
+                                                            className={`local-llm-connection-check-status ${activeLocalApiConnectionCheck.status === 'error' ? 'is-error' : 'is-success'}`}
+                                                        >
+                                                            {activeLocalApiConnectionCheck.message}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div className="review-settings-card">
