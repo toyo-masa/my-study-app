@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { X, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTemporaryCopiedState } from '../hooks/useTemporaryCopiedState';
+import { copyTextToClipboard } from '../utils/clipboard';
 import '../App.css';
 
 const QUIZ_HEADER = `category,text,options,correct_answers,explanation`;
@@ -136,13 +138,16 @@ interface HelpModalProps {
 
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverStyle }) => {
     const [activeTab, setActiveTab] = useState<'quiz' | 'memorization' | 'mixed'>('quiz');
-    const [copied, setCopied] = useState<string | null>(null);
+    const { copiedKey, markCopied } = useTemporaryCopiedState();
 
-    const handleCopy = async (text: string, label: string) => {
-        await navigator.clipboard.writeText(text);
-        setCopied(label);
-        setTimeout(() => setCopied(null), 2000);
-    };
+    const handleCopy = useCallback(async (text: string, label: string) => {
+        try {
+            await copyTextToClipboard(text);
+            markCopied(label);
+        } catch {
+            // モーダル内ではコピー失敗通知の UI を持たないため黙って維持する
+        }
+    }, [markCopied]);
 
     return (
         <AnimatePresence>
@@ -174,7 +179,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                                 <div className="help-code-block">
                                     <code>{QUIZ_HEADER}</code>
                                     <button className="help-copy-btn" onClick={() => handleCopy(QUIZ_HEADER, 'header')}>
-                                        {copied === 'header' ? <Check size={14} /> : <Copy size={14} />}
+                                        {copiedKey === 'header' ? <Check size={14} /> : <Copy size={14} />}
                                     </button>
                                 </div>
 
@@ -193,13 +198,13 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                                 <div className="help-code-block">
                                     <code>{QUIZ_EXAMPLE}</code>
                                     <button className="help-copy-btn" onClick={() => handleCopy(QUIZ_HEADER + '\n' + QUIZ_EXAMPLE, 'example')}>
-                                        {copied === 'example' ? <Check size={14} /> : <Copy size={14} />}
+                                        {copiedKey === 'example' ? <Check size={14} /> : <Copy size={14} />}
                                     </button>
                                 </div>
 
                                 <div className="help-ai-instruction">
                                     <button className="help-ai-copy-btn" onClick={() => handleCopy(QUIZ_AI_INSTRUCTION, 'ai')}>
-                                        {copied === 'ai' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
+                                        {copiedKey === 'ai' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
                                     </button>
                                 </div>
                             </>
@@ -209,7 +214,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                                 <div className="help-code-block">
                                     <code>{MEMO_HEADER}</code>
                                     <button className="help-copy-btn" onClick={() => handleCopy(MEMO_HEADER, 'header_memo')}>
-                                        {copied === 'header_memo' ? <Check size={14} /> : <Copy size={14} />}
+                                        {copiedKey === 'header_memo' ? <Check size={14} /> : <Copy size={14} />}
                                     </button>
                                 </div>
 
@@ -227,13 +232,13 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                                 <div className="help-code-block">
                                     <code>{MEMO_EXAMPLE}</code>
                                     <button className="help-copy-btn" onClick={() => handleCopy(MEMO_HEADER + '\n' + MEMO_EXAMPLE, 'example_memo')}>
-                                        {copied === 'example_memo' ? <Check size={14} /> : <Copy size={14} />}
+                                        {copiedKey === 'example_memo' ? <Check size={14} /> : <Copy size={14} />}
                                     </button>
                                 </div>
 
                                 <div className="help-ai-instruction">
                                     <button className="help-ai-copy-btn" onClick={() => handleCopy(MEMO_AI_INSTRUCTION, 'ai_memo')}>
-                                        {copied === 'ai_memo' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
+                                        {copiedKey === 'ai_memo' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
                                     </button>
                                 </div>
                             </>
@@ -243,7 +248,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                                 <div className="help-code-block">
                                     <code>{MIXED_HEADER}</code>
                                     <button className="help-copy-btn" onClick={() => handleCopy(MIXED_HEADER, 'header_mixed')}>
-                                        {copied === 'header_mixed' ? <Check size={14} /> : <Copy size={14} />}
+                                        {copiedKey === 'header_mixed' ? <Check size={14} /> : <Copy size={14} />}
                                     </button>
                                 </div>
 
@@ -262,13 +267,13 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                                 <div className="help-code-block">
                                     <code>{MIXED_EXAMPLE}</code>
                                     <button className="help-copy-btn" onClick={() => handleCopy(MIXED_HEADER + '\n' + MIXED_EXAMPLE, 'example_mixed')}>
-                                        {copied === 'example_mixed' ? <Check size={14} /> : <Copy size={14} />}
+                                        {copiedKey === 'example_mixed' ? <Check size={14} /> : <Copy size={14} />}
                                     </button>
                                 </div>
 
                                 <div className="help-ai-instruction">
                                     <button className="help-ai-copy-btn" onClick={() => handleCopy(MIXED_AI_INSTRUCTION, 'ai_mixed')}>
-                                        {copied === 'ai_mixed' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
+                                        {copiedKey === 'ai_mixed' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
                                     </button>
                                 </div>
                             </>

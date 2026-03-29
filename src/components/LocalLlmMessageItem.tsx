@@ -94,20 +94,11 @@ export const LocalLlmMessageItem: React.FC<LocalLlmMessageItemProps> = React.mem
                                     </details>
                                 )
                                 : (
-                                    message.isStreaming ? (
-                                        <div
-                                            key={`${message.id}-answer-${index}`}
-                                            className="local-llm-streaming-text"
-                                        >
-                                            {segment.content}
-                                        </div>
-                                    ) : (
-                                        <MarkdownText
-                                            key={`${message.id}-answer-${index}`}
-                                            content={segment.content}
-                                            className="local-llm-markdown"
-                                        />
-                                    )
+                                    <MarkdownText
+                                        key={`${message.id}-answer-${index}`}
+                                        content={segment.content}
+                                        className={`local-llm-markdown ${message.isStreaming ? 'local-llm-streaming-text' : ''}`}
+                                    />
                                 )
                         ))}
                     </div>

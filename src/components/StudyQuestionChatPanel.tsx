@@ -46,6 +46,7 @@ import {
 import { LocalLlmModelPicker, type LocalLlmModelPickerOption } from './LocalLlmModelPicker';
 import { buildLocalApiModelOptionList } from '../utils/localApiModelOptions';
 import { copyTextToClipboard } from '../utils/clipboard';
+import { useTemporaryCopiedState } from '../hooks/useTemporaryCopiedState';
 
 type LocalChatMessage = {
     id: string;
@@ -297,8 +298,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             : localLlmSettings.defaultModelId || initialRememberedLocalApiModelId
     ));
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
-    const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
-    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
     const [isThinkingEnabled, setIsThinkingEnabled] = useState(true);
@@ -311,8 +310,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const localApiModelListAbortRef = useRef<AbortController | null>(null);
     const localApiChatAbortRef = useRef<AbortController | null>(null);
     const autoLoadWebLlmKeyRef = useRef<string | null>(null);
-    const copyRequestResetTimeoutRef = useRef<number | null>(null);
-    const copyAnswerResetTimeoutRef = useRef<number | null>(null);
     const streamingPendingTextRef = useRef('');
     const streamingRenderedTextRef = useRef('');
     const streamingAnimationFrameRef = useRef<number | null>(null);
@@ -321,6 +318,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const previousPanelOpenRef = useRef(false);
 
     const webllmSupport = useMemo(() => getLocalLlmSupport(), []);
+    const requestPayloadCopyState = useTemporaryCopiedState();
+    const messageCopyState = useTemporaryCopiedState();
+    const didCopyRequestPayload = requestPayloadCopyState.copiedKey === 'request-payload';
+    const copiedMessageId = messageCopyState.copiedKey;
     const activeMode = localLlmSettings.preferredMode;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
     const rememberedLocalApiModelId = useMemo(
@@ -456,20 +457,12 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, []);
 
     const resetCopiedRequestState = useCallback(() => {
-        if (copyRequestResetTimeoutRef.current !== null) {
-            window.clearTimeout(copyRequestResetTimeoutRef.current);
-            copyRequestResetTimeoutRef.current = null;
-        }
-        setDidCopyRequestPayload(false);
-    }, []);
+        requestPayloadCopyState.clearCopied();
+    }, [requestPayloadCopyState]);
 
     const resetCopiedMessageState = useCallback(() => {
-        if (copyAnswerResetTimeoutRef.current !== null) {
-            window.clearTimeout(copyAnswerResetTimeoutRef.current);
-            copyAnswerResetTimeoutRef.current = null;
-        }
-        setCopiedMessageId(null);
-    }, []);
+        messageCopyState.clearCopied();
+    }, [messageCopyState]);
 
     const updateLastRequestPayload = useCallback((payload: unknown) => {
         setLastRequestPayload(JSON.stringify(payload, null, 2));
@@ -484,15 +477,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         try {
             await copyTextToClipboard(lastRequestPayload);
             resetCopiedRequestState();
-            setDidCopyRequestPayload(true);
-            copyRequestResetTimeoutRef.current = window.setTimeout(() => {
-                setDidCopyRequestPayload(false);
-                copyRequestResetTimeoutRef.current = null;
-            }, 2000);
+            requestPayloadCopyState.markCopied('request-payload');
         } catch {
             setError('送信内容をコピーできませんでした。');
         }
-    }, [lastRequestPayload, resetCopiedRequestState]);
+    }, [lastRequestPayload, requestPayloadCopyState, resetCopiedRequestState]);
 
     const handleCopyMessage = useCallback(async (message: LocalChatMessage) => {
         const copyableContent = getCopyableMessageContent(message);
@@ -503,15 +492,11 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         try {
             await copyTextToClipboard(copyableContent);
             resetCopiedMessageState();
-            setCopiedMessageId(message.id);
-            copyAnswerResetTimeoutRef.current = window.setTimeout(() => {
-                setCopiedMessageId(null);
-                copyAnswerResetTimeoutRef.current = null;
-            }, 2000);
+            messageCopyState.markCopied(message.id);
         } catch {
             setError(message.role === 'assistant' ? '回答内容をコピーできませんでした。' : '質問内容をコピーできませんでした。');
         }
-    }, [resetCopiedMessageState]);
+    }, [messageCopyState, resetCopiedMessageState]);
 
     const isNearBottom = useCallback(() => {
         const element = threadRef.current;
@@ -576,12 +561,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         mountedRef.current = true;
         return () => {
             mountedRef.current = false;
-            if (copyRequestResetTimeoutRef.current !== null) {
-                window.clearTimeout(copyRequestResetTimeoutRef.current);
-            }
-            if (copyAnswerResetTimeoutRef.current !== null) {
-                window.clearTimeout(copyAnswerResetTimeoutRef.current);
-            }
             clearStreamingFlushFrame();
             cancelActiveWork();
         };

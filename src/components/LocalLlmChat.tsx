@@ -44,6 +44,7 @@ import {
 import { findLocalApiProviderByBaseUrl } from '../utils/localApiProviders';
 import { buildLocalApiModelOptionList } from '../utils/localApiModelOptions';
 import { copyTextToClipboard } from '../utils/clipboard';
+import { useTemporaryCopiedState } from '../hooks/useTemporaryCopiedState';
 
 type LocalChatMessage = {
     id: string;
@@ -257,8 +258,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
             : localLlmSettings.defaultModelId || initialRememberedLocalApiModelId
     ));
     const [lastRequestPayload, setLastRequestPayload] = useState<string | null>(null);
-    const [didCopyRequestPayload, setDidCopyRequestPayload] = useState(false);
-    const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [openSessionMenuId, setOpenSessionMenuId] = useState<string | null>(null);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [localApiFetchError, setLocalApiFetchError] = useState<string | null>(null);
@@ -275,8 +274,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const autoLoadWebLlmKeyRef = useRef<string | null>(null);
     const previousModeRef = useRef<LocalLlmMode>(localLlmSettings.preferredMode);
     const modeChangeReasonRef = useRef<'session-load' | null>(null);
-    const copyRequestResetTimeoutRef = useRef<number | null>(null);
-    const copyAnswerResetTimeoutRef = useRef<number | null>(null);
     const currentSessionIdRef = useRef(currentSessionId);
     const activeGenerationSessionRef = useRef<{
         sessionId: string;
@@ -290,6 +287,10 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     const flushStreamingUpdateRef = useRef<(() => void) | null>(null);
 
     const activeMode = localLlmSettings.preferredMode;
+    const requestPayloadCopyState = useTemporaryCopiedState();
+    const messageCopyState = useTemporaryCopiedState();
+    const didCopyRequestPayload = requestPayloadCopyState.copiedKey === 'request-payload';
+    const copiedMessageId = messageCopyState.copiedKey;
     const selectedWebLlmModel = localLlmSettings.webllmModelId || DEFAULT_WEB_LLM_MODEL_ID;
     const rememberedLocalApiModelId = useMemo(
         () => loadLastLocalApiModelId(localLlmSettings.baseUrl),
@@ -528,20 +529,12 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
     }, [invalidateActiveRequest]);
 
     const resetCopiedRequestState = useCallback(() => {
-        if (copyRequestResetTimeoutRef.current !== null) {
-            window.clearTimeout(copyRequestResetTimeoutRef.current);
-            copyRequestResetTimeoutRef.current = null;
-        }
-        setDidCopyRequestPayload(false);
-    }, []);
+        requestPayloadCopyState.clearCopied();
+    }, [requestPayloadCopyState]);
 
     const resetCopiedMessageState = useCallback(() => {
-        if (copyAnswerResetTimeoutRef.current !== null) {
-            window.clearTimeout(copyAnswerResetTimeoutRef.current);
-            copyAnswerResetTimeoutRef.current = null;
-        }
-        setCopiedMessageId(null);
-    }, []);
+        messageCopyState.clearCopied();
+    }, [messageCopyState]);
 
     const createFreshSession = useCallback((mode: LocalLlmMode) => {
         const initialLocalModelId = mode === 'openai-local'
@@ -680,15 +673,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         try {
             await copyTextToClipboard(lastRequestPayload);
             resetCopiedRequestState();
-            setDidCopyRequestPayload(true);
-            copyRequestResetTimeoutRef.current = window.setTimeout(() => {
-                setDidCopyRequestPayload(false);
-                copyRequestResetTimeoutRef.current = null;
-            }, 2000);
+            requestPayloadCopyState.markCopied('request-payload');
         } catch {
             setError('送信内容をコピーできませんでした。');
         }
-    }, [lastRequestPayload, resetCopiedRequestState]);
+    }, [lastRequestPayload, requestPayloadCopyState, resetCopiedRequestState]);
 
     const handleCopyMessage = useCallback(async (message: LocalChatMessage) => {
         const copyableContent = getCopyableMessageContent(message);
@@ -699,15 +688,11 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         try {
             await copyTextToClipboard(copyableContent);
             resetCopiedMessageState();
-            setCopiedMessageId(message.id);
-            copyAnswerResetTimeoutRef.current = window.setTimeout(() => {
-                setCopiedMessageId(null);
-                copyAnswerResetTimeoutRef.current = null;
-            }, 2000);
+            messageCopyState.markCopied(message.id);
         } catch {
             setError(message.role === 'assistant' ? '回答内容をコピーできませんでした。' : '質問内容をコピーできませんでした。');
         }
-    }, [resetCopiedMessageState]);
+    }, [messageCopyState, resetCopiedMessageState]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -726,12 +711,6 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
 
         return () => {
             mountedRef.current = false;
-            if (copyRequestResetTimeoutRef.current !== null) {
-                window.clearTimeout(copyRequestResetTimeoutRef.current);
-            }
-            if (copyAnswerResetTimeoutRef.current !== null) {
-                window.clearTimeout(copyAnswerResetTimeoutRef.current);
-            }
             clearStreamingFlushFrame();
             cancelActiveWork();
         };
