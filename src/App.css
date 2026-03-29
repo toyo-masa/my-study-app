@@ -1119,6 +1119,22 @@
   gap: 0.75rem;
 }
 
+.local-llm-composer-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.local-llm-composer-shell:focus-within {
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 244, 114, 182), 0.12);
+}
+
 .local-llm-composer-toolbar {
   display: flex;
   align-items: center;
@@ -1127,15 +1143,23 @@
   flex-wrap: wrap;
 }
 
+.local-llm-composer-settings {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 .local-llm-textarea {
   width: 100%;
-  min-height: 118px;
-  resize: vertical;
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  background: var(--surface-color);
+  min-height: calc(3.2em + 0.75rem);
+  resize: none;
+  border: none;
+  border-radius: 18px;
+  background: transparent;
   color: var(--text-color);
-  padding: 0.9rem 1rem;
+  padding: 0.65rem 0.75rem 0.1rem;
   font: inherit;
   line-height: 1.6;
   box-sizing: border-box;
@@ -1143,13 +1167,40 @@
 
 .local-llm-textarea:focus {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 99, 102, 241), 0.14);
+  box-shadow: none;
 }
 
 .local-llm-textarea:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.local-llm-composer-select {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.local-llm-composer-select {
+  appearance: none;
+  padding: 0.62rem 2.2rem 0.62rem 0.95rem;
+  font-weight: 600;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  cursor: pointer;
+}
+
+.local-llm-composer-select:focus {
+  outline: none;
+  border-color: rgba(var(--primary-color-rgb, 244, 114, 182), 0.45);
 }
 
 .local-llm-composer-actions {
@@ -1165,10 +1216,10 @@
   align-items: center;
   gap: 0.45rem;
   align-self: flex-start;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--border-color);
+  padding: 0.58rem 0.92rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
-  background: var(--surface-color);
+  background: rgba(255, 255, 255, 0.045);
   color: var(--text-secondary);
   font: inherit;
   font-size: 0.84rem;
@@ -1193,6 +1244,35 @@
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+.local-llm-send-btn {
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(248, 250, 252, 0.95);
+  color: #111827;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.local-llm-send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.local-llm-send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.local-llm-send-btn.is-stop {
+  background: rgba(var(--primary-color-rgb, 244, 114, 182), 0.18);
+  color: var(--text-color);
+  border: 1px solid rgba(var(--primary-color-rgb, 244, 114, 182), 0.32);
 }
 
 .local-llm-bottom-anchor {
@@ -1350,15 +1430,23 @@
     flex-direction: column;
   }
 
-  .study-question-chat-field-row,
   .local-llm-composer-toolbar,
   .study-question-chat-composer-actions {
     flex-direction: column;
     align-items: stretch;
   }
 
+  .local-llm-composer-settings,
   .local-llm-composer-actions {
     margin-left: 0;
+    width: 100%;
+  }
+
+  .local-llm-composer-select,
+  .local-llm-thinking-toggle,
+  .local-llm-send-btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 

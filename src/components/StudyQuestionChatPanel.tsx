@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Brain, Check, Copy, LoaderCircle, Send, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Bot, Brain, Check, Copy, LoaderCircle, Square, Trash2 } from 'lucide-react';
 import type { ChatCompletionMessageParam, InitProgressReport } from '@mlc-ai/web-llm';
 import type { Question } from '../types';
 import type { LocalLlmMode, LocalLlmSettings } from '../utils/settings';
@@ -19,6 +19,7 @@ import {
 } from '../utils/localLlmEngine';
 import {
     fetchOpenAiCompatibleModelIds,
+    getCachedOpenAiCompatibleModelIds,
     streamOllamaNativeChat,
     streamOpenAiCompatibleChat,
     type OpenAiCompatibleMessage,
@@ -275,7 +276,9 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const [isModelReady, setIsModelReady] = useState(() => hasLoadedLocalLlmEngine(localLlmSettings.webllmModelId));
     const [isGenerating, setIsGenerating] = useState(false);
     const [webllmGenerationPhase, setWebllmGenerationPhase] = useState<WebLlmGenerationPhase | null>(null);
-    const [availableModels, setAvailableModels] = useState<string[]>([]);
+    const [availableModels, setAvailableModels] = useState<string[]>(() => (
+        getCachedOpenAiCompatibleModelIds(localLlmSettings.baseUrl)
+    ));
     const [selectedLocalApiModel, setSelectedLocalApiModel] = useState(() => (
         initialSession?.mode === 'openai-local'
             ? (initialSession.modelId || localLlmSettings.defaultModelId)
@@ -362,15 +365,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
 
         return Array.from(modelIds);
     }, [availableModels, initialSession?.mode, initialSession?.modelId, localLlmSettings.defaultModelId, selectedLocalApiModel]);
-    const shouldShowLocalApiModelSelect = activeMode === 'openai-local'
-        && localApiFetchError === null
-        && (isFetchingModels || availableModels.length > 0);
     const selectedLocalApiModelOptionValue = localApiSelectableModels.includes(selectedLocalApiModel.trim())
         ? selectedLocalApiModel.trim()
         : '';
-    const selectedModelOptionValue = activeMode === 'webllm'
+    const composerModelOptionValue = activeMode === 'webllm'
         ? `webllm:${selectedWebLlmModel}`
-        : 'openai-local';
+        : selectedLocalApiModelOptionValue.length > 0
+            ? `openai-local:${selectedLocalApiModelOptionValue}`
+            : 'openai-local';
     const canSend = input.trim().length > 0
         && !isGenerating
         && questionId !== null
@@ -593,7 +595,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     }, [activeMode, localLlmSettings.defaultModelId]);
 
     useEffect(() => {
-        setAvailableModels([]);
+        setAvailableModels(getCachedOpenAiCompatibleModelIds(localLlmSettings.baseUrl));
         setLocalApiFetchError(null);
     }, [localLlmSettings.baseUrl]);
 
@@ -1201,7 +1203,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 <div className="study-question-chat-panel-head">
                     <div>
                         <h2>AIチャット</h2>
-                        <p>問題{questionIndex + 1}について質問できます。{showAnswer ? '解説込みで相談できます。' : 'ヒント中心で答えます。'}</p>
+                        <p>問題{questionIndex + 1}について質問できます。{showAnswer ? '解説込みで相談できます。' : 'ヒント中心で答えます。'} 送信欄のモデル表示から候補を切り替えられます。</p>
                     </div>
                     <div className="study-question-chat-head-actions">
                         {isGenerating && activeMode === 'webllm' && webllmGenerationPhase && (
@@ -1238,67 +1240,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                         </button>
                     </div>
                 </div>
-
-                <div className="study-question-chat-field-row">
-                    <select
-                        className="local-llm-input"
-                        value={selectedModelOptionValue}
-                        onChange={(event) => handleModelOptionChange(event.target.value)}
-                        disabled={isGenerating || isModelLoading}
-                    >
-                        {webLlmSelectableModelGroups.map((group) => (
-                            <optgroup key={group.label} label={group.label}>
-                                {group.options.map((option) => (
-                                    <option key={option.value} value={`webllm:${option.value}`}>
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </optgroup>
-                        ))}
-                        <optgroup label="ローカルAPI">
-                            <option value="openai-local">ローカルAPI</option>
-                        </optgroup>
-                    </select>
-                    {isModelLoading && activeMode === 'webllm' && (
-                        <span className="local-llm-inline-status">
-                            <LoaderCircle size={15} className="spin" />
-                            読み込み中
-                        </span>
-                    )}
-                </div>
-
-                {activeMode === 'openai-local' && (
-                    <>
-                        {shouldShowLocalApiModelSelect ? (
-                            <select
-                                className="local-llm-input"
-                                value={selectedLocalApiModelOptionValue}
-                                onChange={(event) => handleModelOptionChange(`openai-local:${event.target.value}`)}
-                                disabled={isGenerating || (isFetchingModels && availableModels.length === 0)}
-                            >
-                                <option value="">
-                                    {isFetchingModels && availableModels.length === 0
-                                        ? 'モデル一覧を取得中…'
-                                        : 'モデルを選択してください'}
-                                </option>
-                                {localApiSelectableModels.map((modelId) => (
-                                    <option key={`study-local-api-model-field-${modelId}`} value={modelId}>
-                                        {modelId}
-                                    </option>
-                                ))}
-                            </select>
-                        ) : (
-                            <input
-                                type="text"
-                                className="local-llm-input"
-                                value={selectedLocalApiModel}
-                                onChange={(event) => setSelectedLocalApiModel(event.target.value)}
-                                placeholder={localLlmSettings.defaultModelId || `${matchedLocalApiProvider?.exampleModelId ?? 'qwen3.5:4b'} などのモデル名を入力`}
-                                spellCheck={false}
-                            />
-                        )}
-                    </>
-                )}
 
                 {loadProgress && activeMode === 'webllm' && (
                     <div className="local-llm-progress-block">
@@ -1370,59 +1311,91 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                 </div>
 
                 <div className="local-llm-composer">
-                    <textarea
-                        className="local-llm-textarea"
-                        value={input}
-                        onChange={(event) => setInput(event.target.value)}
-                        onCompositionStart={() => {
-                            isComposingRef.current = true;
-                        }}
-                        onCompositionEnd={() => {
-                            isComposingRef.current = false;
-                        }}
-                        onKeyDown={handleTextareaKeyDown}
-                        placeholder={activeMode === 'webllm'
-                            ? (isModelReady ? 'この問題について質問してください' : '先にモデルを読み込んでください')
-                            : (selectedModel.length > 0 ? 'この問題について質問してください' : '先にモデルを選択または入力してください')}
-                        rows={4}
-                        disabled={(activeMode === 'webllm' ? !isModelReady : selectedModel.length === 0) || isGenerating || questionId === null}
-                    />
-                    <div className="local-llm-composer-toolbar">
-                        {showThinkingToggle ? (
-                            <button
-                                type="button"
-                                className={`local-llm-thinking-toggle ${isThinkingEnabled ? 'active' : ''}`}
-                                onClick={() => setIsThinkingEnabled((previous) => !previous)}
-                                disabled={isGenerating}
-                                aria-pressed={isThinkingEnabled}
-                            >
-                                <Brain size={15} />
-                                Thinking {isThinkingEnabled ? 'ON' : 'OFF'}
-                            </button>
-                        ) : (
-                            <span />
-                        )}
-                        <div className="study-question-chat-composer-actions">
-                            {isGenerating ? (
-                                <button
-                                    type="button"
-                                    className="nav-btn"
-                                    onClick={handleStopGeneration}
+                    <div className="local-llm-composer-shell">
+                        <textarea
+                            className="local-llm-textarea"
+                            value={input}
+                            onChange={(event) => setInput(event.target.value)}
+                            onCompositionStart={() => {
+                                isComposingRef.current = true;
+                            }}
+                            onCompositionEnd={() => {
+                                isComposingRef.current = false;
+                            }}
+                            onKeyDown={handleTextareaKeyDown}
+                            placeholder={activeMode === 'webllm'
+                                ? (isModelReady ? 'この問題について質問してください' : '先にモデルを読み込んでください')
+                                : (selectedModel.length > 0 ? 'この問題について質問してください' : '先にモデルを選択してください')}
+                            rows={2}
+                            disabled={(activeMode === 'webllm' ? !isModelReady : selectedModel.length === 0) || isGenerating || questionId === null}
+                        />
+                        <div className="local-llm-composer-toolbar">
+                            <div className="local-llm-composer-settings">
+                                <select
+                                    className="local-llm-composer-select"
+                                    value={composerModelOptionValue}
+                                    onChange={(event) => handleModelOptionChange(event.target.value)}
+                                    disabled={isGenerating || isModelLoading}
                                 >
-                                    <Square size={16} />
-                                    生成を中止
-                                </button>
-                            ) : (
-                                <button
-                                    type="button"
-                                    className="nav-btn"
-                                    onClick={() => { void handleSend(); }}
-                                    disabled={!canSend}
-                                >
-                                    <Send size={16} />
-                                    送信
-                                </button>
-                            )}
+                                    {webLlmSelectableModelGroups.map((group) => (
+                                        <optgroup key={group.label} label={group.label}>
+                                            {group.options.map((option) => (
+                                                <option key={option.value} value={`webllm:${option.value}`}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                    <optgroup label="ローカルAPI">
+                                        <option value="openai-local">
+                                            {isFetchingModels && activeMode === 'openai-local' && localApiSelectableModels.length === 0
+                                                ? 'ローカルAPI（取得中…）'
+                                                : 'ローカルAPI'}
+                                        </option>
+                                        {localApiSelectableModels.map((modelId) => (
+                                            <option key={`study-composer-local-api-model-${modelId}`} value={`openai-local:${modelId}`}>
+                                                {modelId}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                </select>
+                                {showThinkingToggle && (
+                                    <button
+                                        type="button"
+                                        className={`local-llm-thinking-toggle ${isThinkingEnabled ? 'active' : ''}`}
+                                        onClick={() => setIsThinkingEnabled((previous) => !previous)}
+                                        disabled={isGenerating}
+                                        aria-pressed={isThinkingEnabled}
+                                    >
+                                        <Brain size={15} />
+                                        Thinking {isThinkingEnabled ? 'ON' : 'OFF'}
+                                    </button>
+                                )}
+                            </div>
+                            <div className="study-question-chat-composer-actions">
+                                {isGenerating ? (
+                                    <button
+                                        type="button"
+                                        className="local-llm-send-btn is-stop"
+                                        onClick={handleStopGeneration}
+                                        aria-label="生成を中止"
+                                        title="生成を中止"
+                                    >
+                                        <Square size={18} />
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="local-llm-send-btn"
+                                        onClick={() => { void handleSend(); }}
+                                        disabled={!canSend}
+                                        aria-label="送信"
+                                        title="送信"
+                                    >
+                                        <ArrowUp size={20} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

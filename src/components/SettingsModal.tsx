@@ -16,7 +16,10 @@ import {
     type LocalLlmSettings,
     type ThemeMode,
 } from '../utils/settings';
-import { fetchOpenAiCompatibleModelIds } from '../utils/openAiCompatibleLocalApi';
+import {
+    fetchOpenAiCompatibleModelIds,
+    getCachedOpenAiCompatibleModelIds,
+} from '../utils/openAiCompatibleLocalApi';
 import {
     DEFAULT_LOCAL_API_BASE_URL,
     findLocalApiProviderByBaseUrl,
@@ -98,8 +101,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         () => findLocalApiProviderByBaseUrl(localLlmSettings.baseUrl),
         [localLlmSettings.baseUrl]
     );
-    const localApiModelPlaceholder = matchedLocalApiProvider?.exampleModelId ?? 'qwen3.5:4b';
-    const [availableLocalApiModels, setAvailableLocalApiModels] = useState<string[]>([]);
+    const [availableLocalApiModels, setAvailableLocalApiModels] = useState<string[]>(() => (
+        getCachedOpenAiCompatibleModelIds(localLlmSettings.baseUrl)
+    ));
     const [isFetchingLocalApiModels, setIsFetchingLocalApiModels] = useState(false);
     const [localApiModelFetchError, setLocalApiModelFetchError] = useState<string | null>(null);
     const [localApiModelFetchNonce, setLocalApiModelFetchNonce] = useState(0);
@@ -155,7 +159,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             if (!active) {
                 return;
             }
-            setAvailableLocalApiModels([]);
+            setAvailableLocalApiModels(getCachedOpenAiCompatibleModelIds(trimmedBaseUrl));
             setLocalApiModelFetchError(null);
             setIsFetchingLocalApiModels(true);
         });
@@ -461,35 +465,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     </label>
                                                     <label className="review-setting-item">
                                                         <span className="review-setting-label">既定モデル名</span>
-                                                        {visibleLocalApiModelOptions.length > 0 ? (
-                                                            <select
-                                                                className="setting-select"
-                                                                value={localLlmSettings.defaultModelId}
-                                                                onChange={(event) => onLocalLlmSettingsChange({
-                                                                    ...localLlmSettings,
-                                                                    defaultModelId: event.target.value,
-                                                                })}
-                                                            >
-                                                                <option value="">未設定（チャット画面で選ぶ）</option>
-                                                                {visibleLocalApiModelOptions.map((modelId) => (
-                                                                    <option key={modelId} value={modelId}>
-                                                                        {modelId}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        ) : (
-                                                            <input
-                                                                type="text"
-                                                                className="setting-select"
-                                                                value={localLlmSettings.defaultModelId}
-                                                                onChange={(event) => onLocalLlmSettingsChange({
-                                                                    ...localLlmSettings,
-                                                                    defaultModelId: event.target.value,
-                                                                })}
-                                                                placeholder={`${localApiModelPlaceholder} など`}
-                                                                spellCheck={false}
-                                                            />
-                                                        )}
+                                                        <select
+                                                            className="setting-select"
+                                                            value={visibleLocalApiModelOptions.length > 0 ? localLlmSettings.defaultModelId : ''}
+                                                            onChange={(event) => onLocalLlmSettingsChange({
+                                                                ...localLlmSettings,
+                                                                defaultModelId: event.target.value,
+                                                            })}
+                                                            disabled={visibleLocalApiModelOptions.length === 0}
+                                                        >
+                                                            <option value="">
+                                                                {visibleLocalApiModelOptions.length > 0
+                                                                    ? '未設定（チャット画面で選ぶ）'
+                                                                    : 'モデル一覧を取得すると選べます'}
+                                                            </option>
+                                                            {visibleLocalApiModelOptions.map((modelId) => (
+                                                                <option key={modelId} value={modelId}>
+                                                                    {modelId}
+                                                                </option>
+                                                            ))}
+                                                        </select>
                                                     </label>
                                                 </div>
 

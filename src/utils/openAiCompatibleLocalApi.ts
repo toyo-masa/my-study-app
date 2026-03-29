@@ -333,6 +333,8 @@ const processSseEvent = (eventBlock: string, onDelta: (delta: string) => void) =
 };
 
 const MODEL_LIST_CACHE_TTL_MS = 5000;
+const MODEL_LIST_FETCH_TIMEOUT_MS = 8000;
+const MODEL_LIST_STORAGE_KEY_PREFIX = 'openAiCompatibleModelListCache::';
 
 type FetchModelIdsOptions = {
     force?: boolean;
@@ -348,6 +350,54 @@ const modelListInFlight = new Map<string, Promise<string[]>>();
 
 const buildModelListCacheKey = (baseUrl: string, apiKey?: string) => {
     return `${baseUrl.replace(/\/+$/, '')}::${apiKey?.trim() ?? ''}`;
+};
+
+const buildPersistedModelListStorageKey = (cacheKey: string) => {
+    return `${MODEL_LIST_STORAGE_KEY_PREFIX}${cacheKey}`;
+};
+
+const readPersistedModelListCache = (cacheKey: string): ModelListCacheEntry | null => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        const stored = localStorage.getItem(buildPersistedModelListStorageKey(cacheKey));
+        if (!stored) {
+            return null;
+        }
+
+        const parsed = JSON.parse(stored) as Partial<ModelListCacheEntry> | null;
+        const modelIds = Array.isArray(parsed?.modelIds)
+            ? parsed.modelIds.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+            : [];
+        const fetchedAt = typeof parsed?.fetchedAt === 'number' && Number.isFinite(parsed.fetchedAt)
+            ? parsed.fetchedAt
+            : Number.NaN;
+
+        if (modelIds.length === 0 || !Number.isFinite(fetchedAt)) {
+            return null;
+        }
+
+        return {
+            modelIds,
+            fetchedAt,
+        };
+    } catch {
+        return null;
+    }
+};
+
+const writePersistedModelListCache = (cacheKey: string, entry: ModelListCacheEntry) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        localStorage.setItem(buildPersistedModelListStorageKey(cacheKey), JSON.stringify(entry));
+    } catch {
+        // localStorage 書き込み失敗時はメモリキャッシュだけを使う
+    }
 };
 
 const createAbortError = () => new DOMException('The operation was aborted.', 'AbortError');
@@ -393,6 +443,10 @@ export const fetchOpenAiCompatibleModelIds = async (
 ) => {
     const cacheKey = buildModelListCacheKey(baseUrl, apiKey);
     const force = options?.force === true;
+    const persisted = readPersistedModelListCache(cacheKey);
+    if (persisted && !modelListCache.has(cacheKey)) {
+        modelListCache.set(cacheKey, persisted);
+    }
     const cached = modelListCache.get(cacheKey);
 
     if (!force && cached && Date.now() - cached.fetchedAt <= MODEL_LIST_CACHE_TTL_MS) {
@@ -406,16 +460,44 @@ export const fetchOpenAiCompatibleModelIds = async (
 
     const requestPromise = (async () => {
         let response: Response;
+        const timeoutController = new AbortController();
+        const abortFromCaller = () => {
+            timeoutController.abort();
+        };
+        let timedOut = false;
+        const timeoutId = setTimeout(() => {
+            timedOut = true;
+            timeoutController.abort();
+        }, MODEL_LIST_FETCH_TIMEOUT_MS);
+        if (signal) {
+            if (signal.aborted) {
+                clearTimeout(timeoutId);
+                throw createAbortError();
+            }
+            signal.addEventListener('abort', abortFromCaller, { once: true });
+        }
         try {
             response = await fetch(buildEndpoint(baseUrl, '/models'), {
                 method: 'GET',
                 headers: buildHeaders(apiKey),
+                signal: timeoutController.signal,
             });
         } catch (error) {
+            clearTimeout(timeoutId);
+            if (signal) {
+                signal.removeEventListener('abort', abortFromCaller);
+            }
+            if (timedOut) {
+                throw new Error('ローカルAPI のモデル一覧取得がタイムアウトしました。Ollama が応答しているか確認してください。');
+            }
             if (error instanceof DOMException && error.name === 'AbortError') {
                 throw error;
             }
             throw new Error(buildLocalApiFetchFailureMessage(baseUrl));
+        }
+        clearTimeout(timeoutId);
+        if (signal) {
+            signal.removeEventListener('abort', abortFromCaller);
         }
 
         if (!response.ok) {
@@ -439,10 +521,12 @@ export const fetchOpenAiCompatibleModelIds = async (
             throw new Error('利用可能なモデル一覧を取得できませんでした。OpenAI互換の /v1/models を確認してください。');
         }
 
-        modelListCache.set(cacheKey, {
+        const nextCacheEntry = {
             modelIds,
             fetchedAt: Date.now(),
-        });
+        };
+        modelListCache.set(cacheKey, nextCacheEntry);
+        writePersistedModelListCache(cacheKey, nextCacheEntry);
 
         return modelIds;
     })();
@@ -456,6 +540,25 @@ export const fetchOpenAiCompatibleModelIds = async (
             modelListInFlight.delete(cacheKey);
         }
     }
+};
+
+export const getCachedOpenAiCompatibleModelIds = (
+    baseUrl: string,
+    apiKey?: string,
+) => {
+    const cacheKey = buildModelListCacheKey(baseUrl, apiKey);
+    const inMemory = modelListCache.get(cacheKey);
+    if (inMemory) {
+        return inMemory.modelIds;
+    }
+
+    const persisted = readPersistedModelListCache(cacheKey);
+    if (persisted) {
+        modelListCache.set(cacheKey, persisted);
+        return persisted.modelIds;
+    }
+
+    return [];
 };
 
 export const streamOpenAiCompatibleChat = async ({
