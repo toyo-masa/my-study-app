@@ -537,6 +537,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         localApiModelListAbortRef.current = null;
         localApiChatAbortRef.current?.abort();
         localApiChatAbortRef.current = null;
+        setIsFetchingModels(false);
         setIsGenerating(false);
         setWebllmGenerationPhase(null);
     }, [invalidateActiveRequest]);
@@ -1243,7 +1244,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 {webllmGenerationPhase === 'thinking' ? '思考中' : '最終回答を生成中'}
                             </span>
                         )}
-                        {isFetchingModels && activeMode === 'openai-local' && (
+                        {isFetchingModels && activeMode === 'openai-local' && availableModels.length === 0 && (
                             <span className="local-llm-inline-status">
                                 <LoaderCircle size={15} className="spin" />
                                 接続確認中
@@ -1379,7 +1380,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                         aria-label={isThinkingEnabled ? 'Thinking をオフにする' : 'Thinking をオンにする'}
                                         title={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
                                     >
-                                        <Brain size={15} />
+                                        <Brain size={14} />
                                     </button>
                                 )}
                             </div>
@@ -1392,7 +1393,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                         aria-label="生成を中止"
                                         title="生成を中止"
                                     >
-                                        <Square size={18} />
+                                        <Square size={14} />
                                     </button>
                                 ) : (
                                     <button
@@ -1403,7 +1404,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                         aria-label="送信"
                                         title="送信"
                                     >
-                                        <ArrowUp size={20} />
+                                        <ArrowUp size={16} />
                                     </button>
                                 )}
                             </div>

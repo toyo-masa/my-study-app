@@ -504,6 +504,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         localApiModelListAbortRef.current = null;
         localApiChatAbortRef.current?.abort();
         localApiChatAbortRef.current = null;
+        setIsFetchingModels(false);
         setIsGenerating(false);
         setWebllmGenerationPhase(null);
     }, [invalidateActiveRequest]);
@@ -1488,6 +1489,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
         localApiModelListAbortRef.current = null;
         localApiChatAbortRef.current?.abort();
         localApiChatAbortRef.current = null;
+        setIsFetchingModels(false);
         activeGenerationSessionRef.current = null;
         onBack();
     }, [
@@ -1615,7 +1617,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                         読み込み中
                                     </span>
                                 )}
-                                {isFetchingModels && activeMode === 'openai-local' && (
+                                {isFetchingModels && activeMode === 'openai-local' && availableModels.length === 0 && (
                                     <span className="local-llm-inline-status">
                                         <LoaderCircle size={15} className="spin" />
                                         接続確認中
@@ -1745,7 +1747,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                                 aria-label={isThinkingEnabled ? 'Thinking をオフにする' : 'Thinking をオンにする'}
                                                 title={isThinkingEnabled ? 'Thinking ON' : 'Thinking OFF'}
                                             >
-                                                <Brain size={15} />
+                                                <Brain size={14} />
                                             </button>
                                         )}
                                     </div>
@@ -1758,7 +1760,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                                 aria-label="生成を中止"
                                                 title="生成を中止"
                                             >
-                                                <Square size={18} />
+                                                <Square size={14} />
                                             </button>
                                         ) : (
                                             <button
@@ -1769,7 +1771,7 @@ export const LocalLlmChat: React.FC<LocalLlmChatProps> = ({
                                                 aria-label="送信"
                                                 title="送信"
                                             >
-                                                <ArrowUp size={20} />
+                                                <ArrowUp size={16} />
                                             </button>
                                         )}
                                     </div>

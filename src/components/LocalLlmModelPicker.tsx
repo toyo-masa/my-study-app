@@ -194,6 +194,7 @@ export const LocalLlmModelPicker: React.FC<LocalLlmModelPickerProps> = ({
                                                 role="option"
                                                 aria-selected={isSelected}
                                                 data-selected={isSelected ? 'true' : undefined}
+                                                title={option.label}
                                             >
                                                 <span className="local-llm-model-picker-option-check" aria-hidden="true">
                                                     {isSelected ? <Check size={18} /> : null}
