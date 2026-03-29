@@ -136,7 +136,7 @@ function App() {
         onResetReviewIntervalSettings={handleResetReviewIntervalSettings}
         onReviewBoardSettingsChange={handleReviewBoardSettingsChange}
         onResetReviewBoardSettings={handleResetReviewBoardSettings}
-        showLocalLlmSettings={location.pathname === '/local-llm-chat'}
+        showLocalLlmSettings
         currentUsername={currentUser?.username}
         onLogout={handleLogout}
         onLoginRequest={() => { setIsSettingsOpen(false); setIsLoginModalOpen(true); }}

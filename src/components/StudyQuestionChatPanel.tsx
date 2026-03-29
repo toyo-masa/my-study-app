@@ -64,7 +64,6 @@ interface StudyQuestionChatPanelProps {
 
 const WEB_LLM_PROMPT_MESSAGE_LIMIT = 10;
 const WEB_LLM_LENGTH_WARNING = 'WebLLM の上限に達したため、最終回答も途中で打ち切られました。必要なら続きを短く区切って質問してください。';
-const STREAMING_RENDER_INTERVAL_MS = 80;
 const LOCAL_LLM_BASE_SYSTEM_PROMPT = [
     'ユーザーの最新の依頼や質問内容を最優先にしてください。',
     '回答の詳しさ・長さ・形式は、ユーザーがこの会話で求めた内容に合わせてください。',
@@ -307,7 +306,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
     const copyAnswerResetTimeoutRef = useRef<number | null>(null);
     const streamingPendingTextRef = useRef('');
     const streamingRenderedTextRef = useRef('');
-    const streamingFlushTimerRef = useRef<number | null>(null);
+    const streamingAnimationFrameRef = useRef<number | null>(null);
     const flushStreamingUpdateRef = useRef<(() => void) | null>(null);
     const skipNextPersistenceQuestionKeyRef = useRef<string | null>(null);
 
@@ -516,15 +515,15 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         });
     }, [isGenerating]);
 
-    const clearStreamingFlushTimer = useCallback(() => {
-        if (streamingFlushTimerRef.current !== null) {
-            window.clearTimeout(streamingFlushTimerRef.current);
-            streamingFlushTimerRef.current = null;
+    const clearStreamingFlushFrame = useCallback(() => {
+        if (streamingAnimationFrameRef.current !== null) {
+            window.cancelAnimationFrame(streamingAnimationFrameRef.current);
+            streamingAnimationFrameRef.current = null;
         }
     }, []);
 
     const finalizeStreamingMessages = useCallback(() => {
-        clearStreamingFlushTimer();
+        clearStreamingFlushFrame();
         flushStreamingUpdateRef.current?.();
         setMessages((previous) => previous
             .filter((message) => !(message.role === 'assistant' && message.isStreaming && message.content.trim().length === 0))
@@ -537,7 +536,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                     : message
             )));
         flushStreamingUpdateRef.current = null;
-    }, [clearStreamingFlushTimer]);
+    }, [clearStreamingFlushFrame]);
 
     const cancelActiveWork = useCallback(() => {
         invalidateActiveRequest();
@@ -565,10 +564,10 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             if (copyAnswerResetTimeoutRef.current !== null) {
                 window.clearTimeout(copyAnswerResetTimeoutRef.current);
             }
-            clearStreamingFlushTimer();
+            clearStreamingFlushFrame();
             cancelActiveWork();
         };
-    }, [cancelActiveWork, clearStreamingFlushTimer]);
+    }, [cancelActiveWork, clearStreamingFlushFrame]);
 
     useEffect(() => {
         saveStudyQuestionChatSessions(storedSessions);
@@ -886,7 +885,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         shouldAutoScrollRef.current = true;
         streamingPendingTextRef.current = '';
         streamingRenderedTextRef.current = '';
-        clearStreamingFlushTimer();
+        clearStreamingFlushFrame();
         setMessages((previous) => [...previous, userMessage, pendingAssistantMessage]);
 
         const commitAssistantText = (nextText: string) => {
@@ -906,7 +905,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         };
 
         const flushPendingAssistantText = () => {
-            clearStreamingFlushTimer();
+            clearStreamingFlushFrame();
             const nextText = streamingPendingTextRef.current;
             if (nextText === streamingRenderedTextRef.current) {
                 return;
@@ -921,20 +920,14 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             assistantText = nextText;
             streamingPendingTextRef.current = nextText;
 
-            if (localLlmSettings.webllmStreamingRenderMode !== 'lightweight') {
-                streamingRenderedTextRef.current = nextText;
-                commitAssistantText(nextText);
+            if (streamingAnimationFrameRef.current !== null) {
                 return;
             }
 
-            if (streamingFlushTimerRef.current !== null) {
-                return;
-            }
-
-            streamingFlushTimerRef.current = window.setTimeout(() => {
-                streamingFlushTimerRef.current = null;
+            streamingAnimationFrameRef.current = window.requestAnimationFrame(() => {
+                streamingAnimationFrameRef.current = null;
                 flushPendingAssistantText();
-            }, STREAMING_RENDER_INTERVAL_MS);
+            });
         };
 
         const finalizeAssistantText = (finalText: string) => {
@@ -945,7 +938,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
             const generationDurationMs = Math.max(0, performance.now() - generationStartedAt);
             streamingPendingTextRef.current = finalText;
             streamingRenderedTextRef.current = finalText;
-            clearStreamingFlushTimer();
+            clearStreamingFlushFrame();
             flushStreamingUpdateRef.current = null;
 
             setMessages((previous) => previous.filter((message) => {
@@ -1123,7 +1116,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
     }, [
         activeMode,
-        clearStreamingFlushTimer,
+        clearStreamingFlushFrame,
         input,
         isGenerating,
         isModelReady,
@@ -1134,7 +1127,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         localApiRequestOptions.temperature,
         localApiRequestOptions.topP,
         localLlmSettings.baseUrl,
-        localLlmSettings.webllmStreamingRenderMode,
         webllmFirstPassTemperature,
         webllmFirstPassTopP,
         localLlmSettings.webllmFirstPassPresencePenalty,
@@ -1159,7 +1151,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         }
 
         setError(null);
-        clearStreamingFlushTimer();
+        clearStreamingFlushFrame();
         flushStreamingUpdateRef.current?.();
         invalidateActiveRequest();
         interruptLocalLlmGeneration();
@@ -1171,7 +1163,7 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
         setIsGenerating(false);
         setWebllmGenerationPhase(null);
         finalizeStreamingMessages();
-    }, [activeMode, clearStreamingFlushTimer, finalizeStreamingMessages, invalidateActiveRequest, isGenerating, selectedWebLlmModel]);
+    }, [activeMode, clearStreamingFlushFrame, finalizeStreamingMessages, invalidateActiveRequest, isGenerating, selectedWebLlmModel]);
 
     const handleClearChat = useCallback(() => {
         if (isGenerating) {
