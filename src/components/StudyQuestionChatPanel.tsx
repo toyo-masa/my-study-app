@@ -1297,17 +1297,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                                 spellCheck={false}
                             />
                         )}
-                        <div className="study-question-chat-actions">
-                            <button
-                                type="button"
-                                className="nav-btn"
-                                onClick={handleClearChat}
-                                disabled={messages.length === 0 || isGenerating}
-                            >
-                                <Trash2 size={16} />
-                                この問題の会話をクリア
-                            </button>
-                        </div>
                     </>
                 )}
 
@@ -1414,15 +1403,6 @@ export const StudyQuestionChatPanel: React.FC<StudyQuestionChatPanelProps> = ({
                             <span />
                         )}
                         <div className="study-question-chat-composer-actions">
-                            <button
-                                type="button"
-                                className="nav-btn"
-                                onClick={handleClearChat}
-                                disabled={messages.length === 0 || isGenerating}
-                            >
-                                <Trash2 size={16} />
-                                クリア
-                            </button>
                             {isGenerating ? (
                                 <button
                                     type="button"
