@@ -12,6 +12,7 @@ import type { Question, QuizSetType, ReviewSchedule, SuspendedSession } from '..
 import {
     getAllReviewSchedules,
     getDueReviews,
+    getHistories,
     getQuizSetsWithCounts,
     getTodayString,
     updateQuizSet,
@@ -24,6 +25,7 @@ import { ApiError } from '../cloudApi';
 import { loadSessionFromStorage } from '../utils/quizSettings';
 import { getCompletedQuestionIdsFromSuspendedSession, REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY } from '../utils/quizSession';
 import { loadReviewIntervalSettings } from '../utils/spacedRepetition';
+import { getMasteredQuestionIdsFromHistories } from '../utils/reviewMastery';
 import '../App.css';
 
 type DueReviewItem = ReviewSchedule & { question?: Question };
@@ -98,6 +100,7 @@ export const ReviewBoardRoute: React.FC = () => {
     const [typeFilter, setTypeFilter] = useState<ReviewSetTypeFilter>('all');
     const [futureSetFilter, setFutureSetFilter] = useState<string>('all');
     const [questionsById, setQuestionsById] = useState<Record<number, string>>({});
+    const [masteredQuestionIds, setMasteredQuestionIds] = useState<Set<number>>(() => new Set());
     const [togglingSetIds, setTogglingSetIds] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
@@ -151,37 +154,81 @@ export const ReviewBoardRoute: React.FC = () => {
             setReviewDueSessionsByQuizSet(nextReviewDueSessionsByQuizSet);
             setQuizSetMetaById(nextMetaById);
 
-            // Fetch question text for future schedules (next 7 days)
-            const futureDateStart = today;
+            // Build mastery filter data and upcoming question text from the schedules visible on the board.
             const startDateObj = parseLocalDate(today) ?? new Date();
             const endDateObj = new Date(startDateObj);
             endDateObj.setDate(startDateObj.getDate() + 6);
             const futureDateEnd = toLocalDateString(endDateObj);
-
-            const futureQuizSetIds = new Set<number>();
-            for (const s of schedules) {
-                if (s.nextDue >= futureDateStart && s.nextDue <= futureDateEnd) {
-                    futureQuizSetIds.add(s.quizSetId);
-                }
-            }
-
             const nextQuestionsById: Record<number, string> = {};
-            for (const quizSetId of futureQuizSetIds) {
-                try {
-                    const questions = await getQuestionsForQuizSet(quizSetId);
-                    for (const q of questions) {
-                        if (q.id !== undefined) {
-                            nextQuestionsById[q.id] = q.text;
-                        }
+            const nextMasteredQuestionIds = new Set<number>();
+            const masteryTargetQuizSetIds = [...new Set(
+                schedules
+                    .filter((schedule) => schedule.nextDue <= futureDateEnd)
+                    .map((schedule) => schedule.quizSetId)
+            )];
+
+            const [questionResults, historyResults] = await Promise.all([
+                Promise.allSettled(
+                    masteryTargetQuizSetIds.map(async (quizSetId) => ({
+                        quizSetId,
+                        questions: await getQuestionsForQuizSet(quizSetId),
+                    }))
+                ),
+                Promise.allSettled(
+                    masteryTargetQuizSetIds.map(async (quizSetId) => ({
+                        quizSetId,
+                        histories: await getHistories(quizSetId),
+                    }))
+                ),
+            ]);
+
+            const questionsByQuizSetId = new Map<number, Question[]>();
+            for (const result of questionResults) {
+                if (result.status !== 'fulfilled') {
+                    console.error('復習ボード用の問題取得に失敗しました:', result.reason);
+                    continue;
+                }
+
+                questionsByQuizSetId.set(result.value.quizSetId, result.value.questions);
+                for (const question of result.value.questions) {
+                    if (question.id !== undefined) {
+                        nextQuestionsById[question.id] = question.text;
                     }
-                } catch (e) {
-                    console.error(`Failed to fetch questions for set ${quizSetId}`, e);
                 }
             }
-            setQuestionsById((prev) => ({ ...prev, ...nextQuestionsById }));
+
+            const historiesByQuizSetId = new Map<number, Awaited<ReturnType<typeof getHistories>>>();
+            for (const result of historyResults) {
+                if (result.status !== 'fulfilled') {
+                    console.error('復習ボード用の履歴取得に失敗しました:', result.reason);
+                    continue;
+                }
+
+                historiesByQuizSetId.set(result.value.quizSetId, result.value.histories);
+            }
+
+            for (const quizSetId of masteryTargetQuizSetIds) {
+                const questions = questionsByQuizSetId.get(quizSetId);
+                const histories = historiesByQuizSetId.get(quizSetId);
+                if (!questions || !histories) {
+                    continue;
+                }
+
+                const masteredIds = getMasteredQuestionIdsFromHistories(histories, questions);
+                masteredIds.forEach((questionId) => nextMasteredQuestionIds.add(questionId));
+            }
+
+            setQuestionsById(nextQuestionsById);
+            setMasteredQuestionIds(nextMasteredQuestionIds);
 
         } catch (error) {
             console.error('復習ボードの読み込みに失敗しました:', error);
+            setDueReviews([]);
+            setAllReviewSchedules([]);
+            setReviewDueSessionsByQuizSet({});
+            setQuizSetMetaById({});
+            setQuestionsById({});
+            setMasteredQuestionIds(new Set());
             if (error instanceof ApiError && error.status === 401) {
                 setErrorType('auth');
                 setErrorMessage('ログイン状態の有効期限が切れました。再ログインしてください。');
@@ -272,8 +319,11 @@ export const ReviewBoardRoute: React.FC = () => {
     }, [reviewDueSessionsByQuizSet]);
 
     const effectiveDueReviews = useMemo(
-        () => dueReviews.filter((review) => !completedQuestionIdsByQuizSet[review.quizSetId]?.has(review.questionId)),
-        [dueReviews, completedQuestionIdsByQuizSet]
+        () => dueReviews.filter((review) =>
+            !completedQuestionIdsByQuizSet[review.quizSetId]?.has(review.questionId) &&
+            !masteredQuestionIds.has(review.questionId)
+        ),
+        [dueReviews, completedQuestionIdsByQuizSet, masteredQuestionIds]
     );
 
     const filteredTodayReviews = useMemo(
@@ -295,9 +345,10 @@ export const ReviewBoardRoute: React.FC = () => {
             const setMeta = quizSetMetaById[schedule.quizSetId];
             if (!setMeta) return false;
             if (completedQuestionIdsByQuizSet[schedule.quizSetId]?.has(schedule.questionId)) return false;
+            if (masteredQuestionIds.has(schedule.questionId)) return false;
             return true;
         }),
-        [allReviewSchedules, quizSetMetaById, completedQuestionIdsByQuizSet]
+        [allReviewSchedules, quizSetMetaById, completedQuestionIdsByQuizSet, masteredQuestionIds]
     );
 
     const totalTodayUnreviewedQuestions = useMemo(
@@ -565,6 +616,7 @@ export const ReviewBoardRoute: React.FC = () => {
                                                     <li>正解したとき: {reviewIntervalSettings.correctIntervalDays} 日 × 連続正解数 を次回日数にします。</li>
                                                     <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
                                                     <li>不正解になると連続正解数は 0 に戻り、次の正解時は 1 回目として数え直します。</li>
+                                                    <li>直近4回連続で、問題集は「正解かつ復習に回さない」、暗記カードは「完全に覚えた」が続いたものは習得済みとして復習ボードから外れます。</li>
                                                     <li>例: 連続正解数が {exampleCorrectCount} 回なら、正解時は {reviewIntervalSettings.correctIntervalDays} × {exampleCorrectCount} = {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
                                                     <li>見出し右側の種別フィルタ（すべて/問題集/暗記カード）は、この一覧だけに適用されます。</li>
                                                 </ul>
