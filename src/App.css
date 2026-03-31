@@ -2429,6 +2429,24 @@
   height: var(--review-board-future-row-height);
 }
 
+.review-board-future-row {
+  cursor: pointer;
+}
+
+.review-board-future-row td {
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.review-board-future-row:hover td,
+.review-board-future-row:focus-visible td {
+  background: rgba(var(--primary-color-rgb), 0.1);
+}
+
+.dark-mode .review-board-future-row:hover td,
+.dark-mode .review-board-future-row:focus-visible td {
+  background: rgba(var(--primary-color-rgb), 0.18);
+}
+
 .review-board-future-legend {
   display: inline-flex;
   align-items: center;
@@ -2490,6 +2508,108 @@
 .review-board-future-calendar-cell.is-due {
   color: var(--primary-color);
   font-weight: 700;
+}
+
+.review-board-detail-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.review-board-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.review-board-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-color);
+  flex-wrap: wrap;
+}
+
+.review-board-history-date {
+  font-weight: 600;
+}
+
+.review-board-history-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.review-board-history-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.review-board-history-badge.correct,
+.review-board-history-badge.memorized {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.review-board-history-badge.incorrect,
+.review-board-history-badge.not-memorized {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.review-board-history-badge.review-requested {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.review-board-history-badge.review-not-requested {
+  color: var(--text-secondary);
+  background: var(--surface-color);
+  border-color: var(--border-color);
+}
+
+.dark-mode .review-board-history-badge.correct,
+.dark-mode .review-board-history-badge.memorized {
+  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.2);
+  border-color: #166534;
+}
+
+.dark-mode .review-board-history-badge.incorrect,
+.dark-mode .review-board-history-badge.not-memorized {
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #7f1d1d;
+}
+
+.dark-mode .review-board-history-badge.review-requested {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.18);
+  border-color: #92400e;
+}
+
+.dark-mode .review-board-history-badge.review-not-requested {
+  color: var(--text-secondary);
+  background: rgba(148, 163, 184, 0.12);
+  border-color: var(--border-color);
 }
 
 @media (max-width: 640px) {
@@ -2574,6 +2694,14 @@
   .review-board-future-calendar-cell {
     min-width: 52px;
     width: 52px;
+  }
+
+  .review-board-history-item {
+    align-items: flex-start;
+  }
+
+  .review-board-history-badges {
+    width: 100%;
   }
 }
 

@@ -7,8 +7,9 @@ import {
     CircleHelp,
     PlayCircle,
     RefreshCw,
+    X,
 } from 'lucide-react';
-import type { Question, QuizSetType, ReviewSchedule, SuspendedSession } from '../types';
+import type { Question, QuizHistory, QuizSetType, ReviewSchedule, SuspendedSession } from '../types';
 import {
     getAllReviewSchedules,
     getDueReviews,
@@ -18,6 +19,7 @@ import {
     updateQuizSet,
     getQuestionsForQuizSet,
 } from '../db';
+import { MarkdownText } from '../components/MarkdownText';
 import { LoadingView } from '../components/LoadingView';
 import { BackButton } from '../components/BackButton';
 import { useAppContext } from '../contexts/AppContext';
@@ -26,6 +28,7 @@ import { loadSessionFromStorage } from '../utils/quizSettings';
 import { getCompletedQuestionIdsFromSuspendedSession, REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY } from '../utils/quizSession';
 import { loadReviewIntervalSettings } from '../utils/spacedRepetition';
 import { getMasteredQuestionIdsFromHistories } from '../utils/reviewMastery';
+import { getQuestionAttemptSummariesFromHistories, type QuestionAttemptSummary } from '../utils/reviewQuestionHistory';
 import '../App.css';
 
 type DueReviewItem = ReviewSchedule & { question?: Question };
@@ -56,6 +59,16 @@ interface UpcomingScheduleRow {
     nextDue: string;
 }
 
+interface SelectedUpcomingQuestionState {
+    row: UpcomingScheduleRow;
+}
+
+interface SelectedUpcomingQuestionDetail {
+    row: UpcomingScheduleRow;
+    question: Question;
+    attemptSummaries: QuestionAttemptSummary[];
+}
+
 interface CalendarColumn {
     key: string;
     label: string;
@@ -64,6 +77,22 @@ interface CalendarColumn {
 
 interface ReviewBoardRouteProps {
     masteryThreshold: number;
+}
+
+function normalizeQuestionType(question: Question): 'quiz' | 'memorization' {
+    return question.questionType === 'memorization' ? 'memorization' : 'quiz';
+}
+
+function getMemorizationAnswerText(question: Question): string {
+    if (question.correctAnswers?.length > 0) {
+        return question.correctAnswers.map((answer) => String(answer)).join('\n');
+    }
+
+    if (question.options?.length > 0) {
+        return question.options.join('\n');
+    }
+
+    return '';
 }
 
 function toLocalDateString(date: Date): string {
@@ -103,8 +132,10 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
     const [quizSetMetaById, setQuizSetMetaById] = useState<Record<number, QuizSetMeta>>({});
     const [typeFilter, setTypeFilter] = useState<ReviewSetTypeFilter>('all');
     const [futureSetFilter, setFutureSetFilter] = useState<string>('all');
-    const [questionsById, setQuestionsById] = useState<Record<number, string>>({});
+    const [questionsById, setQuestionsById] = useState<Record<number, Question>>({});
+    const [historiesByQuizSetId, setHistoriesByQuizSetId] = useState<Record<number, QuizHistory[]>>({});
     const [masteredQuestionIds, setMasteredQuestionIds] = useState<Set<number>>(() => new Set());
+    const [selectedUpcomingQuestion, setSelectedUpcomingQuestion] = useState<SelectedUpcomingQuestionState | null>(null);
     const [togglingSetIds, setTogglingSetIds] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
@@ -163,7 +194,8 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
             const endDateObj = new Date(startDateObj);
             endDateObj.setDate(startDateObj.getDate() + 6);
             const futureDateEnd = toLocalDateString(endDateObj);
-            const nextQuestionsById: Record<number, string> = {};
+            const nextQuestionsById: Record<number, Question> = {};
+            const nextHistoriesByQuizSetId: Record<number, QuizHistory[]> = {};
             const nextMasteredQuestionIds = new Set<number>();
             const masteryTargetQuizSetIds = [...new Set(
                 schedules
@@ -196,12 +228,12 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
                 questionsByQuizSetId.set(result.value.quizSetId, result.value.questions);
                 for (const question of result.value.questions) {
                     if (question.id !== undefined) {
-                        nextQuestionsById[question.id] = question.text;
+                        nextQuestionsById[question.id] = question;
                     }
                 }
             }
 
-            const historiesByQuizSetId = new Map<number, Awaited<ReturnType<typeof getHistories>>>();
+            const historiesByQuizSetId = new Map<number, QuizHistory[]>();
             for (const result of historyResults) {
                 if (result.status !== 'fulfilled') {
                     console.error('復習ボード用の履歴取得に失敗しました:', result.reason);
@@ -209,6 +241,7 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
                 }
 
                 historiesByQuizSetId.set(result.value.quizSetId, result.value.histories);
+                nextHistoriesByQuizSetId[result.value.quizSetId] = result.value.histories;
             }
 
             for (const quizSetId of masteryTargetQuizSetIds) {
@@ -223,6 +256,7 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
             }
 
             setQuestionsById(nextQuestionsById);
+            setHistoriesByQuizSetId(nextHistoriesByQuizSetId);
             setMasteredQuestionIds(nextMasteredQuestionIds);
 
         } catch (error) {
@@ -232,6 +266,7 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
             setReviewDueSessionsByQuizSet({});
             setQuizSetMetaById({});
             setQuestionsById({});
+            setHistoriesByQuizSetId({});
             setMasteredQuestionIds(new Set());
             if (error instanceof ApiError && error.status === 401) {
                 setErrorType('auth');
@@ -254,6 +289,21 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
     useEffect(() => {
         void loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        if (!selectedUpcomingQuestion) return;
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setSelectedUpcomingQuestion(null);
+            }
+        };
+
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [selectedUpcomingQuestion]);
 
     const buildSetSummaries = useCallback((reviews: DueReviewItem[]): ReviewSetSummary[] => {
         const grouped = new Map<number, {
@@ -404,11 +454,12 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
             .filter((schedule) => schedule.nextDue >= today && schedule.nextDue <= nextWeekLastDateKey)
             .map((schedule) => {
                 const quizSetName = quizSetMetaById[schedule.quizSetId]?.name || `セット #${schedule.quizSetId}`;
+                const question = questionsById[schedule.questionId];
                 return {
                     quizSetId: schedule.quizSetId,
                     quizSetName,
                     questionId: schedule.questionId,
-                    questionText: questionsById[schedule.questionId] || '（問題が見つかりません）',
+                    questionText: question?.text || '（問題が見つかりません）',
                     nextDue: schedule.nextDue,
                 };
             })
@@ -422,6 +473,32 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
             }),
         [activeSchedules, quizSetMetaById, questionsById, today, nextWeekLastDateKey, futureSetFilter]
     );
+
+    const selectedUpcomingQuestionDetail = useMemo<SelectedUpcomingQuestionDetail | null>(() => {
+        if (!selectedUpcomingQuestion) {
+            return null;
+        }
+
+        const question = questionsById[selectedUpcomingQuestion.row.questionId];
+        if (!question) {
+            return null;
+        }
+
+        return {
+            row: selectedUpcomingQuestion.row,
+            question,
+            attemptSummaries: getQuestionAttemptSummariesFromHistories(
+                historiesByQuizSetId[selectedUpcomingQuestion.row.quizSetId] || [],
+                question
+            ),
+        };
+    }, [selectedUpcomingQuestion, questionsById, historiesByQuizSetId]);
+
+    useEffect(() => {
+        if (selectedUpcomingQuestion && !selectedUpcomingQuestionDetail) {
+            setSelectedUpcomingQuestion(null);
+        }
+    }, [selectedUpcomingQuestion, selectedUpcomingQuestionDetail]);
 
     const calendarColumns = useMemo<CalendarColumn[]>(
         () => nextWeekDateKeys.map(buildCalendarLabel),
@@ -553,6 +630,13 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
             </div>
         </button>
     );
+
+    const selectedQuestionType = selectedUpcomingQuestionDetail
+        ? normalizeQuestionType(selectedUpcomingQuestionDetail.question)
+        : 'quiz';
+    const selectedMemorizationAnswerText = selectedUpcomingQuestionDetail
+        ? getMemorizationAnswerText(selectedUpcomingQuestionDetail.question)
+        : '';
 
     return (
         <div className="review-board-page">
@@ -709,7 +793,19 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
                                         </thead>
                                         <tbody>
                                             {upcomingScheduleRows.map((row) => (
-                                                <tr key={`future-${row.quizSetId}-${row.questionId}-${row.nextDue}`} className="table-row">
+                                                <tr
+                                                    key={`future-${row.quizSetId}-${row.questionId}-${row.nextDue}`}
+                                                    className="table-row review-board-future-row"
+                                                    onClick={() => setSelectedUpcomingQuestion({ row })}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onKeyDown={(event) => {
+                                                        if (event.key === 'Enter' || event.key === ' ') {
+                                                            event.preventDefault();
+                                                            setSelectedUpcomingQuestion({ row });
+                                                        }
+                                                    }}
+                                                >
                                                     <td className="review-board-future-set-name" title={row.quizSetName}>{row.quizSetName}</td>
                                                     <td className="review-board-future-question-text" title={row.questionText}>{row.questionText}</td>
                                                     {calendarColumns.map((column) => {
@@ -810,6 +906,121 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
                         </div>
                     </section>
                 </>
+            )}
+
+            {selectedUpcomingQuestionDetail && (
+                <div className="modal-overlay" onClick={() => setSelectedUpcomingQuestion(null)}>
+                    <div className="modal-content history-question-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>復習予定の詳細</h3>
+                            <button
+                                type="button"
+                                className="icon-btn"
+                                onClick={() => setSelectedUpcomingQuestion(null)}
+                                aria-label="モーダルを閉じる"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="modal-body history-question-modal-body">
+                            <div className="review-board-detail-modal-meta">
+                                <span className="review-board-pill">{selectedUpcomingQuestionDetail.row.quizSetName}</span>
+                                <span className="review-board-pill">予定日 {selectedUpcomingQuestionDetail.row.nextDue}</span>
+                                <span className={`review-board-set-type ${selectedQuestionType}`}>
+                                    {selectedQuestionType === 'memorization' ? '暗記カード' : '問題集'}
+                                </span>
+                            </div>
+
+                            <section className="history-modal-section">
+                                <h4>問題文</h4>
+                                <div className="history-modal-markdown">
+                                    <MarkdownText content={selectedUpcomingQuestionDetail.question.text} />
+                                </div>
+                            </section>
+
+                            <section className="history-modal-section">
+                                <h4>{selectedQuestionType === 'memorization' ? '解答' : '選択肢'}</h4>
+                                {selectedQuestionType === 'memorization' ? (
+                                    <div className="history-modal-markdown">
+                                        {selectedMemorizationAnswerText ? (
+                                            <MarkdownText content={selectedMemorizationAnswerText} />
+                                        ) : (
+                                            <p className="history-modal-empty">解答はありません</p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <ol className="history-modal-options">
+                                        {selectedUpcomingQuestionDetail.question.options.map((option, index) => {
+                                            const isCorrect = selectedUpcomingQuestionDetail.question.correctAnswers.includes(index);
+                                            return (
+                                                <li
+                                                    key={`review-board-option-${selectedUpcomingQuestionDetail.question.id ?? selectedUpcomingQuestionDetail.row.questionId}-${index}`}
+                                                    className={`history-modal-option-item ${isCorrect ? 'correct' : ''}`}
+                                                >
+                                                    <span className="history-modal-option-index">{index + 1}.</span>
+                                                    <div className="history-modal-option-text">
+                                                        <MarkdownText content={option} />
+                                                    </div>
+                                                    {isCorrect && <span className="history-modal-correct-badge">正解</span>}
+                                                </li>
+                                            );
+                                        })}
+                                    </ol>
+                                )}
+                            </section>
+
+                            <section className="history-modal-section">
+                                <h4>解説</h4>
+                                <div className="history-modal-markdown">
+                                    {selectedUpcomingQuestionDetail.question.explanation ? (
+                                        <MarkdownText content={selectedUpcomingQuestionDetail.question.explanation.replace(/\\n/g, '\n')} />
+                                    ) : (
+                                        <p className="history-modal-empty">解説はありません</p>
+                                    )}
+                                </div>
+                            </section>
+
+                            <section className="history-modal-section">
+                                <h4>これまでの履歴</h4>
+                                {selectedUpcomingQuestionDetail.attemptSummaries.length === 0 ? (
+                                    <p className="history-modal-empty">まだ履歴がありません</p>
+                                ) : (
+                                    <ul className="review-board-history-list">
+                                        {selectedUpcomingQuestionDetail.attemptSummaries.map((attempt, index) => (
+                                            <li
+                                                key={`review-board-attempt-${selectedUpcomingQuestionDetail.row.quizSetId}-${selectedUpcomingQuestionDetail.row.questionId}-${attempt.dateLabel}-${index}`}
+                                                className="review-board-history-item"
+                                            >
+                                                <span className="review-board-history-date">{attempt.dateLabel}</span>
+                                                <div className="review-board-history-badges">
+                                                    {attempt.kind === 'memorization' ? (
+                                                        <span className={`review-board-history-badge ${attempt.isMemorized ? 'memorized' : 'not-memorized'}`}>
+                                                            {attempt.isMemorized ? '完全に覚えた' : '覚えていない'}
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            <span className={`review-board-history-badge ${attempt.isCorrect ? 'correct' : 'incorrect'}`}>
+                                                                {attempt.isCorrect ? '正解' : '誤り'}
+                                                            </span>
+                                                            <span className={`review-board-history-badge ${attempt.reviewRequested ? 'review-requested' : 'review-not-requested'}`}>
+                                                                {attempt.reviewRequested ? '復習に回した' : '復習に回していない'}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </section>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="nav-btn" onClick={() => setSelectedUpcomingQuestion(null)}>
+                                閉じる
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
