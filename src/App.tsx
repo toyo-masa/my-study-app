@@ -167,7 +167,10 @@ function App() {
             />
           )}
         />
-        <Route path="/review-board" element={<ReviewBoardRoute />} />
+        <Route
+          path="/review-board"
+          element={<ReviewBoardRoute masteryThreshold={reviewBoardSettings.masteryThreshold} />}
+        />
         <Route path="/study-insights" element={<StudyInsightsRoute />} />
         <Route path="/tutorial" element={<TutorialHubRoute />} />
         {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}

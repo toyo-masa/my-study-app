@@ -1,6 +1,14 @@
 import type { Question, QuizHistory } from '../types';
 
-const REQUIRED_RECENT_ATTEMPT_COUNT = 4;
+const DEFAULT_REQUIRED_RECENT_ATTEMPT_COUNT = 4;
+
+function normalizeRequiredRecentAttemptCount(value: number): number {
+    if (!Number.isFinite(value)) {
+        return DEFAULT_REQUIRED_RECENT_ATTEMPT_COUNT;
+    }
+
+    return Math.max(1, Math.round(value));
+}
 
 function normalizeQuestionType(question: Question): 'quiz' | 'memorization' {
     return question.questionType === 'memorization' ? 'memorization' : 'quiz';
@@ -47,9 +55,11 @@ function isAttemptMastered(history: QuizHistory, question: Question): boolean | 
 
 export function getMasteredQuestionIdsFromHistories(
     histories: QuizHistory[],
-    questions: Question[]
+    questions: Question[],
+    requiredRecentAttemptCount: number = DEFAULT_REQUIRED_RECENT_ATTEMPT_COUNT
 ): Set<number> {
     const masteredQuestionIds = new Set<number>();
+    const normalizedRequiredRecentAttemptCount = normalizeRequiredRecentAttemptCount(requiredRecentAttemptCount);
     const sortedHistories = [...histories].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
@@ -67,13 +77,13 @@ export function getMasteredQuestionIdsFromHistories(
             }
 
             recentAttemptResults.push(mastered);
-            if (recentAttemptResults.length >= REQUIRED_RECENT_ATTEMPT_COUNT) {
+            if (recentAttemptResults.length >= normalizedRequiredRecentAttemptCount) {
                 break;
             }
         }
 
         if (
-            recentAttemptResults.length === REQUIRED_RECENT_ATTEMPT_COUNT &&
+            recentAttemptResults.length === normalizedRequiredRecentAttemptCount &&
             recentAttemptResults.every(Boolean)
         ) {
             masteredQuestionIds.add(question.id);

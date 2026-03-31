@@ -11,6 +11,7 @@ export interface QuizSetSettings {
 
 export interface ReviewBoardSettings {
     feedbackBlockSize: number;
+    masteryThreshold: number;
 }
 
 function getSuspendedSessionStorageKey(quizSetId: number, slotKey: SuspendedSessionSlotKey): string {
@@ -88,12 +89,15 @@ const DEFAULT_QUIZ_SET_SETTINGS: QuizSetSettings = {
 
 export const DEFAULT_REVIEW_BOARD_SETTINGS: ReviewBoardSettings = {
     feedbackBlockSize: 5,
+    masteryThreshold: 4,
 };
 
 const REVIEW_BOARD_SETTINGS_STORAGE_KEY = 'reviewBoardSettings';
 
 const FEEDBACK_BLOCK_SIZE_MIN = 1;
 const FEEDBACK_BLOCK_SIZE_MAX = 1000;
+const REVIEW_BOARD_MASTERY_THRESHOLD_MIN = 1;
+const REVIEW_BOARD_MASTERY_THRESHOLD_MAX = 1000;
 
 const normalizeFeedbackBlockSize = (value: unknown): number => {
     const num = Number(value);
@@ -102,6 +106,15 @@ const normalizeFeedbackBlockSize = (value: unknown): number => {
     }
     const rounded = Math.round(num);
     return Math.min(FEEDBACK_BLOCK_SIZE_MAX, Math.max(FEEDBACK_BLOCK_SIZE_MIN, rounded));
+};
+
+const normalizeReviewBoardMasteryThreshold = (value: unknown): number => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+        return DEFAULT_REVIEW_BOARD_SETTINGS.masteryThreshold;
+    }
+    const rounded = Math.round(num);
+    return Math.min(REVIEW_BOARD_MASTERY_THRESHOLD_MAX, Math.max(REVIEW_BOARD_MASTERY_THRESHOLD_MIN, rounded));
 };
 
 const normalizeFeedbackTimingMode = (value: unknown): FeedbackTimingMode => {
@@ -122,6 +135,7 @@ export const normalizeReviewBoardSettings = (raw: unknown): ReviewBoardSettings 
     const source = (raw && typeof raw === 'object') ? raw as Partial<ReviewBoardSettings> : {};
     return {
         feedbackBlockSize: normalizeFeedbackBlockSize(source.feedbackBlockSize),
+        masteryThreshold: normalizeReviewBoardMasteryThreshold(source.masteryThreshold),
     };
 };
 

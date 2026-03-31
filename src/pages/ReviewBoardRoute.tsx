@@ -62,6 +62,10 @@ interface CalendarColumn {
     weekday: string;
 }
 
+interface ReviewBoardRouteProps {
+    masteryThreshold: number;
+}
+
 function toLocalDateString(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -90,7 +94,7 @@ function buildCalendarLabel(dateString: string): CalendarColumn {
     };
 }
 
-export const ReviewBoardRoute: React.FC = () => {
+export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThreshold }) => {
     const navigate = useNavigate();
     const { handleCloudError, setIsLoginModalOpen, showGlobalNotice } = useAppContext();
     const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
@@ -214,7 +218,7 @@ export const ReviewBoardRoute: React.FC = () => {
                     continue;
                 }
 
-                const masteredIds = getMasteredQuestionIdsFromHistories(histories, questions);
+                const masteredIds = getMasteredQuestionIdsFromHistories(histories, questions, masteryThreshold);
                 masteredIds.forEach((questionId) => nextMasteredQuestionIds.add(questionId));
             }
 
@@ -245,7 +249,7 @@ export const ReviewBoardRoute: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [handleCloudError, today]);
+    }, [handleCloudError, masteryThreshold, today]);
 
     useEffect(() => {
         void loadData();
@@ -616,7 +620,7 @@ export const ReviewBoardRoute: React.FC = () => {
                                                     <li>正解したとき: {reviewIntervalSettings.correctIntervalDays} 日 × 連続正解数 を次回日数にします。</li>
                                                     <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
                                                     <li>不正解になると連続正解数は 0 に戻り、次の正解時は 1 回目として数え直します。</li>
-                                                    <li>直近4回連続で、問題集は「正解かつ復習に回さない」、暗記カードは「完全に覚えた」が続いたものは習得済みとして復習ボードから外れます。</li>
+                                                    <li>直近 {masteryThreshold} 回の結果が、問題集では「正解かつ復習に回さない」、暗記カードでは「完全に覚えた」だったものは習得済みとして復習ボードから外れます。</li>
                                                     <li>例: 連続正解数が {exampleCorrectCount} 回なら、正解時は {reviewIntervalSettings.correctIntervalDays} × {exampleCorrectCount} = {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
                                                     <li>見出し右側の種別フィルタ（すべて/問題集/暗記カード）は、この一覧だけに適用されます。</li>
                                                 </ul>

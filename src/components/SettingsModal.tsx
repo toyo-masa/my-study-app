@@ -243,6 +243,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
     };
 
+    const handleReviewBoardMasteryThresholdChange = (nextValue: number) => {
+        onReviewBoardSettingsChange({
+            ...reviewBoardSettings,
+            masteryThreshold: nextValue,
+        });
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -932,9 +939,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                         </div>
 
                                         <div className="review-settings-card">
-                                            <h4 className="review-settings-card-title">復習ボードの回答確認間隔</h4>
+                                            <h4 className="review-settings-card-title">復習ボード設定</h4>
                                             <p className="review-settings-note">
-                                                復習ボードから新しく開始した学習で、何問ごとに正解と解説をまとめて確認するかを指定します。
+                                                復習ボードから始める学習で、何問ごとにまとめて回答確認するかと、何回連続で安定した問題を習得済みとして外すかを指定します。
                                             </p>
                                             <div className="review-settings-grid">
                                                 <label className="review-setting-item">
@@ -950,6 +957,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                         increaseAriaLabel="復習ボードの回答確認間隔を増やす"
                                                     />
                                                 </label>
+                                                <label className="review-setting-item">
+                                                    <span className="review-setting-label">習得済みとみなす連続回数</span>
+                                                    <NumericStepper
+                                                        value={reviewBoardSettings.masteryThreshold}
+                                                        min={1}
+                                                        max={1000}
+                                                        step={1}
+                                                        onChange={handleReviewBoardMasteryThresholdChange}
+                                                        trailingLabel="回"
+                                                        decreaseAriaLabel="習得済み判定の連続回数を減らす"
+                                                        increaseAriaLabel="習得済み判定の連続回数を増やす"
+                                                    />
+                                                </label>
                                             </div>
 
                                             <div className="review-settings-formula">
@@ -958,6 +978,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     <li>1問なら、1問回答するたびに正解と解説を確認できます。</li>
                                                     <li>2問以上なら、その問数を回答したあとにまとめて確認できます。</li>
                                                     <li>実際の復習問題数を超える値を入れていても、その回の問題数まで自動で調整します。</li>
+                                                    <li>問題集は、「正解かつ復習に回さない」が {reviewBoardSettings.masteryThreshold} 回続くと習得済みとして復習ボードから外れます。</li>
+                                                    <li>暗記カードは、「完全に覚えた」が {reviewBoardSettings.masteryThreshold} 回続くと習得済みとして復習ボードから外れます。</li>
+                                                    <li>その後に不正解や「復習に回す」「覚えていない」が入ると、条件を満たさなくなった時点で復習対象に戻ります。</li>
                                                 </ul>
                                             </div>
 

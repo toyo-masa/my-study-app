@@ -21,6 +21,7 @@ import type {
     SuspendedSession,
 } from '../types';
 import {
+    DEFAULT_REVIEW_BOARD_SETTINGS,
     saveSessionToStorage,
     loadSessionFromStorage,
     clearSessionFromStorage,
@@ -120,6 +121,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
     const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
         return resolveReviewBoardFeedbackBlockSize(questionCount, {
+            ...DEFAULT_REVIEW_BOARD_SETTINGS,
             feedbackBlockSize: reviewBoardFeedbackBlockSize,
         });
     }, [reviewBoardFeedbackBlockSize]);

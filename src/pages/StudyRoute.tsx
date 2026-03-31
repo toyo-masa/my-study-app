@@ -15,6 +15,7 @@ import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getRevie
 import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode, SuspendedSession } from '../types';
 import {
+    DEFAULT_REVIEW_BOARD_SETTINGS,
     loadQuizSetSettings,
     applyShuffleSettings,
     saveSessionToStorage,
@@ -118,6 +119,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
     const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
         return resolveReviewBoardFeedbackBlockSize(questionCount, {
+            ...DEFAULT_REVIEW_BOARD_SETTINGS,
             feedbackBlockSize: reviewBoardFeedbackBlockSize,
         });
     }, [reviewBoardFeedbackBlockSize]);
