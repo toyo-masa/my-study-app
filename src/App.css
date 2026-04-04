@@ -6876,6 +6876,11 @@ button.appearance-option.active {
   color: #166534;
 }
 
+.history-answer-cell.is-review-requested {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .history-answer-cell.is-incorrect {
   background: #fee2e2;
   color: #991b1b;
@@ -6899,6 +6904,11 @@ button.appearance-option.active {
 .dark-mode .history-answer-cell.is-correct {
   background: rgba(34, 197, 94, 0.2);
   color: #86efac;
+}
+
+.dark-mode .history-answer-cell.is-review-requested {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fcd34d;
 }
 
 .dark-mode .history-answer-cell.is-incorrect {

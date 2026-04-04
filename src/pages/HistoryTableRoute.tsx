@@ -16,17 +16,23 @@ type SelectedQuestionState = {
     questionNumber: number;
 };
 
+type AttemptCell = {
+    status: CellStatus;
+    reviewRequested: boolean;
+};
+
 type AttemptColumn = {
     key: string;
     date: Date;
     dateLabel: string;
-    statusMap: Map<number, CellStatus>;
+    statusMap: Map<number, AttemptCell>;
 };
 
 type QuestionAttempt = {
     key: string;
     dateLabel: string;
     status: CellStatus;
+    reviewRequested: boolean;
 };
 
 function formatMonthDay(date: Date): string {
@@ -50,12 +56,15 @@ function getReviewLogGroupKey(reviewLog: ReviewLog): string {
     return `date:${toLocalDateKey(new Date(reviewLog.reviewedAt))}`;
 }
 
-function buildHistoryStatusMap(history: QuizHistory, questions: Question[]): Map<number, CellStatus> {
-    const statusMap = new Map<number, CellStatus>();
+function buildHistoryStatusMap(history: QuizHistory, questions: Question[]): Map<number, AttemptCell> {
+    const statusMap = new Map<number, AttemptCell>();
 
     if (history.memorizationDetail && history.memorizationDetail.length > 0) {
         history.memorizationDetail.forEach((detail) => {
-            statusMap.set(detail.questionId, detail.isMemorized ? 'correct' : 'incorrect');
+            statusMap.set(detail.questionId, {
+                status: detail.isMemorized ? 'correct' : 'incorrect',
+                reviewRequested: false,
+            });
         });
         return statusMap;
     }
@@ -78,23 +87,36 @@ function buildHistoryStatusMap(history: QuizHistory, questions: Question[]): Map
         const userAnswers = Array.isArray(rawUserAnswers) ? rawUserAnswers : [];
         const isCorrect = userAnswers.length === question.correctAnswers.length &&
             userAnswers.every((answer) => question.correctAnswers.includes(answer));
+        const reviewRequested = question.questionType !== 'memorization' &&
+            history.confidences?.[String(questionId)] === 'low';
 
-        statusMap.set(questionId, isCorrect ? 'correct' : 'incorrect');
+        statusMap.set(questionId, {
+            status: isCorrect ? 'correct' : 'incorrect',
+            reviewRequested,
+        });
     });
 
     return statusMap;
 }
 
-function buildReviewLogAttemptColumns(reviewLogs: ReviewLog[]): AttemptColumn[] {
+function buildReviewLogAttemptColumns(reviewLogs: ReviewLog[], questions: Question[]): AttemptColumn[] {
     const grouped = new Map<string, AttemptColumn>();
     const sortedLogs = [...reviewLogs].sort((a, b) => a.reviewedAt.localeCompare(b.reviewedAt));
+    const questionTypeById = new Map<number, Question['questionType']>();
+
+    questions.forEach((question) => {
+        if (question.id !== undefined) {
+            questionTypeById.set(question.id, question.questionType);
+        }
+    });
 
     for (const log of sortedLogs) {
         const key = getReviewLogGroupKey(log);
         const current = grouped.get(key);
         const status: CellStatus = log.isCorrect ? 'correct' : 'incorrect';
+        const reviewRequested = questionTypeById.get(log.questionId) !== 'memorization' && log.confidence === 'low';
         if (current) {
-            current.statusMap.set(log.questionId, status);
+            current.statusMap.set(log.questionId, { status, reviewRequested });
             continue;
         }
 
@@ -103,7 +125,7 @@ function buildReviewLogAttemptColumns(reviewLogs: ReviewLog[]): AttemptColumn[] 
             key: `review-log-${key}`,
             date,
             dateLabel: formatMonthDay(date),
-            statusMap: new Map([[log.questionId, status]]),
+            statusMap: new Map([[log.questionId, { status, reviewRequested }]]),
         });
     }
 
@@ -207,7 +229,7 @@ export const HistoryTableRoute: React.FC = () => {
                 statusMap: buildHistoryStatusMap(history, sortedQuestions),
             }));
         const reviewLogAttemptColumns = hasReviewLogs
-            ? buildReviewLogAttemptColumns(reviewLogs)
+            ? buildReviewLogAttemptColumns(reviewLogs, sortedQuestions)
             : [];
 
         return [...historyAttemptColumns, ...reviewLogAttemptColumns]
@@ -234,14 +256,15 @@ export const HistoryTableRoute: React.FC = () => {
         });
 
         attemptColumns.forEach((column) => {
-            column.statusMap.forEach((status, questionId) => {
+            column.statusMap.forEach((attemptCell, questionId) => {
                 const attempts = attemptsById.get(questionId);
                 if (!attempts) return;
 
                 attempts.push({
                     key: `${column.key}-${questionId}`,
                     dateLabel: column.dateLabel,
-                    status,
+                    status: attemptCell.status,
+                    reviewRequested: attemptCell.reviewRequested,
                 });
             });
         });
@@ -326,7 +349,7 @@ export const HistoryTableRoute: React.FC = () => {
                     <div className="history-table-meta">
                         <span>問題数: {sortedQuestions.length}</span>
                         <span>回答履歴: {maxAttemptCount}回</span>
-                        <span>セル色: 緑=正解 / 赤=不正解</span>
+                        <span>セル色: 緑=正解 / 赤=不正解 / 黄=手動で復習対象</span>
                     </div>
                     <div className="table-wrapper history-table-wrapper">
                         <table className="question-table history-table-grid">
@@ -365,9 +388,11 @@ export const HistoryTableRoute: React.FC = () => {
                                                 <MarkdownText content={question.text} className="table-markdown" />
                                             </td>
                                             {attempts.map((attempt) => {
-                                                const statusClass = attempt.status === 'correct'
-                                                    ? 'is-correct'
-                                                    : 'is-incorrect';
+                                                const statusClass = attempt.reviewRequested
+                                                    ? 'is-review-requested'
+                                                    : attempt.status === 'correct'
+                                                        ? 'is-correct'
+                                                        : 'is-incorrect';
 
                                                 return (
                                                     <td
