@@ -167,3 +167,27 @@
 - build が通るか
 - 認証 / 所有権 / 日付 / 型安全性を壊していないか
 - ユーザー影響がある場合、version / release notes を更新したか
+
+## 8. Memory Bank
+
+このリポジトリでは、以下のファイルを永続メモリとして扱う。
+
+- `docs/ai/project-context.md`
+- `docs/ai/conventions.md`
+- `docs/ai/decision-log.md`
+- `docs/ai/progress.md`
+
+### 作業開始時
+変更前に、上記ファイルを確認してから作業に入る。
+
+### 作業中
+以下に該当する場合は、必要に応じて更新する。
+- プロジェクト理解が深まった → `project-context.md`
+- 新しい設計判断をした → `decision-log.md`
+- 実装ルールや注意点が増えた → `conventions.md`
+- 進捗や次の着手点が変わった → `progress.md`
+
+### 原則
+- 重要な判断はコード変更だけで終わらせず、必要なら Memory Bank に残す
+- 一時的な作業メモではなく、次回以降の作業に役立つ内容を残す
+- 冗長にしすぎず、事実と判断理由を簡潔に書く
