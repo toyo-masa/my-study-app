@@ -272,8 +272,20 @@ async function handleBulkUpsert(
   }
 
   const existingRows = (await sql`
-    SELECT id, question_id FROM review_schedules
-    WHERE user_id = ${userId} AND question_id = ANY(${questionIds})
+    WITH ranked AS (
+      SELECT
+        id,
+        question_id,
+        ROW_NUMBER() OVER (
+          PARTITION BY question_id
+          ORDER BY COALESCE(last_reviewed_at, to_timestamp(0)) DESC, id DESC
+        ) AS rn
+      FROM review_schedules
+      WHERE user_id = ${userId} AND question_id = ANY(${questionIds})
+    )
+    SELECT id, question_id
+    FROM ranked
+    WHERE rn = 1
   `) as Record<string, unknown>[];
 
   const existingMap = new Map(existingRows.map(r => [Number(r.question_id), Number(r.id)]));
@@ -445,6 +457,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                       AND q.is_deleted = false
                       AND q.is_archived = false
                       AND COALESCE(q.exclude_from_review, false) = false
+                    ORDER BY COALESCE(rs.last_reviewed_at, to_timestamp(0)) DESC, rs.id DESC
                     LIMIT 1
                 `;
         if (rows.length === 0) return res.status(200).json(null);
@@ -467,22 +480,42 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
         }
 
         rows = await sql`
-            SELECT rs.* FROM review_schedules rs
-            JOIN quiz_sets q ON rs.quiz_set_id = q.id
-            WHERE rs.user_id = ${userId}
-              AND rs.quiz_set_id = ${parsedQuizSetId.value}
-              AND q.is_deleted = false
-              AND q.is_archived = false
-              AND COALESCE(q.exclude_from_review, false) = false
+            WITH ranked AS (
+              SELECT
+                rs.*,
+                ROW_NUMBER() OVER (
+                  PARTITION BY rs.question_id
+                  ORDER BY COALESCE(rs.last_reviewed_at, to_timestamp(0)) DESC, rs.id DESC
+                ) AS rn
+              FROM review_schedules rs
+              JOIN quiz_sets q ON rs.quiz_set_id = q.id
+              WHERE rs.user_id = ${userId}
+                AND rs.quiz_set_id = ${parsedQuizSetId.value}
+                AND q.is_deleted = false
+                AND q.is_archived = false
+                AND COALESCE(q.exclude_from_review, false) = false
+            )
+            SELECT * FROM ranked
+            WHERE rn = 1
         `;
       } else {
         rows = await sql`
-                    SELECT s.* FROM review_schedules s
-                    JOIN quiz_sets q ON s.quiz_set_id = q.id
-                    WHERE s.user_id = ${userId}
-                      AND q.is_deleted = false
-                      AND q.is_archived = false
-                      AND COALESCE(q.exclude_from_review, false) = false
+                    WITH ranked AS (
+                      SELECT
+                        s.*,
+                        ROW_NUMBER() OVER (
+                          PARTITION BY s.question_id
+                          ORDER BY COALESCE(s.last_reviewed_at, to_timestamp(0)) DESC, s.id DESC
+                        ) AS rn
+                      FROM review_schedules s
+                      JOIN quiz_sets q ON s.quiz_set_id = q.id
+                      WHERE s.user_id = ${userId}
+                        AND q.is_deleted = false
+                        AND q.is_archived = false
+                        AND COALESCE(q.exclude_from_review, false) = false
+                    )
+                    SELECT * FROM ranked
+                    WHERE rn = 1
                 `;
       }
 
@@ -568,7 +601,13 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
             return res.status(404).json({ error: 'Question not found' });
           }
 
-          const existing = await sql`SELECT id FROM review_schedules WHERE question_id = ${questionIdNum} AND user_id = ${userId}`;
+          const existing = await sql`
+            SELECT id
+            FROM review_schedules
+            WHERE question_id = ${questionIdNum} AND user_id = ${userId}
+            ORDER BY COALESCE(last_reviewed_at, to_timestamp(0)) DESC, id DESC
+            LIMIT 1
+          `;
           if (existing.length > 0) {
             await sql`
                         UPDATE review_schedules SET
