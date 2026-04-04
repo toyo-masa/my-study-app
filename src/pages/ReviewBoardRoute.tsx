@@ -123,6 +123,19 @@ function buildCalendarLabel(dateString: string): CalendarColumn {
     };
 }
 
+function formatReviewDueLabel(dateString: string, today: string): string {
+    if (dateString === today) {
+        return '今日';
+    }
+
+    const date = parseLocalDate(dateString);
+    if (!date || Number.isNaN(date.getTime())) {
+        return dateString;
+    }
+
+    return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThreshold }) => {
     const navigate = useNavigate();
     const { handleCloudError, setIsLoginModalOpen, showGlobalNotice } = useAppContext();
@@ -357,9 +370,9 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
                 reviewQuestionIds: [...group.questionIdSet],
             }))
             .sort((a, b) => {
-                if (b.dueCount !== a.dueCount) return b.dueCount - a.dueCount;
                 const dateCmp = a.earliestDue.localeCompare(b.earliestDue);
                 if (dateCmp !== 0) return dateCmp;
+                if (b.dueCount !== a.dueCount) return b.dueCount - a.dueCount;
                 return a.name.localeCompare(b.name, 'ja');
             });
     }, [quizSetMetaById]);
@@ -613,7 +626,9 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
 
             <div className="review-board-set-meta">
                 <span className="review-board-pill">今日分 {summary.dueCount}問</span>
-                <span className="review-board-pill">予定日 今日</span>
+                <span className={`review-board-pill ${summary.earliestDue < today ? 'danger' : ''}`}>
+                    最古予定日 {formatReviewDueLabel(summary.earliestDue, today)}
+                </span>
             </div>
 
             <div className="review-board-set-categories">
