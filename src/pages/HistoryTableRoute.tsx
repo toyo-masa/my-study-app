@@ -23,6 +23,12 @@ type AttemptColumn = {
     statusMap: Map<number, CellStatus>;
 };
 
+type QuestionAttempt = {
+    key: string;
+    dateLabel: string;
+    status: CellStatus;
+};
+
 function formatMonthDay(date: Date): string {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -218,20 +224,60 @@ export const HistoryTableRoute: React.FC = () => {
             }));
     }, [reviewLogs, sortedHistories, sortedQuestions]);
 
+    const questionAttemptsById = useMemo(() => {
+        const attemptsById = new Map<number, QuestionAttempt[]>();
+
+        sortedQuestions.forEach((question) => {
+            if (question.id !== undefined) {
+                attemptsById.set(question.id, []);
+            }
+        });
+
+        attemptColumns.forEach((column) => {
+            column.statusMap.forEach((status, questionId) => {
+                const attempts = attemptsById.get(questionId);
+                if (!attempts) return;
+
+                attempts.push({
+                    key: `${column.key}-${questionId}`,
+                    dateLabel: column.dateLabel,
+                    status,
+                });
+            });
+        });
+
+        return attemptsById;
+    }, [attemptColumns, sortedQuestions]);
+
+    const maxAttemptCount = useMemo(() => {
+        let maxCount = 0;
+        questionAttemptsById.forEach((attempts) => {
+            if (attempts.length > maxCount) {
+                maxCount = attempts.length;
+            }
+        });
+        return maxCount;
+    }, [questionAttemptsById]);
+
     const historyAttemptSummaries = useMemo(() => {
-        return attemptColumns.map((column) => {
+        return Array.from({ length: maxAttemptCount }, (_, attemptIndex) => {
             let correctCount = 0;
             let incorrectCount = 0;
-            column.statusMap.forEach((status) => {
-                if (status === 'correct') {
+
+            questionAttemptsById.forEach((attempts) => {
+                const attempt = attempts[attemptIndex];
+                if (!attempt) return;
+
+                if (attempt.status === 'correct') {
                     correctCount += 1;
                 } else {
                     incorrectCount += 1;
                 }
             });
+
             return { correctCount, incorrectCount };
         });
-    }, [attemptColumns]);
+    }, [maxAttemptCount, questionAttemptsById]);
 
     if (isLoadingQuizSet || isLoadingData) {
         return <LoadingView fullPage message="回答履歴を読み込み中..." />;
@@ -267,7 +313,7 @@ export const HistoryTableRoute: React.FC = () => {
                         <RefreshCw size={16} /> 再読み込み
                     </button>
                 </div>
-            ) : attemptColumns.length === 0 ? (
+            ) : maxAttemptCount === 0 ? (
                 <div className="empty-history">
                     <p>まだ履歴がありません</p>
                 </div>
@@ -279,7 +325,7 @@ export const HistoryTableRoute: React.FC = () => {
                 <>
                     <div className="history-table-meta">
                         <span>問題数: {sortedQuestions.length}</span>
-                        <span>回答履歴: {attemptColumns.length}回</span>
+                        <span>回答履歴: {maxAttemptCount}回</span>
                         <span>セル色: 緑=正解 / 赤=不正解</span>
                     </div>
                     <div className="table-wrapper history-table-wrapper">
@@ -288,51 +334,59 @@ export const HistoryTableRoute: React.FC = () => {
                                 <tr>
                                     <th>番号</th>
                                     <th>問題文</th>
-                                    {attemptColumns.map((column) => (
-                                        <th key={`attempt-${column.attemptNumber}`} className="history-attempt-header">{column.attemptNumber}回目</th>
+                                    {Array.from({ length: maxAttemptCount }, (_, index) => (
+                                        <th key={`attempt-${index + 1}`} className="history-attempt-header">{index + 1}回目</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedQuestions.map((question, rowIndex) => (
-                                    <tr
-                                        key={question.id ?? `question-${rowIndex}`}
-                                        className="table-row history-question-row"
-                                        onClick={() => setSelectedQuestion({ question, questionNumber: rowIndex + 1 })}
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(event) => {
-                                            if (event.key === 'Enter' || event.key === ' ') {
-                                                event.preventDefault();
-                                                setSelectedQuestion({ question, questionNumber: rowIndex + 1 });
-                                            }
-                                        }}
-                                    >
-                                        <td className="history-question-number">{rowIndex + 1}</td>
-                                        <td className="history-question-text">
-                                            <MarkdownText content={question.text} className="table-markdown" />
-                                        </td>
-                                        {attemptColumns.map((column) => {
-                                            const status = question.id !== undefined
-                                                ? column.statusMap.get(question.id)
-                                                : undefined;
-                                            const statusClass = status === 'correct'
-                                                ? 'is-correct'
-                                                : status === 'incorrect'
-                                                    ? 'is-incorrect'
-                                                    : 'is-empty';
+                                {sortedQuestions.map((question, rowIndex) => {
+                                    const attempts = question.id !== undefined
+                                        ? (questionAttemptsById.get(question.id) ?? [])
+                                        : [];
+                                    const remainingAttemptSlots = maxAttemptCount - attempts.length;
 
-                                            return (
+                                    return (
+                                        <tr
+                                            key={question.id ?? `question-${rowIndex}`}
+                                            className="table-row history-question-row"
+                                            onClick={() => setSelectedQuestion({ question, questionNumber: rowIndex + 1 })}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                    event.preventDefault();
+                                                    setSelectedQuestion({ question, questionNumber: rowIndex + 1 });
+                                                }
+                                            }}
+                                        >
+                                            <td className="history-question-number">{rowIndex + 1}</td>
+                                            <td className="history-question-text">
+                                                <MarkdownText content={question.text} className="table-markdown" />
+                                            </td>
+                                            {attempts.map((attempt) => {
+                                                const statusClass = attempt.status === 'correct'
+                                                    ? 'is-correct'
+                                                    : 'is-incorrect';
+
+                                                return (
+                                                    <td
+                                                        key={attempt.key}
+                                                        className={`history-answer-cell ${statusClass}`}
+                                                    >
+                                                        {attempt.dateLabel}
+                                                    </td>
+                                                );
+                                            })}
+                                            {remainingAttemptSlots > 0 && (
                                                 <td
-                                                    key={`attempt-cell-${column.attemptNumber}-${question.id ?? rowIndex}`}
-                                                    className={`history-answer-cell ${statusClass}`}
-                                                >
-                                                    {status ? column.dateLabel : '-'}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
+                                                    className="history-answer-cell is-empty"
+                                                    colSpan={remainingAttemptSlots}
+                                                />
+                                            )}
+                                        </tr>
+                                    );
+                                })}
                                 <tr className="history-summary-row">
                                     <td className="history-question-number history-summary-label">-</td>
                                     <td className="history-question-text history-summary-title">{positiveSummaryLabel}</td>
