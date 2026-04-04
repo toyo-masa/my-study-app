@@ -11,7 +11,7 @@ import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
-import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
+import { getQuestionsForQuizSet, addHistory, addReviewLogs, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
 import type {
     Question,
@@ -19,6 +19,7 @@ import type {
     DailyStudyStats,
     HistoryMode,
     QuizHistory,
+    ReviewLog,
     ReviewSchedule,
     FeedbackTimingMode,
     SuspendedSession,
@@ -348,24 +349,31 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         };
     };
 
-    const buildStudyReviewScheduleUpdates = async (
+    const buildStudyReviewArtifacts = async (
         questionIds: number[],
         targetAnswers: Record<string, number[]>,
-        targetConfidences: Record<string, ConfidenceLevel>
-    ): Promise<(Omit<ReviewSchedule, 'id'> & { id?: number })[]> => {
+        targetConfidences: Record<string, ConfidenceLevel>,
+        reviewedAt: string
+    ): Promise<{
+        schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[];
+        logs: Omit<ReviewLog, 'id'>[];
+    }> => {
         if (activeQuizSet?.id === undefined || questionIds.length === 0) {
-            return [];
+            return { schedules: [], logs: [] };
         }
 
         const quizSetId = activeQuizSet.id;
         const existingSchedules = await getReviewSchedulesForQuizSet(quizSetId);
         const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
         const reviewIntervalSettings = loadReviewIntervalSettings();
+        const reviewedAtDate = new Date(reviewedAt);
+        const schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = [];
+        const logs: Omit<ReviewLog, 'id'>[] = [];
 
-        return questionIds.flatMap((questionId) => {
+        questionIds.forEach((questionId) => {
             const question = questionByIdRef.current[questionId];
             if (!question) {
-                return [];
+                return;
             }
 
             const qKey = String(questionId);
@@ -376,18 +384,29 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 : (userAnswers.length === question.correctAnswers.length && userAnswers.every(a => question.correctAnswers.includes(a)));
             const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
             const intervalDays = calculateNextInterval(isCorrect, confidence, currentConsecutive, reviewIntervalSettings);
-            const nextDue = calculateNextDue(intervalDays);
+            const nextDue = calculateNextDue(intervalDays, reviewedAtDate);
             const consecutiveCorrect = updateConsecutiveCorrect(isCorrect, currentConsecutive);
 
-            return [{
+            schedules.push({
                 questionId,
                 quizSetId,
                 intervalDays,
                 nextDue,
-                lastReviewedAt: new Date().toISOString(),
+                lastReviewedAt: reviewedAt,
                 consecutiveCorrect,
-            }];
+            });
+            logs.push({
+                questionId,
+                quizSetId,
+                reviewedAt,
+                isCorrect,
+                confidence,
+                intervalDays,
+                nextDue,
+            });
         });
+
+        return { schedules, logs };
     };
 
     const saveStudySession = async ({
@@ -460,13 +479,16 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             const persistedSet = new Set(persistedCompletedQuestionIdsRef.current);
             const newCompletedQuestionIds = (session.completedQuestionIds || []).filter((questionId) => !persistedSet.has(questionId));
             if (newCompletedQuestionIds.length > 0) {
-                const schedulesToUpdate = await buildStudyReviewScheduleUpdates(
+                const reviewedAt = new Date().toISOString();
+                const { schedules: schedulesToUpdate, logs: reviewLogsToAdd } = await buildStudyReviewArtifacts(
                     newCompletedQuestionIds,
                     targetAnswers,
-                    targetConfidences
+                    targetConfidences,
+                    reviewedAt
                 );
                 if (schedulesToUpdate.length > 0) {
                     await upsertReviewSchedulesBulk(schedulesToUpdate);
+                    await addReviewLogs(reviewLogsToAdd);
                     persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(
                         persistedCompletedQuestionIdsRef.current,
                         schedulesToUpdate.map((schedule) => schedule.questionId)
@@ -1055,16 +1077,19 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
             await addHistory(historyData);
 
-            const schedulesToUpdate = await buildStudyReviewScheduleUpdates(
+            const reviewedAt = end.toISOString();
+            const { schedules: schedulesToUpdate, logs: reviewLogsToAdd } = await buildStudyReviewArtifacts(
                 questions
                     .map((question) => question.id!)
                     .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId)),
                 answers,
-                effectiveConfidences
+                effectiveConfidences,
+                reviewedAt
             );
 
             if (schedulesToUpdate.length > 0) {
                 await upsertReviewSchedulesBulk(schedulesToUpdate);
+                await addReviewLogs(reviewLogsToAdd);
             }
         }
     };

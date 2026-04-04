@@ -233,6 +233,22 @@ export const cloudApi = {
         return { updated: res.updated, inserted: res.inserted };
     },
 
+    async addReviewLog(log: Omit<ReviewLog, 'id'>): Promise<number> {
+        const res = await fetchApi<{ id: number }>('/api/reviewSchedules?action=logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(log),
+        });
+        return res.id;
+    },
+
+    async addReviewLogs(logs: Omit<ReviewLog, 'id'>[]): Promise<number[]> {
+        if (logs.length === 0) {
+            return [];
+        }
+        return Promise.all(logs.map((log) => this.addReviewLog(log)));
+    },
+
     async getReviewLogsByQuizSet(quizSetId: number, options?: { latestByQuestion?: boolean }): Promise<ReviewLog[]> {
         const params = new URLSearchParams({ quizSetId: quizSetId.toString(), action: 'logs' });
         if (options?.latestByQuestion) {

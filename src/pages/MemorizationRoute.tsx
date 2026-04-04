@@ -10,7 +10,7 @@ import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
-import { getQuestionsForQuizSet, addHistory, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
+import { getQuestionsForQuizSet, addHistory, addReviewLogs, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
 import type {
     DailyStudyStats,
     Question,
@@ -19,6 +19,7 @@ import type {
     FeedbackTimingMode,
     ReviewSchedule,
     MemorizationLog,
+    ReviewLog,
     SuspendedSession,
 } from '../types';
 import {
@@ -293,39 +294,57 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         };
     };
 
-    const buildMemorizationReviewScheduleUpdates = async (
+    const buildMemorizationReviewArtifacts = async (
         questionIds: number[],
-        targetLogs: MemorizationLog[]
-    ): Promise<(Omit<ReviewSchedule, 'id'> & { id?: number })[]> => {
+        targetLogs: MemorizationLog[],
+        reviewedAt: string
+    ): Promise<{
+        schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[];
+        logs: Omit<ReviewLog, 'id'>[];
+    }> => {
         if (activeQuizSet?.id === undefined || questionIds.length === 0) {
-            return [];
+            return { schedules: [], logs: [] };
         }
 
         const existingSchedules = await getReviewSchedulesForQuizSet(activeQuizSet.id);
         const consecutiveByQuestionId = new Map(existingSchedules.map(s => [s.questionId, s.consecutiveCorrect]));
         const reviewIntervalSettings = loadReviewIntervalSettings();
         const logByQuestionId = new Map(targetLogs.map((log) => [log.questionId, log]));
+        const reviewedAtDate = new Date(reviewedAt);
+        const schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[] = [];
+        const logs: Omit<ReviewLog, 'id'>[] = [];
 
-        return questionIds.flatMap((questionId) => {
+        questionIds.forEach((questionId) => {
             const log = logByQuestionId.get(questionId);
             if (!log) {
-                return [];
+                return;
             }
 
             const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
             const intervalDays = calculateNextInterval(log.isMemorized, 'high', currentConsecutive, reviewIntervalSettings);
-            const nextDue = calculateNextDue(intervalDays);
+            const nextDue = calculateNextDue(intervalDays, reviewedAtDate);
             const consecutiveCorrect = updateConsecutiveCorrect(log.isMemorized, currentConsecutive);
 
-            return [{
+            schedules.push({
                 questionId,
                 quizSetId: activeQuizSet.id!,
                 intervalDays,
                 nextDue,
-                lastReviewedAt: new Date().toISOString(),
+                lastReviewedAt: reviewedAt,
                 consecutiveCorrect,
-            }];
+            });
+            logs.push({
+                questionId,
+                quizSetId: activeQuizSet.id!,
+                reviewedAt,
+                isCorrect: log.isMemorized,
+                confidence: log.isMemorized ? 'high' : 'low',
+                intervalDays,
+                nextDue,
+            });
         });
+
+        return { schedules, logs };
     };
 
     const saveMemorizationSession = async ({
@@ -386,12 +405,15 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             const persistedSet = new Set(persistedCompletedQuestionIdsRef.current);
             const newCompletedQuestionIds = (session.completedQuestionIds || []).filter((questionId) => !persistedSet.has(questionId));
             if (newCompletedQuestionIds.length > 0) {
-                const schedulesToUpdate = await buildMemorizationReviewScheduleUpdates(
+                const reviewedAt = new Date().toISOString();
+                const { schedules: schedulesToUpdate, logs: reviewLogsToAdd } = await buildMemorizationReviewArtifacts(
                     newCompletedQuestionIds,
-                    targetMemorizationLogs
+                    targetMemorizationLogs,
+                    reviewedAt
                 );
                 if (schedulesToUpdate.length > 0) {
                     await upsertReviewSchedulesBulk(schedulesToUpdate);
+                    await addReviewLogs(reviewLogsToAdd);
                     persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(
                         persistedCompletedQuestionIdsRef.current,
                         schedulesToUpdate.map((schedule) => schedule.questionId)
@@ -1143,14 +1165,17 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             await addHistory(history);
 
             if (activeQuizSet?.id !== undefined && finalLogs.length > 0) {
-                const schedulesToUpdate = await buildMemorizationReviewScheduleUpdates(
+                const reviewedAt = endTime.toISOString();
+                const { schedules: schedulesToUpdate, logs: reviewLogsToAdd } = await buildMemorizationReviewArtifacts(
                     finalLogs
                         .map((log) => log.questionId)
                         .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId)),
-                    finalLogs
+                    finalLogs,
+                    reviewedAt
                 );
 
                 await upsertReviewSchedulesBulk(schedulesToUpdate);
+                await addReviewLogs(reviewLogsToAdd);
             }
         } catch (e) {
             console.error('Failed to save history', e);

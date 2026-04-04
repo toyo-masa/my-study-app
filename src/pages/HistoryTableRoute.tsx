@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Table2, X } from 'lucide-react';
-import { getHistories, getQuestionsForQuizSet } from '../db';
-import type { Question, QuizHistory } from '../types';
+import { getHistories, getQuestionsForQuizSet, getReviewLogsByQuizSet } from '../db';
+import type { Question, QuizHistory, ReviewLog } from '../types';
 import { LoadingView } from '../components/LoadingView';
 import { NotFoundView } from '../components/NotFoundView';
 import { MarkdownText } from '../components/MarkdownText';
@@ -16,10 +16,77 @@ type SelectedQuestionState = {
     questionNumber: number;
 };
 
+type AttemptColumn = {
+    key: string;
+    date: Date;
+    dateLabel: string;
+    statusMap: Map<number, CellStatus>;
+};
+
 function formatMonthDay(date: Date): string {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${month}/${day}`;
+}
+
+function buildHistoryStatusMap(history: QuizHistory, questions: Question[]): Map<number, CellStatus> {
+    const statusMap = new Map<number, CellStatus>();
+
+    if (history.memorizationDetail && history.memorizationDetail.length > 0) {
+        history.memorizationDetail.forEach((detail) => {
+            statusMap.set(detail.questionId, detail.isMemorized ? 'correct' : 'incorrect');
+        });
+        return statusMap;
+    }
+
+    const answers = history.answers || {};
+    const targetQuestionIds = history.questionIds && history.questionIds.length > 0
+        ? new Set(history.questionIds)
+        : null;
+
+    questions.forEach((question) => {
+        if (question.id === undefined) return;
+
+        const questionId = question.id;
+        const hasAnswer = Object.prototype.hasOwnProperty.call(answers, String(questionId));
+        const isIncluded = targetQuestionIds ? targetQuestionIds.has(questionId) : hasAnswer;
+
+        if (!isIncluded) return;
+
+        const rawUserAnswers = answers[String(questionId)];
+        const userAnswers = Array.isArray(rawUserAnswers) ? rawUserAnswers : [];
+        const isCorrect = userAnswers.length === question.correctAnswers.length &&
+            userAnswers.every((answer) => question.correctAnswers.includes(answer));
+
+        statusMap.set(questionId, isCorrect ? 'correct' : 'incorrect');
+    });
+
+    return statusMap;
+}
+
+function buildReviewLogAttemptColumns(reviewLogs: ReviewLog[]): AttemptColumn[] {
+    const grouped = new Map<string, AttemptColumn>();
+    const sortedLogs = [...reviewLogs].sort((a, b) => a.reviewedAt.localeCompare(b.reviewedAt));
+
+    for (const log of sortedLogs) {
+        const key = log.reviewedAt;
+        const current = grouped.get(key);
+        const status: CellStatus = log.isCorrect ? 'correct' : 'incorrect';
+        if (current) {
+            current.statusMap.set(log.questionId, status);
+            continue;
+        }
+
+        const date = new Date(log.reviewedAt);
+        grouped.set(key, {
+            key: `review-log-${key}`,
+            date,
+            dateLabel: formatMonthDay(date),
+            statusMap: new Map([[log.questionId, status]]),
+        });
+    }
+
+    return [...grouped.values()];
 }
 
 export const HistoryTableRoute: React.FC = () => {
@@ -28,6 +95,7 @@ export const HistoryTableRoute: React.FC = () => {
     const { quizSetId, activeQuizSet, quizSetsCount } = useActiveQuizSetFromRoute();
     const [questions, setQuestions] = useState<Question[]>([]);
     const [histories, setHistories] = useState<QuizHistory[]>([]);
+    const [reviewLogs, setReviewLogs] = useState<ReviewLog[]>([]);
     const [isLoadingQuizSet, setIsLoadingQuizSet] = useState(() => quizSetsCount === 0);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
@@ -55,19 +123,22 @@ export const HistoryTableRoute: React.FC = () => {
         setErrorMessage('');
 
         try {
-            const [loadedQuestions, loadedHistories] = await Promise.all([
+            const [loadedQuestions, loadedHistories, loadedReviewLogs] = await Promise.all([
                 getQuestionsForQuizSet(quizSetId),
                 getHistories(quizSetId),
+                getReviewLogsByQuizSet(quizSetId),
             ]);
 
             setQuestions(loadedQuestions);
             setHistories(loadedHistories);
+            setReviewLogs(loadedReviewLogs);
         } catch (error) {
             console.error('回答履歴テーブルの読み込みに失敗しました:', error);
             handleCloudError(error, '回答履歴の読み込みに失敗しました。', { suppressGlobalNotice: true });
             setErrorMessage('回答履歴の読み込みに失敗しました。時間をおいて再試行してください。');
             setQuestions([]);
             setHistories([]);
+            setReviewLogs([]);
         } finally {
             setIsLoadingData(false);
         }
@@ -104,56 +175,39 @@ export const HistoryTableRoute: React.FC = () => {
         return [...histories].sort((a, b) => a.date.getTime() - b.date.getTime());
     }, [histories]);
 
-    const historyColumns = useMemo(() => {
-        return sortedHistories.map((history, index) => ({
-            history,
-            attemptNumber: index + 1,
-            dateLabel: formatMonthDay(history.date),
-        }));
-    }, [sortedHistories]);
+    const attemptColumns = useMemo(() => {
+        const hasReviewLogs = reviewLogs.length > 0;
+        const historyAttemptColumns: AttemptColumn[] = sortedHistories
+            .filter((history) => !hasReviewLogs || history.mode !== 'review_due')
+            .map((history) => ({
+                key: `history-${history.id ?? history.date.toISOString()}`,
+                date: history.date,
+                dateLabel: formatMonthDay(history.date),
+                statusMap: buildHistoryStatusMap(history, sortedQuestions),
+            }));
+        const reviewLogAttemptColumns = hasReviewLogs
+            ? buildReviewLogAttemptColumns(reviewLogs)
+            : [];
 
-    const historyStatusMaps = useMemo(() => {
-        return historyColumns.map(({ history }) => {
-            const statusMap = new Map<number, CellStatus>();
-
-            if (history.memorizationDetail && history.memorizationDetail.length > 0) {
-                history.memorizationDetail.forEach((detail) => {
-                    statusMap.set(detail.questionId, detail.isMemorized ? 'correct' : 'incorrect');
-                });
-                return statusMap;
-            }
-
-            const answers = history.answers || {};
-            const targetQuestionIds = history.questionIds && history.questionIds.length > 0
-                ? new Set(history.questionIds)
-                : null;
-
-            sortedQuestions.forEach((question) => {
-                if (question.id === undefined) return;
-
-                const questionId = question.id;
-                const hasAnswer = Object.prototype.hasOwnProperty.call(answers, String(questionId));
-                const isIncluded = targetQuestionIds ? targetQuestionIds.has(questionId) : hasAnswer;
-
-                if (!isIncluded) return;
-
-                const rawUserAnswers = answers[String(questionId)];
-                const userAnswers = Array.isArray(rawUserAnswers) ? rawUserAnswers : [];
-                const isCorrect = userAnswers.length === question.correctAnswers.length &&
-                    userAnswers.every((answer) => question.correctAnswers.includes(answer));
-
-                statusMap.set(questionId, isCorrect ? 'correct' : 'incorrect');
-            });
-
-            return statusMap;
-        });
-    }, [historyColumns, sortedQuestions]);
+        return [...historyAttemptColumns, ...reviewLogAttemptColumns]
+            .sort((a, b) => {
+                const timeDiff = a.date.getTime() - b.date.getTime();
+                if (timeDiff !== 0) {
+                    return timeDiff;
+                }
+                return a.key.localeCompare(b.key);
+            })
+            .map((column, index) => ({
+                ...column,
+                attemptNumber: index + 1,
+            }));
+    }, [reviewLogs, sortedHistories, sortedQuestions]);
 
     const historyAttemptSummaries = useMemo(() => {
-        return historyStatusMaps.map((statusMap) => {
+        return attemptColumns.map((column) => {
             let correctCount = 0;
             let incorrectCount = 0;
-            statusMap.forEach((status) => {
+            column.statusMap.forEach((status) => {
                 if (status === 'correct') {
                     correctCount += 1;
                 } else {
@@ -162,7 +216,7 @@ export const HistoryTableRoute: React.FC = () => {
             });
             return { correctCount, incorrectCount };
         });
-    }, [historyStatusMaps]);
+    }, [attemptColumns]);
 
     if (isLoadingQuizSet || isLoadingData) {
         return <LoadingView fullPage message="回答履歴を読み込み中..." />;
@@ -198,7 +252,7 @@ export const HistoryTableRoute: React.FC = () => {
                         <RefreshCw size={16} /> 再読み込み
                     </button>
                 </div>
-            ) : historyColumns.length === 0 ? (
+            ) : attemptColumns.length === 0 ? (
                 <div className="empty-history">
                     <p>まだ履歴がありません</p>
                 </div>
@@ -210,7 +264,7 @@ export const HistoryTableRoute: React.FC = () => {
                 <>
                     <div className="history-table-meta">
                         <span>問題数: {sortedQuestions.length}</span>
-                        <span>回答履歴: {historyColumns.length}回</span>
+                        <span>回答履歴: {attemptColumns.length}回</span>
                         <span>セル色: 緑=正解 / 赤=不正解</span>
                     </div>
                     <div className="table-wrapper history-table-wrapper">
@@ -219,7 +273,7 @@ export const HistoryTableRoute: React.FC = () => {
                                 <tr>
                                     <th>番号</th>
                                     <th>問題文</th>
-                                    {historyColumns.map((column) => (
+                                    {attemptColumns.map((column) => (
                                         <th key={`attempt-${column.attemptNumber}`} className="history-attempt-header">{column.attemptNumber}回目</th>
                                     ))}
                                 </tr>
@@ -243,9 +297,9 @@ export const HistoryTableRoute: React.FC = () => {
                                         <td className="history-question-text">
                                             <MarkdownText content={question.text} className="table-markdown" />
                                         </td>
-                                        {historyColumns.map((column, columnIndex) => {
+                                        {attemptColumns.map((column) => {
                                             const status = question.id !== undefined
-                                                ? historyStatusMaps[columnIndex].get(question.id)
+                                                ? column.statusMap.get(question.id)
                                                 : undefined;
                                             const statusClass = status === 'correct'
                                                 ? 'is-correct'

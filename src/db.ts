@@ -199,9 +199,28 @@ export async function addHistory(history: Omit<QuizHistory, 'id'>): Promise<numb
     return await db.histories.add(history as QuizHistory) as number;
 }
 
+export async function addReviewLogs(logs: Omit<ReviewLog, 'id'>[]): Promise<number[]> {
+    if (logs.length === 0) {
+        return [];
+    }
+
+    if (isCloudSyncEnabled()) {
+        return cloudApi.addReviewLogs(logs);
+    }
+
+    return await db.reviewLogs.bulkAdd(logs as ReviewLog[], { allKeys: true }) as number[];
+}
+
 export async function getHistories(quizSetId: number): Promise<QuizHistory[]> {
     if (isCloudSyncEnabled()) return cloudApi.getHistories(quizSetId);
     return db.histories.where('quizSetId').equals(quizSetId).reverse().sortBy('date');
+}
+
+export async function getReviewLogsByQuizSet(quizSetId: number): Promise<ReviewLog[]> {
+    if (isCloudSyncEnabled()) {
+        return cloudApi.getReviewLogsByQuizSet(quizSetId);
+    }
+    return db.reviewLogs.where('quizSetId').equals(quizSetId).reverse().sortBy('reviewedAt');
 }
 
 function toLocalDateString(date: Date): string {
