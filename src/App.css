@@ -5878,6 +5878,7 @@ button.appearance-option.active {
   align-items: flex-start;
   gap: 1rem;
   margin-bottom: 1rem;
+  position: relative;
 }
 
 .question-header-main {
@@ -5899,11 +5900,12 @@ button.appearance-option.active {
 }
 
 .question-elapsed-time-top {
-  margin-left: auto;
-  flex-shrink: 0;
+  position: absolute;
+  top: 0.25rem;
+  right: 0;
   white-space: nowrap;
   text-align: right;
-  padding-top: 0.25rem;
+  z-index: 1;
 }
 
 .bookmark-btn {
