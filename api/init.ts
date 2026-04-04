@@ -95,6 +95,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
         mode VARCHAR(50),
         feedback_mode VARCHAR(30),
         memorization_detail JSONB,
+        daily_study_stats JSONB,
         user_id INTEGER REFERENCES users(id)
       );
     `;
@@ -165,6 +166,7 @@ export default async function handler(req: ApiHandlerRequest, res: ApiHandlerRes
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS feedback_mode VARCHAR(30)`;
     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS memorization_detail JSONB`;
+    await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS daily_study_stats JSONB`;
     await sql`ALTER TABLE review_schedules ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE review_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)`;
     await sql`ALTER TABLE suspended_sessions ADD COLUMN IF NOT EXISTS session_key VARCHAR(50) DEFAULT 'default'`;

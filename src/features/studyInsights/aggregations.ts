@@ -1,4 +1,5 @@
-import type { QuizHistory, QuizSetType, QuizSetWithMeta, ReviewSchedule } from '../../types';
+import type { QuizHistory, QuizSetType, QuizSetWithMeta, ReviewSchedule, SuspendedSession } from '../../types';
+import { normalizeDailyStudyStats } from '../../utils/dailyStudyStats';
 
 export interface StudyInsightsSummary {
     todayAnswers: number;
@@ -109,6 +110,19 @@ type SetAggregate = {
     overdueReviewCount: number;
 };
 
+type DailyTotalsEntry = {
+    date: Date;
+    dateKey: string;
+    totalCount: number;
+    correctCount: number;
+};
+
+type RecentSessionEntry = {
+    history: QuizHistory;
+    totalCount: number;
+    correctCount: number;
+};
+
 const HEATMAP_INTENSITY_LEVELS = 4;
 
 function toSafeDate(input: Date): Date {
@@ -205,10 +219,34 @@ function getHeatmapIntensity(count: number, maxCount: number): number {
     return Math.max(1, Math.ceil((count / maxCount) * HEATMAP_INTENSITY_LEVELS));
 }
 
+function getDailyTotalsEntries(rawDailyStudyStats: QuizHistory['dailyStudyStats'] | SuspendedSession['dailyStudyStats']): DailyTotalsEntry[] {
+    const normalizedDailyStudyStats = normalizeDailyStudyStats(rawDailyStudyStats);
+
+    return Object.entries(normalizedDailyStudyStats)
+        .flatMap(([dateKey, entry]) => {
+            const date = parseLocalDate(dateKey);
+            if (!date) {
+                return [];
+            }
+
+            const totalCount = entry.answeredQuestionIds.length;
+            const correctCount = Math.min(totalCount, entry.correctQuestionIds.length);
+
+            return [{
+                date,
+                dateKey: toLocalDateString(date),
+                totalCount,
+                correctCount,
+            }];
+        })
+        .sort((left, right) => left.date.getTime() - right.date.getTime());
+}
+
 export function buildStudyInsightsData(params: {
     quizSets: QuizSetWithMeta[];
     historiesBySetId: Record<number, QuizHistory[]>;
     reviewSchedules: ReviewSchedule[];
+    suspendedSessions?: SuspendedSession[];
     today?: Date;
 }): StudyInsightsData {
     const todayDate = params.today ? toSafeDate(params.today) : new Date();
@@ -222,13 +260,59 @@ export function buildStudyInsightsData(params: {
     const monthlyTotals = new Map<string, HistoryTotals>();
     const setAggregates = buildHistorySet(params.quizSets);
     const quizSetNameById = new Map<number, string>();
-    const allHistories: QuizHistory[] = [];
+    const allHistories: RecentSessionEntry[] = [];
 
     let todayAnswers = 0;
     let weekAnswers = 0;
     let monthAnswers = 0;
     let totalAnswers = 0;
     let totalCorrect = 0;
+
+    const accumulateStudyTotals = (quizSetId: number, date: Date, correctCount: number, totalCount: number) => {
+        const safeTotalCount = normalizeCount(totalCount);
+        const safeCorrectCount = Math.min(safeTotalCount, normalizeCount(correctCount));
+        const dayKey = toLocalDateString(date);
+        const weekKey = toLocalDateString(startOfWeekMonday(date));
+        const monthKey = toLocalDateString(startOfMonth(date));
+
+        accumulateTotals(dailyTotals, dayKey, safeCorrectCount, safeTotalCount);
+        accumulateTotals(weeklyTotals, weekKey, safeCorrectCount, safeTotalCount);
+        accumulateTotals(monthlyTotals, monthKey, safeCorrectCount, safeTotalCount);
+
+        if (dayKey === todayKey) {
+            todayAnswers += safeTotalCount;
+        }
+        if (dayKey >= weekStartKey && dayKey <= todayKey) {
+            weekAnswers += safeTotalCount;
+        }
+        if (dayKey >= monthStartKey && dayKey <= todayKey) {
+            monthAnswers += safeTotalCount;
+        }
+
+        totalAnswers += safeTotalCount;
+        totalCorrect += safeCorrectCount;
+
+        const currentSet = setAggregates.get(quizSetId);
+        if (currentSet) {
+            currentSet.totalAnswers += safeTotalCount;
+            currentSet.totalCorrect += safeCorrectCount;
+        }
+    };
+
+    const updateSetLastStudiedAt = (quizSetId: number, studiedAt: Date | null) => {
+        if (!studiedAt || Number.isNaN(studiedAt.getTime())) {
+            return;
+        }
+
+        const currentSet = setAggregates.get(quizSetId);
+        if (!currentSet) {
+            return;
+        }
+
+        if (!currentSet.lastStudiedAt || studiedAt.getTime() > currentSet.lastStudiedAt.getTime()) {
+            currentSet.lastStudiedAt = studiedAt;
+        }
+    };
 
     for (const quizSet of params.quizSets) {
         if (quizSet.id === undefined) continue;
@@ -237,43 +321,64 @@ export function buildStudyInsightsData(params: {
 
         for (const history of histories) {
             const historyDate = new Date(history.date);
-            if (Number.isNaN(historyDate.getTime())) continue;
+            const hasValidHistoryDate = !Number.isNaN(historyDate.getTime());
+            const dailyEntries = getDailyTotalsEntries(history.dailyStudyStats);
+            const hasDailyBreakdown = history.dailyStudyStats !== undefined;
 
-            const totalCount = normalizeCount(history.totalCount);
-            const correctCount = Math.min(totalCount, normalizeCount(history.correctCount));
-            const dayKey = toLocalDateString(historyDate);
-            const weekKey = toLocalDateString(startOfWeekMonday(historyDate));
-            const monthKey = toLocalDateString(startOfMonth(historyDate));
-
-            accumulateTotals(dailyTotals, dayKey, correctCount, totalCount);
-            accumulateTotals(weeklyTotals, weekKey, correctCount, totalCount);
-            accumulateTotals(monthlyTotals, monthKey, correctCount, totalCount);
-
-            if (dayKey === todayKey) {
-                todayAnswers += totalCount;
-            }
-            if (dayKey >= weekStartKey && dayKey <= todayKey) {
-                weekAnswers += totalCount;
-            }
-            if (dayKey >= monthStartKey && dayKey <= todayKey) {
-                monthAnswers += totalCount;
+            if (hasDailyBreakdown) {
+                dailyEntries.forEach((entry) => {
+                    accumulateStudyTotals(history.quizSetId, entry.date, entry.correctCount, entry.totalCount);
+                });
+            } else if (hasValidHistoryDate) {
+                accumulateStudyTotals(history.quizSetId, historyDate, history.correctCount, history.totalCount);
             }
 
-            totalAnswers += totalCount;
-            totalCorrect += correctCount;
+            const latestBreakdownDate = dailyEntries.length > 0 ? dailyEntries[dailyEntries.length - 1].date : null;
+            updateSetLastStudiedAt(
+                history.quizSetId,
+                hasValidHistoryDate ? historyDate : latestBreakdownDate
+            );
 
-            const currentSet = setAggregates.get(history.quizSetId);
-            if (currentSet) {
-                currentSet.totalAnswers += totalCount;
-                currentSet.totalCorrect += correctCount;
-                if (!currentSet.lastStudiedAt || historyDate.getTime() > currentSet.lastStudiedAt.getTime()) {
-                    currentSet.lastStudiedAt = historyDate;
-                }
+            const historyTotalCount = hasDailyBreakdown
+                ? dailyEntries.reduce((sum, entry) => sum + entry.totalCount, 0)
+                : normalizeCount(history.totalCount);
+            const historyCorrectCount = hasDailyBreakdown
+                ? dailyEntries.reduce((sum, entry) => sum + entry.correctCount, 0)
+                : Math.min(historyTotalCount, normalizeCount(history.correctCount));
+
+            if (hasValidHistoryDate) {
+                allHistories.push({
+                    history,
+                    totalCount: historyTotalCount,
+                    correctCount: historyCorrectCount,
+                });
             }
-
-            allHistories.push(history);
         }
     }
+
+    (params.suspendedSessions || []).forEach((session) => {
+        const quizSetId = session.questions.find((question) => question.quizSetId !== undefined)?.quizSetId;
+        if (typeof quizSetId !== 'number' || !Number.isInteger(quizSetId) || quizSetId <= 0) {
+            return;
+        }
+        const safeQuizSetId = quizSetId;
+
+        const dailyEntries = getDailyTotalsEntries(session.dailyStudyStats);
+        if (dailyEntries.length === 0) {
+            return;
+        }
+        dailyEntries.forEach((entry) => {
+            accumulateStudyTotals(safeQuizSetId, entry.date, entry.correctCount, entry.totalCount);
+        });
+
+        const latestBreakdownDate = dailyEntries.length > 0 ? dailyEntries[dailyEntries.length - 1].date : null;
+        updateSetLastStudiedAt(
+            safeQuizSetId,
+            session.updatedAt && !Number.isNaN(session.updatedAt.getTime())
+                ? session.updatedAt
+                : latestBreakdownDate
+        );
+    });
 
     let dueReviewCount = 0;
     let overdueReviewCount = 0;
@@ -377,13 +482,14 @@ export function buildStudyInsightsData(params: {
     }
 
     const recentSessions = [...allHistories]
-        .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime())
+        .sort((left, right) => new Date(right.history.date).getTime() - new Date(left.history.date).getTime())
         .slice(0, 10)
         .reverse()
-        .map((history): RecentSessionRatePoint => {
-            const totalCount = normalizeCount(history.totalCount);
-            const correctCount = Math.min(totalCount, normalizeCount(history.correctCount));
+        .map((entry): RecentSessionRatePoint => {
+            const totalCount = normalizeCount(entry.totalCount);
+            const correctCount = Math.min(totalCount, normalizeCount(entry.correctCount));
             const value = normalizeRate(correctCount, totalCount);
+            const history = entry.history;
             const historyDate = new Date(history.date);
             const dateLabel = historyDate.toLocaleString('ja-JP', {
                 month: 'numeric',

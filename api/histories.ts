@@ -16,6 +16,7 @@ type HistoryBody = {
     mode?: string;
     feedbackTimingMode?: string;
     memorizationDetail?: unknown;
+    dailyStudyStats?: unknown;
 };
 
 export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: ApiHandlerResponse) {
@@ -59,7 +60,8 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                 questionIds: h.question_ids,
                 mode: h.mode,
                 feedbackTimingMode: h.feedback_mode,
-                memorizationDetail: h.memorization_detail
+                memorizationDetail: h.memorization_detail,
+                dailyStudyStats: h.daily_study_stats,
             }));
             return res.status(200).json(histories);
         } else {
@@ -86,7 +88,7 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                 const insertHistory = async () => sql`
                     INSERT INTO histories (
                         quiz_set_id, date, correct_count, total_count, duration_seconds,
-                        answers, marked_question_ids, memos, confidences, question_ids, mode, feedback_mode, memorization_detail, user_id
+                        answers, marked_question_ids, memos, confidences, question_ids, mode, feedback_mode, memorization_detail, daily_study_stats, user_id
                     ) VALUES (
                         ${targetQuizSetId},
                         ${dateStr},
@@ -101,6 +103,7 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                         ${h.mode || 'normal'},
                         ${h.feedbackTimingMode || 'immediate'},
                         ${JSON.stringify(h.memorizationDetail || [])}::jsonb,
+                        ${JSON.stringify(h.dailyStudyStats || {})}::jsonb,
                         ${userId}
                     )
                     RETURNING id
@@ -118,7 +121,8 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                         : '';
                     const isMissingHistoryColumn = errorCode === '42703' && (
                         errorMessage.includes('feedback_mode') ||
-                        errorMessage.includes('memorization_detail')
+                        errorMessage.includes('memorization_detail') ||
+                        errorMessage.includes('daily_study_stats')
                     );
 
                     if (!isMissingHistoryColumn) {
@@ -127,6 +131,7 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
 
                     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS feedback_mode VARCHAR(30)`;
                     await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS memorization_detail JSONB`;
+                    await sql`ALTER TABLE histories ADD COLUMN IF NOT EXISTS daily_study_stats JSONB`;
                     result = await insertHistory();
                 }
 

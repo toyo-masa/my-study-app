@@ -13,7 +13,16 @@ import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageH
 import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
 import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
-import type { Question, ConfidenceLevel, HistoryMode, QuizHistory, ReviewSchedule, FeedbackTimingMode, SuspendedSession } from '../types';
+import type {
+    Question,
+    ConfidenceLevel,
+    DailyStudyStats,
+    HistoryMode,
+    QuizHistory,
+    ReviewSchedule,
+    FeedbackTimingMode,
+    SuspendedSession,
+} from '../types';
 import {
     DEFAULT_REVIEW_BOARD_SETTINGS,
     loadQuizSetSettings,
@@ -36,6 +45,13 @@ import {
     mergeCompletedQuestionIds,
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
+import {
+    appendDailyStudyStats,
+    buildRecordedQuestionIdSet,
+    getLocalDateString,
+    type DailyStudyRecord,
+    normalizeDailyStudyStats,
+} from '../utils/dailyStudyStats';
 import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 
 interface StudyRouteProps {
@@ -54,6 +70,54 @@ const isStudyChatDrawerViewport = (): boolean => {
 
     return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(max-width: 1200px)').matches;
 };
+
+function isQuizQuestionCorrect(question: Question, userAnswers: number[]): boolean {
+    return userAnswers.length === question.correctAnswers.length && userAnswers.every((answer) => question.correctAnswers.includes(answer));
+}
+
+function collectStudyRouteDailyRecords(params: {
+    questions: Question[];
+    answers: Record<string, number[]>;
+    answeredMap: Record<string, boolean>;
+    confidences: Record<string, ConfidenceLevel>;
+    dailyStudyStats: DailyStudyStats;
+}): DailyStudyRecord[] {
+    const recordedQuestionIds = buildRecordedQuestionIdSet(params.dailyStudyStats);
+    const records: DailyStudyRecord[] = [];
+
+    params.questions.forEach((question) => {
+        if (question.id === undefined || recordedQuestionIds.has(question.id)) {
+            return;
+        }
+
+        const questionKey = String(question.id);
+        if (question.questionType === 'memorization') {
+            const confidence = params.confidences[questionKey];
+            if (!confidence) {
+                return;
+            }
+
+            recordedQuestionIds.add(question.id);
+            records.push({
+                questionId: question.id,
+                isCorrect: confidence === 'high',
+            });
+            return;
+        }
+
+        if (params.answeredMap[questionKey] !== true) {
+            return;
+        }
+
+        recordedQuestionIds.add(question.id);
+        records.push({
+            questionId: question.id,
+            isCorrect: isQuizQuestionCorrect(question, params.answers[questionKey] || []),
+        });
+    });
+
+    return records;
+}
 
 export const StudyRoute: React.FC<StudyRouteProps> = ({
     allowTouchDrawing,
@@ -115,6 +179,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     const saveDebounceRef = useRef<number | null>(null);
     const completedQuestionIdsRef = useRef<number[]>([]);
     const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
+    const dailyStudyStatsRef = useRef<DailyStudyStats>({});
     const questionByIdRef = useRef<Record<number, Question>>({});
 
     const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
@@ -166,6 +231,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         clearWindowTimeout(saveDebounceRef);
         completedQuestionIdsRef.current = [];
         persistedCompletedQuestionIdsRef.current = [];
+        dailyStudyStatsRef.current = {};
         questionByIdRef.current = {};
         setIsLoading(true);
         setQuestions([]);
@@ -344,22 +410,38 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         markedQuestions: number[];
         historyMode: HistoryMode;
     }) => {
-        let session = buildStudySessionForSave({
-            questions: targetQuestions,
-            currentQuestionIndex: targetCurrentQuestionIndex,
-            answers: targetAnswers,
-            answeredMap: targetAnsweredMap,
-            memos: targetMemos,
-            confidences: targetConfidences,
-            memorizationAnswers: targetMemorizationAnswers,
-            showAnswerMap: targetShowAnswerMap,
-            pendingRevealQuestionIds: targetPendingRevealQuestionIds,
-            feedbackPhase: targetFeedbackPhase,
-            feedbackTimingMode: targetFeedbackTimingMode,
-            feedbackBlockSize: targetFeedbackBlockSize,
-            markedQuestions: targetMarkedQuestions,
-            historyMode: targetHistoryMode,
-        });
+        const nextDailyStudyStats = appendDailyStudyStats(
+            dailyStudyStatsRef.current,
+            getLocalDateString(),
+            collectStudyRouteDailyRecords({
+                questions: targetQuestions,
+                answers: targetAnswers,
+                answeredMap: targetAnsweredMap,
+                confidences: targetConfidences,
+                dailyStudyStats: dailyStudyStatsRef.current,
+            })
+        );
+        dailyStudyStatsRef.current = nextDailyStudyStats;
+
+        let session: SuspendedSession = {
+            ...buildStudySessionForSave({
+                questions: targetQuestions,
+                currentQuestionIndex: targetCurrentQuestionIndex,
+                answers: targetAnswers,
+                answeredMap: targetAnsweredMap,
+                memos: targetMemos,
+                confidences: targetConfidences,
+                memorizationAnswers: targetMemorizationAnswers,
+                showAnswerMap: targetShowAnswerMap,
+                pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+                feedbackPhase: targetFeedbackPhase,
+                feedbackTimingMode: targetFeedbackTimingMode,
+                feedbackBlockSize: targetFeedbackBlockSize,
+                markedQuestions: targetMarkedQuestions,
+                historyMode: targetHistoryMode,
+            }),
+            dailyStudyStats: nextDailyStudyStats,
+        };
 
         if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
             const persistedSet = new Set(persistedCompletedQuestionIdsRef.current);
@@ -483,6 +565,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
                     completedQuestionIdsRef.current = getCompletedQuestionIdsFromSuspendedSession(session);
                     persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(session.persistedCompletedQuestionIds);
+                    dailyStudyStatsRef.current = normalizeDailyStudyStats(session.dailyStudyStats);
                     const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
                     setQuestions(filteredQuestions);
                     setCurrentQuestionIndex(Math.max(0, nextIndex));
@@ -655,6 +738,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             }
             completedQuestionIdsRef.current = [];
             persistedCompletedQuestionIdsRef.current = [];
+            dailyStudyStatsRef.current = {};
             // All state updates together
             setQuestions(studyQuestions);
             setCurrentQuestionIndex(0);
@@ -873,12 +957,23 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         if (activeQuizSet?.id !== undefined) {
             const persistedCompletedQuestionIdSet = new Set(persistedCompletedQuestionIdsRef.current);
+            const effectiveConfidences = overrideConfidences ?? confidences;
+            const nextDailyStudyStats = appendDailyStudyStats(
+                dailyStudyStatsRef.current,
+                getLocalDateString(end),
+                collectStudyRouteDailyRecords({
+                    questions,
+                    answers,
+                    answeredMap,
+                    confidences: effectiveConfidences,
+                    dailyStudyStats: dailyStudyStatsRef.current,
+                })
+            );
+            dailyStudyStatsRef.current = nextDailyStudyStats;
             await clearSessionFromStorage(activeQuizSet.id, sessionSlotKey);
             completedQuestionIdsRef.current = [];
             persistedCompletedQuestionIdsRef.current = [];
-
-            // overrideConfidences: 暗記問題の最後判定直後は state が未反映のため引数で渡す
-            const effectiveConfidences = overrideConfidences ?? confidences;
+            dailyStudyStatsRef.current = {};
 
             let correctCount = 0;
             questions.forEach(q => {
@@ -887,7 +982,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 const conf = effectiveConfidences[qKey] || 'high';
                 const isCorrect = q.questionType === 'memorization'
                     ? conf === 'high'
-                    : (userAnswers.length === q.correctAnswers.length && userAnswers.every(a => q.correctAnswers.includes(a)));
+                    : isQuizQuestionCorrect(q, userAnswers);
                 if (isCorrect) correctCount++;
             });
 
@@ -906,6 +1001,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 questionIds: questions.map(q => q.id!),
                 mode: historyMode,
                 feedbackTimingMode,
+                dailyStudyStats: nextDailyStudyStats,
             };
 
             await addHistory(historyData);

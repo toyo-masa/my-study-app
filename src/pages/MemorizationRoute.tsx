@@ -12,6 +12,7 @@ import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageH
 import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
 import type {
+    DailyStudyStats,
     Question,
     QuizHistory,
     HistoryMode,
@@ -43,6 +44,13 @@ import {
     mergeCompletedQuestionIds,
     REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY,
 } from '../utils/quizSession';
+import {
+    appendDailyStudyStats,
+    buildRecordedQuestionIdSet,
+    getLocalDateString,
+    type DailyStudyRecord,
+    normalizeDailyStudyStats,
+} from '../utils/dailyStudyStats';
 import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 
 interface MemorizationRouteProps {
@@ -61,6 +69,28 @@ const isStudyChatDrawerViewport = (): boolean => {
 
     return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(max-width: 1200px)').matches;
 };
+
+function collectMemorizationDailyRecords(
+    memorizationLogs: MemorizationLog[],
+    dailyStudyStats: DailyStudyStats
+): DailyStudyRecord[] {
+    const recordedQuestionIds = buildRecordedQuestionIdSet(dailyStudyStats);
+    const records: DailyStudyRecord[] = [];
+
+    memorizationLogs.forEach((log) => {
+        if (recordedQuestionIds.has(log.questionId)) {
+            return;
+        }
+
+        recordedQuestionIds.add(log.questionId);
+        records.push({
+            questionId: log.questionId,
+            isCorrect: log.isMemorized,
+        });
+    });
+
+    return records;
+}
 
 export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
     allowTouchDrawing,
@@ -118,6 +148,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
     const saveDebounceRef = useRef<number | null>(null);
     const completedQuestionIdsRef = useRef<number[]>([]);
     const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
+    const dailyStudyStatsRef = useRef<DailyStudyStats>({});
 
     const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
         return resolveReviewBoardFeedbackBlockSize(questionCount, {
@@ -189,6 +220,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         clearWindowTimeout(saveDebounceRef);
         completedQuestionIdsRef.current = [];
         persistedCompletedQuestionIdsRef.current = [];
+        dailyStudyStatsRef.current = {};
     }, [sessionKey]);
 
     useEffect(() => {
@@ -325,20 +357,30 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         memorizationLogs: MemorizationLog[];
         memorizationInputsMap: Record<string, string[]>;
     }) => {
-        let session = buildMemorizationSessionForSave({
-            questions: targetQuestions,
-            currentQuestionIndex: targetCurrentQuestionIndex,
-            answeredMap: targetAnsweredMap,
-            showAnswerMap: targetShowAnswerMap,
-            pendingRevealQuestionIds: targetPendingRevealQuestionIds,
-            feedbackPhase: targetFeedbackPhase,
-            feedbackTimingMode: targetFeedbackTimingMode,
-            feedbackBlockSize: targetFeedbackBlockSize,
-            markedQuestions: targetMarkedQuestions,
-            historyMode: targetHistoryMode,
-            memorizationLogs: targetMemorizationLogs,
-            memorizationInputsMap: targetMemorizationInputsMap,
-        });
+        const nextDailyStudyStats = appendDailyStudyStats(
+            dailyStudyStatsRef.current,
+            getLocalDateString(),
+            collectMemorizationDailyRecords(targetMemorizationLogs, dailyStudyStatsRef.current)
+        );
+        dailyStudyStatsRef.current = nextDailyStudyStats;
+
+        let session: SuspendedSession = {
+            ...buildMemorizationSessionForSave({
+                questions: targetQuestions,
+                currentQuestionIndex: targetCurrentQuestionIndex,
+                answeredMap: targetAnsweredMap,
+                showAnswerMap: targetShowAnswerMap,
+                pendingRevealQuestionIds: targetPendingRevealQuestionIds,
+                feedbackPhase: targetFeedbackPhase,
+                feedbackTimingMode: targetFeedbackTimingMode,
+                feedbackBlockSize: targetFeedbackBlockSize,
+                markedQuestions: targetMarkedQuestions,
+                historyMode: targetHistoryMode,
+                memorizationLogs: targetMemorizationLogs,
+                memorizationInputsMap: targetMemorizationInputsMap,
+            }),
+            dailyStudyStats: nextDailyStudyStats,
+        };
 
         if (sessionSlotKey === REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY) {
             const persistedSet = new Set(persistedCompletedQuestionIdsRef.current);
@@ -458,6 +500,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         }
         completedQuestionIdsRef.current = [];
         persistedCompletedQuestionIdsRef.current = [];
+        dailyStudyStatsRef.current = {};
         setQuestions(studyQuestions);
         setMemorizationLogs([]);
         setMemorizationInputsMap({});
@@ -502,6 +545,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
                     completedQuestionIdsRef.current = getCompletedQuestionIdsFromSuspendedSession(session);
                     persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(session.persistedCompletedQuestionIds);
+                    dailyStudyStatsRef.current = normalizeDailyStudyStats(session.dailyStudyStats);
                     const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
                     setQuestions(filteredQuestions);
                     setMemorizationLogs(session.memorizationLogs || []);
@@ -1065,12 +1109,18 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         const persistedCompletedQuestionIdSet = new Set(persistedCompletedQuestionIdsRef.current);
 
         const endTime = new Date();
+        const nextDailyStudyStats = appendDailyStudyStats(
+            dailyStudyStatsRef.current,
+            getLocalDateString(endTime),
+            collectMemorizationDailyRecords(finalLogs, dailyStudyStatsRef.current)
+        );
+        dailyStudyStatsRef.current = nextDailyStudyStats;
         const durationSeconds = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000);
         const memorizedCount = finalLogs.filter(l => l.isMemorized).length;
 
         const history: Omit<QuizHistory, 'id'> = {
             quizSetId: activeQuizSet!.id!,
-            date: new Date(),
+            date: endTime,
             totalCount: questions.length,
             correctCount: memorizedCount,
             durationSeconds,
@@ -1079,12 +1129,14 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             memorizationDetail: finalLogs,
             mode: historyMode,
             feedbackTimingMode,
+            dailyStudyStats: nextDailyStudyStats,
         };
 
         if (activeQuizSet?.id !== undefined) {
             await clearSessionFromStorage(activeQuizSet.id, sessionSlotKey);
             completedQuestionIdsRef.current = [];
             persistedCompletedQuestionIdsRef.current = [];
+            dailyStudyStatsRef.current = {};
         }
 
         try {

@@ -7,6 +7,8 @@ import { BackButton } from '../components/BackButton';
 import { LoadingView } from '../components/LoadingView';
 import { useAppContext } from '../contexts/AppContext';
 import { getAllQuizSets, getAllReviewSchedules, getHistories } from '../db';
+import { loadSessionFromStorage } from '../utils/quizSettings';
+import { DEFAULT_SUSPENDED_SESSION_SLOT_KEY, REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY } from '../utils/quizSession';
 import {
     buildStudyInsightsData,
     type CountSeriesPoint,
@@ -15,7 +17,7 @@ import {
     type RateSeriesPoint,
     type RecentSessionRatePoint,
 } from '../features/studyInsights/aggregations';
-import type { QuizSetType, QuizSetWithMeta, QuizHistory, ReviewSchedule } from '../types';
+import type { QuizSetType, QuizSetWithMeta, QuizHistory, ReviewSchedule, SuspendedSession } from '../types';
 
 type VolumeRange = 'daily' | 'weekly' | 'monthly';
 
@@ -155,6 +157,7 @@ export const StudyInsightsRoute: React.FC = () => {
     const [quizSets, setQuizSets] = useState<QuizSetWithMeta[]>([]);
     const [historiesBySetId, setHistoriesBySetId] = useState<Record<number, QuizHistory[]>>({});
     const [reviewSchedules, setReviewSchedules] = useState<ReviewSchedule[]>([]);
+    const [suspendedSessions, setSuspendedSessions] = useState<SuspendedSession[]>([]);
     const [volumeRange, setVolumeRange] = useState<VolumeRange>('daily');
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
@@ -175,14 +178,25 @@ export const StudyInsightsRoute: React.FC = () => {
                 return quizSet.id !== undefined && !quizSet.isDeleted;
             });
 
-            const historyResults = await Promise.allSettled(
-                targetQuizSets.map(async (quizSet) => ({
-                    quizSetId: quizSet.id,
-                    histories: await getHistories(quizSet.id),
-                }))
-            );
+            const [historyResults, loadedSuspendedSessions] = await Promise.all([
+                Promise.allSettled(
+                    targetQuizSets.map(async (quizSet) => ({
+                        quizSetId: quizSet.id,
+                        histories: await getHistories(quizSet.id),
+                    }))
+                ),
+                Promise.all(
+                    targetQuizSets.flatMap((quizSet) => ([
+                        loadSessionFromStorage(quizSet.id, DEFAULT_SUSPENDED_SESSION_SLOT_KEY),
+                        loadSessionFromStorage(quizSet.id, REVIEW_DUE_SUSPENDED_SESSION_SLOT_KEY),
+                    ]))
+                ),
+            ]);
 
             const nextHistoriesBySetId: Record<number, QuizHistory[]> = {};
+            const nextSuspendedSessions = loadedSuspendedSessions.filter(
+                (session): session is SuspendedSession => session !== null
+            );
             let firstRejectedReason: unknown = null;
             let rejectedCount = 0;
 
@@ -213,10 +227,12 @@ export const StudyInsightsRoute: React.FC = () => {
             setQuizSets(targetQuizSets);
             setHistoriesBySetId(nextHistoriesBySetId);
             setReviewSchedules(schedules);
+            setSuspendedSessions(nextSuspendedSessions);
         } catch (error) {
             setQuizSets([]);
             setHistoriesBySetId({});
             setReviewSchedules([]);
+            setSuspendedSessions([]);
 
             if (error instanceof ApiError && error.status === 401) {
                 handleCloudError(error, '認証エラーが発生しました。', { suppressGlobalNotice: true });
@@ -239,8 +255,9 @@ export const StudyInsightsRoute: React.FC = () => {
             quizSets,
             historiesBySetId,
             reviewSchedules,
+            suspendedSessions,
         });
-    }, [quizSets, historiesBySetId, reviewSchedules]);
+    }, [quizSets, historiesBySetId, reviewSchedules, suspendedSessions]);
 
     const activeVolumePoints = insights.answerVolume[volumeRange];
     const hasAnyQuizSet = quizSets.length > 0;

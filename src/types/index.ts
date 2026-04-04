@@ -36,6 +36,13 @@ export interface MemorizationLog {
     isMemorized: boolean; // true = "完全に覚えた", false = "覚えられていない"
 }
 
+export interface DailyStudyStatEntry {
+    answeredQuestionIds: number[];
+    correctQuestionIds: number[];
+}
+
+export type DailyStudyStats = Record<string, DailyStudyStatEntry>;
+
 export interface QuizHistory {
     id?: number; // Auto-incremented
     quizSetId: number;
@@ -52,6 +59,7 @@ export interface QuizHistory {
     feedbackTimingMode?: FeedbackTimingMode;
     // Memorization specific
     memorizationDetail?: MemorizationLog[];
+    dailyStudyStats?: DailyStudyStats;
 }
 
 export type HistoryMode = 'normal' | 'review_wrong' | 'review_weak' | 'review_weak_strict' | 'review_due';
@@ -80,6 +88,7 @@ export interface SuspendedSession {
     memorizationInputsMap?: Record<string, string[]>;
     completedQuestionIds?: number[];
     persistedCompletedQuestionIds?: number[];
+    dailyStudyStats?: DailyStudyStats;
     updatedAt?: Date;
 }
 
