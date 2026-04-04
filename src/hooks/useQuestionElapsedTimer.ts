@@ -27,8 +27,8 @@ export function useQuestionElapsedTimer(currentQuestionId: number | undefined, s
     const activeStartedAtRef = useRef<number | null>(null);
 
     const calculateCurrentQuestionElapsedSecondsSnapshot = useCallback((
-        targetQuestionId: number | undefined = currentQuestionId,
-        targetShouldTrack: boolean = shouldTrack
+        targetQuestionId: number | undefined,
+        targetShouldTrack: boolean
     ): number | null => {
         if (!targetShouldTrack || typeof targetQuestionId !== 'number') {
             return null;
@@ -41,7 +41,7 @@ export function useQuestionElapsedTimer(currentQuestionId: number | undefined, s
             : 0;
 
         return Math.floor((baseElapsedMs + activeElapsedMs) / 1000);
-    }, [currentQuestionId, shouldTrack]);
+    }, []);
 
     const replaceQuestionElapsedMsById = useCallback((value: Record<string, number> | undefined) => {
         activeQuestionIdRef.current = null;
@@ -49,8 +49,8 @@ export function useQuestionElapsedTimer(currentQuestionId: number | undefined, s
         const normalized = normalizeQuestionElapsedMsById(value);
         questionElapsedMsByIdRef.current = normalized;
         setQuestionElapsedMsByIdState(normalized);
-        setCurrentQuestionElapsedSeconds(calculateCurrentQuestionElapsedSecondsSnapshot());
-    }, [calculateCurrentQuestionElapsedSecondsSnapshot]);
+        setCurrentQuestionElapsedSeconds(null);
+    }, []);
 
     const resetQuestionElapsedMsById = useCallback(() => {
         replaceQuestionElapsedMsById({});
