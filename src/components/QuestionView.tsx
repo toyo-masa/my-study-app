@@ -36,6 +36,7 @@ interface QuestionViewProps {
     handwritingState?: HandwritingPadState;
     onHandwritingStateChange?: (value: HandwritingPadState) => void;
     allowTouchDrawing: boolean;
+    correctRevealEffectKey?: string | null;
 }
 
 export const QuestionView: React.FC<QuestionViewProps> = ({
@@ -66,6 +67,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     handwritingState,
     onHandwritingStateChange,
     allowTouchDrawing,
+    correctRevealEffectKey = null,
 }) => {
     const isMemoQuestion = question.questionType === 'memorization';
     const isShortcutIgnoredTarget = useCallback((target: EventTarget | null) => {
@@ -184,7 +186,16 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
         (answersUntilRevealCount ?? 0) > 0;
 
     return (
-        <div className="question-view">
+        <div className={`question-view ${correctRevealEffectKey ? 'correct-reveal-effect-active' : ''}`}>
+            {correctRevealEffectKey && !isMemoQuestion && (
+                <div key={correctRevealEffectKey ?? undefined} className="correct-reveal-effect" aria-hidden="true">
+                    <span className="correct-reveal-effect-glow" />
+                    <span className="correct-reveal-effect-spark spark-1" />
+                    <span className="correct-reveal-effect-spark spark-2" />
+                    <span className="correct-reveal-effect-spark spark-3" />
+                    <span className="correct-reveal-effect-spark spark-4" />
+                </div>
+            )}
             <motion.div
                 key={question.id}
                 initial={{ opacity: 0, y: 10 }}

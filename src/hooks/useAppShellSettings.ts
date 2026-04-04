@@ -9,19 +9,24 @@ import {
 import {
     DEFAULT_HANDWRITING_SETTINGS,
     DEFAULT_LOCAL_LLM_SETTINGS,
+    DEFAULT_STUDY_EFFECT_SETTINGS,
     getStoredAccentColor,
     getStoredThemeMode,
     loadHandwritingSettings,
     loadLocalLlmSettings,
+    loadStudyEffectSettings,
     normalizeHandwritingSettings,
     normalizeLocalLlmSettings,
+    normalizeStudyEffectSettings,
     saveHandwritingSettings,
     saveLocalLlmSettings,
+    saveStudyEffectSettings,
     setStoredAccentColor,
     setStoredThemeMode,
     type HandwritingSettings,
     type LocalLlmSettings,
     type LocalLlmSettingsUpdater,
+    type StudyEffectSettings,
     type ThemeMode,
 } from '../utils/settings';
 import {
@@ -138,6 +143,9 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const [handwritingSettings, setHandwritingSettings] = useState<HandwritingSettings>(() => {
         return loadHandwritingSettings();
     });
+    const [studyEffectSettings, setStudyEffectSettings] = useState<StudyEffectSettings>(() => {
+        return loadStudyEffectSettings();
+    });
     const [localLlmSettings, setLocalLlmSettings] = useState<LocalLlmSettings>(() => {
         return loadLocalLlmSettings();
     });
@@ -174,6 +182,10 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     }, [handwritingSettings]);
 
     useEffect(() => {
+        saveStudyEffectSettings(studyEffectSettings);
+    }, [studyEffectSettings]);
+
+    useEffect(() => {
         saveLocalLlmSettings(localLlmSettings);
     }, [localLlmSettings]);
 
@@ -200,6 +212,12 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
     const handleResetHandwritingSettings = () => {
         setHandwritingSettings({ ...DEFAULT_HANDWRITING_SETTINGS });
     };
+    const handleStudyEffectSettingsChange = (settings: StudyEffectSettings) => {
+        setStudyEffectSettings(normalizeStudyEffectSettings(settings));
+    };
+    const handleResetStudyEffectSettings = () => {
+        setStudyEffectSettings({ ...DEFAULT_STUDY_EFFECT_SETTINGS });
+    };
     const handleLocalLlmSettingsChange = useCallback((settings: LocalLlmSettingsUpdater) => {
         setLocalLlmSettings((previous) => normalizeLocalLlmSettings(
             typeof settings === 'function' ? settings(previous) : settings
@@ -218,6 +236,7 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
         reviewIntervalSettings,
         reviewBoardSettings,
         handwritingSettings,
+        studyEffectSettings,
         localLlmSettings,
         toggleDarkMode,
         handleReviewIntervalSettingsChange,
@@ -226,6 +245,8 @@ export function useAppShellSettings(pathname: string, quizSets: QuizSetWithMeta[
         handleResetReviewBoardSettings,
         handleHandwritingSettingsChange,
         handleResetHandwritingSettings,
+        handleStudyEffectSettingsChange,
+        handleResetStudyEffectSettings,
         handleLocalLlmSettingsChange,
         handleResetLocalLlmSettings,
     };

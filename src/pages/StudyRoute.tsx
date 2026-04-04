@@ -52,11 +52,12 @@ import {
     type DailyStudyRecord,
     normalizeDailyStudyStats,
 } from '../utils/dailyStudyStats';
-import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
+import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater, StudyEffectSettings } from '../utils/settings';
 
 interface StudyRouteProps {
     allowTouchDrawing: boolean;
     reviewBoardFeedbackBlockSize: number;
+    studyEffectSettings: StudyEffectSettings;
     localLlmSettings: LocalLlmSettings;
     onLocalLlmSettingsChange: (settings: LocalLlmSettingsUpdater) => void;
     onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
@@ -122,6 +123,7 @@ function collectStudyRouteDailyRecords(params: {
 export const StudyRoute: React.FC<StudyRouteProps> = ({
     allowTouchDrawing,
     reviewBoardFeedbackBlockSize,
+    studyEffectSettings,
     localLlmSettings,
     onLocalLlmSettingsChange,
     onLocalLlmModeChange,
@@ -177,10 +179,13 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     const startTimeRef = useRef<Date>(new Date());
     const lastSessionKeyRef = useRef<string | null>(null);
     const saveDebounceRef = useRef<number | null>(null);
+    const correctRevealEffectTimeoutRef = useRef<number | null>(null);
     const completedQuestionIdsRef = useRef<number[]>([]);
     const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
     const dailyStudyStatsRef = useRef<DailyStudyStats>({});
+    const correctRevealEffectCounterRef = useRef(0);
     const questionByIdRef = useRef<Record<number, Question>>({});
+    const [correctRevealEffectKey, setCorrectRevealEffectKey] = useState<string | null>(null);
 
     const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
         return resolveReviewBoardFeedbackBlockSize(questionCount, {
@@ -194,6 +199,12 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             setOverflowRevealAfterCurrentQuestionId(null);
         }
     }, [feedbackPhase, overflowRevealAfterCurrentQuestionId]);
+
+    useEffect(() => {
+        return () => {
+            clearWindowTimeout(correctRevealEffectTimeoutRef);
+        };
+    }, []);
 
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
@@ -229,9 +240,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     // Reset session state before paint when navigation/session key changes.
     useLayoutEffect(() => {
         clearWindowTimeout(saveDebounceRef);
+        clearWindowTimeout(correctRevealEffectTimeoutRef);
         completedQuestionIdsRef.current = [];
         persistedCompletedQuestionIdsRef.current = [];
         dailyStudyStatsRef.current = {};
+        setCorrectRevealEffectKey(null);
         questionByIdRef.current = {};
         setIsLoading(true);
         setQuestions([]);
@@ -937,11 +950,47 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             .filter(questionId => targetAnsweredMap[String(questionId)] && !showAnswerMap[String(questionId)]);
     };
 
+    const triggerCorrectRevealEffect = useCallback((
+        questionId: number,
+        targetAnswers: Record<string, number[]> = answers,
+        targetShowAnswerMap: Record<string, boolean> = showAnswerMap
+    ) => {
+        if (!studyEffectSettings.enableCorrectRevealEffect) {
+            return;
+        }
+
+        const question = questionByIdRef.current[questionId] ?? questions.find((item) => item.id === questionId);
+        if (!question || question.questionType === 'memorization') {
+            return;
+        }
+
+        const questionKey = String(questionId);
+        if (targetShowAnswerMap[questionKey] === true) {
+            return;
+        }
+
+        if (!isQuizQuestionCorrect(question, targetAnswers[questionKey] || [])) {
+            return;
+        }
+
+        correctRevealEffectCounterRef.current += 1;
+        setCorrectRevealEffectKey(`${questionId}-${correctRevealEffectCounterRef.current}`);
+        clearWindowTimeout(correctRevealEffectTimeoutRef);
+        const prefersReducedMotion = typeof window !== 'undefined'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const hideDelayMs = prefersReducedMotion ? 220 : 560;
+        correctRevealEffectTimeoutRef.current = window.setTimeout(() => {
+            setCorrectRevealEffectKey(null);
+            correctRevealEffectTimeoutRef.current = null;
+        }, hideDelayMs);
+    }, [answers, questions, showAnswerMap, studyEffectSettings.enableCorrectRevealEffect]);
+
     const enterRevealPhase = (questionIds: number[]) => {
         if (questionIds.length === 0) return;
         setOverflowRevealAfterCurrentQuestionId(null);
         setFeedbackPhase('revealing');
         setPendingRevealQuestionIds(questionIds);
+        triggerCorrectRevealEffect(questionIds[0]);
         setShowAnswerMap(prev => ({ ...prev, [String(questionIds[0])]: true }));
         const nextIndex = findQuestionIndexById(questionIds[0]);
         if (nextIndex >= 0) {
@@ -1059,6 +1108,9 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             if (!isMemoQuestion) {
                 setAnsweredMap(prev => ({ ...prev, [qId]: true }));
             }
+            if (!isMemoQuestion) {
+                triggerCorrectRevealEffect(questionId);
+            }
             setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
             scheduleSaveSession();
             return;
@@ -1140,6 +1192,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             }
 
             if (isTargetPending) {
+                triggerCorrectRevealEffect(targetQuestionId);
                 setShowAnswerMap(prev => ({ ...prev, [String(targetQuestionId)]: true }));
             }
             setCurrentQuestionIndex(targetIndex);
@@ -1255,6 +1308,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         }
 
         if (nextPendingId !== undefined) {
+            triggerCorrectRevealEffect(nextPendingId);
             setShowAnswerMap(prev => ({ ...prev, [String(nextPendingId)]: true }));
             const nextIndex = findQuestionIndexById(nextPendingId);
             if (nextIndex >= 0) {
@@ -1776,6 +1830,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                         handwritingState={handwritingMap[qId]}
                         onHandwritingStateChange={(value) => setHandwritingMap((prev) => ({ ...prev, [qId]: value }))}
                         allowTouchDrawing={allowTouchDrawing}
+                        correctRevealEffectKey={correctRevealEffectKey}
                     />
                 </>
             ) : (

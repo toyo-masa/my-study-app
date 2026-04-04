@@ -4389,6 +4389,110 @@ button.appearance-option.active {
   box-shadow: var(--shadow-md);
   width: 100%;
   margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.correct-reveal-effect {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.correct-reveal-effect-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(34, 197, 94, 0.18), rgba(34, 197, 94, 0) 42%),
+    linear-gradient(180deg, rgba(34, 197, 94, 0.12), rgba(34, 197, 94, 0) 38%);
+  animation: correctRevealGlow 0.56s ease-out forwards;
+}
+
+.correct-reveal-effect-spark {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(187, 247, 208, 0.92));
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.28);
+  opacity: 0;
+  animation: correctRevealSpark 0.56s ease-out forwards;
+}
+
+.correct-reveal-effect-spark.spark-1 {
+  top: 18%;
+  left: 20%;
+  animation-delay: 0.03s;
+}
+
+.correct-reveal-effect-spark.spark-2 {
+  top: 12%;
+  right: 24%;
+  animation-delay: 0.07s;
+}
+
+.correct-reveal-effect-spark.spark-3 {
+  top: 30%;
+  left: 50%;
+  animation-delay: 0.05s;
+}
+
+.correct-reveal-effect-spark.spark-4 {
+  top: 24%;
+  right: 16%;
+  animation-delay: 0.1s;
+}
+
+.question-view > :not(.correct-reveal-effect) {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes correctRevealGlow {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+
+  28% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes correctRevealSpark {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.6);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translate3d(0, -4px, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -12px, 0) scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .correct-reveal-effect-glow,
+  .correct-reveal-effect-spark {
+    animation-duration: 0.22s;
+  }
+
+  .correct-reveal-effect-spark {
+    display: none;
+  }
 }
 
 .mode-badge {

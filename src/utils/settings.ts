@@ -27,6 +27,9 @@ export const WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS = [256, 38
 export interface HandwritingSettings {
     allowTouchDrawing: boolean;
 }
+export interface StudyEffectSettings {
+    enableCorrectRevealEffect: boolean;
+}
 export type LocalApiModelParameterSettings = {
     temperature: number | null;
     topP: number | null;
@@ -75,6 +78,7 @@ const SETTINGS_KEYS = {
     accentColor: 'accentColor',
     useCloudSync: 'useCloudSync',
     handwritingSettings: 'handwritingSettings',
+    studyEffectSettings: 'studyEffectSettings',
     localLlmSettings: 'localLlmSettings',
     lastLocalApiModelIdPrefix: 'lastLocalApiModelId::',
 } as const;
@@ -86,6 +90,9 @@ const DEFAULT_SETTINGS = {
     handwritingSettings: {
         allowTouchDrawing: false,
     } as HandwritingSettings,
+    studyEffectSettings: {
+        enableCorrectRevealEffect: true,
+    } as StudyEffectSettings,
     localLlmSettings: {
         preferredMode: 'webllm' as LocalLlmMode,
         baseUrl: DEFAULT_LOCAL_API_BASE_URL,
@@ -124,6 +131,10 @@ export function ensureLocalSettingsInitialized(): void {
         localStorage.setItem(SETTINGS_KEYS.handwritingSettings, JSON.stringify(DEFAULT_SETTINGS.handwritingSettings));
     }
 
+    if (localStorage.getItem(SETTINGS_KEYS.studyEffectSettings) === null) {
+        localStorage.setItem(SETTINGS_KEYS.studyEffectSettings, JSON.stringify(DEFAULT_SETTINGS.studyEffectSettings));
+    }
+
     if (localStorage.getItem(SETTINGS_KEYS.localLlmSettings) === null) {
         localStorage.setItem(SETTINGS_KEYS.localLlmSettings, JSON.stringify(DEFAULT_SETTINGS.localLlmSettings));
     }
@@ -148,6 +159,9 @@ export function setStoredAccentColor(color: string): void {
 export const DEFAULT_HANDWRITING_SETTINGS: HandwritingSettings = {
     ...DEFAULT_SETTINGS.handwritingSettings,
 };
+export const DEFAULT_STUDY_EFFECT_SETTINGS: StudyEffectSettings = {
+    ...DEFAULT_SETTINGS.studyEffectSettings,
+};
 export const DEFAULT_LOCAL_LLM_SETTINGS: LocalLlmSettings = {
     ...DEFAULT_SETTINGS.localLlmSettings,
 };
@@ -159,6 +173,16 @@ export function normalizeHandwritingSettings(raw: unknown): HandwritingSettings 
 
     return {
         allowTouchDrawing: source.allowTouchDrawing === true,
+    };
+}
+
+export function normalizeStudyEffectSettings(raw: unknown): StudyEffectSettings {
+    const source = raw && typeof raw === 'object'
+        ? raw as Partial<StudyEffectSettings>
+        : {};
+
+    return {
+        enableCorrectRevealEffect: source.enableCorrectRevealEffect !== false,
     };
 }
 
@@ -435,6 +459,25 @@ export function loadLocalLlmSettings(): LocalLlmSettings {
     } catch {
         return { ...DEFAULT_LOCAL_LLM_SETTINGS };
     }
+}
+
+export function loadStudyEffectSettings(): StudyEffectSettings {
+    try {
+        const stored = localStorage.getItem(SETTINGS_KEYS.studyEffectSettings);
+        if (!stored) {
+            return { ...DEFAULT_STUDY_EFFECT_SETTINGS };
+        }
+        return normalizeStudyEffectSettings(JSON.parse(stored));
+    } catch {
+        return { ...DEFAULT_STUDY_EFFECT_SETTINGS };
+    }
+}
+
+export function saveStudyEffectSettings(settings: StudyEffectSettings): void {
+    localStorage.setItem(
+        SETTINGS_KEYS.studyEffectSettings,
+        JSON.stringify(normalizeStudyEffectSettings(settings))
+    );
 }
 
 export function saveLocalLlmSettings(settings: LocalLlmSettings): void {

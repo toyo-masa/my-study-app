@@ -47,13 +47,16 @@ function App() {
     accentColor,
     setAccentColor,
     handwritingSettings,
+    studyEffectSettings,
     localLlmSettings,
     reviewIntervalSettings,
     reviewBoardSettings,
     toggleDarkMode,
     handleHandwritingSettingsChange,
+    handleStudyEffectSettingsChange,
     handleLocalLlmSettingsChange,
     handleResetHandwritingSettings,
+    handleResetStudyEffectSettings,
     handleReviewIntervalSettingsChange,
     handleResetReviewIntervalSettings,
     handleReviewBoardSettingsChange,
@@ -125,12 +128,15 @@ function App() {
         accentColor={accentColor}
         onAccentColorChange={setAccentColor}
         handwritingSettings={handwritingSettings}
+        studyEffectSettings={studyEffectSettings}
         localLlmSettings={localLlmSettings}
         reviewIntervalSettings={reviewIntervalSettings}
         reviewBoardSettings={reviewBoardSettings}
         onHandwritingSettingsChange={handleHandwritingSettingsChange}
+        onStudyEffectSettingsChange={handleStudyEffectSettingsChange}
         onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
         onResetHandwritingSettings={handleResetHandwritingSettings}
+        onResetStudyEffectSettings={handleResetStudyEffectSettings}
         onReviewIntervalSettingsChange={handleReviewIntervalSettingsChange}
         onResetReviewIntervalSettings={handleResetReviewIntervalSettings}
         onReviewBoardSettingsChange={handleReviewBoardSettingsChange}
@@ -181,6 +187,7 @@ function App() {
             <StudyRoute
               allowTouchDrawing={handwritingSettings.allowTouchDrawing}
               reviewBoardFeedbackBlockSize={reviewBoardSettings.feedbackBlockSize}
+              studyEffectSettings={studyEffectSettings}
               localLlmSettings={localLlmSettings}
               onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
               onLocalLlmModeChange={handleLocalLlmModeChange}

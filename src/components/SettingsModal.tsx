@@ -15,6 +15,7 @@ import {
     loadLastLocalApiModelId,
     type HandwritingSettings,
     type LocalLlmSettings,
+    type StudyEffectSettings,
     type ThemeMode,
 } from '../utils/settings';
 import {
@@ -39,12 +40,15 @@ interface SettingsModalProps {
     accentColor: string;
     onAccentColorChange: (color: string) => void;
     handwritingSettings: HandwritingSettings;
+    studyEffectSettings: StudyEffectSettings;
     localLlmSettings: LocalLlmSettings;
     reviewIntervalSettings: ReviewIntervalSettings;
     reviewBoardSettings: ReviewBoardSettings;
     onHandwritingSettingsChange: (settings: HandwritingSettings) => void;
+    onStudyEffectSettingsChange: (settings: StudyEffectSettings) => void;
     onLocalLlmSettingsChange: (settings: LocalLlmSettings) => void;
     onResetHandwritingSettings: () => void;
+    onResetStudyEffectSettings: () => void;
     onReviewIntervalSettingsChange: (settings: ReviewIntervalSettings) => void;
     onResetReviewIntervalSettings: () => void;
     onReviewBoardSettingsChange: (settings: ReviewBoardSettings) => void;
@@ -81,12 +85,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     accentColor,
     onAccentColorChange,
     handwritingSettings,
+    studyEffectSettings,
     localLlmSettings,
     reviewIntervalSettings,
     reviewBoardSettings,
     onHandwritingSettingsChange,
+    onStudyEffectSettingsChange,
     onLocalLlmSettingsChange,
     onResetHandwritingSettings,
+    onResetStudyEffectSettings,
     onReviewIntervalSettingsChange,
     onResetReviewIntervalSettings,
     onReviewBoardSettingsChange,
@@ -363,6 +370,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     </span>
                                                 </label>
                                             </div>
+                                            <div className="setting-control">
+                                                <span>正解時のエフェクト</span>
+                                                <label className="toggle-switch">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={studyEffectSettings.enableCorrectRevealEffect}
+                                                        onChange={(event) => onStudyEffectSettingsChange({
+                                                            ...studyEffectSettings,
+                                                            enableCorrectRevealEffect: event.target.checked,
+                                                        })}
+                                                    />
+                                                    <span className="slider"></span>
+                                                </label>
+                                            </div>
+                                            <p className="review-settings-note" style={{ marginTop: '0.75rem' }}>
+                                                回答確認で正解だったときに、操作を邪魔しない短い演出を表示します。
+                                            </p>
                                             <div className="setting-control disabled">
                                                 <span>ウィジェットを表示する</span>
                                                 <label className="toggle-switch">
@@ -370,6 +394,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     <span className="slider"></span>
                                                 </label>
                                             </div>
+                                            <button
+                                                type="button"
+                                                className="reset-settings-btn"
+                                                style={{ marginTop: '0.9rem' }}
+                                                onClick={onResetStudyEffectSettings}
+                                            >
+                                                正解エフェクト設定を初期値に戻す
+                                            </button>
                                         </div>
 
                                         <div className="review-settings-card">
