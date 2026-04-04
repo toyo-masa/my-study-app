@@ -1792,7 +1792,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                         </span>
                         <div className="progress-bar-track">
                             <div
-                                className="progress-bar-fill"
+                                key={correctRevealEffectKey ?? 'progress-bar-static'}
+                                className={`progress-bar-fill${correctRevealEffectKey ? ' correct-reveal-progress' : ''}`}
                                 style={{ width: `${(answeredCount / questions.length) * 100}%` }}
                             />
                         </div>

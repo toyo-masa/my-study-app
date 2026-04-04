@@ -184,18 +184,13 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
         feedbackTimingMode !== 'immediate' &&
         revealReadyCount === null &&
         (answersUntilRevealCount ?? 0) > 0;
+    const isCorrectRevealActive = !isMemoQuestion && showAnswer && Boolean(correctRevealEffectKey);
+    const firstCorrectOptionIndex = !isMemoQuestion
+        ? question.correctAnswers.find((answer): answer is number => typeof answer === 'number') ?? null
+        : null;
 
     return (
-        <div className={`question-view ${correctRevealEffectKey ? 'correct-reveal-effect-active' : ''}`}>
-            {correctRevealEffectKey && !isMemoQuestion && (
-                <div key={correctRevealEffectKey ?? undefined} className="correct-reveal-effect" aria-hidden="true">
-                    <span className="correct-reveal-effect-glow" />
-                    <span className="correct-reveal-effect-spark spark-1" />
-                    <span className="correct-reveal-effect-spark spark-2" />
-                    <span className="correct-reveal-effect-spark spark-3" />
-                    <span className="correct-reveal-effect-spark spark-4" />
-                </div>
-            )}
+        <div className="question-view">
             <motion.div
                 key={question.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -249,12 +244,15 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         {question.options.map((option, idx) => {
                             const isSelected = selectedOptions.includes(idx);
                             const isCorrect = question.correctAnswers.includes(idx);
+                            const isRevealHighlighted = isCorrectRevealActive && isCorrect;
+                            const shouldShowRevealCheck = isRevealHighlighted && idx === firstCorrectOptionIndex;
 
                             let optionClass = `option-item ${isSelected ? 'selected' : ''}`;
                             if (showAnswer) {
                                 if (isCorrect) optionClass += ' correct';
                                 if (isSelected && !isCorrect) optionClass += ' incorrect';
                             }
+                            if (isRevealHighlighted) optionClass += ' correct-reveal-target';
 
                             const isSingleChoice = question.correctAnswers.length === 1;
 
@@ -276,6 +274,11 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                     <div className="option-text" style={{ flex: 1 }}>
                                         <MarkdownText content={option} />
                                     </div>
+                                    {shouldShowRevealCheck && (
+                                        <span key={correctRevealEffectKey ?? undefined} className="correct-reveal-check" aria-hidden="true">
+                                            ✓
+                                        </span>
+                                    )}
                                     {!showAnswer && idx < 4 && <kbd className="option-kbd">{idx + 1}</kbd>}
                                 </div>
                             );
