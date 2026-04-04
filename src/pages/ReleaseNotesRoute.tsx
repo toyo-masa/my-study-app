@@ -12,6 +12,18 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.58.7',
+        date: '2026年4月4日 11:28',
+        improvements: [
+            'Ollama で `gemma4` 系モデルを使うときは、thinking の切り替えをモデル仕様に合わせて扱うようにし、思考内容がある場合は会話内で表示しやすくしました。',
+            '通常のローカルAPI チャットと問題解説チャットの両方で、`gemma4` の思考ブロックと最終回答を分けて扱えるようにそろえました。',
+        ],
+        fixes: [
+            '`gemma4` で thinking を有効にしても思考過程が表示されず、応答内容を正しく読めないことがある問題を修正しました。',
+            '`max_tokens` 上限に達したときの案内が常に Thinking ON 前提になっていたため、実際の設定に合わせた警告文へ修正しました。',
+        ],
+    },
+    {
         version: '1.58.6',
         date: '2026年4月4日 10:45',
         improvements: [

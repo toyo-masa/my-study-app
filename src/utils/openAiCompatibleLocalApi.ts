@@ -163,23 +163,95 @@ const buildHeaders = (apiKey?: string, withStream = false) => {
     return headers;
 };
 
+const isOllamaGemma4Model = (model: string) => /^gemma4(?::|$)/i.test(model.trim());
+
+const GEMMA4_THOUGHT_PREFIX_CANDIDATES = [
+    '<|channel|>thought\n',
+    '<|channel>thought\n',
+    '<channel|>thought\n',
+    'thought\n',
+] as const;
+
+const GEMMA4_THOUGHT_CLOSE_MARKERS = [
+    '<|/channel|>',
+    '<|channel|>',
+    '<channel|>',
+] as const;
+
+const stripGemma4ThinkingToken = (content: string) => {
+    return content.replace(/^\s*<\|think\|>\s*(?:\r?\n)?/u, '').trimStart();
+};
+
+const normalizeOllamaNativeMessages = (
+    model: string,
+    messages: OpenAiCompatibleMessage[],
+    think?: OllamaThinkMode | null,
+) => {
+    const baseMessages = messages.flatMap((message) => {
+        if (message.role === 'tool') {
+            return [];
+        }
+        return [message];
+    });
+
+    if (!isOllamaGemma4Model(model)) {
+        return baseMessages;
+    }
+
+    const thinkingEnabled = think !== false && think !== null && think !== undefined;
+    const normalizedMessages = baseMessages.map((message) => (
+        message.role === 'system'
+            ? {
+                ...message,
+                content: stripGemma4ThinkingToken(message.content),
+            }
+            : message
+    ));
+
+    if (!thinkingEnabled) {
+        return normalizedMessages;
+    }
+
+    const firstSystemIndex = normalizedMessages.findIndex((message) => message.role === 'system');
+    if (firstSystemIndex === -1) {
+        return [{
+            role: 'system' as const,
+            content: '<|think|>',
+        }, ...normalizedMessages];
+    }
+
+    const systemMessage = normalizedMessages[firstSystemIndex];
+    if (systemMessage.role !== 'system') {
+        return normalizedMessages;
+    }
+
+    normalizedMessages[firstSystemIndex] = {
+        ...systemMessage,
+        content: systemMessage.content.length > 0
+            ? `<|think|>\n${systemMessage.content}`
+            : '<|think|>',
+    };
+
+    return normalizedMessages;
+};
+
 const buildOllamaNativeChatBody = (
     model: string,
     messages: OpenAiCompatibleMessage[],
     params: StreamOllamaNativeChatParams
 ) => {
+    const normalizedMessages = normalizeOllamaNativeMessages(model, messages, params.think);
     const payload: Record<string, unknown> = {
         model,
-        messages: messages.flatMap((message) => {
-            if (message.role === 'tool') {
-                return [];
-            }
-            return [message];
-        }),
+        messages: normalizedMessages,
         stream: true,
     };
 
-    if (params.think !== null && params.think !== undefined) {
+    if (
+        !isOllamaGemma4Model(model)
+        && params.think !== null
+        && params.think !== undefined
+    ) {
         payload.think = params.think;
     }
 
@@ -208,6 +280,91 @@ const buildOllamaNativeChatBody = (
 };
 
 type OllamaNativeDoneReason = 'stop' | 'length' | 'unload' | string | null;
+
+type Gemma4ParsedContent = {
+    thinkingText: string;
+    contentText: string;
+    isPending: boolean;
+};
+
+const parseGemma4Content = (rawContent: string): Gemma4ParsedContent => {
+    const trimmedLeadingContent = rawContent.trimStart();
+    if (trimmedLeadingContent.length === 0) {
+        return {
+            thinkingText: '',
+            contentText: '',
+            isPending: false,
+        };
+    }
+
+    if (GEMMA4_THOUGHT_PREFIX_CANDIDATES.some((candidate) => candidate.startsWith(trimmedLeadingContent))) {
+        return {
+            thinkingText: '',
+            contentText: '',
+            isPending: true,
+        };
+    }
+
+    const matchedPrefix = GEMMA4_THOUGHT_PREFIX_CANDIDATES.find((candidate) => {
+        return trimmedLeadingContent.startsWith(candidate.slice(0, -1))
+            && (trimmedLeadingContent.length === candidate.length - 1 || trimmedLeadingContent[candidate.length - 1] === '\n');
+    });
+
+    if (!matchedPrefix) {
+        return {
+            thinkingText: '',
+            contentText: rawContent,
+            isPending: false,
+        };
+    }
+
+    const afterPrefix = trimmedLeadingContent
+        .slice(matchedPrefix.length - 1)
+        .replace(/^\r?\n/u, '');
+    let closeMarkerIndex = -1;
+    let closeMarkerLength = 0;
+
+    GEMMA4_THOUGHT_CLOSE_MARKERS.forEach((marker) => {
+        const markerIndex = afterPrefix.indexOf(marker);
+        if (markerIndex === -1) {
+            return;
+        }
+        if (closeMarkerIndex === -1 || markerIndex < closeMarkerIndex) {
+            closeMarkerIndex = markerIndex;
+            closeMarkerLength = marker.length;
+        }
+    });
+
+    if (closeMarkerIndex === -1) {
+        return {
+            thinkingText: afterPrefix.trim(),
+            contentText: '',
+            isPending: false,
+        };
+    }
+
+    return {
+        thinkingText: afterPrefix.slice(0, closeMarkerIndex).trim(),
+        contentText: afterPrefix.slice(closeMarkerIndex + closeMarkerLength).trimStart(),
+        isPending: false,
+    };
+};
+
+const resolveOllamaOutputTexts = (
+    model: string,
+    rawThinkingText: string,
+    rawContentText: string,
+): Gemma4ParsedContent => {
+    if (!isOllamaGemma4Model(model) || rawThinkingText.length > 0) {
+        return {
+            thinkingText: rawThinkingText,
+            contentText: rawContentText,
+            isPending: false,
+        };
+    }
+
+    return parseGemma4Content(rawContentText);
+};
 
 const extractTextContent = (value: unknown): string => {
     if (typeof value === 'string') {
@@ -882,15 +1039,16 @@ export const streamOllamaNativeChat = async ({
     if (!response.body) {
         const payload = await response.json();
         const parsed = readChunkPayload(payload);
-        if (parsed.thinking.length > 0) {
-            onThinkingDelta?.(parsed.thinking);
+        const resolved = resolveOllamaOutputTexts(model, parsed.thinking, parsed.content);
+        if (!resolved.isPending && resolved.thinkingText.length > 0) {
+            onThinkingDelta?.(resolved.thinkingText);
         }
-        if (parsed.content.length > 0) {
-            onContentDelta?.(parsed.content);
+        if (!resolved.isPending && resolved.contentText.length > 0) {
+            onContentDelta?.(resolved.contentText);
         }
         return {
-            thinkingText: parsed.thinking,
-            contentText: parsed.content,
+            thinkingText: resolved.isPending ? parsed.thinking : resolved.thinkingText,
+            contentText: resolved.isPending ? parsed.content : resolved.contentText,
             doneReason: parsed.doneReason,
         };
     }
@@ -898,10 +1056,33 @@ export const streamOllamaNativeChat = async ({
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let pending = '';
-    let thinkingText = '';
-    let contentText = '';
+    let rawThinkingText = '';
+    let rawContentText = '';
+    let emittedThinkingText = '';
+    let emittedContentText = '';
     let streamDone = false;
     let doneReason: OllamaNativeDoneReason = null;
+
+    const emitResolvedDeltas = () => {
+        const resolved = resolveOllamaOutputTexts(model, rawThinkingText, rawContentText);
+        if (resolved.isPending) {
+            return;
+        }
+        if (resolved.thinkingText.startsWith(emittedThinkingText)) {
+            const thinkingDelta = resolved.thinkingText.slice(emittedThinkingText.length);
+            if (thinkingDelta.length > 0) {
+                emittedThinkingText = resolved.thinkingText;
+                onThinkingDelta?.(thinkingDelta);
+            }
+        }
+        if (resolved.contentText.startsWith(emittedContentText)) {
+            const contentDelta = resolved.contentText.slice(emittedContentText.length);
+            if (contentDelta.length > 0) {
+                emittedContentText = resolved.contentText;
+                onContentDelta?.(contentDelta);
+            }
+        }
+    };
 
     while (!streamDone) {
         const { done, value } = await reader.read();
@@ -920,13 +1101,12 @@ export const streamOllamaNativeChat = async ({
             if (line.length > 0) {
                 const parsed = readChunkPayload(JSON.parse(line) as unknown);
                 if (parsed.thinking.length > 0) {
-                    thinkingText += parsed.thinking;
-                    onThinkingDelta?.(parsed.thinking);
+                    rawThinkingText += parsed.thinking;
                 }
                 if (parsed.content.length > 0) {
-                    contentText += parsed.content;
-                    onContentDelta?.(parsed.content);
+                    rawContentText += parsed.content;
                 }
+                emitResolvedDeltas();
                 if (parsed.done) {
                     doneReason = parsed.doneReason;
                     streamDone = true;
@@ -941,21 +1121,22 @@ export const streamOllamaNativeChat = async ({
     if (!streamDone && pending.trim().length > 0) {
         const parsed = readChunkPayload(JSON.parse(pending.trim()) as unknown);
         if (parsed.thinking.length > 0) {
-            thinkingText += parsed.thinking;
-            onThinkingDelta?.(parsed.thinking);
+            rawThinkingText += parsed.thinking;
         }
         if (parsed.content.length > 0) {
-            contentText += parsed.content;
-            onContentDelta?.(parsed.content);
+            rawContentText += parsed.content;
         }
+        emitResolvedDeltas();
         if (parsed.doneReason) {
             doneReason = parsed.doneReason;
         }
     }
 
+    const resolved = resolveOllamaOutputTexts(model, rawThinkingText, rawContentText);
+
     return {
-        thinkingText,
-        contentText,
+        thinkingText: resolved.isPending ? rawThinkingText : resolved.thinkingText,
+        contentText: resolved.isPending ? rawContentText : resolved.contentText,
         doneReason,
     };
 };
