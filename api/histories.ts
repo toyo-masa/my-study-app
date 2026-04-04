@@ -61,7 +61,7 @@ export default async function handler(req: ApiHandlerRequest<HistoryBody>, res: 
                 mode: h.mode,
                 feedbackTimingMode: h.feedback_mode,
                 memorizationDetail: h.memorization_detail,
-                dailyStudyStats: h.daily_study_stats,
+                dailyStudyStats: h.daily_study_stats ?? undefined,
             }));
             return res.status(200).json(histories);
         } else {

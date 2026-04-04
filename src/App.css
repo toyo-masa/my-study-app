@@ -5898,6 +5898,14 @@ button.appearance-option.active {
   line-height: 1.4;
 }
 
+.question-elapsed-time-top {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  text-align: right;
+  padding-top: 0.25rem;
+}
+
 .bookmark-btn {
   background: none;
   border: none;

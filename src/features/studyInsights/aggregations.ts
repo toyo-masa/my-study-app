@@ -323,7 +323,7 @@ export function buildStudyInsightsData(params: {
             const historyDate = new Date(history.date);
             const hasValidHistoryDate = !Number.isNaN(historyDate.getTime());
             const dailyEntries = getDailyTotalsEntries(history.dailyStudyStats);
-            const hasDailyBreakdown = history.dailyStudyStats !== undefined;
+            const hasDailyBreakdown = dailyEntries.length > 0;
 
             if (hasDailyBreakdown) {
                 dailyEntries.forEach((entry) => {

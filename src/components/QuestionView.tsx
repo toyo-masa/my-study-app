@@ -216,12 +216,12 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                 <MarkdownText content={question.text} />
                             </div>
                         </h2>
-                        {questionElapsedSeconds !== null && (
-                            <div className="question-elapsed-time">
-                                {`この問題 ${formatElapsedSeconds(questionElapsedSeconds)}`}
-                            </div>
-                        )}
                     </div>
+                    {questionElapsedSeconds !== null && (
+                        <div className="question-elapsed-time question-elapsed-time-top">
+                            {`この問題 ${formatElapsedSeconds(questionElapsedSeconds)}`}
+                        </div>
+                    )}
                 </div>
 
                 {/* 複数選択時のみ個数を案内 */}
