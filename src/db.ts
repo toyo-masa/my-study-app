@@ -211,6 +211,42 @@ function toLocalDateString(date: Date): string {
     return `${year}-${month}-${day}`;
 }
 
+function compareReviewScheduleRecency(left: ReviewSchedule, right: ReviewSchedule): number {
+    const leftReviewedAt = left.lastReviewedAt || '';
+    const rightReviewedAt = right.lastReviewedAt || '';
+    if (leftReviewedAt !== rightReviewedAt) {
+        return leftReviewedAt.localeCompare(rightReviewedAt);
+    }
+
+    if (left.nextDue !== right.nextDue) {
+        return left.nextDue.localeCompare(right.nextDue);
+    }
+
+    if (left.consecutiveCorrect !== right.consecutiveCorrect) {
+        return left.consecutiveCorrect - right.consecutiveCorrect;
+    }
+
+    if ((left.intervalDays || 0) !== (right.intervalDays || 0)) {
+        return (left.intervalDays || 0) - (right.intervalDays || 0);
+    }
+
+    return (left.id || 0) - (right.id || 0);
+}
+
+function dedupeReviewSchedules(schedules: ReviewSchedule[]): ReviewSchedule[] {
+    const latestByQuestionKey = new Map<string, ReviewSchedule>();
+
+    for (const schedule of schedules) {
+        const key = `${schedule.quizSetId}:${schedule.questionId}`;
+        const current = latestByQuestionKey.get(key);
+        if (!current || compareReviewScheduleRecency(current, schedule) < 0) {
+            latestByQuestionKey.set(key, schedule);
+        }
+    }
+
+    return [...latestByQuestionKey.values()];
+}
+
 export function getTodayString(): string {
     return toLocalDateString(new Date());
 }
@@ -225,14 +261,13 @@ export async function getDueReviews(
 
     if (cloud) {
         schedules = await cloudApi.getDueReviews(quizSetId);
-        schedules = schedules.filter(s => s.nextDue <= today);
     } else {
         if (quizSetId !== undefined) {
             const targetSet = await db.quizSets.get(quizSetId);
             if (!targetSet || targetSet.isDeleted || targetSet.isArchived || targetSet.isReviewExcluded) {
                 return [];
             }
-            schedules = await db.reviewSchedules.where('quizSetId').equals(quizSetId).filter(s => s.nextDue <= today).toArray();
+            schedules = await db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
         } else {
             const activeSetIds = (await db.quizSets
                 .filter((set) => !set.isDeleted && !set.isArchived && !set.isReviewExcluded)
@@ -243,10 +278,10 @@ export async function getDueReviews(
             schedules = await db.reviewSchedules
                 .where('quizSetId')
                 .anyOf(activeSetIds)
-                .filter(s => s.nextDue <= today)
                 .toArray();
         }
     }
+    schedules = dedupeReviewSchedules(schedules).filter(s => s.nextDue <= today);
 
     const questionIds = [...new Set(schedules.map(s => s.questionId))];
     const questionMap = new Map<number, Question>();
@@ -329,19 +364,25 @@ export async function getDueReviews(
 }
 
 export async function getReviewSchedulesForQuizSet(quizSetId: number): Promise<ReviewSchedule[]> {
-    if (isCloudSyncEnabled()) return cloudApi.getDueReviews(quizSetId);
-    return db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
+    const schedules = isCloudSyncEnabled()
+        ? await cloudApi.getDueReviews(quizSetId)
+        : await db.reviewSchedules.where('quizSetId').equals(quizSetId).toArray();
+    return dedupeReviewSchedules(schedules);
 }
 
 export async function getAllReviewSchedules(): Promise<ReviewSchedule[]> {
-    if (isCloudSyncEnabled()) return cloudApi.getDueReviews();
-    const activeSetIds = (await db.quizSets
-        .filter((set) => !set.isDeleted && !set.isArchived && !set.isReviewExcluded)
-        .primaryKeys()) as number[];
-    if (activeSetIds.length === 0) {
-        return [];
-    }
-    return db.reviewSchedules.where('quizSetId').anyOf(activeSetIds).toArray();
+    const schedules = isCloudSyncEnabled()
+        ? await cloudApi.getDueReviews()
+        : await (async () => {
+            const activeSetIds = (await db.quizSets
+                .filter((set) => !set.isDeleted && !set.isArchived && !set.isReviewExcluded)
+                .primaryKeys()) as number[];
+            if (activeSetIds.length === 0) {
+                return [];
+            }
+            return db.reviewSchedules.where('quizSetId').anyOf(activeSetIds).toArray();
+        })();
+    return dedupeReviewSchedules(schedules);
 }
 
 export async function upsertReviewSchedulesBulk(schedules: (Omit<ReviewSchedule, 'id'> & { id?: number })[]): Promise<{ updated: number, inserted: number }> {
