@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Bookmark, Check, X } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 import { HandwritingPad, type HandwritingPadState } from './HandwritingPad';
+import { formatElapsedSeconds } from '../utils/formatElapsedTime';
 
 interface QuestionViewProps {
     question: Question;
@@ -37,6 +38,7 @@ interface QuestionViewProps {
     onHandwritingStateChange?: (value: HandwritingPadState) => void;
     allowTouchDrawing: boolean;
     correctRevealEffectKey?: string | null;
+    questionElapsedSeconds?: number | null;
 }
 
 export const QuestionView: React.FC<QuestionViewProps> = ({
@@ -68,6 +70,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     onHandwritingStateChange,
     allowTouchDrawing,
     correctRevealEffectKey = null,
+    questionElapsedSeconds = null,
 }) => {
     const isMemoQuestion = question.questionType === 'memorization';
     const isShortcutIgnoredTarget = useCallback((target: EventTarget | null) => {
@@ -206,12 +209,19 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                     >
                         <Bookmark size={20} fill={isMarked ? "#f59e0b" : "none"} color={isMarked ? "#f59e0b" : "currentColor"} />
                     </button>
-                    <h2 className="question-text">
-                        <span className="question-number-prefix">問題{questionIndex + 1}: </span>
-                        <div style={{ display: 'inline-block', width: '100%' }}>
-                            <MarkdownText content={question.text} />
-                        </div>
-                    </h2>
+                    <div className="question-header-main">
+                        <h2 className="question-text">
+                            <span className="question-number-prefix">問題{questionIndex + 1}: </span>
+                            <div style={{ display: 'inline-block', width: '100%' }}>
+                                <MarkdownText content={question.text} />
+                            </div>
+                        </h2>
+                        {questionElapsedSeconds !== null && (
+                            <div className="question-elapsed-time">
+                                {`この問題 ${formatElapsedSeconds(questionElapsedSeconds)}`}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* 複数選択時のみ個数を案内 */}

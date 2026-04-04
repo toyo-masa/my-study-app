@@ -21,10 +21,29 @@ function getSuspendedSessionStorageKey(quizSetId: number, slotKey: SuspendedSess
     return `suspendedSession_${slotKey}_${quizSetId}`;
 }
 
+function normalizeQuestionElapsedMsById(
+    value: SuspendedSession['questionElapsedMsById']
+): Record<string, number> | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    return Object.fromEntries(
+        Object.entries(value).flatMap(([questionId, elapsedMs]) => {
+            if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+                return [];
+            }
+
+            return [[questionId, Math.round(elapsedMs)]];
+        })
+    );
+}
+
 function hydrateSuspendedSession(raw: SuspendedSession): SuspendedSession {
     return {
         ...raw,
         startTime: new Date(raw.startTime),
+        questionElapsedMsById: normalizeQuestionElapsedMsById(raw.questionElapsedMsById),
         updatedAt: raw.updatedAt ? new Date(raw.updatedAt) : undefined,
     };
 }

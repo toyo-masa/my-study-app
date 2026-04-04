@@ -8,6 +8,7 @@ import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
+import { useQuestionElapsedTimer } from '../hooks/useQuestionElapsedTimer';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, addReviewLogs, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
@@ -150,6 +151,25 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
     const completedQuestionIdsRef = useRef<number[]>([]);
     const persistedCompletedQuestionIdsRef = useRef<number[]>([]);
     const dailyStudyStatsRef = useRef<DailyStudyStats>({});
+    const currentQuestion = questions[currentQuestionIndex];
+    const currentQuestionKey = currentQuestion ? String(currentQuestion.id) : '';
+    const judgedQuestionIds = new Set(memorizationLogs.map(log => log.questionId));
+    const showAnswerForCurrent = currentQuestion
+        ? (feedbackTimingMode === 'immediate'
+            ? showAnswerMap[currentQuestionKey] === true
+            : feedbackPhase === 'revealing' && answeredMap[currentQuestionKey] === true)
+        : false;
+    const shouldTrackCurrentQuestionTime =
+        !isTestCompleted &&
+        !activeHistory &&
+        currentQuestion?.id !== undefined &&
+        !showAnswerForCurrent;
+    const {
+        currentQuestionElapsedSeconds,
+        getQuestionElapsedMsSnapshot,
+        replaceQuestionElapsedMsById,
+        resetQuestionElapsedMsById,
+    } = useQuestionElapsedTimer(currentQuestion?.id, shouldTrackCurrentQuestionTime);
 
     const resolveCurrentReviewBoardFeedbackBlockSize = useCallback((questionCount: number) => {
         return resolveReviewBoardFeedbackBlockSize(questionCount, {
@@ -188,6 +208,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
     useLayoutEffect(() => {
         const frameId = window.requestAnimationFrame(() => {
+            resetQuestionElapsedMsById();
             setIsLoading(true);
             setQuestions([]);
             setMemorizationLogs([]);
@@ -215,7 +236,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         return () => {
             window.cancelAnimationFrame(frameId);
         };
-    }, [sessionKey, resetSessionNotices]);
+    }, [resetQuestionElapsedMsById, resetSessionNotices, sessionKey]);
 
     useEffect(() => {
         clearWindowTimeout(saveDebounceRef);
@@ -266,6 +287,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             currentQuestionIndex: targetCurrentQuestionIndex,
             answeredMap: targetAnsweredMap,
             showAnswerMap: targetShowAnswerMap,
+            questionElapsedMsById: getQuestionElapsedMsSnapshot(),
             pendingRevealQuestionIds: targetPendingRevealQuestionIds,
             feedbackPhase: targetFeedbackPhase,
             feedbackTimingMode: targetFeedbackTimingMode,
@@ -523,6 +545,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         completedQuestionIdsRef.current = [];
         persistedCompletedQuestionIdsRef.current = [];
         dailyStudyStatsRef.current = {};
+        resetQuestionElapsedMsById();
         setQuestions(studyQuestions);
         setMemorizationLogs([]);
         setMemorizationInputsMap({});
@@ -540,7 +563,15 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         // Mark as initialized to prevent useEffect from re-shuffling
         lastSessionKeyRef.current = sessionKey;
         setIsLoading(false);
-    }, [navigate, quizSetId, sessionKey, fromReviewBoardFromState, sessionSlotKey, resolveCurrentReviewBoardFeedbackBlockSize]);
+    }, [
+        fromReviewBoardFromState,
+        navigate,
+        quizSetId,
+        resetQuestionElapsedMsById,
+        resolveCurrentReviewBoardFeedbackBlockSize,
+        sessionKey,
+        sessionSlotKey,
+    ]);
 
     useEffect(() => {
         const initMem = async () => {
@@ -568,6 +599,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                     completedQuestionIdsRef.current = getCompletedQuestionIdsFromSuspendedSession(session);
                     persistedCompletedQuestionIdsRef.current = mergeCompletedQuestionIds(session.persistedCompletedQuestionIds);
                     dailyStudyStatsRef.current = normalizeDailyStudyStats(session.dailyStudyStats);
+                    replaceQuestionElapsedMsById(session.questionElapsedMsById);
                     const nextIndex = Math.min(session.currentQuestionIndex, filteredQuestions.length - 1);
                     setQuestions(filteredQuestions);
                     setMemorizationLogs(session.memorizationLogs || []);
@@ -617,6 +649,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                     setMemorizationInputsMap(inputsMap);
                     setAnsweredMap(allAnswered);
                     setShowAnswerMap(allShown);
+                    resetQuestionElapsedMsById();
                     setPendingRevealQuestionIds([]);
                     setFeedbackPhase('revealing');
                     setFeedbackTimingMode(historyFromState.feedbackTimingMode || 'immediate');
@@ -667,7 +700,19 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         };
 
         initMem();
-    }, [sessionKey, startNew, quizSetId, historyFromState, startNewFromState, reviewQuestionIdsFromState, fromReviewBoardFromState, sessionSlotKey, resolveCurrentReviewBoardFeedbackBlockSize]);
+    }, [
+        fromReviewBoardFromState,
+        historyFromState,
+        quizSetId,
+        replaceQuestionElapsedMsById,
+        resetQuestionElapsedMsById,
+        resolveCurrentReviewBoardFeedbackBlockSize,
+        reviewQuestionIdsFromState,
+        sessionKey,
+        sessionSlotKey,
+        startNew,
+        startNewFromState,
+    ]);
 
     const handleBackToDetail = () => {
         clearWindowTimeout(saveDebounceRef);
@@ -1220,18 +1265,10 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
     const managePath = `/quiz/${quizSetId}/manage`;
     const detailPath = `/quiz/${quizSetId}`;
-    const currentQuestion = questions[currentQuestionIndex];
-    const currentQuestionKey = currentQuestion ? String(currentQuestion.id) : '';
     const currentInputs = currentQuestion
         ? (memorizationInputsMap[currentQuestionKey] || new Array(currentQuestion.options.length).fill(''))
         : [];
-    const judgedQuestionIds = new Set(memorizationLogs.map(log => log.questionId));
     const isCurrentQuestionJudged = currentQuestion ? judgedQuestionIds.has(currentQuestion.id!) : false;
-    const showAnswerForCurrent = currentQuestion
-        ? (feedbackTimingMode === 'immediate'
-            ? showAnswerMap[currentQuestionKey] === true
-            : feedbackPhase === 'revealing' && answeredMap[currentQuestionKey] === true)
-        : false;
     const isAnswerLocked = currentQuestion
         ? (feedbackTimingMode !== 'immediate' &&
             feedbackPhase === 'answering' &&
@@ -1454,6 +1491,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                             feedbackBlockSize={feedbackBlockSize}
                             revealReadyCount={revealReadyCount}
                             answersUntilRevealCount={answersUntilRevealCount}
+                            questionElapsedSeconds={currentQuestionElapsedSeconds}
                             handwritingState={handwritingMap[currentQuestionKey]}
                             onHandwritingStateChange={(value) => setHandwritingMap((prev) => ({ ...prev, [currentQuestionKey]: value }))}
                             allowTouchDrawing={allowTouchDrawing}

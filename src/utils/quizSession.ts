@@ -50,6 +50,7 @@ type BuildSuspendedSessionBaseParams = {
     currentQuestionIndex: number;
     answeredMap: Record<string, boolean>;
     showAnswerMap: Record<string, boolean>;
+    questionElapsedMsById?: Record<string, number>;
     pendingRevealQuestionIds: number[];
     feedbackPhase: 'answering' | 'revealing';
     feedbackTimingMode: FeedbackTimingMode;
@@ -76,6 +77,7 @@ function buildSuspendedSessionBase({
     currentQuestionIndex,
     answeredMap,
     showAnswerMap,
+    questionElapsedMsById,
     pendingRevealQuestionIds,
     feedbackPhase,
     feedbackTimingMode,
@@ -89,6 +91,7 @@ function buildSuspendedSessionBase({
     | 'currentQuestionIndex'
     | 'answeredMap'
     | 'showAnswerMap'
+    | 'questionElapsedMsById'
     | 'pendingRevealQuestionIds'
     | 'feedbackPhase'
     | 'feedbackTimingMode'
@@ -103,6 +106,7 @@ function buildSuspendedSessionBase({
         currentQuestionIndex,
         answeredMap,
         showAnswerMap,
+        questionElapsedMsById,
         pendingRevealQuestionIds,
         feedbackPhase,
         feedbackTimingMode,
@@ -294,6 +298,7 @@ export function filterSuspendedSessionByQuestionIds(
         memorizationAnswers: filterObjectByQuestionIds(session.memorizationAnswers, targetQuestionIdSet),
         answeredMap: filterObjectByQuestionIds(session.answeredMap, targetQuestionIdSet),
         showAnswerMap: filterObjectByQuestionIds(session.showAnswerMap, targetQuestionIdSet),
+        questionElapsedMsById: filterObjectByQuestionIds(session.questionElapsedMsById, targetQuestionIdSet),
         pendingRevealQuestionIds: (session.pendingRevealQuestionIds || []).filter((questionId) => targetQuestionIdSet.has(questionId)),
         markedQuestions: (session.markedQuestions || []).filter((questionId) => targetQuestionIdSet.has(questionId)),
         memorizationLogs: filterMemorizationLogsByQuestionIds(session.memorizationLogs, targetQuestionIdSet),
@@ -375,6 +380,7 @@ export function buildReviewDueResumeSession(
         memorizationAnswers: omitObjectByQuestionIds(filteredSession.memorizationAnswers, resetQuestionIdSet),
         answeredMap: omitObjectByQuestionIds(filteredSession.answeredMap, resetQuestionIdSet),
         showAnswerMap: omitObjectByQuestionIds(filteredSession.showAnswerMap, resetQuestionIdSet),
+        questionElapsedMsById: omitObjectByQuestionIds(filteredSession.questionElapsedMsById, resetQuestionIdSet),
         pendingRevealQuestionIds: (filteredSession.pendingRevealQuestionIds || []).filter((questionId) => !resetQuestionIdSet.has(questionId)),
         markedQuestions: (filteredSession.markedQuestions || []).filter((questionId) => !resetQuestionIdSet.has(questionId)),
         memorizationLogs: (filteredSession.memorizationLogs || []).filter((log) => !resetQuestionIdSet.has(log.questionId)),

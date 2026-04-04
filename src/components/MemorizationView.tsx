@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Question, FeedbackTimingMode, MemorizationLog } from '../types';
 import { MarkdownText } from './MarkdownText';
 import { HandwritingPad, type HandwritingPadState } from './HandwritingPad';
+import { formatElapsedSeconds } from '../utils/formatElapsedTime';
 
 interface QuestionViewProps {
     question: Question;
@@ -26,6 +27,7 @@ interface QuestionViewProps {
     feedbackBlockSize?: number;
     revealReadyCount?: number | null;
     answersUntilRevealCount?: number | null;
+    questionElapsedSeconds?: number | null;
     handwritingState?: HandwritingPadState;
     onHandwritingStateChange?: (value: HandwritingPadState) => void;
     allowTouchDrawing: boolean;
@@ -52,6 +54,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
     feedbackBlockSize = 5,
     revealReadyCount = null,
     answersUntilRevealCount = null,
+    questionElapsedSeconds = null,
     handwritingState,
     onHandwritingStateChange,
     allowTouchDrawing,
@@ -87,7 +90,14 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                         </button>
                     )}
                     <span className="category-badge">{question.category}</span>
-                    <span className="progress-text-card" style={{ marginLeft: 'auto' }}>{index + 1} / {total}</span>
+                    <div className="question-card-meta">
+                        {questionElapsedSeconds !== null && (
+                            <span className="question-elapsed-time question-elapsed-time-card">
+                                {`この問題 ${formatElapsedSeconds(questionElapsedSeconds)}`}
+                            </span>
+                        )}
+                        <span className="progress-text-card">{index + 1} / {total}</span>
+                    </div>
                 </div>
                 <h2 className="question-text">
                     <MarkdownText content={question.text} />
