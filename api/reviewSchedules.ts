@@ -278,7 +278,7 @@ async function handleBulkUpsert(
         question_id,
         ROW_NUMBER() OVER (
           PARTITION BY question_id
-          ORDER BY COALESCE(last_reviewed_at, to_timestamp(0)) DESC, id DESC
+          ORDER BY COALESCE(last_reviewed_at, to_timestamp(0)) DESC, next_due DESC, consecutive_correct DESC, interval_days DESC, id DESC
         ) AS rn
       FROM review_schedules
       WHERE user_id = ${userId} AND question_id = ANY(${questionIds})
@@ -457,7 +457,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                       AND q.is_deleted = false
                       AND q.is_archived = false
                       AND COALESCE(q.exclude_from_review, false) = false
-                    ORDER BY COALESCE(rs.last_reviewed_at, to_timestamp(0)) DESC, rs.id DESC
+                    ORDER BY COALESCE(rs.last_reviewed_at, to_timestamp(0)) DESC, rs.next_due DESC, rs.consecutive_correct DESC, rs.interval_days DESC, rs.id DESC
                     LIMIT 1
                 `;
         if (rows.length === 0) return res.status(200).json(null);
@@ -485,7 +485,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                 rs.*,
                 ROW_NUMBER() OVER (
                   PARTITION BY rs.question_id
-                  ORDER BY COALESCE(rs.last_reviewed_at, to_timestamp(0)) DESC, rs.id DESC
+                  ORDER BY COALESCE(rs.last_reviewed_at, to_timestamp(0)) DESC, rs.next_due DESC, rs.consecutive_correct DESC, rs.interval_days DESC, rs.id DESC
                 ) AS rn
               FROM review_schedules rs
               JOIN quiz_sets q ON rs.quiz_set_id = q.id
@@ -505,7 +505,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
                         s.*,
                         ROW_NUMBER() OVER (
                           PARTITION BY s.question_id
-                          ORDER BY COALESCE(s.last_reviewed_at, to_timestamp(0)) DESC, s.id DESC
+                          ORDER BY COALESCE(s.last_reviewed_at, to_timestamp(0)) DESC, s.next_due DESC, s.consecutive_correct DESC, s.interval_days DESC, s.id DESC
                         ) AS rn
                       FROM review_schedules s
                       JOIN quiz_sets q ON s.quiz_set_id = q.id
@@ -605,7 +605,7 @@ export default async function handler(req: ApiHandlerRequest<ReviewScheduleBody>
             SELECT id
             FROM review_schedules
             WHERE question_id = ${questionIdNum} AND user_id = ${userId}
-            ORDER BY COALESCE(last_reviewed_at, to_timestamp(0)) DESC, id DESC
+            ORDER BY COALESCE(last_reviewed_at, to_timestamp(0)) DESC, next_due DESC, consecutive_correct DESC, interval_days DESC, id DESC
             LIMIT 1
           `;
           if (existing.length > 0) {
