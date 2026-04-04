@@ -192,6 +192,19 @@ function filterObjectByQuestionIds<T>(
     );
 }
 
+function omitObjectByQuestionIds<T>(
+    record: Record<string, T> | undefined,
+    omittedQuestionIdSet: Set<number>
+): Record<string, T> {
+    if (!record) {
+        return {};
+    }
+
+    return Object.fromEntries(
+        Object.entries(record).filter(([questionId]) => !omittedQuestionIdSet.has(Number(questionId)))
+    );
+}
+
 function filterMemorizationLogsByQuestionIds(
     logs: MemorizationLog[] | undefined,
     targetQuestionIdSet: Set<number>
@@ -303,7 +316,17 @@ export function buildReviewDueResumeSession(
     const completedQuestionIdSet = new Set(
         getCompletedQuestionIdsFromSuspendedSession(session).filter((questionId) => availableQuestionById.has(questionId))
     );
+    const persistedCompletedQuestionIdSet = new Set(
+        normalizeCompletedQuestionIds(session.persistedCompletedQuestionIds)
+            .filter((questionId) => availableQuestionById.has(questionId))
+    );
     const savedQuestionIds = savedQuestions.map((question) => question.id!);
+    const resetQuestionIdSet = new Set(
+        currentReviewQuestionIds.filter((questionId) => persistedCompletedQuestionIdSet.has(questionId))
+    );
+    const effectiveCompletedQuestionIdSet = new Set(
+        [...completedQuestionIdSet].filter((questionId) => !resetQuestionIdSet.has(questionId))
+    );
 
     const mergedQuestionIds: number[] = [];
     const mergedQuestionIdSet = new Set<number>();
@@ -315,8 +338,11 @@ export function buildReviewDueResumeSession(
         mergedQuestionIdSet.add(questionId);
     };
 
-    // 復習再開時も完了済み問題を保持し、最終的な回答履歴が分割されないようにする。
-    savedQuestionIds.forEach(appendQuestionId);
+    // すでに schedule 更新済みの問題は、再開時に古い回答状態を持ち越さず、
+    // 現在の復習対象として fresh な状態で出し直す。
+    savedQuestionIds
+        .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId))
+        .forEach(appendQuestionId);
     currentReviewQuestionIds.forEach(appendQuestionId);
 
     const mergedQuestions = mergedQuestionIds
@@ -324,12 +350,38 @@ export function buildReviewDueResumeSession(
         .filter((question): question is Question => Boolean(question));
 
     const savedCurrentQuestionId = savedQuestions[Math.min(session.currentQuestionIndex, Math.max(savedQuestions.length - 1, 0))]?.id;
-    const firstIncompleteQuestionId = mergedQuestionIds.find((questionId) => !completedQuestionIdSet.has(questionId));
+    const firstIncompleteQuestionId = mergedQuestionIds.find((questionId) => !effectiveCompletedQuestionIdSet.has(questionId));
     const currentQuestionId = savedCurrentQuestionId !== undefined
         && mergedQuestionIdSet.has(savedCurrentQuestionId)
-        && !completedQuestionIdSet.has(savedCurrentQuestionId)
+        && !effectiveCompletedQuestionIdSet.has(savedCurrentQuestionId)
         ? savedCurrentQuestionId
         : firstIncompleteQuestionId ?? mergedQuestionIds[0];
 
-    return filterSuspendedSessionByQuestionIds(session, mergedQuestions, currentQuestionId);
+    const filteredSession = filterSuspendedSessionByQuestionIds(session, mergedQuestions, currentQuestionId);
+
+    if (resetQuestionIdSet.size === 0) {
+        return {
+            ...filteredSession,
+            completedQuestionIds: normalizeCompletedQuestionIds(filteredSession.completedQuestionIds),
+            persistedCompletedQuestionIds: normalizeCompletedQuestionIds(filteredSession.persistedCompletedQuestionIds),
+        };
+    }
+
+    return {
+        ...filteredSession,
+        answers: omitObjectByQuestionIds(filteredSession.answers, resetQuestionIdSet),
+        memos: filteredSession.memos,
+        confidences: omitObjectByQuestionIds(filteredSession.confidences, resetQuestionIdSet),
+        memorizationAnswers: omitObjectByQuestionIds(filteredSession.memorizationAnswers, resetQuestionIdSet),
+        answeredMap: omitObjectByQuestionIds(filteredSession.answeredMap, resetQuestionIdSet),
+        showAnswerMap: omitObjectByQuestionIds(filteredSession.showAnswerMap, resetQuestionIdSet),
+        pendingRevealQuestionIds: (filteredSession.pendingRevealQuestionIds || []).filter((questionId) => !resetQuestionIdSet.has(questionId)),
+        markedQuestions: (filteredSession.markedQuestions || []).filter((questionId) => !resetQuestionIdSet.has(questionId)),
+        memorizationLogs: (filteredSession.memorizationLogs || []).filter((log) => !resetQuestionIdSet.has(log.questionId)),
+        memorizationInputsMap: omitObjectByQuestionIds(filteredSession.memorizationInputsMap, resetQuestionIdSet),
+        completedQuestionIds: normalizeCompletedQuestionIds(filteredSession.completedQuestionIds)
+            .filter((questionId) => !resetQuestionIdSet.has(questionId)),
+        persistedCompletedQuestionIds: normalizeCompletedQuestionIds(filteredSession.persistedCompletedQuestionIds)
+            .filter((questionId) => !resetQuestionIdSet.has(questionId)),
+    };
 }

@@ -2410,6 +2410,11 @@
   max-width: 100%;
   max-height: calc(var(--review-board-future-header-height) + (var(--review-board-future-row-height) * 10));
   overflow: auto;
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: contain;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
