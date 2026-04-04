@@ -29,6 +29,21 @@ function formatMonthDay(date: Date): string {
     return `${month}/${day}`;
 }
 
+function toLocalDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getReviewLogGroupKey(reviewLog: ReviewLog): string {
+    const sessionId = reviewLog.sessionId?.trim();
+    if (sessionId) {
+        return `session:${sessionId}`;
+    }
+    return `date:${toLocalDateKey(new Date(reviewLog.reviewedAt))}`;
+}
+
 function buildHistoryStatusMap(history: QuizHistory, questions: Question[]): Map<number, CellStatus> {
     const statusMap = new Map<number, CellStatus>();
 
@@ -69,7 +84,7 @@ function buildReviewLogAttemptColumns(reviewLogs: ReviewLog[]): AttemptColumn[] 
     const sortedLogs = [...reviewLogs].sort((a, b) => a.reviewedAt.localeCompare(b.reviewedAt));
 
     for (const log of sortedLogs) {
-        const key = log.reviewedAt;
+        const key = getReviewLogGroupKey(log);
         const current = grouped.get(key);
         const status: CellStatus = log.isCorrect ? 'correct' : 'incorrect';
         if (current) {

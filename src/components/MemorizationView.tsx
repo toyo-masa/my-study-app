@@ -93,7 +93,7 @@ export const MemorizationQuestionView: React.FC<QuestionViewProps> = ({
                     <div className="question-card-meta">
                         {questionElapsedSeconds !== null && (
                             <span className="question-elapsed-time question-elapsed-time-card">
-                                {`この問題 ${formatElapsedSeconds(questionElapsedSeconds)}`}
+                                {formatElapsedSeconds(questionElapsedSeconds)}
                             </span>
                         )}
                         <span className="progress-text-card">{index + 1} / {total}</span>

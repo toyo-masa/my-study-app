@@ -219,7 +219,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                     </div>
                     {questionElapsedSeconds !== null && (
                         <div className="question-elapsed-time question-elapsed-time-top">
-                            {`この問題 ${formatElapsedSeconds(questionElapsedSeconds)}`}
+                            {formatElapsedSeconds(questionElapsedSeconds)}
                         </div>
                     )}
                 </div>
