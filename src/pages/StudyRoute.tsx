@@ -66,6 +66,26 @@ interface StudyRouteProps {
     onWebLlmModelChange: (modelId: string) => void;
 }
 
+type StudyAutoSaveState = {
+    quizSetId: number | undefined;
+    questions: Question[];
+    currentQuestionIndex: number;
+    answers: Record<string, number[]>;
+    answeredMap: Record<string, boolean>;
+    memos: Record<string, string>;
+    confidences: Record<string, ConfidenceLevel>;
+    memorizationAnswers: Record<string, string>;
+    showAnswerMap: Record<string, boolean>;
+    pendingRevealQuestionIds: number[];
+    feedbackPhase: 'answering' | 'revealing';
+    feedbackTimingMode: FeedbackTimingMode;
+    feedbackBlockSize: number;
+    markedQuestions: number[];
+    historyMode: HistoryMode;
+    isTestCompleted: boolean;
+    activeHistory: QuizHistory | null;
+};
+
 const isStudyChatDrawerViewport = (): boolean => {
     if (typeof window === 'undefined') {
         return false;
@@ -227,7 +247,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
-    const autoSaveStateRef = useRef({
+    const autoSaveStateRef = useRef<StudyAutoSaveState>({
         quizSetId: undefined as number | undefined,
         questions,
         currentQuestionIndex,
@@ -244,8 +264,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         markedQuestions,
         historyMode,
         isTestCompleted: false,
-        activeHistory: null as null | typeof historyFromState,
+        activeHistory: null,
     });
+    const syncAutoSaveState = useCallback((patch: Partial<StudyAutoSaveState>) => {
+        autoSaveStateRef.current = { ...autoSaveStateRef.current, ...patch };
+    }, []);
 
     // Unique key for the current session to detect changes
     const sessionKey = buildQuizSessionKey({
@@ -976,6 +999,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         const nextAnswers = { ...answers, [qId]: newAnswers };
         setAnswers(nextAnswers);
+        syncAutoSaveState({ answers: nextAnswers });
     };
 
     const findQuestionIndexById = (questionId: number): number => {
@@ -1044,15 +1068,22 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
     const enterRevealPhase = (questionIds: number[]) => {
         if (questionIds.length === 0) return;
+        const nextShowAnswerMap = { ...showAnswerMap, [String(questionIds[0])]: true };
+        const nextIndex = findQuestionIndexById(questionIds[0]);
         setOverflowRevealAfterCurrentQuestionId(null);
         setFeedbackPhase('revealing');
         setPendingRevealQuestionIds(questionIds);
         triggerCorrectRevealEffect(questionIds[0]);
-        setShowAnswerMap(prev => ({ ...prev, [String(questionIds[0])]: true }));
-        const nextIndex = findQuestionIndexById(questionIds[0]);
+        setShowAnswerMap(nextShowAnswerMap);
         if (nextIndex >= 0) {
             setCurrentQuestionIndex(nextIndex);
         }
+        syncAutoSaveState({
+            feedbackPhase: 'revealing',
+            pendingRevealQuestionIds: questionIds,
+            showAnswerMap: nextShowAnswerMap,
+            currentQuestionIndex: nextIndex >= 0 ? nextIndex : autoSaveStateRef.current.currentQuestionIndex,
+        });
     };
 
     const finalizeTestCompletion = async (overrideConfidences?: Record<string, ConfidenceLevel>) => {
@@ -1165,13 +1196,21 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
             // 暗記問題は answeredMap を即セットしない（onMemorizationJudge で判定後にセット）
+            const nextAnsweredMap = !isMemoQuestion
+                ? { ...answeredMap, [qId]: true }
+                : answeredMap;
+            const nextShowAnswerMap = { ...showAnswerMap, [qId]: true };
             if (!isMemoQuestion) {
-                setAnsweredMap(prev => ({ ...prev, [qId]: true }));
+                setAnsweredMap(nextAnsweredMap);
             }
             if (!isMemoQuestion) {
                 triggerCorrectRevealEffect(questionId);
             }
-            setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
+            setShowAnswerMap(nextShowAnswerMap);
+            syncAutoSaveState({
+                answeredMap: nextAnsweredMap,
+                showAnswerMap: nextShowAnswerMap,
+            });
             scheduleSaveSession();
             return;
         }
@@ -1202,12 +1241,20 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         ).length;
 
         if (feedbackTimingMode === 'delayed_end' && allAnswered) {
+            syncAutoSaveState({
+                answeredMap: nextAnsweredMap,
+                pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            });
             enterRevealPhase(getUnrevealedAnsweredQuestionIds(nextAnsweredMap));
             scheduleSaveSession();
             return;
         }
 
         if (feedbackTimingMode === 'delayed_block' && shouldLockByDelayedBlock && unconfirmedPendingCount > 0) {
+            syncAutoSaveState({
+                answeredMap: nextAnsweredMap,
+                pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            });
             enterRevealPhase(nextPendingRevealQuestionIds);
             scheduleSaveSession();
             return;
@@ -1217,6 +1264,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         if (nextUnansweredIndex >= 0) {
             setCurrentQuestionIndex(nextUnansweredIndex);
         }
+        syncAutoSaveState({
+            answeredMap: nextAnsweredMap,
+            pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            currentQuestionIndex: nextUnansweredIndex >= 0 ? nextUnansweredIndex : autoSaveStateRef.current.currentQuestionIndex,
+        });
         scheduleSaveSession();
     };
 
@@ -1228,6 +1280,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         const currentQuestion = questions[currentQuestionIndex];
         if (!currentQuestion) {
             setCurrentQuestionIndex(targetIndex);
+            syncAutoSaveState({ currentQuestionIndex: targetIndex });
             return;
         }
 
@@ -1248,12 +1301,24 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 setPendingRevealQuestionIds([]);
                 setFeedbackPhase('answering');
                 setCurrentQuestionIndex(targetIndex);
+                syncAutoSaveState({
+                    pendingRevealQuestionIds: [],
+                    feedbackPhase: 'answering',
+                    currentQuestionIndex: targetIndex,
+                });
                 return;
             }
 
             if (isTargetPending) {
                 triggerCorrectRevealEffect(targetQuestionId);
-                setShowAnswerMap(prev => ({ ...prev, [String(targetQuestionId)]: true }));
+                const nextShowAnswerMap = { ...showAnswerMap, [String(targetQuestionId)]: true };
+                setShowAnswerMap(nextShowAnswerMap);
+                syncAutoSaveState({
+                    showAnswerMap: nextShowAnswerMap,
+                    currentQuestionIndex: targetIndex,
+                });
+            } else {
+                syncAutoSaveState({ currentQuestionIndex: targetIndex });
             }
             setCurrentQuestionIndex(targetIndex);
             return;
@@ -1261,6 +1326,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         if (feedbackTimingMode === 'immediate' || feedbackPhase !== 'answering') {
             setCurrentQuestionIndex(targetIndex);
+            syncAutoSaveState({ currentQuestionIndex: targetIndex });
             return;
         }
 
@@ -1306,6 +1372,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         }
 
         setCurrentQuestionIndex(targetIndex);
+        syncAutoSaveState({
+            answeredMap: nextAnsweredMap,
+            pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            currentQuestionIndex: targetIndex,
+        });
     };
 
     const handleToggleMark = (questionId?: number) => {
@@ -1317,18 +1388,20 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         }
 
         setMarkedQuestions(prev => {
-            if (prev.includes(qId!)) {
-                return prev.filter(id => id !== qId);
-            } else {
-                return [...prev, qId!];
-            }
+            const nextMarkedQuestions = prev.includes(qId!)
+                ? prev.filter(id => id !== qId)
+                : [...prev, qId!];
+            syncAutoSaveState({ markedQuestions: nextMarkedQuestions });
+            return nextMarkedQuestions;
         });
     };
 
     const handleNext = () => {
         if (feedbackTimingMode === 'immediate') {
             if (currentQuestionIndex < questions.length - 1) {
-                setCurrentQuestionIndex(prev => prev + 1);
+                const nextIndex = currentQuestionIndex + 1;
+                setCurrentQuestionIndex(nextIndex);
+                syncAutoSaveState({ currentQuestionIndex: nextIndex });
             }
             return;
         }
@@ -1337,6 +1410,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
             if (nextUnansweredIndex >= 0) {
                 setCurrentQuestionIndex(nextUnansweredIndex);
+                syncAutoSaveState({ currentQuestionIndex: nextUnansweredIndex });
                 scheduleSaveSession();
                 return;
             }
@@ -1369,7 +1443,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
         if (nextPendingId !== undefined) {
             triggerCorrectRevealEffect(nextPendingId);
-            setShowAnswerMap(prev => ({ ...prev, [String(nextPendingId)]: true }));
+            const nextShowAnswerMap = { ...showAnswerMap, [String(nextPendingId)]: true };
+            setShowAnswerMap(nextShowAnswerMap);
             const nextIndex = findQuestionIndexById(nextPendingId);
             if (nextIndex >= 0) {
                 setCurrentQuestionIndex(nextIndex);
@@ -1378,6 +1453,10 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             if (q?.questionType === 'memorization' && showAnswerMap[String(nextPendingId)]) {
                 flashSessionInlineNotice('未判定の暗記問題があります');
             }
+            syncAutoSaveState({
+                showAnswerMap: nextShowAnswerMap,
+                currentQuestionIndex: nextIndex >= 0 ? nextIndex : autoSaveStateRef.current.currentQuestionIndex,
+            });
             scheduleSaveSession();
             return;
         }
@@ -1387,6 +1466,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         if (feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0) {
             setFeedbackPhase('answering');
             setCurrentQuestionIndex(nextUnansweredIndex);
+            syncAutoSaveState({
+                pendingRevealQuestionIds: [],
+                feedbackPhase: 'answering',
+                currentQuestionIndex: nextUnansweredIndex,
+            });
             scheduleSaveSession();
             return;
         }
@@ -1395,11 +1479,15 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     };
 
     const handleMemoChange = (questionId: number, value: string) => {
-        setMemos(prev => ({ ...prev, [String(questionId)]: value }));
+        const nextMemos = { ...memos, [String(questionId)]: value };
+        setMemos(nextMemos);
+        syncAutoSaveState({ memos: nextMemos });
     };
 
     const handleConfidenceChange = (questionId: number, level: ConfidenceLevel) => {
-        setConfidences(prev => ({ ...prev, [String(questionId)]: level }));
+        const nextConfidences = { ...confidences, [String(questionId)]: level };
+        setConfidences(nextConfidences);
+        syncAutoSaveState({ confidences: nextConfidences });
     };
 
     /**
@@ -1416,6 +1504,10 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         const newAnsweredMap = { ...answeredMap, [qId]: true };
         setConfidences(newConfidences);
         setAnsweredMap(newAnsweredMap);
+        syncAutoSaveState({
+            confidences: newConfidences,
+            answeredMap: newAnsweredMap,
+        });
         scheduleSaveSession();
 
         if (feedbackTimingMode === 'immediate') {
@@ -1429,7 +1521,10 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 return;
             }
             const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
-            if (nextIdx >= 0) setCurrentQuestionIndex(nextIdx);
+            if (nextIdx >= 0) {
+                setCurrentQuestionIndex(nextIdx);
+                syncAutoSaveState({ currentQuestionIndex: nextIdx });
+            }
             return;
         }
 
@@ -1451,7 +1546,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
             if (nextPendingId !== undefined) {
                 // 次の pending 問題の答えを表示して移動
-                setShowAnswerMap(prev => ({ ...prev, [String(nextPendingId)]: true }));
+                const nextShowAnswerMap = { ...showAnswerMap, [String(nextPendingId)]: true };
+                setShowAnswerMap(nextShowAnswerMap);
                 const nextIndex = findQuestionIndexById(nextPendingId);
                 if (nextIndex >= 0) {
                     setCurrentQuestionIndex(nextIndex);
@@ -1460,6 +1556,10 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 if (q?.questionType === 'memorization' && showAnswerMap[String(nextPendingId)]) {
                     flashSessionInlineNotice('未判定の暗記問題があります');
                 }
+                syncAutoSaveState({
+                    showAnswerMap: nextShowAnswerMap,
+                    currentQuestionIndex: nextIndex >= 0 ? nextIndex : autoSaveStateRef.current.currentQuestionIndex,
+                });
                 return;
             }
 
@@ -1470,6 +1570,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 // delayed_block: まだ回答していない問題が残っている
                 setFeedbackPhase('answering');
                 setCurrentQuestionIndex(nextUnansweredIndex);
+                syncAutoSaveState({
+                    pendingRevealQuestionIds: [],
+                    feedbackPhase: 'answering',
+                    currentQuestionIndex: nextUnansweredIndex,
+                });
                 return;
             }
             // delayed_end or 全問完了 → テスト終了
@@ -1481,6 +1586,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         const nextIdx = findNextUnansweredIndex(currentQuestionIndex, newAnsweredMap);
         if (nextIdx >= 0) {
             setCurrentQuestionIndex(nextIdx);
+            syncAutoSaveState({ currentQuestionIndex: nextIdx });
         } else {
             const unrevealedAnswered = getUnrevealedAnsweredQuestionIds(newAnsweredMap);
             if (unrevealedAnswered.length > 0) {

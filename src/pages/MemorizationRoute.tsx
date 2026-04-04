@@ -64,6 +64,24 @@ interface MemorizationRouteProps {
     onWebLlmModelChange: (modelId: string) => void;
 }
 
+type MemorizationAutoSaveState = {
+    quizSetId: number | undefined;
+    questions: Question[];
+    currentQuestionIndex: number;
+    answeredMap: Record<string, boolean>;
+    showAnswerMap: Record<string, boolean>;
+    pendingRevealQuestionIds: number[];
+    feedbackPhase: 'answering' | 'revealing';
+    feedbackTimingMode: FeedbackTimingMode;
+    feedbackBlockSize: number;
+    markedQuestions: number[];
+    historyMode: HistoryMode;
+    memorizationLogs: MemorizationLog[];
+    memorizationInputsMap: Record<string, string[]>;
+    isTestCompleted: boolean;
+    activeHistory: QuizHistory | null;
+};
+
 const isStudyChatDrawerViewport = (): boolean => {
     if (typeof window === 'undefined') {
         return false;
@@ -179,7 +197,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
     }, [reviewBoardFeedbackBlockSize]);
 
     // Mirror of state needed for auto-save (to avoid stale closure in event listeners)
-    const autoSaveStateRef = useRef({
+    const autoSaveStateRef = useRef<MemorizationAutoSaveState>({
         quizSetId: undefined as number | undefined,
         questions,
         currentQuestionIndex,
@@ -194,8 +212,11 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         memorizationLogs,
         memorizationInputsMap,
         isTestCompleted: false,
-        activeHistory: null as QuizHistory | null,
+        activeHistory: null,
     });
+    const syncAutoSaveState = useCallback((patch: Partial<MemorizationAutoSaveState>) => {
+        autoSaveStateRef.current = { ...autoSaveStateRef.current, ...patch };
+    }, []);
 
     // Unique key for the current session
     const sessionKey = buildQuizSessionKey({
@@ -785,11 +806,11 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         }
 
         setMarkedQuestions(prev => {
-            if (prev.includes(qId!)) {
-                return prev.filter(id => id !== qId);
-            } else {
-                return [...prev, qId!];
-            }
+            const nextMarkedQuestions = prev.includes(qId!)
+                ? prev.filter(id => id !== qId)
+                : [...prev, qId!];
+            syncAutoSaveState({ markedQuestions: nextMarkedQuestions });
+            return nextMarkedQuestions;
         });
     };
 
@@ -823,12 +844,17 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
     const enterRevealPhase = (questionIds: number[]) => {
         if (questionIds.length === 0) return;
+        const nextIndex = findQuestionIndexById(questionIds[0]);
         setFeedbackPhase('revealing');
         setPendingRevealQuestionIds(questionIds);
-        const nextIndex = findQuestionIndexById(questionIds[0]);
         if (nextIndex >= 0) {
             setCurrentQuestionIndex(nextIndex);
         }
+        syncAutoSaveState({
+            feedbackPhase: 'revealing',
+            pendingRevealQuestionIds: questionIds,
+            currentQuestionIndex: nextIndex >= 0 ? nextIndex : autoSaveStateRef.current.currentQuestionIndex,
+        });
     };
 
     const hasAnyMemorizationInput = (
@@ -911,6 +937,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         const nextInputsMap = { ...memorizationInputsMap, [qId]: nextInputs };
 
         setMemorizationInputsMap(nextInputsMap);
+        syncAutoSaveState({ memorizationInputsMap: nextInputsMap });
         scheduleSaveSession();
     };
 
@@ -919,15 +946,22 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         if (!currentQ) return;
         const questionId = currentQ.id!;
         const qId = String(questionId);
+        const nextInputsMap = memorizationInputsMap[qId]
+            ? memorizationInputsMap
+            : { ...memorizationInputsMap, [qId]: new Array(currentQ.options.length).fill('') };
 
-        setMemorizationInputsMap(prev => {
-            if (prev[qId]) return prev;
-            return { ...prev, [qId]: new Array(currentQ.options.length).fill('') };
-        });
+        setMemorizationInputsMap(nextInputsMap);
+        syncAutoSaveState({ memorizationInputsMap: nextInputsMap });
 
         if (feedbackTimingMode === 'immediate' || feedbackPhase === 'revealing') {
-            setAnsweredMap(prev => ({ ...prev, [qId]: true }));
-            setShowAnswerMap(prev => ({ ...prev, [qId]: true }));
+            const nextAnsweredMap = { ...answeredMap, [qId]: true };
+            const nextShowAnswerMap = { ...showAnswerMap, [qId]: true };
+            setAnsweredMap(nextAnsweredMap);
+            setShowAnswerMap(nextShowAnswerMap);
+            syncAutoSaveState({
+                answeredMap: nextAnsweredMap,
+                showAnswerMap: nextShowAnswerMap,
+            });
             scheduleSaveSession();
             return;
         }
@@ -954,12 +988,20 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             (nextPendingRevealQuestionIds.length >= feedbackBlockSize || allAnswered);
 
         if (feedbackTimingMode === 'delayed_end' && allAnswered) {
+            syncAutoSaveState({
+                answeredMap: nextAnsweredMap,
+                pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            });
             enterRevealPhase(getUnjudgedAnsweredQuestionIds(nextAnsweredMap));
             scheduleSaveSession();
             return;
         }
 
         if (shouldLockByDelayedBlock) {
+            syncAutoSaveState({
+                answeredMap: nextAnsweredMap,
+                pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            });
             enterRevealPhase(nextPendingRevealQuestionIds);
             scheduleSaveSession();
             return;
@@ -969,6 +1011,11 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         if (nextUnansweredIndex >= 0) {
             setCurrentQuestionIndex(nextUnansweredIndex);
         }
+        syncAutoSaveState({
+            answeredMap: nextAnsweredMap,
+            pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            currentQuestionIndex: nextUnansweredIndex >= 0 ? nextUnansweredIndex : autoSaveStateRef.current.currentQuestionIndex,
+        });
         scheduleSaveSession();
     };
 
@@ -980,6 +1027,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         const currentQ = questions[currentQuestionIndex];
         if (!currentQ) {
             setCurrentQuestionIndex(targetIndex);
+            syncAutoSaveState({ currentQuestionIndex: targetIndex });
             scheduleSaveSession();
             return;
         }
@@ -1002,12 +1050,24 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                 setPendingRevealQuestionIds([]);
                 setFeedbackPhase('answering');
                 setCurrentQuestionIndex(targetIndex);
+                syncAutoSaveState({
+                    pendingRevealQuestionIds: [],
+                    feedbackPhase: 'answering',
+                    currentQuestionIndex: targetIndex,
+                });
                 scheduleSaveSession();
                 return;
             }
 
             if (isTargetPending) {
-                setShowAnswerMap(prev => ({ ...prev, [String(targetQuestionId)]: true }));
+                const nextShowAnswerMap = { ...showAnswerMap, [String(targetQuestionId)]: true };
+                setShowAnswerMap(nextShowAnswerMap);
+                syncAutoSaveState({
+                    showAnswerMap: nextShowAnswerMap,
+                    currentQuestionIndex: targetIndex,
+                });
+            } else {
+                syncAutoSaveState({ currentQuestionIndex: targetIndex });
             }
             setCurrentQuestionIndex(targetIndex);
             scheduleSaveSession();
@@ -1016,6 +1076,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
         if (feedbackTimingMode === 'immediate' || feedbackPhase !== 'answering') {
             setCurrentQuestionIndex(targetIndex);
+            syncAutoSaveState({ currentQuestionIndex: targetIndex });
             scheduleSaveSession();
             return;
         }
@@ -1065,13 +1126,20 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         }
 
         setCurrentQuestionIndex(targetIndex);
+        syncAutoSaveState({
+            answeredMap: nextAnsweredMap,
+            pendingRevealQuestionIds: nextPendingRevealQuestionIds,
+            currentQuestionIndex: targetIndex,
+        });
         scheduleSaveSession();
     };
 
     const handleMoveNext = () => {
         if (feedbackTimingMode === 'immediate') {
             if (currentQuestionIndex < questions.length - 1) {
-                setCurrentQuestionIndex(prev => prev + 1);
+                const nextIndex = currentQuestionIndex + 1;
+                setCurrentQuestionIndex(nextIndex);
+                syncAutoSaveState({ currentQuestionIndex: nextIndex });
                 scheduleSaveSession();
             }
             return;
@@ -1081,6 +1149,7 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             const nextUnansweredIndex = findNextUnansweredIndex(currentQuestionIndex);
             if (nextUnansweredIndex >= 0) {
                 setCurrentQuestionIndex(nextUnansweredIndex);
+                syncAutoSaveState({ currentQuestionIndex: nextUnansweredIndex });
                 scheduleSaveSession();
                 return;
             }
@@ -1106,6 +1175,9 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             if (nextIndex >= 0) {
                 setCurrentQuestionIndex(nextIndex);
             }
+            syncAutoSaveState({
+                currentQuestionIndex: nextIndex >= 0 ? nextIndex : autoSaveStateRef.current.currentQuestionIndex,
+            });
             scheduleSaveSession();
             return;
         }
@@ -1116,6 +1188,11 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             setFeedbackPhase('answering');
             setCurrentQuestionIndex(nextUnansweredIndex);
         }
+        syncAutoSaveState({
+            pendingRevealQuestionIds: [],
+            feedbackPhase: feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0 ? 'answering' : autoSaveStateRef.current.feedbackPhase,
+            currentQuestionIndex: nextUnansweredIndex >= 0 ? nextUnansweredIndex : autoSaveStateRef.current.currentQuestionIndex,
+        });
         scheduleSaveSession();
     };
 
@@ -1137,11 +1214,19 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         };
         const newLogs = [...filteredLogs, log];
         setMemorizationLogs(newLogs);
+        syncAutoSaveState({
+            memorizationInputsMap: { ...memorizationInputsMap, [qId]: inputs },
+            answeredMap: { ...answeredMap, [qId]: true },
+            showAnswerMap: { ...showAnswerMap, [qId]: true },
+            memorizationLogs: newLogs,
+        });
         scheduleSaveSession();
 
         if (feedbackTimingMode === 'immediate') {
             if (currentQuestionIndex < questions.length - 1) {
-                setCurrentQuestionIndex(prev => prev + 1);
+                const nextIndex = currentQuestionIndex + 1;
+                setCurrentQuestionIndex(nextIndex);
+                syncAutoSaveState({ currentQuestionIndex: nextIndex });
             }
             return;
         }
@@ -1157,6 +1242,9 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                 if (nextIndex >= 0) {
                     setCurrentQuestionIndex(nextIndex);
                 }
+                syncAutoSaveState({
+                    currentQuestionIndex: nextIndex >= 0 ? nextIndex : autoSaveStateRef.current.currentQuestionIndex,
+                });
                 return;
             }
 
@@ -1165,6 +1253,11 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             if (feedbackTimingMode === 'delayed_block' && nextUnansweredIndex >= 0) {
                 setFeedbackPhase('answering');
                 setCurrentQuestionIndex(nextUnansweredIndex);
+                syncAutoSaveState({
+                    pendingRevealQuestionIds: [],
+                    feedbackPhase: 'answering',
+                    currentQuestionIndex: nextUnansweredIndex,
+                });
             }
         }
     };
