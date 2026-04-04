@@ -1,18 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { X, Moon, Sun, Globe, Monitor, LogOut, LogIn, User, Info, SlidersHorizontal, ChevronDown, Pencil, Bot, LoaderCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ReviewIntervalSettings } from '../utils/spacedRepetition';
 import { normalizeReviewIntervalSettings } from '../utils/spacedRepetition';
 import {
-    LOCAL_API_REASONING_EFFORT_OPTIONS,
-    WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY,
-    WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET,
-    WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS,
-    WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS,
-    WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS,
-    WEB_LLM_QWEN_SECOND_PASS_DEFAULTS,
-    WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS,
-    loadLastLocalApiModelId,
     type HandwritingSettings,
     type LocalLlmSettings,
     type StudyEffectSettings,
@@ -26,8 +17,6 @@ import {
 import type { ReviewBoardSettings } from '../utils/quizSettings';
 import { NumericStepper } from './NumericStepper';
 import { getGroupedWebLlmModelOptions } from '../utils/localLlmEngine';
-import { useOllamaModelDefaultParameters } from '../hooks/useOllamaModelDefaultParameters';
-import { ParameterHelpLabel } from './ParameterHelpLabel';
 import { fetchOpenAiCompatibleModelIds } from '../utils/openAiCompatibleLocalApi';
 
 interface SettingsModalProps {
@@ -68,13 +57,6 @@ const PRESET_COLORS = [
     { name: 'Slate', value: '#64748b' },
 ];
 
-const PARAMETER_HELP_TOOLTIPS = {
-    temperature: '出力のばらつきを調整します。低いほど安定し、高いほど表現の幅が広がります。',
-    topP: '候補トークンを上位の累積確率で絞り込みます。低いほど無難、高いほど多様になります。',
-    maxTokens: '1回の応答で生成する最大トークン数です。小さすぎると回答が途中で切れます。',
-    finalAnswerMaxTokens: '最終回答フェーズで生成する最大トークン数です。小さすぎると回答が途中で切れます。',
-} as const;
-
 export const SettingsModal: React.FC<SettingsModalProps> = ({
     isOpen,
     onClose,
@@ -103,7 +85,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onLoginRequest,
     showLocalLlmSettings = false,
 }) => {
-    const buildDefaultPlaceholder = (value: number | string) => `default : ${value}`;
     const [localApiConnectionCheck, setLocalApiConnectionCheck] = useState<{
         baseUrl: string;
         status: 'idle' | 'loading' | 'success' | 'error';
@@ -123,76 +104,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         () => findLocalApiProviderByBaseUrl(localLlmSettings.baseUrl),
         [localLlmSettings.baseUrl]
     );
-    const lastLocalApiModelId = useMemo(
-        () => loadLastLocalApiModelId(localLlmSettings.baseUrl),
-        [localLlmSettings.baseUrl]
-    );
-    const settingsOllamaDefaults = useOllamaModelDefaultParameters({
-        baseUrl: localLlmSettings.baseUrl,
-        modelId: lastLocalApiModelId,
-        enabled: isOpen && matchedLocalApiProvider?.id === 'ollama',
-    });
-    const localApiDefaultsSeededKeyRef = useRef<string | null>(null);
     const localApiConnectionCheckRequestIdRef = useRef(0);
-    const localApiDefaultSeedKey = isOpen
-        && matchedLocalApiProvider?.id === 'ollama'
-        && lastLocalApiModelId.length > 0
-        ? `${localLlmSettings.baseUrl}::${lastLocalApiModelId}`
-        : '';
     const trimmedBaseUrl = localLlmSettings.baseUrl.trim();
     const activeLocalApiConnectionCheck = localApiConnectionCheck.baseUrl === trimmedBaseUrl
         ? localApiConnectionCheck
         : { baseUrl: trimmedBaseUrl, status: 'idle' as const, message: '' };
-
-    const parseOptionalNumberInput = (value: string): number | null => {
-        const trimmed = value.trim();
-        if (trimmed.length === 0) {
-            return null;
-        }
-
-        const parsed = Number.parseFloat(trimmed);
-        return Number.isFinite(parsed) ? parsed : null;
-    };
-
-    useEffect(() => {
-        if (localApiDefaultSeedKey.length === 0 || !settingsOllamaDefaults.isResolved) {
-            return;
-        }
-
-        if (localApiDefaultsSeededKeyRef.current === localApiDefaultSeedKey) {
-            return;
-        }
-
-        const nextTemperature = localLlmSettings.localApiTemperature ?? settingsOllamaDefaults.temperature;
-        const nextTopP = localLlmSettings.localApiTopP ?? settingsOllamaDefaults.topP;
-        const nextMaxTokens = localLlmSettings.localApiMaxTokens
-            ?? (settingsOllamaDefaults.maxTokens > 0 ? settingsOllamaDefaults.maxTokens : null);
-
-        localApiDefaultsSeededKeyRef.current = localApiDefaultSeedKey;
-
-        if (
-            nextTemperature === localLlmSettings.localApiTemperature
-            && nextTopP === localLlmSettings.localApiTopP
-            && nextMaxTokens === localLlmSettings.localApiMaxTokens
-        ) {
-            return;
-        }
-
-        onLocalLlmSettingsChange({
-            ...localLlmSettings,
-            localApiTemperature: nextTemperature,
-            localApiTopP: nextTopP,
-            localApiMaxTokens: nextMaxTokens,
-        });
-    }, [
-        localApiDefaultSeedKey,
-        localLlmSettings,
-        onLocalLlmSettingsChange,
-        settingsOllamaDefaults.isResolved,
-        settingsOllamaDefaults.maxTokens,
-        settingsOllamaDefaults.temperature,
-        settingsOllamaDefaults.topP,
-    ]);
 
     const handleCheckLocalApiConnection = async () => {
         const baseUrl = trimmedBaseUrl;
@@ -520,101 +436,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                             </div>
 
                                             <div className="review-settings-card">
-                                                <h4 className="review-settings-card-title">ローカルAPI 生成パラメータ</h4>
+                                                <h4 className="review-settings-card-title">生成パラメータの設定場所</h4>
                                                 <p className="review-settings-note">
-                                                    `temperature`、`top_p`、`max_tokens` は OpenAI互換の `/v1/chat/completions` にそのまま送ります。
-                                                    {matchedLocalApiProvider?.id === 'ollama'
-                                                        ? ' Ollama では最後に選んだモデルがあればその既定値を数値で表示し、`reasoning_effort` も送って thinking の強さを調整できます。'
-                                                        : ' thinking 制御は現在 Ollama 接続時のみ送信します。'}
+                                                    `temperature`、`top_p`、`max_tokens`、`reasoning_effort`、WebLLM の生成パラメータは、設定画面ではなくチャット欄のスライダーからモデルごとに調整してください。
                                                 </p>
-                                                <div className="review-settings-grid">
-                                                    <label className="review-setting-item">
-                                                        <span className="review-setting-label">
-                                                            <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
-                                                        </span>
-                                                        <input
-                                                            type="number"
-                                                            className="setting-select"
-                                                            value={localLlmSettings.localApiTemperature ?? ''}
-                                                            onChange={(event) => onLocalLlmSettingsChange({
-                                                                ...localLlmSettings,
-                                                                localApiTemperature: parseOptionalNumberInput(event.target.value),
-                                                            })}
-                                                            placeholder={buildDefaultPlaceholder(
-                                                                matchedLocalApiProvider?.id === 'ollama'
-                                                                    ? settingsOllamaDefaults.temperature
-                                                                    : '自動'
-                                                            )}
-                                                            min={0}
-                                                            max={2}
-                                                            step={0.05}
-                                                            inputMode="decimal"
-                                                        />
-                                                    </label>
-                                                    <label className="review-setting-item">
-                                                        <span className="review-setting-label">
-                                                            <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
-                                                        </span>
-                                                        <input
-                                                            type="number"
-                                                            className="setting-select"
-                                                            value={localLlmSettings.localApiTopP ?? ''}
-                                                            onChange={(event) => onLocalLlmSettingsChange({
-                                                                ...localLlmSettings,
-                                                                localApiTopP: parseOptionalNumberInput(event.target.value),
-                                                            })}
-                                                            placeholder={buildDefaultPlaceholder(
-                                                                matchedLocalApiProvider?.id === 'ollama'
-                                                                    ? settingsOllamaDefaults.topP
-                                                                    : '自動'
-                                                            )}
-                                                            min={0.01}
-                                                            max={1}
-                                                            step={0.01}
-                                                            inputMode="decimal"
-                                                        />
-                                                    </label>
-                                                    <label className="review-setting-item">
-                                                        <span className="review-setting-label">
-                                                            <ParameterHelpLabel label="max_tokens" tooltip={PARAMETER_HELP_TOOLTIPS.maxTokens} />
-                                                        </span>
-                                                        <input
-                                                            type="number"
-                                                            className="setting-select"
-                                                            value={localLlmSettings.localApiMaxTokens ?? ''}
-                                                            onChange={(event) => onLocalLlmSettingsChange({
-                                                                ...localLlmSettings,
-                                                                localApiMaxTokens: parseOptionalNumberInput(event.target.value),
-                                                            })}
-                                                            placeholder={buildDefaultPlaceholder(
-                                                                matchedLocalApiProvider?.id === 'ollama'
-                                                                    ? settingsOllamaDefaults.maxTokens
-                                                                    : 'モデル既定'
-                                                            )}
-                                                            min={1}
-                                                            max={32768}
-                                                            step={1}
-                                                            inputMode="numeric"
-                                                        />
-                                                    </label>
-                                                    <label className="review-setting-item">
-                                                        <span className="review-setting-label">reasoning_effort</span>
-                                                        <select
-                                                            className="setting-select"
-                                                            value={localLlmSettings.localApiReasoningEffort}
-                                                            onChange={(event) => onLocalLlmSettingsChange({
-                                                                ...localLlmSettings,
-                                                                localApiReasoningEffort: event.target.value as typeof localLlmSettings.localApiReasoningEffort,
-                                                            })}
-                                                        >
-                                                            {LOCAL_API_REASONING_EFFORT_OPTIONS.map((value) => (
-                                                                <option key={value} value={value}>
-                                                                    {value === 'default' ? buildDefaultPlaceholder('モデル既定') : value}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </label>
-                                                </div>
+                                                <p className="review-settings-note">
+                                                    設定場所が分かれると紛らわしいため、この画面からは変更できないようにしました。
+                                                </p>
                                             </div>
 
                                             <div className="review-settings-card">
@@ -668,197 +496,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 </label>
                                             </div>
 
-                                            <div className="review-settings-card">
-                                                <h4 className="review-settings-card-title">WebLLM 生成パラメータ</h4>
-                                                <p className="review-settings-note">
-                                                    1回目は `temperature 0.6 / top_p 0.95 / thinking_budget 1024` から始め、2回目は `/no_think` を付けて最終回答へ移ります。
-                                                </p>
-
-                                                <div className="setting-control">
-                                                    <span>Thinking モードを使う</span>
-                                                    <label className="toggle-switch">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={localLlmSettings.webllmEnableThinking}
-                                                            onChange={(event) => onLocalLlmSettingsChange({
-                                                                ...localLlmSettings,
-                                                                webllmEnableThinking: event.target.checked,
-                                                            })}
-                                                        />
-                                                        <span className="slider"></span>
-                                                    </label>
-                                                </div>
-
-                                                <div style={{ display: 'grid', gap: '1rem' }}>
-                                                    <div style={{ border: '1px solid var(--border-color)', borderRadius: '18px', padding: '1rem' }}>
-                                                        <h5 className="review-settings-card-title" style={{ marginBottom: '0.35rem', fontSize: '0.98rem' }}>
-                                                            1回目
-                                                        </h5>
-                                                        <p className="review-settings-note" style={{ marginBottom: '0.9rem' }}>
-                                                            default : `temperature {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP} / thinking_budget {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET} / presence_penalty {WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY}`
-                                                        </p>
-                                                        <div className="review-settings-grid">
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">
-                                                                    <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
-                                                                </span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="setting-select"
-                                                                    value={localLlmSettings.webllmFirstPassTemperature ?? ''}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmFirstPassTemperature: parseOptionalNumberInput(event.target.value),
-                                                                    })}
-                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature)}
-                                                                    min={0}
-                                                                    max={2}
-                                                                    step={0.05}
-                                                                    inputMode="decimal"
-                                                                />
-                                                            </label>
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">
-                                                                    <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
-                                                                </span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="setting-select"
-                                                                    value={localLlmSettings.webllmFirstPassTopP ?? ''}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmFirstPassTopP: parseOptionalNumberInput(event.target.value),
-                                                                    })}
-                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP)}
-                                                                    min={0.01}
-                                                                    max={1}
-                                                                    step={0.01}
-                                                                    inputMode="decimal"
-                                                                />
-                                                            </label>
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">thinking_budget</span>
-                                                                <select
-                                                                    className="setting-select"
-                                                                    value={String(localLlmSettings.webllmFirstPassThinkingBudget ?? WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET)}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmFirstPassThinkingBudget: Number.parseInt(event.target.value, 10),
-                                                                    })}
-                                                                >
-                                                                    {WEB_LLM_QWEN_FIRST_PASS_THINKING_BUDGET_OPTIONS.map((budget) => (
-                                                                        <option key={budget} value={budget}>
-                                                                            {budget}{budget === WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET ? ' (default)' : ''}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </label>
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">presence_penalty</span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="setting-select"
-                                                                    value={localLlmSettings.webllmFirstPassPresencePenalty ?? ''}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmFirstPassPresencePenalty: parseOptionalNumberInput(event.target.value),
-                                                                    })}
-                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY)}
-                                                                    min={0.3}
-                                                                    max={0.6}
-                                                                    step={0.05}
-                                                                    inputMode="decimal"
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    </div>
-
-                                                    <div style={{ border: '1px solid var(--border-color)', borderRadius: '18px', padding: '1rem' }}>
-                                                        <h5 className="review-settings-card-title" style={{ marginBottom: '0.35rem', fontSize: '0.98rem' }}>
-                                                            2回目
-                                                        </h5>
-                                                        <p className="review-settings-note" style={{ marginBottom: '0.9rem' }}>
-                                                            default : `temperature {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature} / top_p {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP} / final_answer_max_tokens {WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS} / presence_penalty {WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty}` で、`/no_think` を付けて最終回答を生成します。
-                                                        </p>
-                                                        <div className="review-settings-grid">
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">
-                                                                    <ParameterHelpLabel label="temperature" tooltip={PARAMETER_HELP_TOOLTIPS.temperature} />
-                                                                </span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="setting-select"
-                                                                    value={localLlmSettings.webllmSecondPassTemperature ?? ''}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmSecondPassTemperature: parseOptionalNumberInput(event.target.value),
-                                                                    })}
-                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature)}
-                                                                    min={0.5}
-                                                                    max={0.7}
-                                                                    step={0.05}
-                                                                    inputMode="decimal"
-                                                                />
-                                                            </label>
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">
-                                                                    <ParameterHelpLabel label="top_p" tooltip={PARAMETER_HELP_TOOLTIPS.topP} />
-                                                                </span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="setting-select"
-                                                                    value={localLlmSettings.webllmSecondPassTopP ?? ''}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmSecondPassTopP: parseOptionalNumberInput(event.target.value),
-                                                                    })}
-                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP)}
-                                                                    min={0.8}
-                                                                    max={0.9}
-                                                                    step={0.01}
-                                                                    inputMode="decimal"
-                                                                />
-                                                            </label>
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">
-                                                                    <ParameterHelpLabel label="final_answer_max_tokens" tooltip={PARAMETER_HELP_TOOLTIPS.finalAnswerMaxTokens} />
-                                                                </span>
-                                                                <select
-                                                                    className="setting-select"
-                                                                    value={String(localLlmSettings.webllmSecondPassFinalAnswerMaxTokens ?? WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS)}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmSecondPassFinalAnswerMaxTokens: Number.parseInt(event.target.value, 10),
-                                                                    })}
-                                                                >
-                                                                    {WEB_LLM_QWEN_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS_OPTIONS.map((maxTokens) => (
-                                                                        <option key={maxTokens} value={maxTokens}>
-                                                                            {maxTokens}{maxTokens === WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS ? ' (default)' : ''}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </label>
-                                                            <label className="review-setting-item">
-                                                                <span className="review-setting-label">presence_penalty</span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="setting-select"
-                                                                    value={localLlmSettings.webllmSecondPassPresencePenalty ?? ''}
-                                                                    onChange={(event) => onLocalLlmSettingsChange({
-                                                                        ...localLlmSettings,
-                                                                        webllmSecondPassPresencePenalty: parseOptionalNumberInput(event.target.value),
-                                                                    })}
-                                                                    placeholder={buildDefaultPlaceholder(WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty)}
-                                                                    min={0}
-                                                                    max={0.3}
-                                                                    step={0.05}
-                                                                    inputMode="decimal"
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
                                     </details>
                                 </section>

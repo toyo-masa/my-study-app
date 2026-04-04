@@ -531,42 +531,42 @@ export type ResolvedLocalApiRequestOptions = {
     ollamaThink: boolean | 'low' | 'medium' | 'high' | null;
 };
 
-const buildDefaultLocalApiModelParameterSettings = (settings: LocalLlmSettings): LocalApiModelParameterSettings => ({
-    temperature: settings.localApiTemperature,
-    topP: settings.localApiTopP,
-    maxTokens: settings.localApiMaxTokens,
-    reasoningEffort: settings.localApiReasoningEffort,
+const buildDefaultLocalApiModelParameterSettings = (): LocalApiModelParameterSettings => ({
+    temperature: null,
+    topP: null,
+    maxTokens: null,
+    reasoningEffort: 'default',
 });
 
-const buildDefaultWebLlmModelParameterSettings = (settings: LocalLlmSettings): WebLlmModelParameterSettings => ({
-    firstPassTemperature: settings.webllmFirstPassTemperature,
-    firstPassTopP: settings.webllmFirstPassTopP,
-    firstPassThinkingBudget: settings.webllmFirstPassThinkingBudget ?? WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET,
-    firstPassPresencePenalty: settings.webllmFirstPassPresencePenalty,
-    secondPassTemperature: settings.webllmSecondPassTemperature,
-    secondPassTopP: settings.webllmSecondPassTopP,
-    secondPassFinalAnswerMaxTokens: settings.webllmSecondPassFinalAnswerMaxTokens ?? WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS,
-    secondPassPresencePenalty: settings.webllmSecondPassPresencePenalty,
+const buildDefaultWebLlmModelParameterSettings = (): WebLlmModelParameterSettings => ({
+    firstPassTemperature: WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.temperature,
+    firstPassTopP: WEB_LLM_QWEN_FIRST_PASS_FIXED_DEFAULTS.topP,
+    firstPassThinkingBudget: WEB_LLM_QWEN_DEFAULT_FIRST_PASS_THINKING_BUDGET,
+    firstPassPresencePenalty: WEB_LLM_QWEN_DEFAULT_FIRST_PASS_PRESENCE_PENALTY,
+    secondPassTemperature: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.temperature,
+    secondPassTopP: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.topP,
+    secondPassFinalAnswerMaxTokens: WEB_LLM_QWEN_DEFAULT_SECOND_PASS_FINAL_ANSWER_MAX_TOKENS,
+    secondPassPresencePenalty: WEB_LLM_QWEN_SECOND_PASS_DEFAULTS.presencePenalty,
 });
 
 export function resolveLocalApiModelParameterSettings(settings: LocalLlmSettings, modelId: string): LocalApiModelParameterSettings {
     const normalizedModelId = normalizeLocalLlmModelId(modelId);
     if (normalizedModelId.length === 0) {
-        return buildDefaultLocalApiModelParameterSettings(settings);
+        return buildDefaultLocalApiModelParameterSettings();
     }
 
     return settings.localApiModelOverrides[normalizedModelId]
-        ?? buildDefaultLocalApiModelParameterSettings(settings);
+        ?? buildDefaultLocalApiModelParameterSettings();
 }
 
 export function resolveWebLlmModelParameterSettings(settings: LocalLlmSettings, modelId: string): WebLlmModelParameterSettings {
     const normalizedModelId = normalizeLocalLlmModelId(modelId);
     if (normalizedModelId.length === 0) {
-        return buildDefaultWebLlmModelParameterSettings(settings);
+        return buildDefaultWebLlmModelParameterSettings();
     }
 
     return settings.webllmModelOverrides[normalizedModelId]
-        ?? buildDefaultWebLlmModelParameterSettings(settings);
+        ?? buildDefaultWebLlmModelParameterSettings();
 }
 
 export function hasLocalApiModelParameterOverrides(settings: LocalLlmSettings, modelId: string): boolean {

@@ -78,11 +78,6 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
         modelId: selectedModelId,
         enabled: isOllama,
     });
-    const hasLocalApiOverrides = useMemo(
-        () => hasLocalApiModelParameterOverrides(localLlmSettings, selectedModelId),
-        [localLlmSettings, selectedModelId]
-    );
-
     const localApiParameters = useMemo(
         () => resolveLocalApiModelParameterSettings(localLlmSettings, selectedModelId),
         [localLlmSettings, selectedModelId]
@@ -106,14 +101,6 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
     ), [isLocalApiMode, localLlmSettings, selectedModelId]);
     const hasCustomParameterValues = useMemo(() => {
         if (isLocalApiMode) {
-            if (isOllama && ollamaDefaults.isResolved) {
-                const defaultOllamaMaxTokens = ollamaDefaults.maxTokens > 0 ? ollamaDefaults.maxTokens : null;
-                return localApiParameters.temperature !== ollamaDefaults.temperature
-                    || localApiParameters.topP !== ollamaDefaults.topP
-                    || localApiParameters.maxTokens !== defaultOllamaMaxTokens
-                    || localApiParameters.reasoningEffort !== 'default';
-            }
-
             return localApiParameters.temperature !== defaultLocalApiParameters.temperature
                 || localApiParameters.topP !== defaultLocalApiParameters.topP
                 || localApiParameters.maxTokens !== defaultLocalApiParameters.maxTokens
@@ -142,15 +129,10 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
         defaultWebLlmParameters.secondPassTemperature,
         defaultWebLlmParameters.secondPassTopP,
         isLocalApiMode,
-        isOllama,
         localApiParameters.maxTokens,
         localApiParameters.reasoningEffort,
         localApiParameters.temperature,
         localApiParameters.topP,
-        ollamaDefaults.isResolved,
-        ollamaDefaults.maxTokens,
-        ollamaDefaults.temperature,
-        ollamaDefaults.topP,
         webLlmParameters.firstPassPresencePenalty,
         webLlmParameters.firstPassTemperature,
         webLlmParameters.firstPassThinkingBudget,
@@ -274,29 +256,6 @@ export const LocalLlmParameterPopover: React.FC<LocalLlmParameterPopoverProps> =
             return upsertWebLlmModelParameterSettings(previous, selectedModelId, recipe(current));
         });
     }, [onLocalLlmSettingsChange, selectedModelId]);
-
-    useEffect(() => {
-        if (!effectiveIsOpen || !isOllama || !ollamaDefaults.isResolved || hasLocalApiOverrides) {
-            return;
-        }
-
-        onLocalLlmSettingsChange((previous) => upsertLocalApiModelParameterSettings(previous, selectedModelId, {
-            temperature: ollamaDefaults.temperature,
-            topP: ollamaDefaults.topP,
-            maxTokens: ollamaDefaults.maxTokens > 0 ? ollamaDefaults.maxTokens : null,
-            reasoningEffort: 'default',
-        }));
-    }, [
-        effectiveIsOpen,
-        hasLocalApiOverrides,
-        isOllama,
-        ollamaDefaults.isResolved,
-        ollamaDefaults.maxTokens,
-        ollamaDefaults.temperature,
-        ollamaDefaults.topP,
-        onLocalLlmSettingsChange,
-        selectedModelId,
-    ]);
 
     const handleReset = useCallback(() => {
         onLocalLlmSettingsChange((previous) => (
