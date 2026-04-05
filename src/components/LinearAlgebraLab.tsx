@@ -65,6 +65,17 @@ type VisualizationProps = {
 
 type LabelTone = 'original' | 'transformed' | 'restored';
 
+type PlotVectorSpec = {
+    key: string;
+    vector: Vector2;
+    label: string;
+    className: string;
+    markerUrl: string;
+    labelTone: LabelTone;
+    labelOffsetX?: number;
+    labelOffsetY?: number;
+};
+
 type SliderFieldProps = {
     label: string;
     value: number;
@@ -424,7 +435,7 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
     const markerId = useId();
     const svgRef = useRef<SVGSVGElement>(null);
     const dragPointerIdRef = useRef<number | null>(null);
-    const dragHandleRef = useRef<SVGCircleElement | null>(null);
+    const dragCaptureTargetRef = useRef<Element | null>(null);
 
     const derivedBounds = useMemo(() => {
         return bounds ?? buildPlotBounds(collectPlotPoints({
@@ -493,9 +504,9 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
     const clearDraggingState = useCallback((pointerId?: number) => {
         if (
             pointerId !== undefined &&
-            dragHandleRef.current?.hasPointerCapture(pointerId)
+            dragCaptureTargetRef.current?.hasPointerCapture(pointerId)
         ) {
-            dragHandleRef.current.releasePointerCapture(pointerId);
+            dragCaptureTargetRef.current.releasePointerCapture(pointerId);
         }
         dragPointerIdRef.current = null;
         document.body.classList.remove('is-dragging-linear-algebra-vector');
@@ -517,18 +528,16 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
         });
     }, [derivedBounds, onSampleVectorChange]);
 
-    const handlePointerDown = useCallback((event: React.PointerEvent<SVGCircleElement>) => {
+    const beginSampleVectorDrag = useCallback((pointerId: number, captureTarget: Element, clientX: number, clientY: number) => {
         if (!onSampleVectorChange) {
             return;
         }
 
-        event.preventDefault();
-        event.stopPropagation();
-        dragPointerIdRef.current = event.pointerId;
-        dragHandleRef.current = event.currentTarget;
-        event.currentTarget.setPointerCapture(event.pointerId);
+        dragPointerIdRef.current = pointerId;
+        dragCaptureTargetRef.current = captureTarget;
+        captureTarget.setPointerCapture(pointerId);
         document.body.classList.add('is-dragging-linear-algebra-vector');
-        updateVectorFromClient(event.clientX, event.clientY);
+        updateVectorFromClient(clientX, clientY);
 
         const handlePointerMove = (moveEvent: PointerEvent) => {
             if (dragPointerIdRef.current !== moveEvent.pointerId) {
@@ -555,12 +564,27 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
         window.addEventListener('pointercancel', handlePointerUp);
     }, [clearDraggingState, onSampleVectorChange, updateVectorFromClient]);
 
-    const renderVector = (
+    const handleSampleHandlePointerDown = useCallback((event: React.PointerEvent<SVGCircleElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        beginSampleVectorDrag(event.pointerId, event.currentTarget, event.clientX, event.clientY);
+    }, [beginSampleVectorDrag]);
+
+    const handlePlotPointerDown = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
+        if (!onSampleVectorChange) {
+            return;
+        }
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+            return;
+        }
+
+        event.preventDefault();
+        beginSampleVectorDrag(event.pointerId, event.currentTarget, event.clientX, event.clientY);
+    }, [beginSampleVectorDrag, onSampleVectorChange]);
+
+    const getVectorLabelFrame = useCallback((
         vector: Vector2,
         label: string,
-        className: string,
-        markerUrl: string,
-        labelTone: LabelTone,
         labelOffsetX = 0,
         labelOffsetY = 0,
     ) => {
@@ -570,31 +594,41 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
         const badgeHeight = PLOT_LABEL_HEIGHT;
         const baseOffsetX = tip.x >= origin.x ? 12 : -(badgeWidth + 12);
         const baseOffsetY = tip.y <= origin.y ? -(badgeHeight + 10) : 10;
-        const badgeX = clampValue(tip.x + baseOffsetX + labelOffsetX, 10, PLOT_SIZE - badgeWidth - 10);
-        const badgeY = clampValue(tip.y + baseOffsetY + labelOffsetY, 10, PLOT_SIZE - badgeHeight - 10);
+        return {
+            origin,
+            tip,
+            badgeWidth,
+            badgeHeight,
+            badgeX: clampValue(tip.x + baseOffsetX + labelOffsetX, 10, PLOT_SIZE - badgeWidth - 10),
+            badgeY: clampValue(tip.y + baseOffsetY + labelOffsetY, 10, PLOT_SIZE - badgeHeight - 10),
+        };
+    }, [derivedBounds]);
 
-        return (
-            <g key={label}>
-                <line
-                    className={className}
-                    x1={origin.x}
-                    y1={origin.y}
-                    x2={tip.x}
-                    y2={tip.y}
-                    markerEnd={`url(#${markerUrl})`}
-                />
-                <g className={`linear-algebra-lab-plot-label-badge is-${labelTone}`} transform={`translate(${badgeX}, ${badgeY})`}>
-                    <rect className="linear-algebra-lab-plot-label-bg" x={0} y={0} width={badgeWidth} height={badgeHeight} rx={11} ry={11} />
-                    <foreignObject x={0} y={0} width={badgeWidth} height={badgeHeight}>
-                        <div
-                            className="linear-algebra-lab-plot-label-html"
-                            dangerouslySetInnerHTML={{ __html: renderPlotLabelHtml(label) }}
-                        />
-                    </foreignObject>
-                </g>
-            </g>
-        );
-    };
+    const vectorSpecs = useMemo<PlotVectorSpec[]>(() => {
+        const baseSpecs: PlotVectorSpec[] = [
+            { key: 'basis-e1', vector: BASIS_E1, label: 'e1', className: 'linear-algebra-lab-vector linear-algebra-lab-vector-original', markerUrl: `${markerId}-original`, labelTone: 'original' },
+            { key: 'basis-e2', vector: BASIS_E2, label: 'e2', className: 'linear-algebra-lab-vector linear-algebra-lab-vector-original', markerUrl: `${markerId}-original`, labelTone: 'original', labelOffsetY: -6 },
+            { key: 'transformed-e1', vector: transformedBasis[0], label: 'Ae1', className: 'linear-algebra-lab-vector linear-algebra-lab-vector-transformed', markerUrl: `${markerId}-transformed`, labelTone: 'transformed', labelOffsetX: 6, labelOffsetY: -10 },
+            { key: 'transformed-e2', vector: transformedBasis[1], label: 'Ae2', className: 'linear-algebra-lab-vector linear-algebra-lab-vector-transformed', markerUrl: `${markerId}-transformed`, labelTone: 'transformed', labelOffsetX: 10, labelOffsetY: 18 },
+            { key: 'sample-x', vector: sampleVector, label: 'x', className: 'linear-algebra-lab-vector linear-algebra-lab-vector-sample', markerUrl: `${markerId}-original`, labelTone: 'original', labelOffsetX: 4, labelOffsetY: 18 },
+            { key: 'sample-ax', vector: transformedSampleVector, label: 'Ax', className: 'linear-algebra-lab-vector linear-algebra-lab-vector-transformed-sample', markerUrl: `${markerId}-transformed`, labelTone: 'transformed', labelOffsetX: 8, labelOffsetY: 18 },
+        ];
+
+        if (restoredVectors?.length) {
+            baseSpecs.push(...restoredVectors.map((item, index) => ({
+                key: `restored-${index}`,
+                vector: item.vector,
+                label: item.label,
+                className: 'linear-algebra-lab-vector linear-algebra-lab-vector-restored',
+                markerUrl: `${markerId}-inverse`,
+                labelTone: 'restored' as const,
+                labelOffsetX: 8,
+                labelOffsetY: -10,
+            })));
+        }
+
+        return baseSpecs;
+    }, [markerId, restoredVectors, sampleVector, transformedBasis, transformedSampleVector]);
 
     const sampleTip = toScreenPoint(sampleVector, derivedBounds);
     const originPoint = toScreenPoint(ZERO_VECTOR, derivedBounds);
@@ -616,6 +650,7 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
                     viewBox={`0 0 ${PLOT_SIZE} ${PLOT_SIZE}`}
                     role="img"
                     aria-label={title}
+                    onPointerDown={handlePlotPointerDown}
                 >
                     <defs>
                         <marker id={`${markerId}-original`} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -665,16 +700,20 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
                         <polyline className="linear-algebra-lab-kernel-line" points={toPointList(kernelLine, derivedBounds)} />
                     ) : null}
 
-                    {renderVector(BASIS_E1, 'e1', 'linear-algebra-lab-vector linear-algebra-lab-vector-original', `${markerId}-original`, 'original')}
-                    {renderVector(BASIS_E2, 'e2', 'linear-algebra-lab-vector linear-algebra-lab-vector-original', `${markerId}-original`, 'original', 0, -6)}
-                    {renderVector(transformedBasis[0], 'Ae1', 'linear-algebra-lab-vector linear-algebra-lab-vector-transformed', `${markerId}-transformed`, 'transformed', 6, -10)}
-                    {renderVector(transformedBasis[1], 'Ae2', 'linear-algebra-lab-vector linear-algebra-lab-vector-transformed', `${markerId}-transformed`, 'transformed', 10, 18)}
-                    {renderVector(sampleVector, 'x', 'linear-algebra-lab-vector linear-algebra-lab-vector-sample', `${markerId}-original`, 'original', 4, 18)}
-                    {renderVector(transformedSampleVector, 'Ax', 'linear-algebra-lab-vector linear-algebra-lab-vector-transformed-sample', `${markerId}-transformed`, 'transformed', 8, 18)}
-
-                    {restoredVectors?.map((item) => (
-                        renderVector(item.vector, item.label, 'linear-algebra-lab-vector linear-algebra-lab-vector-restored', `${markerId}-inverse`, 'restored', 8, -10)
-                    ))}
+                    {vectorSpecs.map((spec) => {
+                        const frame = getVectorLabelFrame(spec.vector, spec.label, spec.labelOffsetX, spec.labelOffsetY);
+                        return (
+                            <line
+                                key={spec.key}
+                                className={spec.className}
+                                x1={frame.origin.x}
+                                y1={frame.origin.y}
+                                x2={frame.tip.x}
+                                y2={frame.tip.y}
+                                markerEnd={`url(#${spec.markerUrl})`}
+                            />
+                        );
+                    })}
 
                     <circle className="linear-algebra-lab-origin-dot" cx={originPoint.x} cy={originPoint.y} r={4.2} />
                     <circle className="linear-algebra-lab-sample-handle-ring" cx={sampleTip.x} cy={sampleTip.y} r={9} />
@@ -688,10 +727,32 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
                         className="linear-algebra-lab-sample-handle-hit-area"
                         cx={sampleTip.x}
                         cy={sampleTip.y}
-                        r={22}
-                        onPointerDown={handlePointerDown}
+                        r={28}
+                        onPointerDown={handleSampleHandlePointerDown}
                     />
                 </svg>
+                <div className="linear-algebra-lab-plot-label-layer" aria-hidden="true">
+                    {vectorSpecs.map((spec) => {
+                        const frame = getVectorLabelFrame(spec.vector, spec.label, spec.labelOffsetX, spec.labelOffsetY);
+                        return (
+                            <div
+                                key={`label-${spec.key}`}
+                                className={`linear-algebra-lab-plot-label-badge is-${spec.labelTone}`}
+                                style={{
+                                    left: `${(frame.badgeX / PLOT_SIZE) * 100}%`,
+                                    top: `${(frame.badgeY / PLOT_SIZE) * 100}%`,
+                                    width: `${(frame.badgeWidth / PLOT_SIZE) * 100}%`,
+                                    height: `${(frame.badgeHeight / PLOT_SIZE) * 100}%`,
+                                }}
+                            >
+                                <div
+                                    className="linear-algebra-lab-plot-label-html"
+                                    dangerouslySetInnerHTML={{ __html: renderPlotLabelHtml(spec.label) }}
+                                />
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
 
             <div className="linear-algebra-lab-legend">
