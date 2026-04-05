@@ -113,6 +113,14 @@ const PLOT_LABEL_LATEX: Record<string, string> = {
     'A⁻¹(Ae1)': String.raw`A^{-1}(A\mathbf{e}_1)`,
     'A⁻¹(Ae2)': String.raw`A^{-1}(A\mathbf{e}_2)`,
 };
+const CONTROL_LABEL_LATEX: Record<string, string> = {
+    a11: String.raw`a_{11}`,
+    a12: String.raw`a_{12}`,
+    a21: String.raw`a_{21}`,
+    a22: String.raw`a_{22}`,
+    x: String.raw`x`,
+    y: String.raw`y`,
+};
 
 const ZERO_VECTOR: Vector2 = { x: 0, y: 0 };
 
@@ -242,6 +250,14 @@ function renderPlotLabelHtml(label: string): string {
     });
 }
 
+function renderControlLabelHtml(label: string): string {
+    return katex.renderToString(CONTROL_LABEL_LATEX[label] ?? String.raw`\mathrm{${label}}`, {
+        throwOnError: false,
+        output: 'html',
+        strict: 'ignore',
+    });
+}
+
 const SummaryCard: React.FC<SummaryCardProps> = ({ title, children }) => {
     return (
         <section className="linear-algebra-lab-card linear-algebra-lab-summary-card">
@@ -278,7 +294,11 @@ const SliderField: React.FC<SliderFieldProps> = ({
     return (
         <label className="linear-algebra-lab-field">
             <div className="linear-algebra-lab-field-head">
-                <span>{label}</span>
+                <span
+                    className="linear-algebra-lab-field-symbol"
+                    aria-label={label}
+                    dangerouslySetInnerHTML={{ __html: renderControlLabelHtml(label) }}
+                />
                 <span className="linear-algebra-lab-field-value">{formatScalar(value, 1)}</span>
             </div>
             <div className="linear-algebra-lab-field-input-row">

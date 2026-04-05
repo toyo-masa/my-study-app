@@ -288,6 +288,22 @@ body.is-dragging-linear-algebra-vector {
   font-weight: 600;
 }
 
+.linear-algebra-lab-field-symbol {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+}
+
+.linear-algebra-lab-field-symbol .katex,
+.linear-algebra-lab-field-symbol .katex * {
+  color: var(--text-color);
+}
+
+.linear-algebra-lab-field-symbol .katex {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .linear-algebra-lab-field-value {
   color: var(--primary-color);
   font-variant-numeric: tabular-nums;
