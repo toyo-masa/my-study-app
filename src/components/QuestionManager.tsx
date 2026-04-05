@@ -11,7 +11,7 @@ import {
     completeHomeOnboarding
 } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
-import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter, Pencil } from 'lucide-react';
+import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter, Pencil, Search } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 import { BackButton } from './BackButton';
 import { useAppContext } from '../contexts/AppContext';
@@ -68,6 +68,18 @@ const emptyQuestion: EditingQuestion = {
     explanation: '',
 };
 
+function normalizeQuestionSearchValue(value: string): string {
+    return value.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function buildQuestionSearchText(question: Question): string {
+    return normalizeQuestionSearchValue([
+        question.text,
+        ...(question.options || []),
+        question.explanation,
+    ].join(' '));
+}
+
 function buildManageOnboardingAutoQuestion(type?: QuizSet['type']): EditingQuestion {
     if (type === 'memorization') {
         return {
@@ -111,6 +123,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const [isImporting, setIsImporting] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string>(''); // Category filter state
+    const [searchQuery, setSearchQuery] = useState('');
     const { quizSets, setQuizSets, homeOnboardingState: onboardingState, setHomeOnboardingState: setOnboardingState, showGlobalNotice } = useAppContext();
     const [manageOnboardingStep, setManageOnboardingStep] = useState<ManageOnboardingStep>('addQuestionButton');
     const [isManageOnboardingDismissedThisSession, setIsManageOnboardingDismissedThisSession] = useState(false);
@@ -626,10 +639,38 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
         return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
     }, [questions]);
 
+    const normalizedSearchQuery = React.useMemo(
+        () => normalizeQuestionSearchValue(searchQuery),
+        [searchQuery]
+    );
+
     const filteredQuestions = React.useMemo(() => {
-        if (!selectedCategory) return questions;
-        return questions.filter(q => (q.category || 'General') === selectedCategory);
-    }, [questions, selectedCategory]);
+        return questions.filter((question) => {
+            const matchesCategory = !selectedCategory || (question.category || 'General') === selectedCategory;
+            if (!matchesCategory) {
+                return false;
+            }
+
+            if (!normalizedSearchQuery) {
+                return true;
+            }
+
+            return buildQuestionSearchText(question).includes(normalizedSearchQuery);
+        });
+    }, [questions, selectedCategory, normalizedSearchQuery]);
+
+    const filteredQuestionsEmptyMessage = React.useMemo(() => {
+        if (normalizedSearchQuery && selectedCategory) {
+            return '検索条件と選択したカテゴリに一致する問題はありません';
+        }
+        if (normalizedSearchQuery) {
+            return '検索条件に一致する問題はありません';
+        }
+        if (selectedCategory) {
+            return '選択したカテゴリの問題はありません';
+        }
+        return '問題がありません';
+    }, [normalizedSearchQuery, selectedCategory]);
 
     const getCurrentManageOnboardingTarget = useCallback((): HTMLElement | null => {
         if (!isManageOnboardingActive) return null;
@@ -1016,6 +1057,57 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     ))}
                 </div>
             </div>
+            <div style={{ marginBottom: '1.5rem', padding: '0 1rem' }}>
+                <label
+                    htmlFor="question-manager-search"
+                    style={{ display: 'block', marginBottom: '0.45rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}
+                >
+                    文字列検索
+                </label>
+                <div style={{ position: 'relative', maxWidth: '560px' }}>
+                    <Search
+                        size={16}
+                        style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '0.8rem',
+                            transform: 'translateY(-50%)',
+                            color: 'var(--text-secondary)',
+                            pointerEvents: 'none'
+                        }}
+                    />
+                    <input
+                        id="question-manager-search"
+                        type="search"
+                        className="field-input"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="問題文・選択肢・解説を検索"
+                        aria-label="問題文・選択肢・解説を検索"
+                        style={{ paddingLeft: '2.5rem', paddingRight: searchQuery ? '2.5rem' : '0.75rem' }}
+                    />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => setSearchQuery('')}
+                            title="検索をクリア"
+                            aria-label="検索をクリア"
+                            style={{
+                                position: 'absolute',
+                                top: '50%',
+                                right: '0.45rem',
+                                transform: 'translateY(-50%)'
+                            }}
+                        >
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
+                <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    {filteredQuestions.length}件表示 / 全{questions.length}件
+                </p>
+            </div>
 
             {isManageOnboardingActive && ReactDOM.createPortal(
                 <div className="home-onboarding-layer" aria-live="polite" style={{ zIndex: 99999 }}>
@@ -1352,7 +1444,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             );
                         })}
                         {filteredQuestions.length === 0 && (
-                            <tr><td colSpan={6} className="empty-table">{selectedCategory ? '選択したカテゴリの問題はありません' : '問題がありません'}</td></tr>
+                            <tr><td colSpan={6} className="empty-table">{filteredQuestionsEmptyMessage}</td></tr>
                         )}
                     </tbody>
                 </table>
