@@ -1,42 +1,136 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Calculator, Wrench, X } from 'lucide-react';
 
-type OperatorSymbol = '+' | '-' | '×' | '÷';
+type CalculatorBinaryOperator = '+' | '-' | '×' | '÷' | '^';
+type CalculatorFunctionName = 'sin' | 'cos' | 'tan' | 'log' | 'ln' | 'sqrt';
+type CalculatorResizeDirection = 'right' | 'bottom' | 'corner';
 
-type CalculatorKey = {
-    label: string;
-    value?: string;
-    variant?: 'default' | 'operator' | 'utility' | 'equal';
-    span?: 'wide' | 'tall';
+type CalculatorPosition = {
+    left: number;
+    top: number;
 };
 
-const CALCULATOR_KEYS: CalculatorKey[] = [
-    { label: 'C', value: 'clear', variant: 'utility' },
-    { label: '⌫', value: 'backspace', variant: 'utility' },
-    { label: '÷', value: '÷', variant: 'operator' },
-    { label: '×', value: '×', variant: 'operator' },
-    { label: '7', value: '7' },
-    { label: '8', value: '8' },
-    { label: '9', value: '9' },
-    { label: '-', value: '-', variant: 'operator' },
-    { label: '4', value: '4' },
-    { label: '5', value: '5' },
-    { label: '6', value: '6' },
-    { label: '+', value: '+', variant: 'operator' },
-    { label: '1', value: '1' },
-    { label: '2', value: '2' },
-    { label: '3', value: '3' },
-    { label: '=', value: 'equals', variant: 'equal', span: 'tall' },
-    { label: '0', value: '0', span: 'wide' },
-    { label: '.', value: '.' },
+type CalculatorSize = {
+    width: number;
+    height: number;
+};
+
+type CalculatorToken =
+    | { type: 'number'; value: number }
+    | { type: 'operator'; value: CalculatorBinaryOperator }
+    | { type: 'paren'; value: '(' | ')' }
+    | { type: 'function'; value: CalculatorFunctionName };
+
+type CalculatorButton = {
+    label: string;
+    action:
+        | 'digit'
+        | 'decimal'
+        | 'operator'
+        | 'openParen'
+        | 'closeParen'
+        | 'clear'
+        | 'backspace'
+        | 'equals'
+        | 'prefixFunction'
+        | 'postfixAppend';
+    value?: string;
+    functionName?: CalculatorFunctionName;
+    variant?: 'default' | 'operator' | 'utility' | 'equal' | 'function';
+    span?: 'wide' | 'full';
+};
+
+const CALCULATOR_UTILITY_KEYS: CalculatorButton[] = [
+    { label: 'C', action: 'clear', variant: 'utility' },
+    { label: '⌫', action: 'backspace', variant: 'utility' },
+    { label: '(', action: 'openParen', variant: 'utility' },
+    { label: ')', action: 'closeParen', variant: 'utility' },
 ];
 
+const CALCULATOR_FUNCTION_KEYS: CalculatorButton[] = [
+    { label: 'sin', action: 'prefixFunction', functionName: 'sin', variant: 'function' },
+    { label: 'cos', action: 'prefixFunction', functionName: 'cos', variant: 'function' },
+    { label: 'tan', action: 'prefixFunction', functionName: 'tan', variant: 'function' },
+    { label: 'log', action: 'prefixFunction', functionName: 'log', variant: 'function' },
+    { label: 'ln', action: 'prefixFunction', functionName: 'ln', variant: 'function' },
+    { label: '√', action: 'prefixFunction', functionName: 'sqrt', variant: 'function' },
+    { label: 'x²', action: 'postfixAppend', value: '^2', variant: 'function' },
+    { label: 'x³', action: 'postfixAppend', value: '^3', variant: 'function' },
+    { label: 'xʸ', action: 'operator', value: '^', variant: 'function' },
+];
+
+const CALCULATOR_MAIN_KEYS: CalculatorButton[] = [
+    { label: '7', action: 'digit', value: '7' },
+    { label: '8', action: 'digit', value: '8' },
+    { label: '9', action: 'digit', value: '9' },
+    { label: '÷', action: 'operator', value: '÷', variant: 'operator' },
+    { label: '4', action: 'digit', value: '4' },
+    { label: '5', action: 'digit', value: '5' },
+    { label: '6', action: 'digit', value: '6' },
+    { label: '×', action: 'operator', value: '×', variant: 'operator' },
+    { label: '1', action: 'digit', value: '1' },
+    { label: '2', action: 'digit', value: '2' },
+    { label: '3', action: 'digit', value: '3' },
+    { label: '-', action: 'operator', value: '-', variant: 'operator' },
+    { label: '0', action: 'digit', value: '0', span: 'wide' },
+    { label: '.', action: 'decimal' },
+    { label: '+', action: 'operator', value: '+', variant: 'operator' },
+    { label: '=', action: 'equals', variant: 'equal', span: 'full' },
+];
+
+const CALCULATOR_PANEL_MARGIN = 12;
+const MIN_CALCULATOR_PANEL_WIDTH = 280;
+const MIN_CALCULATOR_PANEL_HEIGHT = 440;
 const MAX_DECIMAL_PLACES = 10;
+const DEGREE_TO_RADIAN = Math.PI / 180;
+
+const FUNCTION_NAMES: CalculatorFunctionName[] = ['sin', 'cos', 'tan', 'log', 'ln', 'sqrt'];
 
 const isDigit = (value: string): boolean => value >= '0' && value <= '9';
 
-const isOperator = (value: string): value is OperatorSymbol =>
-    value === '+' || value === '-' || value === '×' || value === '÷';
+const isBinaryOperator = (value: string): value is CalculatorBinaryOperator =>
+    value === '+' || value === '-' || value === '×' || value === '÷' || value === '^';
+
+const getLastChar = (expression: string): string | null => expression.at(-1) ?? null;
+
+const canExpressionEndWithValue = (expression: string): boolean => {
+    const lastChar = getLastChar(expression);
+    return lastChar !== null && (isDigit(lastChar) || lastChar === '.' || lastChar === ')');
+};
+
+const hasTrailingUnaryMinus = (expression: string): boolean => {
+    if (!expression.endsWith('-') || expression.length < 2) {
+        return false;
+    }
+
+    const previousChar = expression[expression.length - 2];
+    return previousChar === '(' || isBinaryOperator(previousChar);
+};
+
+const countOpenParentheses = (expression: string): number => {
+    let balance = 0;
+
+    for (const char of expression) {
+        if (char === '(') {
+            balance += 1;
+        } else if (char === ')') {
+            balance = Math.max(0, balance - 1);
+        }
+    }
+
+    return balance;
+};
+
+const getCurrentNumberSegment = (expression: string): string => {
+    for (let index = expression.length - 1; index >= 0; index -= 1) {
+        const char = expression[index];
+        if (isBinaryOperator(char) || char === '(' || char === ')') {
+            return expression.slice(index + 1);
+        }
+    }
+
+    return expression;
+};
 
 const normalizeOperatorInput = (value: string): string | null => {
     if (value === '*') {
@@ -47,22 +141,11 @@ const normalizeOperatorInput = (value: string): string | null => {
         return '÷';
     }
 
-    if (isDigit(value) || value === '.' || value === '+' || value === '-' || value === '×' || value === '÷') {
+    if (isDigit(value) || value === '.' || value === '(' || value === ')' || isBinaryOperator(value)) {
         return value;
     }
 
     return null;
-};
-
-const getCurrentNumberSegment = (expression: string): string => {
-    for (let index = expression.length - 1; index >= 0; index -= 1) {
-        const char = expression[index];
-        if (isOperator(char) && index !== 0) {
-            return expression.slice(index + 1);
-        }
-    }
-
-    return expression;
 };
 
 const formatCalculatorResult = (value: number): string => {
@@ -71,122 +154,335 @@ const formatCalculatorResult = (value: number): string => {
     return normalized.toString();
 };
 
-const tokenizeExpression = (expression: string): Array<number | OperatorSymbol> | null => {
-    const tokens: Array<number | OperatorSymbol> = [];
-    let current = '';
+const clampValue = (value: number, min: number, max: number): number => {
+    if (max < min) {
+        return min;
+    }
 
-    for (const char of expression) {
-        if (isDigit(char) || char === '.' || (char === '-' && current === '' && tokens.length === 0)) {
-            current += char;
+    return Math.min(max, Math.max(min, value));
+};
+
+const clampCalculatorPosition = (
+    position: CalculatorPosition,
+    panelSize: CalculatorSize
+): CalculatorPosition => {
+    if (typeof window === 'undefined') {
+        return position;
+    }
+
+    const maxLeft = window.innerWidth - panelSize.width - CALCULATOR_PANEL_MARGIN;
+    const maxTop = window.innerHeight - panelSize.height - CALCULATOR_PANEL_MARGIN;
+
+    return {
+        left: clampValue(position.left, CALCULATOR_PANEL_MARGIN, maxLeft),
+        top: clampValue(position.top, CALCULATOR_PANEL_MARGIN, maxTop),
+    };
+};
+
+const clampCalculatorSize = (
+    size: CalculatorSize,
+    position: CalculatorPosition
+): CalculatorSize => {
+    if (typeof window === 'undefined') {
+        return size;
+    }
+
+    const availableWidth = Math.max(220, window.innerWidth - position.left - CALCULATOR_PANEL_MARGIN);
+    const availableHeight = Math.max(320, window.innerHeight - position.top - CALCULATOR_PANEL_MARGIN);
+    const minWidth = Math.min(MIN_CALCULATOR_PANEL_WIDTH, availableWidth);
+    const minHeight = Math.min(MIN_CALCULATOR_PANEL_HEIGHT, availableHeight);
+
+    return {
+        width: clampValue(size.width, minWidth, availableWidth),
+        height: clampValue(size.height, minHeight, availableHeight),
+    };
+};
+
+const applyCalculatorFunction = (name: CalculatorFunctionName, input: number): number => {
+    switch (name) {
+        case 'sin':
+            return Math.sin(input * DEGREE_TO_RADIAN);
+        case 'cos':
+            return Math.cos(input * DEGREE_TO_RADIAN);
+        case 'tan': {
+            const radian = input * DEGREE_TO_RADIAN;
+            if (Math.abs(Math.cos(radian)) < 1e-10) {
+                throw new Error('tanが定義されない角度です');
+            }
+            return Math.tan(radian);
+        }
+        case 'log':
+            if (input <= 0) {
+                throw new Error('logは正の値で入力してください');
+            }
+            return Math.log10(input);
+        case 'ln':
+            if (input <= 0) {
+                throw new Error('lnは正の値で入力してください');
+            }
+            return Math.log(input);
+        case 'sqrt':
+            if (input < 0) {
+                throw new Error('平方根の中は0以上で入力してください');
+            }
+            return Math.sqrt(input);
+    }
+};
+
+const tokenizeExpression = (expression: string): { tokens: CalculatorToken[] | null; error: string | null } => {
+    const tokens: CalculatorToken[] = [];
+    let index = 0;
+
+    while (index < expression.length) {
+        const char = expression[index];
+
+        if (char === ' ') {
+            index += 1;
             continue;
         }
 
-        if (!isOperator(char)) {
-            return null;
+        if (isDigit(char) || char === '.') {
+            let nextIndex = index + 1;
+            let hasDecimalPoint = char === '.';
+
+            while (nextIndex < expression.length) {
+                const nextChar = expression[nextIndex];
+                if (isDigit(nextChar)) {
+                    nextIndex += 1;
+                    continue;
+                }
+
+                if (nextChar === '.' && !hasDecimalPoint) {
+                    hasDecimalPoint = true;
+                    nextIndex += 1;
+                    continue;
+                }
+
+                break;
+            }
+
+            const rawNumber = expression.slice(index, nextIndex);
+            if (rawNumber === '.') {
+                return { tokens: null, error: '数字を入力してください' };
+            }
+
+            const parsed = Number.parseFloat(rawNumber);
+            if (!Number.isFinite(parsed)) {
+                return { tokens: null, error: '計算できません' };
+            }
+
+            tokens.push({ type: 'number', value: parsed });
+            index = nextIndex;
+            continue;
         }
 
-        if (current === '' || current === '-' || current === '.' || current === '-.') {
-            return null;
+        if (isBinaryOperator(char)) {
+            tokens.push({ type: 'operator', value: char });
+            index += 1;
+            continue;
         }
 
-        const parsed = Number.parseFloat(current);
-        if (!Number.isFinite(parsed)) {
-            return null;
+        if (char === '(' || char === ')') {
+            tokens.push({ type: 'paren', value: char });
+            index += 1;
+            continue;
         }
 
-        tokens.push(parsed);
-        tokens.push(char);
-        current = '';
+        if (char === '√') {
+            tokens.push({ type: 'function', value: 'sqrt' });
+            index += 1;
+            continue;
+        }
+
+        if (/[a-z]/i.test(char)) {
+            let nextIndex = index + 1;
+            while (nextIndex < expression.length && /[a-z]/i.test(expression[nextIndex])) {
+                nextIndex += 1;
+            }
+
+            const rawName = expression.slice(index, nextIndex).toLowerCase();
+            if (!FUNCTION_NAMES.includes(rawName as CalculatorFunctionName)) {
+                return { tokens: null, error: '計算できません' };
+            }
+
+            tokens.push({ type: 'function', value: rawName as CalculatorFunctionName });
+            index = nextIndex;
+            continue;
+        }
+
+        return { tokens: null, error: '計算できません' };
     }
 
-    if (current === '' || current === '-' || current === '.' || current === '-.') {
-        return null;
-    }
-
-    const parsed = Number.parseFloat(current);
-    if (!Number.isFinite(parsed)) {
-        return null;
-    }
-
-    tokens.push(parsed);
-    return tokens;
+    return { tokens, error: null };
 };
+
+class CalculatorParser {
+    private index = 0;
+    private readonly tokens: CalculatorToken[];
+
+    constructor(tokens: CalculatorToken[]) {
+        this.tokens = tokens;
+    }
+
+    parse(): number {
+        const value = this.parseExpression();
+        if (this.index < this.tokens.length) {
+            throw new Error('式が不完全です');
+        }
+        return value;
+    }
+
+    private parseExpression(): number {
+        return this.parseAdditive();
+    }
+
+    private parseAdditive(): number {
+        let value = this.parseMultiplicative();
+
+        while (true) {
+            const token = this.peek();
+            if (token?.type !== 'operator' || (token.value !== '+' && token.value !== '-')) {
+                return value;
+            }
+
+            this.index += 1;
+            const nextValue = this.parseMultiplicative();
+            value = token.value === '+' ? value + nextValue : value - nextValue;
+        }
+    }
+
+    private parseMultiplicative(): number {
+        let value = this.parsePower();
+
+        while (true) {
+            const token = this.peek();
+            if (token?.type !== 'operator' || (token.value !== '×' && token.value !== '÷')) {
+                return value;
+            }
+
+            this.index += 1;
+            const nextValue = this.parsePower();
+            if (token.value === '÷' && nextValue === 0) {
+                throw new Error('0で割れません');
+            }
+
+            value = token.value === '×' ? value * nextValue : value / nextValue;
+        }
+    }
+
+    private parsePower(): number {
+        const value = this.parseUnary();
+        const token = this.peek();
+        if (token?.type !== 'operator' || token.value !== '^') {
+            return value;
+        }
+
+        this.index += 1;
+        const exponent = this.parsePower();
+        const result = Math.pow(value, exponent);
+        if (!Number.isFinite(result)) {
+            throw new Error('計算できません');
+        }
+
+        return result;
+    }
+
+    private parseUnary(): number {
+        const token = this.peek();
+        if (token?.type === 'operator' && (token.value === '+' || token.value === '-')) {
+            this.index += 1;
+            const value = this.parseUnary();
+            return token.value === '-' ? -value : value;
+        }
+
+        return this.parsePrimary();
+    }
+
+    private parsePrimary(): number {
+        const token = this.peek();
+        if (!token) {
+            throw new Error('式が不完全です');
+        }
+
+        if (token.type === 'number') {
+            this.index += 1;
+            return token.value;
+        }
+
+        if (token.type === 'function') {
+            this.index += 1;
+            this.expectParen('(');
+            const value = this.parseExpression();
+            this.expectParen(')');
+            return applyCalculatorFunction(token.value, value);
+        }
+
+        if (token.type === 'paren' && token.value === '(') {
+            this.index += 1;
+            const value = this.parseExpression();
+            this.expectParen(')');
+            return value;
+        }
+
+        throw new Error('計算できません');
+    }
+
+    private expectParen(expected: '(' | ')') {
+        const token = this.peek();
+        if (token?.type === 'paren' && token.value === expected) {
+            this.index += 1;
+            return;
+        }
+
+        throw new Error(expected === ')' ? '括弧が閉じられていません' : '式が不完全です');
+    }
+
+    private peek(): CalculatorToken | undefined {
+        return this.tokens[this.index];
+    }
+}
 
 const evaluateExpression = (expression: string): { result: number | null; error: string | null } => {
     const trimmed = expression.trim();
-    const lastChar = trimmed.at(-1);
-
-    if (
-        trimmed === ''
-        || trimmed === '-'
-        || trimmed === '.'
-        || trimmed === '-.'
-        || (lastChar !== undefined && isOperator(lastChar))
-    ) {
+    if (trimmed.length === 0) {
         return { result: null, error: '式が不完全です' };
     }
 
-    const tokens = tokenizeExpression(trimmed);
-    if (!tokens || typeof tokens[0] !== 'number') {
-        return { result: null, error: '計算できません' };
+    const { tokens, error } = tokenizeExpression(trimmed);
+    if (error || !tokens) {
+        return { result: null, error: error ?? '計算できません' };
     }
 
-    const multiplied: Array<number | OperatorSymbol> = [tokens[0]];
-    for (let index = 1; index < tokens.length; index += 2) {
-        const operator = tokens[index];
-        const operand = tokens[index + 1];
-
-        if (typeof operator !== 'string' || typeof operand !== 'number') {
+    try {
+        const parser = new CalculatorParser(tokens);
+        const result = parser.parse();
+        if (!Number.isFinite(result)) {
             return { result: null, error: '計算できません' };
         }
 
-        if (operator === '×' || operator === '÷') {
-            const previousValue = multiplied.pop();
-            if (typeof previousValue !== 'number') {
-                return { result: null, error: '計算できません' };
-            }
-
-            if (operator === '÷' && operand === 0) {
-                return { result: null, error: '0で割れません' };
-            }
-
-            multiplied.push(operator === '×' ? previousValue * operand : previousValue / operand);
-            continue;
+        return { result, error: null };
+    } catch (parserError) {
+        if (parserError instanceof Error && parserError.message.trim().length > 0) {
+            return { result: null, error: parserError.message };
         }
 
-        multiplied.push(operator, operand);
-    }
-
-    let total = multiplied[0];
-    if (typeof total !== 'number') {
         return { result: null, error: '計算できません' };
     }
-
-    for (let index = 1; index < multiplied.length; index += 2) {
-        const operator = multiplied[index];
-        const operand = multiplied[index + 1];
-
-        if (typeof operator !== 'string' || typeof operand !== 'number') {
-            return { result: null, error: '計算できません' };
-        }
-
-        total = operator === '+' ? total + operand : total - operand;
-    }
-
-    if (!Number.isFinite(total)) {
-        return { result: null, error: '計算できません' };
-    }
-
-    return { result: total, error: null };
 };
 
 export const SessionToolsLauncher: React.FC = () => {
     const menuId = useId();
-    const menuItemId = `${menuId}-calculator`;
     const rootRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const toolButtonRef = useRef<HTMLButtonElement>(null);
     const calculatorMenuItemRef = useRef<HTMLButtonElement>(null);
+    const calculatorPanelRef = useRef<HTMLElement>(null);
+    const dragPointerIdRef = useRef<number | null>(null);
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
+    const resizePointerIdRef = useRef<number | null>(null);
+    const resizeStartPointRef = useRef({ x: 0, y: 0 });
+    const resizeStartSizeRef = useRef<CalculatorSize>({ width: 0, height: 0 });
+    const resizeStartPositionRef = useRef<CalculatorPosition>({ left: CALCULATOR_PANEL_MARGIN, top: CALCULATOR_PANEL_MARGIN });
     const displayRef = useRef<HTMLInputElement>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -194,6 +490,8 @@ export const SessionToolsLauncher: React.FC = () => {
     const [lastResult, setLastResult] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [hasJustEvaluated, setHasJustEvaluated] = useState(false);
+    const [calculatorPosition, setCalculatorPosition] = useState<CalculatorPosition | null>(null);
+    const [calculatorSize, setCalculatorSize] = useState<CalculatorSize | null>(null);
 
     const focusToolButton = useCallback(() => {
         window.requestAnimationFrame(() => {
@@ -206,6 +504,11 @@ export const SessionToolsLauncher: React.FC = () => {
             displayRef.current?.focus();
             displayRef.current?.setSelectionRange(displayRef.current.value.length, displayRef.current.value.length);
         });
+    }, []);
+
+    const clearErrorState = useCallback(() => {
+        setErrorMessage(null);
+        setHasJustEvaluated(false);
     }, []);
 
     const closeMenu = useCallback((options?: { returnFocus?: boolean }) => {
@@ -229,70 +532,170 @@ export const SessionToolsLauncher: React.FC = () => {
         setHasJustEvaluated(false);
     }, []);
 
-    const applyInputToken = useCallback((rawValue: string) => {
-        const token = normalizeOperatorInput(rawValue);
-        if (!token) {
+    const insertDigit = useCallback((digit: string) => {
+        let baseExpression = errorMessage ? '' : hasJustEvaluated ? '' : expression;
+        if (getLastChar(baseExpression) === ')') {
+            baseExpression = `${baseExpression}×`;
+        }
+
+        setExpression(`${baseExpression}${digit}`);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated]);
+
+    const insertDecimalPoint = useCallback(() => {
+        let baseExpression = errorMessage ? '' : hasJustEvaluated ? '' : expression;
+        const lastChar = getLastChar(baseExpression);
+
+        if (lastChar === ')') {
+            baseExpression = `${baseExpression}×0`;
+        } else if (baseExpression === '' || lastChar === '(' || (lastChar !== null && isBinaryOperator(lastChar))) {
+            baseExpression = `${baseExpression}0`;
+        }
+
+        const segment = getCurrentNumberSegment(baseExpression);
+        if (segment.includes('.')) {
             return;
         }
 
-        const baseExpression = errorMessage
-            ? ''
+        setExpression(`${baseExpression}.`);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated]);
+
+    const insertBinaryOperator = useCallback((operator: CalculatorBinaryOperator) => {
+        let baseExpression = errorMessage
+            ? (lastResult ?? '')
             : hasJustEvaluated
-                ? (isOperator(token) ? (lastResult ?? expression) : '')
+                ? (lastResult ?? expression)
                 : expression;
 
-        let nextExpression: string | null = null;
-
-        if (token === '.') {
-            const segment = getCurrentNumberSegment(baseExpression);
-            if (segment.includes('.')) {
-                return;
+        if (baseExpression === '') {
+            if (operator === '-') {
+                setExpression('-');
+                clearErrorState();
             }
-
-            nextExpression = baseExpression === ''
-                ? '0.'
-                : baseExpression === '-'
-                    ? '-0.'
-                    : `${baseExpression}.`;
-        } else if (isOperator(token)) {
-            if (baseExpression === '') {
-                if (token === '-') {
-                    nextExpression = '-';
-                } else {
-                    return;
-                }
-            } else if (baseExpression === '-') {
-                return;
-            } else {
-                const lastChar = baseExpression.at(-1);
-                nextExpression = lastChar && isOperator(lastChar)
-                    ? `${baseExpression.slice(0, -1)}${token}`
-                    : `${baseExpression}${token}`;
-            }
-        } else {
-            nextExpression = `${baseExpression}${token}`;
-        }
-
-        if (nextExpression === null) {
             return;
         }
 
-        setExpression(nextExpression);
-        setErrorMessage(null);
-        setHasJustEvaluated(false);
-    }, [errorMessage, expression, hasJustEvaluated, lastResult]);
+        const lastChar = getLastChar(baseExpression);
+        if (lastChar === '(') {
+            if (operator === '-') {
+                setExpression(`${baseExpression}-`);
+                clearErrorState();
+            }
+            return;
+        }
 
-    const handleBackspace = useCallback(() => {
-        setExpression((prevExpression) => {
-            if (prevExpression.length === 0) {
-                return prevExpression;
+        if (hasTrailingUnaryMinus(baseExpression)) {
+            if (operator === '-') {
+                return;
             }
 
-            return prevExpression.slice(0, -1);
-        });
-        setErrorMessage(null);
-        setHasJustEvaluated(false);
-    }, []);
+            baseExpression = `${baseExpression.slice(0, -2)}${operator}`;
+            setExpression(baseExpression);
+            clearErrorState();
+            return;
+        }
+
+        if (lastChar !== null && isBinaryOperator(lastChar)) {
+            if (operator === '-') {
+                baseExpression = `${baseExpression}-`;
+            } else {
+                baseExpression = `${baseExpression.slice(0, -1)}${operator}`;
+            }
+        } else {
+            baseExpression = `${baseExpression}${operator}`;
+        }
+
+        setExpression(baseExpression);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
+
+    const insertOpenParen = useCallback(() => {
+        const baseExpression = errorMessage ? '' : hasJustEvaluated ? '' : expression;
+
+        if (baseExpression === '') {
+            setExpression('(');
+            clearErrorState();
+            return;
+        }
+
+        const lastChar = getLastChar(baseExpression);
+        if (canExpressionEndWithValue(baseExpression)) {
+            setExpression(`${baseExpression}×(`);
+            clearErrorState();
+            return;
+        }
+
+        if (lastChar === '(' || (lastChar !== null && isBinaryOperator(lastChar))) {
+            setExpression(`${baseExpression}(`);
+            clearErrorState();
+        }
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated]);
+
+    const insertCloseParen = useCallback(() => {
+        const baseExpression = errorMessage ? '' : expression;
+        if (baseExpression === '') {
+            return;
+        }
+
+        if (!canExpressionEndWithValue(baseExpression)) {
+            return;
+        }
+
+        if (countOpenParentheses(baseExpression) <= 0) {
+            return;
+        }
+
+        setExpression(`${baseExpression})`);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression]);
+
+    const insertPrefixFunction = useCallback((functionName: CalculatorFunctionName) => {
+        if (hasJustEvaluated && !errorMessage && lastResult) {
+            setExpression(`${functionName}(${lastResult})`);
+            clearErrorState();
+            return;
+        }
+
+        let baseExpression = errorMessage ? '' : expression;
+        if (baseExpression === '') {
+            setExpression(`${functionName}(`);
+            clearErrorState();
+            return;
+        }
+
+        const lastChar = getLastChar(baseExpression);
+        if (canExpressionEndWithValue(baseExpression)) {
+            baseExpression = `${baseExpression}×${functionName}(`;
+        } else if (lastChar === '(' || (lastChar !== null && isBinaryOperator(lastChar))) {
+            baseExpression = `${baseExpression}${functionName}(`;
+        } else {
+            return;
+        }
+
+        setExpression(baseExpression);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
+
+    const appendPostfixExpression = useCallback((value: string) => {
+        const baseExpression = errorMessage
+            ? (lastResult ?? '')
+            : hasJustEvaluated
+                ? (lastResult ?? expression)
+                : expression;
+
+        if (!canExpressionEndWithValue(baseExpression)) {
+            return;
+        }
+
+        setExpression(`${baseExpression}${value}`);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
+
+    const handleBackspace = useCallback(() => {
+        setExpression((prevExpression) => prevExpression.slice(0, -1));
+        clearErrorState();
+    }, [clearErrorState]);
 
     const handleEvaluate = useCallback(() => {
         const { result, error } = evaluateExpression(expression);
@@ -326,14 +729,37 @@ export const SessionToolsLauncher: React.FC = () => {
             return;
         }
 
-        const token = normalizeOperatorInput(event.key);
-        if (!token) {
+        const normalizedInput = normalizeOperatorInput(event.key);
+        if (!normalizedInput) {
             return;
         }
 
         event.preventDefault();
-        applyInputToken(token);
-    }, [applyInputToken, handleBackspace, handleEvaluate]);
+
+        if (isDigit(normalizedInput)) {
+            insertDigit(normalizedInput);
+            return;
+        }
+
+        if (normalizedInput === '.') {
+            insertDecimalPoint();
+            return;
+        }
+
+        if (normalizedInput === '(') {
+            insertOpenParen();
+            return;
+        }
+
+        if (normalizedInput === ')') {
+            insertCloseParen();
+            return;
+        }
+
+        if (isBinaryOperator(normalizedInput)) {
+            insertBinaryOperator(normalizedInput);
+        }
+    }, [handleBackspace, handleEvaluate, insertBinaryOperator, insertCloseParen, insertDecimalPoint, insertDigit, insertOpenParen]);
 
     const handleCalculatorButtonMouseDown = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
         event.preventDefault();
@@ -356,6 +782,185 @@ export const SessionToolsLauncher: React.FC = () => {
         closeCalculator({ returnFocus: true });
     }, [closeCalculator]);
 
+    const handleCalculatorHeaderPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest('button')) {
+            return;
+        }
+
+        const panelElement = calculatorPanelRef.current;
+        if (!panelElement) {
+            return;
+        }
+
+        const panelRect = panelElement.getBoundingClientRect();
+        const panelSize = { width: panelRect.width, height: panelRect.height };
+        dragPointerIdRef.current = event.pointerId;
+        dragOffsetRef.current = {
+            x: event.clientX - panelRect.left,
+            y: event.clientY - panelRect.top,
+        };
+
+        const headerElement = event.currentTarget;
+        headerElement.setPointerCapture(event.pointerId);
+        document.body.classList.add('is-dragging-session-calculator');
+
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+            if (dragPointerIdRef.current !== moveEvent.pointerId) {
+                return;
+            }
+
+            const nextPosition = clampCalculatorPosition({
+                left: moveEvent.clientX - dragOffsetRef.current.x,
+                top: moveEvent.clientY - dragOffsetRef.current.y,
+            }, panelSize);
+
+            setCalculatorPosition(nextPosition);
+        };
+
+        const handlePointerUp = (upEvent: PointerEvent) => {
+            if (dragPointerIdRef.current !== upEvent.pointerId) {
+                return;
+            }
+
+            dragPointerIdRef.current = null;
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
+            document.body.classList.remove('is-dragging-session-calculator');
+
+            if (headerElement.hasPointerCapture(event.pointerId)) {
+                headerElement.releasePointerCapture(event.pointerId);
+            }
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
+    }, []);
+
+    const handleCalculatorResizePointerDown = useCallback((
+        direction: CalculatorResizeDirection,
+        event: React.PointerEvent<HTMLButtonElement>
+    ) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const panelElement = calculatorPanelRef.current;
+        if (!panelElement) {
+            return;
+        }
+
+        const panelRect = panelElement.getBoundingClientRect();
+        const anchoredPosition = calculatorPosition ?? { left: panelRect.left, top: panelRect.top };
+        const startSize = { width: panelRect.width, height: panelRect.height };
+
+        resizePointerIdRef.current = event.pointerId;
+        resizeStartPointRef.current = { x: event.clientX, y: event.clientY };
+        resizeStartSizeRef.current = startSize;
+        resizeStartPositionRef.current = anchoredPosition;
+
+        setCalculatorPosition(anchoredPosition);
+        setCalculatorSize(startSize);
+
+        const handleElement = event.currentTarget;
+        handleElement.setPointerCapture(event.pointerId);
+        document.body.classList.add('is-resizing-session-calculator');
+
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+            if (resizePointerIdRef.current !== moveEvent.pointerId) {
+                return;
+            }
+
+            const deltaX = moveEvent.clientX - resizeStartPointRef.current.x;
+            const deltaY = moveEvent.clientY - resizeStartPointRef.current.y;
+
+            const nextSize = clampCalculatorSize({
+                width: resizeStartSizeRef.current.width + (direction === 'right' || direction === 'corner' ? deltaX : 0),
+                height: resizeStartSizeRef.current.height + (direction === 'bottom' || direction === 'corner' ? deltaY : 0),
+            }, resizeStartPositionRef.current);
+
+            setCalculatorSize(nextSize);
+        };
+
+        const handlePointerUp = (upEvent: PointerEvent) => {
+            if (resizePointerIdRef.current !== upEvent.pointerId) {
+                return;
+            }
+
+            resizePointerIdRef.current = null;
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
+            document.body.classList.remove('is-resizing-session-calculator');
+
+            if (handleElement.hasPointerCapture(event.pointerId)) {
+                handleElement.releasePointerCapture(event.pointerId);
+            }
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
+    }, [calculatorPosition]);
+
+    const handleCalculatorButtonClick = useCallback((button: CalculatorButton) => {
+        switch (button.action) {
+            case 'digit':
+                if (button.value) {
+                    insertDigit(button.value);
+                }
+                break;
+            case 'decimal':
+                insertDecimalPoint();
+                break;
+            case 'operator':
+                if (button.value && isBinaryOperator(button.value)) {
+                    insertBinaryOperator(button.value);
+                }
+                break;
+            case 'openParen':
+                insertOpenParen();
+                break;
+            case 'closeParen':
+                insertCloseParen();
+                break;
+            case 'clear':
+                resetCalculator();
+                break;
+            case 'backspace':
+                handleBackspace();
+                break;
+            case 'equals':
+                handleEvaluate();
+                break;
+            case 'prefixFunction':
+                if (button.functionName) {
+                    insertPrefixFunction(button.functionName);
+                }
+                break;
+            case 'postfixAppend':
+                if (button.value) {
+                    appendPostfixExpression(button.value);
+                }
+                break;
+        }
+
+        focusCalculatorDisplay();
+    }, [
+        appendPostfixExpression,
+        focusCalculatorDisplay,
+        handleBackspace,
+        handleEvaluate,
+        insertBinaryOperator,
+        insertCloseParen,
+        insertDecimalPoint,
+        insertDigit,
+        insertOpenParen,
+        insertPrefixFunction,
+        resetCalculator,
+    ]);
+
     useEffect(() => {
         if (!isMenuOpen) {
             return;
@@ -373,6 +978,40 @@ export const SessionToolsLauncher: React.FC = () => {
 
         focusCalculatorDisplay();
     }, [focusCalculatorDisplay, isCalculatorOpen]);
+
+    useEffect(() => {
+        if (!isCalculatorOpen) {
+            return;
+        }
+
+        const handleResize = () => {
+            const panelElement = calculatorPanelRef.current;
+            if (!panelElement) {
+                return;
+            }
+
+            const rect = panelElement.getBoundingClientRect();
+            const currentPosition = calculatorPosition ?? { left: rect.left, top: rect.top };
+            const nextSize = calculatorSize
+                ? clampCalculatorSize(calculatorSize, currentPosition)
+                : null;
+            const sizeForPosition = nextSize ?? { width: rect.width, height: rect.height };
+            const nextPosition = calculatorPosition
+                ? clampCalculatorPosition(calculatorPosition, sizeForPosition)
+                : null;
+
+            if (nextSize) {
+                setCalculatorSize(nextSize);
+            }
+
+            if (nextPosition) {
+                setCalculatorPosition(nextPosition);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [calculatorPosition, calculatorSize, isCalculatorOpen]);
 
     useEffect(() => {
         if (!isMenuOpen) {
@@ -427,8 +1066,20 @@ export const SessionToolsLauncher: React.FC = () => {
             return errorMessage;
         }
 
-        return expression || '0';
+        return (expression || '0').replaceAll('sqrt', '√');
     }, [errorMessage, expression]);
+
+    const renderCalculatorButton = useCallback((button: CalculatorButton) => (
+        <button
+            key={`${button.action}-${button.label}`}
+            type="button"
+            className={`session-calculator-key ${button.variant ?? 'default'} ${button.span ?? ''}`.trim()}
+            onMouseDown={handleCalculatorButtonMouseDown}
+            onClick={() => handleCalculatorButtonClick(button)}
+        >
+            {button.label}
+        </button>
+    ), [handleCalculatorButtonClick, handleCalculatorButtonMouseDown]);
 
     return (
         <div ref={rootRef} className="session-tools-root">
@@ -455,7 +1106,6 @@ export const SessionToolsLauncher: React.FC = () => {
                     aria-label="ツール一覧"
                 >
                     <button
-                        id={menuItemId}
                         ref={calculatorMenuItemRef}
                         type="button"
                         className={`session-tools-menu-item ${isCalculatorOpen ? 'active' : ''}`}
@@ -470,12 +1120,27 @@ export const SessionToolsLauncher: React.FC = () => {
 
             {isCalculatorOpen && (
                 <section
+                    ref={calculatorPanelRef}
                     className="session-calculator-panel"
                     role="dialog"
                     aria-label="電卓"
                     onKeyDown={handleCalculatorKeyDown}
+                    style={{
+                        ...(calculatorPosition ? {
+                            left: `${calculatorPosition.left}px`,
+                            top: `${calculatorPosition.top}px`,
+                            right: 'auto',
+                        } : undefined),
+                        ...(calculatorSize ? {
+                            width: `${calculatorSize.width}px`,
+                            height: `${calculatorSize.height}px`,
+                        } : undefined),
+                    }}
                 >
-                    <div className="session-calculator-header">
+                    <div
+                        className="session-calculator-header"
+                        onPointerDown={handleCalculatorHeaderPointerDown}
+                    >
                         <div className="session-calculator-title">
                             <Calculator size={16} />
                             <span>電卓</span>
@@ -502,35 +1167,47 @@ export const SessionToolsLauncher: React.FC = () => {
                             spellCheck={false}
                         />
                         <p className="session-calculator-help">
-                            キーボード: 数字 / <code>+ - * / .</code> / <code>Enter</code> / <code>Backspace</code>
+                            三角関数は度数法です。<code>^</code>、<code>( )</code>、<code>log</code>、<code>ln</code>、<code>√</code> に対応しています。
+                        </p>
+                        <p className="session-calculator-help">
+                            キーボード: 数字 / <code>+ - * / ^ . ( )</code> / <code>Enter</code> / <code>Backspace</code>
                         </p>
 
-                        <div className="session-calculator-grid">
-                            {CALCULATOR_KEYS.map((key) => (
-                                <button
-                                    key={key.label}
-                                    type="button"
-                                    className={`session-calculator-key ${key.variant ?? 'default'} ${key.span ?? ''}`.trim()}
-                                    onMouseDown={handleCalculatorButtonMouseDown}
-                                    onClick={() => {
-                                        if (key.value === 'clear') {
-                                            resetCalculator();
-                                        } else if (key.value === 'backspace') {
-                                            handleBackspace();
-                                        } else if (key.value === 'equals') {
-                                            handleEvaluate();
-                                        } else if (key.value) {
-                                            applyInputToken(key.value);
-                                        }
+                        <div className="session-calculator-toolbar">
+                            <div className="session-calculator-utility-grid">
+                                {CALCULATOR_UTILITY_KEYS.map(renderCalculatorButton)}
+                            </div>
+                            <div className="session-calculator-function-grid">
+                                {CALCULATOR_FUNCTION_KEYS.map(renderCalculatorButton)}
+                            </div>
+                        </div>
 
-                                        focusCalculatorDisplay();
-                                    }}
-                                >
-                                    {key.label}
-                                </button>
-                            ))}
+                        <div className="session-calculator-main-grid">
+                            {CALCULATOR_MAIN_KEYS.map(renderCalculatorButton)}
                         </div>
                     </div>
+
+                    <button
+                        type="button"
+                        className="session-calculator-resize-handle right"
+                        aria-label="電卓の幅を調整"
+                        title="左右にドラッグして幅を調整"
+                        onPointerDown={(event) => handleCalculatorResizePointerDown('right', event)}
+                    />
+                    <button
+                        type="button"
+                        className="session-calculator-resize-handle bottom"
+                        aria-label="電卓の高さを調整"
+                        title="上下にドラッグして高さを調整"
+                        onPointerDown={(event) => handleCalculatorResizePointerDown('bottom', event)}
+                    />
+                    <button
+                        type="button"
+                        className="session-calculator-resize-handle corner"
+                        aria-label="電卓の大きさを調整"
+                        title="斜めにドラッグして大きさを調整"
+                        onPointerDown={(event) => handleCalculatorResizePointerDown('corner', event)}
+                    />
                 </section>
             )}
         </div>
