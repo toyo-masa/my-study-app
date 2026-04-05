@@ -4188,7 +4188,9 @@ button.appearance-option.active {
   position: fixed;
   top: 72px;
   right: 16px;
-  width: min(320px, calc(100vw - 24px));
+  width: min(500px, calc(100vw - 24px));
+  min-width: min(500px, calc(100vw - 24px));
+  min-height: min(620px, calc(100vh - 24px));
   border: 1px solid var(--border-color);
   border-radius: 18px;
   background: var(--surface-color);
@@ -4248,12 +4250,20 @@ button.appearance-option.active {
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-color) 90%, var(--bg-color) 10%);
   color: var(--text-color);
-  font: inherit;
   font-size: 1.5rem;
   font-weight: 700;
-  text-align: right;
   padding: 0.9rem 1rem;
   letter-spacing: 0.02em;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.04em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
 .session-calculator-display:focus-visible {
@@ -4265,15 +4275,13 @@ button.appearance-option.active {
   color: #dc2626;
 }
 
-.session-calculator-help {
-  margin: 0.65rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
+.session-calculator-display-text,
+.session-calculator-display-ghost {
+  flex: 0 0 auto;
 }
 
-.session-calculator-help code {
-  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.78rem;
+.session-calculator-display-ghost {
+  color: color-mix(in srgb, var(--text-color) 45%, transparent);
 }
 
 .session-calculator-toolbar {
@@ -4283,30 +4291,48 @@ button.appearance-option.active {
   margin-top: 0.9rem;
 }
 
-.session-calculator-utility-grid {
+.session-calculator-scientific-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.55rem;
 }
 
-.session-calculator-function-grid {
+.session-calculator-utility-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.55rem;
 }
 
-.session-calculator-main-grid {
+.session-calculator-main-layout {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  gap: 0.75rem;
   margin-top: 0.9rem;
 }
 
+.session-calculator-digit-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.session-calculator-main-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.session-calculator-operator-column {
+  display: grid;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
 .session-calculator-key {
-  min-height: 50px;
+  min-height: 52px;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-color) 92%, var(--bg-color) 8%);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-color) 90%, var(--bg-color) 10%);
   color: var(--text-color);
   font: inherit;
   font-size: 1rem;
@@ -4324,7 +4350,9 @@ button.appearance-option.active {
 }
 
 .session-calculator-key.operator {
-  color: var(--primary-color);
+  background: #f59e0b;
+  border-color: color-mix(in srgb, #f59e0b 80%, black 20%);
+  color: #ffffff;
 }
 
 .session-calculator-key.utility {
@@ -4333,8 +4361,9 @@ button.appearance-option.active {
 }
 
 .session-calculator-key.equal {
-  background: color-mix(in srgb, var(--primary-color) 18%, var(--surface-color) 82%);
-  color: var(--primary-color);
+  background: #f59e0b;
+  border-color: color-mix(in srgb, #f59e0b 80%, black 20%);
+  color: #ffffff;
 }
 
 .session-calculator-key.function {
@@ -4348,6 +4377,11 @@ button.appearance-option.active {
 
 .session-calculator-key.full {
   grid-column: 1 / -1;
+}
+
+.session-calculator-operator-column .session-calculator-key {
+  min-height: 56px;
+  font-size: 1.15rem;
 }
 
 .session-calculator-resize-handle {

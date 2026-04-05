@@ -40,51 +40,57 @@ type CalculatorButton = {
     span?: 'wide' | 'full';
 };
 
-const CALCULATOR_UTILITY_KEYS: CalculatorButton[] = [
-    { label: 'C', action: 'clear', variant: 'utility' },
-    { label: '⌫', action: 'backspace', variant: 'utility' },
+const CALCULATOR_SCIENTIFIC_KEYS: CalculatorButton[] = [
     { label: '(', action: 'openParen', variant: 'utility' },
     { label: ')', action: 'closeParen', variant: 'utility' },
-];
-
-const CALCULATOR_FUNCTION_KEYS: CalculatorButton[] = [
-    { label: 'sin', action: 'prefixFunction', functionName: 'sin', variant: 'function' },
-    { label: 'cos', action: 'prefixFunction', functionName: 'cos', variant: 'function' },
-    { label: 'tan', action: 'prefixFunction', functionName: 'tan', variant: 'function' },
-    { label: 'log', action: 'prefixFunction', functionName: 'log', variant: 'function' },
-    { label: 'ln', action: 'prefixFunction', functionName: 'ln', variant: 'function' },
-    { label: '√', action: 'prefixFunction', functionName: 'sqrt', variant: 'function' },
     { label: 'x²', action: 'postfixAppend', value: '^2', variant: 'function' },
     { label: 'x³', action: 'postfixAppend', value: '^3', variant: 'function' },
     { label: 'xʸ', action: 'operator', value: '^', variant: 'function' },
+    { label: '√', action: 'prefixFunction', functionName: 'sqrt', variant: 'function' },
+    { label: 'ln', action: 'prefixFunction', functionName: 'ln', variant: 'function' },
+    { label: 'log', action: 'prefixFunction', functionName: 'log', variant: 'function' },
+    { label: 'sin', action: 'prefixFunction', functionName: 'sin', variant: 'function' },
+    { label: 'cos', action: 'prefixFunction', functionName: 'cos', variant: 'function' },
+    { label: 'tan', action: 'prefixFunction', functionName: 'tan', variant: 'function' },
+    { label: 'AC', action: 'clear', variant: 'utility' },
 ];
 
-const CALCULATOR_MAIN_KEYS: CalculatorButton[] = [
+const CALCULATOR_DIGIT_UTILITY_KEYS: CalculatorButton[] = [
+    { label: '⌫', action: 'backspace', variant: 'utility', span: 'full' },
+];
+
+const CALCULATOR_DIGIT_KEYS: CalculatorButton[] = [
     { label: '7', action: 'digit', value: '7' },
     { label: '8', action: 'digit', value: '8' },
     { label: '9', action: 'digit', value: '9' },
-    { label: '÷', action: 'operator', value: '÷', variant: 'operator' },
     { label: '4', action: 'digit', value: '4' },
     { label: '5', action: 'digit', value: '5' },
     { label: '6', action: 'digit', value: '6' },
-    { label: '×', action: 'operator', value: '×', variant: 'operator' },
     { label: '1', action: 'digit', value: '1' },
     { label: '2', action: 'digit', value: '2' },
     { label: '3', action: 'digit', value: '3' },
-    { label: '-', action: 'operator', value: '-', variant: 'operator' },
     { label: '0', action: 'digit', value: '0', span: 'wide' },
     { label: '.', action: 'decimal' },
+];
+
+const CALCULATOR_OPERATOR_KEYS: CalculatorButton[] = [
+    { label: '÷', action: 'operator', value: '÷', variant: 'operator' },
+    { label: '×', action: 'operator', value: '×', variant: 'operator' },
+    { label: '-', action: 'operator', value: '-', variant: 'operator' },
     { label: '+', action: 'operator', value: '+', variant: 'operator' },
-    { label: '=', action: 'equals', variant: 'equal', span: 'full' },
+    { label: '=', action: 'equals', variant: 'equal' },
 ];
 
 const CALCULATOR_PANEL_MARGIN = 12;
-const MIN_CALCULATOR_PANEL_WIDTH = 280;
-const MIN_CALCULATOR_PANEL_HEIGHT = 440;
+const MIN_CALCULATOR_PANEL_WIDTH = 500;
+const MIN_CALCULATOR_PANEL_HEIGHT = 620;
 const MAX_DECIMAL_PLACES = 10;
 const DEGREE_TO_RADIAN = Math.PI / 180;
 
 const FUNCTION_NAMES: CalculatorFunctionName[] = ['sin', 'cos', 'tan', 'log', 'ln', 'sqrt'];
+const FUNCTION_OPENERS = FUNCTION_NAMES
+    .map((name) => `${name}(`)
+    .sort((left, right) => right.length - left.length);
 
 const isDigit = (value: string): boolean => value >= '0' && value <= '9';
 
@@ -152,6 +158,80 @@ const formatCalculatorResult = (value: number): string => {
     const rounded = Number.parseFloat(value.toFixed(MAX_DECIMAL_PLACES));
     const normalized = Object.is(rounded, -0) ? 0 : rounded;
     return normalized.toString();
+};
+
+const formatNumberSegmentForDisplay = (segment: string): string => {
+    const [integerPart, fractionalPart] = segment.split('.');
+    const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+    if (fractionalPart === undefined) {
+        return groupedInteger;
+    }
+
+    return `${groupedInteger}.${fractionalPart}`;
+};
+
+const formatExpressionForDisplay = (expression: string): string => {
+    let result = '';
+    let index = 0;
+
+    while (index < expression.length) {
+        if (expression.startsWith('sqrt', index)) {
+            result += '√';
+            index += 4;
+            continue;
+        }
+
+        const char = expression[index];
+
+        if (isDigit(char) || char === '.') {
+            let nextIndex = index + 1;
+            while (nextIndex < expression.length) {
+                const nextChar = expression[nextIndex];
+                if (!isDigit(nextChar) && nextChar !== '.') {
+                    break;
+                }
+
+                nextIndex += 1;
+            }
+
+            result += formatNumberSegmentForDisplay(expression.slice(index, nextIndex));
+            index = nextIndex;
+            continue;
+        }
+
+        result += char;
+        index += 1;
+    }
+
+    return result;
+};
+
+const getAutoClosedExpression = (expression: string): string => {
+    const trimmed = expression.trim();
+    if (trimmed.length === 0 || !canExpressionEndWithValue(trimmed)) {
+        return trimmed;
+    }
+
+    return `${trimmed}${')'.repeat(countOpenParentheses(trimmed))}`;
+};
+
+const removeTrailingExpressionUnit = (expression: string): string => {
+    if (expression.length === 0) {
+        return expression;
+    }
+
+    if (expression.endsWith('^2') || expression.endsWith('^3')) {
+        return expression.slice(0, -2);
+    }
+
+    for (const opener of FUNCTION_OPENERS) {
+        if (expression.endsWith(opener)) {
+            return expression.slice(0, -opener.length);
+        }
+    }
+
+    return expression.slice(0, -1);
 };
 
 const clampValue = (value: number, min: number, max: number): number => {
@@ -483,7 +563,7 @@ export const SessionToolsLauncher: React.FC = () => {
     const resizeStartPointRef = useRef({ x: 0, y: 0 });
     const resizeStartSizeRef = useRef<CalculatorSize>({ width: 0, height: 0 });
     const resizeStartPositionRef = useRef<CalculatorPosition>({ left: CALCULATOR_PANEL_MARGIN, top: CALCULATOR_PANEL_MARGIN });
-    const displayRef = useRef<HTMLInputElement>(null);
+    const displayRef = useRef<HTMLDivElement>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
     const [expression, setExpression] = useState('');
@@ -502,7 +582,6 @@ export const SessionToolsLauncher: React.FC = () => {
     const focusCalculatorDisplay = useCallback(() => {
         window.requestAnimationFrame(() => {
             displayRef.current?.focus();
-            displayRef.current?.setSelectionRange(displayRef.current.value.length, displayRef.current.value.length);
         });
     }, []);
 
@@ -693,12 +772,17 @@ export const SessionToolsLauncher: React.FC = () => {
     }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
 
     const handleBackspace = useCallback(() => {
-        setExpression((prevExpression) => prevExpression.slice(0, -1));
+        setExpression((prevExpression) => removeTrailingExpressionUnit(prevExpression));
         clearErrorState();
     }, [clearErrorState]);
 
     const handleEvaluate = useCallback(() => {
-        const { result, error } = evaluateExpression(expression);
+        const trimmedExpression = expression.trim();
+        if (trimmedExpression.length === 0 || !canExpressionEndWithValue(trimmedExpression)) {
+            return;
+        }
+
+        const { result, error } = evaluateExpression(getAutoClosedExpression(trimmedExpression));
         if (error || result === null) {
             setErrorMessage(error ?? '計算できません');
             setHasJustEvaluated(false);
@@ -1061,12 +1145,25 @@ export const SessionToolsLauncher: React.FC = () => {
         return () => document.removeEventListener('keydown', handleDocumentKeyDown);
     }, [closeCalculator, closeMenu, isCalculatorOpen, isMenuOpen]);
 
-    const calculatorDisplayValue = useMemo(() => {
+    const calculatorDisplayState = useMemo(() => {
         if (errorMessage) {
-            return errorMessage;
+            return {
+                mainText: errorMessage,
+                ghostText: '',
+            };
         }
 
-        return (expression || '0').replaceAll('sqrt', '√');
+        if (expression.length === 0) {
+            return {
+                mainText: '0',
+                ghostText: '',
+            };
+        }
+
+        return {
+            mainText: formatExpressionForDisplay(expression),
+            ghostText: ')'.repeat(countOpenParentheses(expression)),
+        };
     }, [errorMessage, expression]);
 
     const renderCalculatorButton = useCallback((button: CalculatorButton) => (
@@ -1157,33 +1254,43 @@ export const SessionToolsLauncher: React.FC = () => {
                     </div>
 
                     <div className="session-calculator-body">
-                        <input
+                        <div
                             ref={displayRef}
-                            type="text"
-                            readOnly
-                            value={calculatorDisplayValue}
                             className={`session-calculator-display ${errorMessage ? 'has-error' : ''}`}
+                            role="textbox"
+                            aria-readonly="true"
                             aria-label="電卓の表示"
-                            spellCheck={false}
-                        />
-                        <p className="session-calculator-help">
-                            三角関数は度数法です。<code>^</code>、<code>( )</code>、<code>log</code>、<code>ln</code>、<code>√</code> に対応しています。
-                        </p>
-                        <p className="session-calculator-help">
-                            キーボード: 数字 / <code>+ - * / ^ . ( )</code> / <code>Enter</code> / <code>Backspace</code>
-                        </p>
+                            aria-valuetext={`${calculatorDisplayState.mainText}${calculatorDisplayState.ghostText}`}
+                            tabIndex={0}
+                        >
+                            <span className="session-calculator-display-text">
+                                {calculatorDisplayState.mainText}
+                            </span>
+                            {calculatorDisplayState.ghostText && (
+                                <span className="session-calculator-display-ghost" aria-hidden="true">
+                                    {calculatorDisplayState.ghostText}
+                                </span>
+                            )}
+                        </div>
 
                         <div className="session-calculator-toolbar">
-                            <div className="session-calculator-utility-grid">
-                                {CALCULATOR_UTILITY_KEYS.map(renderCalculatorButton)}
-                            </div>
-                            <div className="session-calculator-function-grid">
-                                {CALCULATOR_FUNCTION_KEYS.map(renderCalculatorButton)}
+                            <div className="session-calculator-scientific-grid">
+                                {CALCULATOR_SCIENTIFIC_KEYS.map(renderCalculatorButton)}
                             </div>
                         </div>
 
-                        <div className="session-calculator-main-grid">
-                            {CALCULATOR_MAIN_KEYS.map(renderCalculatorButton)}
+                        <div className="session-calculator-main-layout">
+                            <div className="session-calculator-digit-area">
+                                <div className="session-calculator-utility-grid">
+                                    {CALCULATOR_DIGIT_UTILITY_KEYS.map(renderCalculatorButton)}
+                                </div>
+                                <div className="session-calculator-main-grid">
+                                    {CALCULATOR_DIGIT_KEYS.map(renderCalculatorButton)}
+                                </div>
+                            </div>
+                            <div className="session-calculator-operator-column">
+                                {CALCULATOR_OPERATOR_KEYS.map(renderCalculatorButton)}
+                            </div>
                         </div>
                     </div>
 
