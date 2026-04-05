@@ -3627,6 +3627,12 @@ button.appearance-option.active {
   gap: 0.5rem;
 }
 
+.session-tools-root {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .header-left h1 {
   font-size: 1.1rem;
   margin: 0;
@@ -3668,6 +3674,49 @@ button.appearance-option.active {
   border-color: var(--primary-color);
   color: var(--primary-color);
   background: color-mix(in srgb, var(--surface-color) 84%, var(--primary-color) 16%);
+}
+
+.session-tools-btn.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--surface-color) 84%, var(--primary-color) 16%);
+}
+
+.session-tools-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  min-width: 12rem;
+  padding: 0.4rem;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  box-shadow: var(--shadow-lg);
+  z-index: 90;
+}
+
+.session-tools-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.session-tools-menu-item:hover,
+.session-tools-menu-item:focus-visible,
+.session-tools-menu-item.active {
+  background: color-mix(in srgb, var(--surface-color) 84%, var(--primary-color) 16%);
+  color: var(--primary-color);
+  outline: none;
 }
 
 .quiz-session-back-btn {
@@ -4133,6 +4182,128 @@ button.appearance-option.active {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
   z-index: 95;
+}
+
+.session-calculator-panel {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  width: min(320px, calc(100vw - 24px));
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--surface-color);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
+  z-index: 90;
+  overflow: hidden;
+}
+
+.session-calculator-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.session-calculator-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.session-calculator-close-btn {
+  width: 36px;
+  height: 36px;
+}
+
+.session-calculator-body {
+  padding: 1rem;
+}
+
+.session-calculator-display {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-color) 90%, var(--bg-color) 10%);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: right;
+  padding: 0.9rem 1rem;
+  letter-spacing: 0.02em;
+}
+
+.session-calculator-display:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary-color) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.session-calculator-display.has-error {
+  color: #dc2626;
+}
+
+.session-calculator-help {
+  margin: 0.65rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.session-calculator-help code {
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.session-calculator-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.session-calculator-key {
+  min-height: 50px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-color) 92%, var(--bg-color) 8%);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.session-calculator-key:hover,
+.session-calculator-key:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+  outline: none;
+}
+
+.session-calculator-key.operator {
+  color: var(--primary-color);
+}
+
+.session-calculator-key.utility {
+  color: var(--text-secondary);
+}
+
+.session-calculator-key.equal {
+  background: color-mix(in srgb, var(--primary-color) 18%, var(--surface-color) 82%);
+  color: var(--primary-color);
+}
+
+.session-calculator-key.wide {
+  grid-column: span 2;
+}
+
+.session-calculator-key.tall {
+  grid-row: span 2;
 }
 
 .sidebar-header {
@@ -9677,6 +9848,14 @@ button.appearance-option.active {
     height: 34px;
     padding: 0.28rem 0.55rem;
     font-size: 0.78rem;
+  }
+
+  .session-calculator-panel {
+    top: 58px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
   }
 
   /* --- Sidebar --- */

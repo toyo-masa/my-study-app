@@ -48,6 +48,7 @@ interface QuizSessionLayoutProps {
     onToggleRightPanel?: () => void;
     onCloseRightPanel?: () => void;
     rightPanelContent?: React.ReactNode;
+    headerActions?: React.ReactNode;
     children: React.ReactNode;
 }
 
@@ -69,10 +70,13 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
     onToggleRightPanel,
     onCloseRightPanel,
     rightPanelContent,
+    headerActions,
     children,
 }) => {
     const showDockedRightPanel = showRightPanel && !rightPanelModal;
     const showModalRightPanel = showRightPanel && rightPanelModal;
+    const showAiToggle = showRightPanel && showRightPanelToggle && onToggleRightPanel;
+    const shouldShowHeaderRight = Boolean(headerActions) || Boolean(showAiToggle);
     const [rightPanelWidth, setRightPanelWidth] = useState(loadStoredRightPanelWidth);
     const draggingPointerIdRef = useRef<number | null>(null);
 
@@ -139,16 +143,19 @@ export const QuizSessionLayout: React.FC<QuizSessionLayoutProps> = ({
                         {sessionBadge && <span className="session-mode-badge">{sessionBadge}</span>}
                     </div>
                 </div>
-                {showRightPanel && showRightPanelToggle && onToggleRightPanel && (
+                {shouldShowHeaderRight && (
                     <div className="header-right">
-                        <button
-                            className={`menu-btn right-panel-toggle-btn ${rightPanelOpen ? 'active' : ''}`}
-                            onClick={onToggleRightPanel}
-                            aria-label="AIチャットを開く"
-                            title="AIチャット"
-                        >
-                            <Bot size={18} />
-                        </button>
+                        {headerActions}
+                        {showAiToggle && (
+                            <button
+                                className={`menu-btn right-panel-toggle-btn ${rightPanelOpen ? 'active' : ''}`}
+                                onClick={onToggleRightPanel}
+                                aria-label="AIチャットを開く"
+                                title="AIチャット"
+                            >
+                                <Bot size={18} />
+                            </button>
+                        )}
                     </div>
                 )}
             </header>

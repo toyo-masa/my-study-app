@@ -73,6 +73,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     questionElapsedSeconds = null,
 }) => {
     const isMemoQuestion = question.questionType === 'memorization';
+    const shortcutIgnoredRootSelector = '.study-question-chat-panel, .local-llm-page, .right-panel-container, .session-tools-root';
     const isShortcutIgnoredTarget = useCallback((target: EventTarget | null) => {
         if (!(target instanceof HTMLElement)) {
             return false;
@@ -82,7 +83,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             return true;
         }
 
-        if (target.closest('.study-question-chat-panel, .local-llm-page, .right-panel-container')) {
+        if (target.closest(shortcutIgnoredRootSelector)) {
             return true;
         }
 
@@ -91,8 +92,8 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             return false;
         }
 
-        return activeElement.closest('.study-question-chat-panel, .local-llm-page, .right-panel-container') !== null;
-    }, []);
+        return activeElement.closest(shortcutIgnoredRootSelector) !== null;
+    }, [shortcutIgnoredRootSelector]);
 
     // キーボードショートカット
     const handleKeyDown = useCallback((e: KeyboardEvent) => {

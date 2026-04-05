@@ -8,6 +8,7 @@ import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
+import { SessionToolsLauncher } from '../components/SessionToolsLauncher';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useQuestionElapsedTimer } from '../hooks/useQuestionElapsedTimer';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
@@ -1904,6 +1905,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             showRightPanelToggle={showStudyQuestionChat}
             onToggleRightPanel={handleToggleRightPanel}
             onCloseRightPanel={() => setRightPanelOpen(false)}
+            headerActions={showStudyQuestionChat ? <SessionToolsLauncher /> : undefined}
             rightPanelContent={showStudyQuestionChat && currentQuestion && activeQuizSet?.id !== undefined ? (
                 <StudyQuestionChatPanel
                     quizSetId={activeQuizSet.id}
