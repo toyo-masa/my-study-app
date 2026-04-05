@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { BackButton } from './BackButton';
 import {
     BASIS_E1,
@@ -93,12 +95,24 @@ const PLOT_SIZE = 520;
 const PLOT_PADDING = 44;
 const MIN_VIEW_RADIUS = 2.6;
 const KERNEL_STATUS_DISTANCE = 0.6;
+const PLOT_LABEL_HEIGHT = 32;
 const TAB_ITEMS: Array<{ key: LabTab; label: string }> = [
     { key: 'linear', label: '線形変換' },
     { key: 'composition', label: '合成変換' },
     { key: 'determinant', label: '行列式・正則性' },
     { key: 'image-kernel', label: '像と核' },
 ];
+const PLOT_LABEL_LATEX: Record<string, string> = {
+    e1: String.raw`\mathbf{e}_1`,
+    e2: String.raw`\mathbf{e}_2`,
+    x: String.raw`\mathbf{x}`,
+    Ae1: String.raw`A\mathbf{e}_1`,
+    Ae2: String.raw`A\mathbf{e}_2`,
+    Ax: String.raw`A\mathbf{x}`,
+    'A⁻¹(Ax)': String.raw`A^{-1}(A\mathbf{x})`,
+    'A⁻¹(Ae1)': String.raw`A^{-1}(A\mathbf{e}_1)`,
+    'A⁻¹(Ae2)': String.raw`A^{-1}(A\mathbf{e}_2)`,
+};
 
 const ZERO_VECTOR: Vector2 = { x: 0, y: 0 };
 
@@ -214,6 +228,18 @@ function kernelStatusText(normValue: number): string {
         return '核に少し近いです';
     }
     return 'まだ核から離れています';
+}
+
+function estimatePlotLabelWidth(label: string): number {
+    return Math.max(58, label.length * 16 + 28);
+}
+
+function renderPlotLabelHtml(label: string): string {
+    return katex.renderToString(PLOT_LABEL_LATEX[label] ?? String.raw`\mathrm{${label}}`, {
+        throwOnError: false,
+        output: 'html',
+        strict: 'ignore',
+    });
 }
 
 const SummaryCard: React.FC<SummaryCardProps> = ({ title, children }) => {
@@ -488,6 +514,9 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
             if (dragPointerIdRef.current !== moveEvent.pointerId) {
                 return;
             }
+            if (moveEvent.cancelable) {
+                moveEvent.preventDefault();
+            }
             updateVectorFromClient(moveEvent.clientX, moveEvent.clientY);
         };
 
@@ -501,7 +530,7 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
             window.removeEventListener('pointercancel', handlePointerUp);
         };
 
-        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointermove', handlePointerMove, { passive: false });
         window.addEventListener('pointerup', handlePointerUp);
         window.addEventListener('pointercancel', handlePointerUp);
     }, [clearDraggingState, onSampleVectorChange, updateVectorFromClient]);
@@ -517,8 +546,8 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
     ) => {
         const origin = toScreenPoint(ZERO_VECTOR, derivedBounds);
         const tip = toScreenPoint(vector, derivedBounds);
-        const badgeWidth = Math.max(28, label.length * 8 + 18);
-        const badgeHeight = 22;
+        const badgeWidth = estimatePlotLabelWidth(label);
+        const badgeHeight = PLOT_LABEL_HEIGHT;
         const baseOffsetX = tip.x >= origin.x ? 12 : -(badgeWidth + 12);
         const baseOffsetY = tip.y <= origin.y ? -(badgeHeight + 10) : 10;
         const badgeX = clampValue(tip.x + baseOffsetX + labelOffsetX, 10, PLOT_SIZE - badgeWidth - 10);
@@ -536,9 +565,12 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
                 />
                 <g className={`linear-algebra-lab-plot-label-badge is-${labelTone}`} transform={`translate(${badgeX}, ${badgeY})`}>
                     <rect className="linear-algebra-lab-plot-label-bg" x={0} y={0} width={badgeWidth} height={badgeHeight} rx={11} ry={11} />
-                    <text className="linear-algebra-lab-plot-label" x={badgeWidth / 2} y={15}>
-                        {label}
-                    </text>
+                    <foreignObject x={0} y={0} width={badgeWidth} height={badgeHeight}>
+                        <div
+                            className="linear-algebra-lab-plot-label-html"
+                            dangerouslySetInnerHTML={{ __html: renderPlotLabelHtml(label) }}
+                        />
+                    </foreignObject>
                 </g>
             </g>
         );
@@ -631,6 +663,12 @@ const PlaneVisualization: React.FC<VisualizationProps> = ({
                         cx={sampleTip.x}
                         cy={sampleTip.y}
                         r={6}
+                    />
+                    <circle
+                        className="linear-algebra-lab-sample-handle-hit-area"
+                        cx={sampleTip.x}
+                        cy={sampleTip.y}
+                        r={22}
                         onPointerDown={handlePointerDown}
                     />
                 </svg>
@@ -749,6 +787,7 @@ export const LinearAlgebraLab: React.FC<{ onBack: () => void }> = ({ onBack }) =
     const kernelMeterPercent = rankA === 0
         ? 100
         : clampValue((1 - normAx / 3) * 100, 0, 100);
+    const workspaceClassName = `linear-algebra-lab-workspace ${activeTab === 'composition' ? 'is-composition' : 'is-single-plot'}`;
 
     return (
         <main className="content-area linear-algebra-lab-page">
@@ -776,7 +815,7 @@ export const LinearAlgebraLab: React.FC<{ onBack: () => void }> = ({ onBack }) =
             </div>
 
             {activeTab === 'linear' && (
-                <div className="linear-algebra-lab-workspace">
+                <div className={workspaceClassName}>
                     <div className="linear-algebra-lab-editor-column">
                         <MatrixEditor
                             title="行列 A"
@@ -843,7 +882,7 @@ export const LinearAlgebraLab: React.FC<{ onBack: () => void }> = ({ onBack }) =
             )}
 
             {activeTab === 'composition' && (
-                <div className="linear-algebra-lab-workspace">
+                <div className={workspaceClassName}>
                     <div className="linear-algebra-lab-editor-column">
                         <MatrixEditor
                             title="行列 A"
@@ -930,7 +969,7 @@ export const LinearAlgebraLab: React.FC<{ onBack: () => void }> = ({ onBack }) =
             )}
 
             {activeTab === 'determinant' && (
-                <div className="linear-algebra-lab-workspace">
+                <div className={workspaceClassName}>
                     <div className="linear-algebra-lab-editor-column">
                         <MatrixEditor
                             title="行列 A"
@@ -1039,7 +1078,7 @@ export const LinearAlgebraLab: React.FC<{ onBack: () => void }> = ({ onBack }) =
             )}
 
             {activeTab === 'image-kernel' && (
-                <div className="linear-algebra-lab-workspace">
+                <div className={workspaceClassName}>
                     <div className="linear-algebra-lab-editor-column">
                         <MatrixEditor
                             title="行列 A"
