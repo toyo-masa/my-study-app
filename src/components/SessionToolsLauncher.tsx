@@ -1461,11 +1461,12 @@ export const SessionToolsLauncher: React.FC = () => {
                             aria-valuetext={`${calculatorHistoryText ? `${calculatorHistoryText} ` : ''}${calculatorDisplayState.mainText}${calculatorDisplayState.ghostText}`}
                             tabIndex={0}
                         >
-                            {calculatorHistoryText && (
-                                <div className="session-calculator-display-history" aria-hidden="true">
-                                    {calculatorHistoryText}
-                                </div>
-                            )}
+                            <div
+                                className={`session-calculator-display-history ${calculatorHistoryText ? '' : 'is-empty'}`.trim()}
+                                aria-hidden="true"
+                            >
+                                {calculatorHistoryText || '\u00A0'}
+                            </div>
                             <div className="session-calculator-display-main">
                                 <span className="session-calculator-display-text">
                                     {calculatorDisplayState.mainText}

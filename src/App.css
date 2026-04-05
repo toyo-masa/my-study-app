@@ -4809,7 +4809,7 @@ button.appearance-option.active {
   font-weight: 700;
   padding: calc(0.9rem * var(--session-calculator-scale)) calc(1rem * var(--session-calculator-scale));
   letter-spacing: 0.02em;
-  min-height: calc(64px * var(--session-calculator-scale));
+  min-height: calc(90px * var(--session-calculator-scale));
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -4836,6 +4836,11 @@ button.appearance-option.active {
   font-weight: 500;
   text-align: right;
   white-space: nowrap;
+  min-height: calc(1.1em * var(--session-calculator-scale));
+}
+
+.session-calculator-display-history.is-empty {
+  visibility: hidden;
 }
 
 .session-calculator-display-main {
