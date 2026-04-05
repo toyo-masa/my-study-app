@@ -1779,8 +1779,9 @@
 .study-question-chat-panel {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
+  min-width: 0;
 }
 
 .local-llm-inline-status {
@@ -4249,6 +4250,7 @@ button.appearance-option.active {
   flex: 1;
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
   /* Prevent flex item from overflowing/resizing based on content */
   padding: var(--page-padding-top) var(--page-padding-inline) var(--page-padding-bottom);
   overflow-y: auto;
