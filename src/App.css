@@ -143,6 +143,555 @@
   line-height: 1.5;
 }
 
+/* ===== Linear Algebra Lab ===== */
+body.is-dragging-linear-algebra-vector {
+  user-select: none;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.linear-algebra-lab-page {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.linear-algebra-lab-header {
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.linear-algebra-lab-header h1 {
+  margin: 0;
+  font-size: 1.55rem;
+}
+
+.linear-algebra-lab-header-note {
+  margin: 0.4rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.linear-algebra-lab-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.linear-algebra-lab-tab {
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.linear-algebra-lab-tab:hover,
+.linear-algebra-lab-tab.is-active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.12);
+}
+
+.linear-algebra-lab-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr) minmax(280px, 330px);
+  gap: 1rem;
+  align-items: start;
+}
+
+.linear-algebra-lab-editor-column,
+.linear-algebra-lab-visual-column,
+.linear-algebra-lab-summary-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.linear-algebra-lab-comparison-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.linear-algebra-lab-card {
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem;
+}
+
+.linear-algebra-lab-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+
+.linear-algebra-lab-card-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.linear-algebra-lab-card-caption {
+  margin: 0.3rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.linear-algebra-lab-editor-grid {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.linear-algebra-lab-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.linear-algebra-lab-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.linear-algebra-lab-field-value {
+  color: var(--primary-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.linear-algebra-lab-field-input-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.linear-algebra-lab-number-input,
+.linear-algebra-lab-range-input,
+.linear-algebra-lab-action-btn {
+  accent-color: var(--primary-color);
+}
+
+.linear-algebra-lab-number-input {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  border-radius: 10px;
+  padding: 0.55rem 0.6rem;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.linear-algebra-lab-number-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 99, 102, 241), 0.12);
+}
+
+.linear-algebra-lab-range-input {
+  width: 100%;
+}
+
+.linear-algebra-lab-preset-grid {
+  margin-top: 0.95rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.linear-algebra-lab-preset-btn,
+.linear-algebra-lab-action-btn {
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  border-radius: 12px;
+  padding: 0.58rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font: inherit;
+}
+
+.linear-algebra-lab-preset-btn:hover,
+.linear-algebra-lab-action-btn:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.linear-algebra-lab-preset-btn.is-active {
+  border-color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.12);
+  color: var(--primary-color);
+}
+
+.linear-algebra-lab-action-btn {
+  width: 100%;
+  font-weight: 600;
+}
+
+.linear-algebra-lab-action-btn.is-disabled,
+.linear-algebra-lab-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.linear-algebra-lab-vector-badge,
+.linear-algebra-lab-zoom-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.12);
+  color: var(--primary-color);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.linear-algebra-lab-matrix-block {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.linear-algebra-lab-matrix-label {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.linear-algebra-lab-matrix-display {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(48px, auto));
+  gap: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 0.55rem;
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.04);
+}
+
+.linear-algebra-lab-matrix-cell {
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.linear-algebra-lab-visualization-card {
+  padding-bottom: 0.85rem;
+}
+
+.linear-algebra-lab-plot-shell {
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(var(--primary-color-rgb, 99, 102, 241), 0.03) 0%, rgba(var(--primary-color-rgb, 99, 102, 241), 0.01) 100%);
+}
+
+.linear-algebra-lab-plot {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.linear-algebra-lab-grid-line {
+  stroke: rgba(148, 163, 184, 0.2);
+  stroke-width: 1;
+}
+
+.linear-algebra-lab-axis-line {
+  stroke: rgba(100, 116, 139, 0.48);
+  stroke-width: 1.4;
+}
+
+.linear-algebra-lab-shape {
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.linear-algebra-lab-shape-original-square {
+  fill: rgba(148, 163, 184, 0.08);
+  stroke: #94a3b8;
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+}
+
+.linear-algebra-lab-shape-transformed-square {
+  fill: rgba(var(--primary-color-rgb, 99, 102, 241), 0.14);
+  stroke: var(--primary-color);
+  stroke-width: 2.4;
+}
+
+.linear-algebra-lab-shape-original-circle {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.9);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+.linear-algebra-lab-shape-transformed-circle {
+  fill: none;
+  stroke: rgba(14, 165, 233, 0.95);
+  stroke-width: 2.4;
+}
+
+.linear-algebra-lab-helper-line {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.55);
+  stroke-width: 1.6;
+  stroke-dasharray: 7 5;
+}
+
+.linear-algebra-lab-helper-line-transformed {
+  stroke: rgba(14, 165, 233, 0.65);
+}
+
+.linear-algebra-lab-image-point {
+  fill: rgba(14, 165, 233, 0.85);
+}
+
+.linear-algebra-lab-kernel-line {
+  fill: none;
+  stroke: #f59e0b;
+  stroke-width: 2.2;
+  stroke-dasharray: 9 5;
+}
+
+.linear-algebra-lab-vector {
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-width: 2.6;
+}
+
+.linear-algebra-lab-vector-original,
+.linear-algebra-lab-vector-sample {
+  stroke: #94a3b8;
+}
+
+.linear-algebra-lab-vector-transformed,
+.linear-algebra-lab-vector-transformed-sample {
+  stroke: var(--primary-color);
+}
+
+.linear-algebra-lab-vector-restored {
+  stroke: var(--success-color);
+}
+
+.linear-algebra-lab-origin-dot {
+  fill: var(--text-color);
+}
+
+.linear-algebra-lab-sample-handle-ring {
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: rgba(99, 102, 241, 0.24);
+}
+
+.linear-algebra-lab-sample-handle {
+  fill: var(--primary-color);
+  cursor: grab;
+  touch-action: none;
+}
+
+.linear-algebra-lab-sample-handle:active {
+  cursor: grabbing;
+}
+
+.linear-algebra-lab-plot-label-badge {
+  pointer-events: none;
+}
+
+.linear-algebra-lab-plot-label-bg {
+  stroke-width: 1.2;
+}
+
+.linear-algebra-lab-plot-label-badge.is-original .linear-algebra-lab-plot-label-bg {
+  fill: rgba(15, 23, 42, 0.9);
+  stroke: rgba(148, 163, 184, 0.85);
+}
+
+.linear-algebra-lab-plot-label-badge.is-transformed .linear-algebra-lab-plot-label-bg {
+  fill: rgba(8, 47, 73, 0.94);
+  stroke: rgba(56, 189, 248, 0.95);
+}
+
+.linear-algebra-lab-plot-label-badge.is-restored .linear-algebra-lab-plot-label-bg {
+  fill: rgba(20, 83, 45, 0.94);
+  stroke: rgba(74, 222, 128, 0.92);
+}
+
+.linear-algebra-lab-plot-label {
+  fill: #f8fafc;
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+  letter-spacing: 0.01em;
+}
+
+.linear-algebra-lab-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-top: 0.85rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.linear-algebra-lab-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.linear-algebra-lab-legend-swatch {
+  width: 18px;
+  height: 4px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.linear-algebra-lab-legend-swatch.is-original {
+  background: #94a3b8;
+}
+
+.linear-algebra-lab-legend-swatch.is-transformed {
+  background: var(--primary-color);
+}
+
+.linear-algebra-lab-legend-swatch.is-image {
+  background: #0ea5e9;
+}
+
+.linear-algebra-lab-legend-swatch.is-kernel {
+  background: #f59e0b;
+}
+
+.linear-algebra-lab-legend-swatch.is-restored {
+  background: var(--success-color);
+}
+
+.linear-algebra-lab-summary-card-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.linear-algebra-lab-info-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.linear-algebra-lab-info-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.linear-algebra-lab-info-label {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  min-width: 82px;
+}
+
+.linear-algebra-lab-info-value {
+  color: var(--text-color);
+  font-size: 0.88rem;
+  text-align: right;
+  line-height: 1.5;
+}
+
+.linear-algebra-lab-summary-text {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.linear-algebra-lab-disabled-panel {
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.06);
+  padding: 0.9rem;
+}
+
+.linear-algebra-lab-disabled-panel strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.linear-algebra-lab-disabled-panel p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.linear-algebra-lab-meter {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: rgba(148, 163, 184, 0.12);
+  overflow: hidden;
+}
+
+.linear-algebra-lab-meter-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e 0%, #0ea5e9 100%);
+}
+
+@media (max-width: 1240px) {
+  .linear-algebra-lab-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .linear-algebra-lab-comparison-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .linear-algebra-lab-card {
+    padding: 0.9rem;
+  }
+
+  .linear-algebra-lab-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .linear-algebra-lab-field-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .linear-algebra-lab-preset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .linear-algebra-lab-info-row {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .linear-algebra-lab-info-value {
+    text-align: left;
+  }
+}
+
 /* ===== Distribution Tables ===== */
 .distribution-tables-page {
   max-width: 1280px;

@@ -16,6 +16,7 @@ import { MemorizationRoute } from './pages/MemorizationRoute';
 import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
 import { DistributionTablesRoute } from './pages/DistributionTablesRoute';
+import { LinearAlgebraLabRoute } from './pages/LinearAlgebraLabRoute';
 import { LocalLlmChatRoute } from './pages/LocalLlmChatRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
@@ -162,6 +163,7 @@ function App() {
         <Route path="/" element={<HomeRoute />} />
         <Route path="/distribution-sim" element={<DistributionRoute />} />
         <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
+        <Route path="/linear-algebra-lab" element={<LinearAlgebraLabRoute />} />
         <Route
           path="/local-llm-chat"
           element={(
