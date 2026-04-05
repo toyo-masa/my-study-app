@@ -33,7 +33,9 @@ type CalculatorButton = {
         | 'backspace'
         | 'equals'
         | 'prefixFunction'
-        | 'postfixAppend';
+        | 'postfixAppend'
+        | 'toggleSign'
+        | 'percent';
     value?: string;
     functionName?: CalculatorFunctionName;
     variant?: 'default' | 'operator' | 'utility' | 'equal' | 'function';
@@ -52,11 +54,6 @@ const CALCULATOR_SCIENTIFIC_KEYS: CalculatorButton[] = [
     { label: 'sin', action: 'prefixFunction', functionName: 'sin', variant: 'function' },
     { label: 'cos', action: 'prefixFunction', functionName: 'cos', variant: 'function' },
     { label: 'tan', action: 'prefixFunction', functionName: 'tan', variant: 'function' },
-    { label: 'AC', action: 'clear', variant: 'utility' },
-];
-
-const CALCULATOR_DIGIT_UTILITY_KEYS: CalculatorButton[] = [
-    { label: '⌫', action: 'backspace', variant: 'utility', span: 'full' },
 ];
 
 const CALCULATOR_DIGIT_KEYS: CalculatorButton[] = [
@@ -69,7 +66,8 @@ const CALCULATOR_DIGIT_KEYS: CalculatorButton[] = [
     { label: '1', action: 'digit', value: '1' },
     { label: '2', action: 'digit', value: '2' },
     { label: '3', action: 'digit', value: '3' },
-    { label: '0', action: 'digit', value: '0', span: 'wide' },
+    { label: '±', action: 'toggleSign', variant: 'utility' },
+    { label: '0', action: 'digit', value: '0' },
     { label: '.', action: 'decimal' },
 ];
 
@@ -81,9 +79,14 @@ const CALCULATOR_OPERATOR_KEYS: CalculatorButton[] = [
     { label: '=', action: 'equals', variant: 'equal' },
 ];
 
+const BASE_CALCULATOR_PANEL_WIDTH = 500;
+const BASE_CALCULATOR_PANEL_HEIGHT = 620;
 const CALCULATOR_PANEL_MARGIN = 12;
-const MIN_CALCULATOR_PANEL_WIDTH = 500;
-const MIN_CALCULATOR_PANEL_HEIGHT = 620;
+const DEFAULT_CALCULATOR_TOP = 72;
+const MIN_CALCULATOR_SCALE = 0.64;
+const MIN_CALCULATOR_PANEL_WIDTH = Math.round(BASE_CALCULATOR_PANEL_WIDTH * MIN_CALCULATOR_SCALE);
+const MIN_CALCULATOR_PANEL_HEIGHT = Math.round(BASE_CALCULATOR_PANEL_HEIGHT * MIN_CALCULATOR_SCALE);
+const CALCULATOR_SCALE_STYLE_KEY = '--session-calculator-scale' as const;
 const MAX_DECIMAL_PLACES = 10;
 const DEGREE_TO_RADIAN = Math.PI / 180;
 
@@ -234,12 +237,95 @@ const removeTrailingExpressionUnit = (expression: string): string => {
     return expression.slice(0, -1);
 };
 
+const findTrailingNumberRange = (expression: string): { start: number; end: number } | null => {
+    if (expression.length === 0) {
+        return null;
+    }
+
+    let index = expression.length - 1;
+    while (index >= 0 && (isDigit(expression[index]) || expression[index] === '.')) {
+        index -= 1;
+    }
+
+    if (index === expression.length - 1) {
+        return null;
+    }
+
+    let start = index + 1;
+    if (
+        index >= 0
+        && expression[index] === '-'
+        && (index === 0 || expression[index - 1] === '(' || isBinaryOperator(expression[index - 1]))
+    ) {
+        start = index;
+    }
+
+    return {
+        start,
+        end: expression.length,
+    };
+};
+
+const findTrailingWrappedValueRange = (expression: string): { start: number; end: number } | null => {
+    const lastChar = getLastChar(expression);
+    if (lastChar === null) {
+        return null;
+    }
+
+    if (lastChar !== ')') {
+        return findTrailingNumberRange(expression);
+    }
+
+    let balance = 0;
+    let start = -1;
+
+    for (let index = expression.length - 1; index >= 0; index -= 1) {
+        const char = expression[index];
+        if (char === ')') {
+            balance += 1;
+            continue;
+        }
+
+        if (char === '(') {
+            balance -= 1;
+            if (balance === 0) {
+                start = index;
+                break;
+            }
+        }
+    }
+
+    if (start < 0) {
+        return null;
+    }
+
+    while (start > 0 && /[a-z]/i.test(expression[start - 1])) {
+        start -= 1;
+    }
+
+    return {
+        start,
+        end: expression.length,
+    };
+};
+
 const clampValue = (value: number, min: number, max: number): number => {
     if (max < min) {
         return min;
     }
 
     return Math.min(max, Math.max(min, value));
+};
+
+const getDefaultCalculatorPosition = (panelSize: CalculatorSize): CalculatorPosition => {
+    if (typeof window === 'undefined') {
+        return { left: CALCULATOR_PANEL_MARGIN, top: DEFAULT_CALCULATOR_TOP };
+    }
+
+    return {
+        left: Math.max(CALCULATOR_PANEL_MARGIN, window.innerWidth - panelSize.width - 16),
+        top: DEFAULT_CALCULATOR_TOP,
+    };
 };
 
 const clampCalculatorPosition = (
@@ -268,7 +354,7 @@ const clampCalculatorSize = (
     }
 
     const availableWidth = Math.max(220, window.innerWidth - position.left - CALCULATOR_PANEL_MARGIN);
-    const availableHeight = Math.max(320, window.innerHeight - position.top - CALCULATOR_PANEL_MARGIN);
+    const availableHeight = Math.max(280, window.innerHeight - position.top - CALCULATOR_PANEL_MARGIN);
     const minWidth = Math.min(MIN_CALCULATOR_PANEL_WIDTH, availableWidth);
     const minHeight = Math.min(MIN_CALCULATOR_PANEL_HEIGHT, availableHeight);
 
@@ -561,7 +647,7 @@ export const SessionToolsLauncher: React.FC = () => {
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const resizePointerIdRef = useRef<number | null>(null);
     const resizeStartPointRef = useRef({ x: 0, y: 0 });
-    const resizeStartSizeRef = useRef<CalculatorSize>({ width: 0, height: 0 });
+    const resizeStartSizeRef = useRef<CalculatorSize>({ width: BASE_CALCULATOR_PANEL_WIDTH, height: BASE_CALCULATOR_PANEL_HEIGHT });
     const resizeStartPositionRef = useRef<CalculatorPosition>({ left: CALCULATOR_PANEL_MARGIN, top: CALCULATOR_PANEL_MARGIN });
     const displayRef = useRef<HTMLDivElement>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -571,7 +657,10 @@ export const SessionToolsLauncher: React.FC = () => {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [hasJustEvaluated, setHasJustEvaluated] = useState(false);
     const [calculatorPosition, setCalculatorPosition] = useState<CalculatorPosition | null>(null);
-    const [calculatorSize, setCalculatorSize] = useState<CalculatorSize | null>(null);
+    const [calculatorSize, setCalculatorSize] = useState<CalculatorSize>({
+        width: BASE_CALCULATOR_PANEL_WIDTH,
+        height: BASE_CALCULATOR_PANEL_HEIGHT,
+    });
 
     const focusToolButton = useCallback(() => {
         window.requestAnimationFrame(() => {
@@ -610,6 +699,51 @@ export const SessionToolsLauncher: React.FC = () => {
         setErrorMessage(null);
         setHasJustEvaluated(false);
     }, []);
+
+    const toggleSign = useCallback(() => {
+        const baseExpression = errorMessage
+            ? (lastResult ?? '')
+            : hasJustEvaluated
+                ? (lastResult ?? expression)
+                : expression;
+
+        if (baseExpression === '') {
+            setExpression('-');
+            clearErrorState();
+            return;
+        }
+
+        const range = findTrailingNumberRange(baseExpression);
+        if (!range) {
+            if (baseExpression === '-') {
+                setExpression('');
+                clearErrorState();
+            }
+            return;
+        }
+
+        const segment = baseExpression.slice(range.start, range.end);
+        const nextSegment = segment.startsWith('-') ? segment.slice(1) : `-${segment}`;
+        setExpression(`${baseExpression.slice(0, range.start)}${nextSegment}`);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
+
+    const applyPercent = useCallback(() => {
+        const baseExpression = errorMessage
+            ? (lastResult ?? '')
+            : hasJustEvaluated
+                ? (lastResult ?? expression)
+                : expression;
+
+        const range = findTrailingNumberRange(baseExpression);
+        if (!range) {
+            return;
+        }
+
+        const segment = baseExpression.slice(range.start, range.end);
+        setExpression(`${baseExpression.slice(0, range.start)}(${segment}÷100)`);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
 
     const insertDigit = useCallback((digit: string) => {
         let baseExpression = errorMessage ? '' : hasJustEvaluated ? '' : expression;
@@ -743,10 +877,20 @@ export const SessionToolsLauncher: React.FC = () => {
             return;
         }
 
-        const lastChar = getLastChar(baseExpression);
         if (canExpressionEndWithValue(baseExpression)) {
-            baseExpression = `${baseExpression}×${functionName}(`;
-        } else if (lastChar === '(' || (lastChar !== null && isBinaryOperator(lastChar))) {
+            const range = findTrailingWrappedValueRange(baseExpression);
+            if (!range) {
+                return;
+            }
+
+            const operand = baseExpression.slice(range.start, range.end);
+            setExpression(`${baseExpression.slice(0, range.start)}${functionName}(${operand})`);
+            clearErrorState();
+            return;
+        }
+
+        const lastChar = getLastChar(baseExpression);
+        if (lastChar === '(' || (lastChar !== null && isBinaryOperator(lastChar))) {
             baseExpression = `${baseExpression}${functionName}(`;
         } else {
             return;
@@ -1015,6 +1159,12 @@ export const SessionToolsLauncher: React.FC = () => {
             case 'backspace':
                 handleBackspace();
                 break;
+            case 'toggleSign':
+                toggleSign();
+                break;
+            case 'percent':
+                applyPercent();
+                break;
             case 'equals':
                 handleEvaluate();
                 break;
@@ -1043,6 +1193,8 @@ export const SessionToolsLauncher: React.FC = () => {
         insertOpenParen,
         insertPrefixFunction,
         resetCalculator,
+        toggleSign,
+        applyPercent,
     ]);
 
     useEffect(() => {
@@ -1075,18 +1227,14 @@ export const SessionToolsLauncher: React.FC = () => {
             }
 
             const rect = panelElement.getBoundingClientRect();
-            const currentPosition = calculatorPosition ?? { left: rect.left, top: rect.top };
-            const nextSize = calculatorSize
-                ? clampCalculatorSize(calculatorSize, currentPosition)
-                : null;
+            const currentPosition = calculatorPosition ?? getDefaultCalculatorPosition(calculatorSize);
+            const nextSize = clampCalculatorSize(calculatorSize, currentPosition);
             const sizeForPosition = nextSize ?? { width: rect.width, height: rect.height };
             const nextPosition = calculatorPosition
                 ? clampCalculatorPosition(calculatorPosition, sizeForPosition)
                 : null;
 
-            if (nextSize) {
-                setCalculatorSize(nextSize);
-            }
+            setCalculatorSize(nextSize);
 
             if (nextPosition) {
                 setCalculatorPosition(nextPosition);
@@ -1145,6 +1293,18 @@ export const SessionToolsLauncher: React.FC = () => {
         return () => document.removeEventListener('keydown', handleDocumentKeyDown);
     }, [closeCalculator, closeMenu, isCalculatorOpen, isMenuOpen]);
 
+    const clearButtonLabel = useMemo(() => (
+        expression.length > 0 || errorMessage !== null || lastResult !== null || hasJustEvaluated
+            ? 'C'
+            : 'AC'
+    ), [errorMessage, expression.length, hasJustEvaluated, lastResult]);
+
+    const calculatorDigitUtilityKeys = useMemo<CalculatorButton[]>(() => [
+        { label: '⌫', action: 'backspace', variant: 'utility' },
+        { label: clearButtonLabel, action: 'clear', variant: 'utility' },
+        { label: '%', action: 'percent', variant: 'utility' },
+    ], [clearButtonLabel]);
+
     const calculatorDisplayState = useMemo(() => {
         if (errorMessage) {
             return {
@@ -1165,6 +1325,35 @@ export const SessionToolsLauncher: React.FC = () => {
             ghostText: ')'.repeat(countOpenParentheses(expression)),
         };
     }, [errorMessage, expression]);
+
+    const provisionalCalculatorPosition = useMemo(
+        () => calculatorPosition ?? getDefaultCalculatorPosition(calculatorSize),
+        [calculatorPosition, calculatorSize]
+    );
+    const renderedCalculatorSize = useMemo(
+        () => clampCalculatorSize(calculatorSize, provisionalCalculatorPosition),
+        [calculatorSize, provisionalCalculatorPosition]
+    );
+    const renderedCalculatorPosition = useMemo(
+        () => calculatorPosition
+            ? clampCalculatorPosition(calculatorPosition, renderedCalculatorSize)
+            : getDefaultCalculatorPosition(renderedCalculatorSize),
+        [calculatorPosition, renderedCalculatorSize]
+    );
+    const calculatorScale = useMemo(
+        () => Math.min(
+            renderedCalculatorSize.width / BASE_CALCULATOR_PANEL_WIDTH,
+            renderedCalculatorSize.height / BASE_CALCULATOR_PANEL_HEIGHT
+        ),
+        [renderedCalculatorSize.height, renderedCalculatorSize.width]
+    );
+    const calculatorPanelStyle = useMemo<React.CSSProperties>(() => ({
+        left: `${renderedCalculatorPosition.left}px`,
+        top: `${renderedCalculatorPosition.top}px`,
+        width: `${renderedCalculatorSize.width}px`,
+        height: `${renderedCalculatorSize.height}px`,
+        [CALCULATOR_SCALE_STYLE_KEY]: calculatorScale.toString(),
+    }), [calculatorScale, renderedCalculatorPosition.left, renderedCalculatorPosition.top, renderedCalculatorSize.height, renderedCalculatorSize.width]);
 
     const renderCalculatorButton = useCallback((button: CalculatorButton) => (
         <button
@@ -1222,17 +1411,7 @@ export const SessionToolsLauncher: React.FC = () => {
                     role="dialog"
                     aria-label="電卓"
                     onKeyDown={handleCalculatorKeyDown}
-                    style={{
-                        ...(calculatorPosition ? {
-                            left: `${calculatorPosition.left}px`,
-                            top: `${calculatorPosition.top}px`,
-                            right: 'auto',
-                        } : undefined),
-                        ...(calculatorSize ? {
-                            width: `${calculatorSize.width}px`,
-                            height: `${calculatorSize.height}px`,
-                        } : undefined),
-                    }}
+                    style={calculatorPanelStyle}
                 >
                     <div
                         className="session-calculator-header"
@@ -1282,7 +1461,7 @@ export const SessionToolsLauncher: React.FC = () => {
                         <div className="session-calculator-main-layout">
                             <div className="session-calculator-digit-area">
                                 <div className="session-calculator-utility-grid">
-                                    {CALCULATOR_DIGIT_UTILITY_KEYS.map(renderCalculatorButton)}
+                                    {calculatorDigitUtilityKeys.map(renderCalculatorButton)}
                                 </div>
                                 <div className="session-calculator-main-grid">
                                     {CALCULATOR_DIGIT_KEYS.map(renderCalculatorButton)}
