@@ -654,6 +654,7 @@ export const SessionToolsLauncher: React.FC = () => {
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
     const [expression, setExpression] = useState('');
     const [lastResult, setLastResult] = useState<string | null>(null);
+    const [lastEvaluatedExpression, setLastEvaluatedExpression] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [hasJustEvaluated, setHasJustEvaluated] = useState(false);
     const [calculatorPosition, setCalculatorPosition] = useState<CalculatorPosition | null>(null);
@@ -677,6 +678,7 @@ export const SessionToolsLauncher: React.FC = () => {
     const clearErrorState = useCallback(() => {
         setErrorMessage(null);
         setHasJustEvaluated(false);
+        setLastEvaluatedExpression(null);
     }, []);
 
     const closeMenu = useCallback((options?: { returnFocus?: boolean }) => {
@@ -696,6 +698,7 @@ export const SessionToolsLauncher: React.FC = () => {
     const resetCalculator = useCallback(() => {
         setExpression('');
         setLastResult(null);
+        setLastEvaluatedExpression(null);
         setErrorMessage(null);
         setHasJustEvaluated(false);
     }, []);
@@ -933,7 +936,9 @@ export const SessionToolsLauncher: React.FC = () => {
             return;
         }
 
+        const normalizedExpression = getAutoClosedExpression(trimmedExpression);
         const formatted = formatCalculatorResult(result);
+        setLastEvaluatedExpression(normalizedExpression);
         setExpression(formatted);
         setLastResult(formatted);
         setErrorMessage(null);
@@ -1305,6 +1310,20 @@ export const SessionToolsLauncher: React.FC = () => {
         { label: '%', action: 'percent', variant: 'utility' },
     ], [clearButtonLabel]);
 
+    const calculatorHistoryText = useMemo(() => {
+        if (errorMessage) {
+            return expression.length > 0
+                ? formatExpressionForDisplay(getAutoClosedExpression(expression))
+                : '';
+        }
+
+        if (hasJustEvaluated && lastEvaluatedExpression) {
+            return formatExpressionForDisplay(lastEvaluatedExpression);
+        }
+
+        return '';
+    }, [errorMessage, expression, hasJustEvaluated, lastEvaluatedExpression]);
+
     const calculatorDisplayState = useMemo(() => {
         if (errorMessage) {
             return {
@@ -1439,17 +1458,24 @@ export const SessionToolsLauncher: React.FC = () => {
                             role="textbox"
                             aria-readonly="true"
                             aria-label="電卓の表示"
-                            aria-valuetext={`${calculatorDisplayState.mainText}${calculatorDisplayState.ghostText}`}
+                            aria-valuetext={`${calculatorHistoryText ? `${calculatorHistoryText} ` : ''}${calculatorDisplayState.mainText}${calculatorDisplayState.ghostText}`}
                             tabIndex={0}
                         >
-                            <span className="session-calculator-display-text">
-                                {calculatorDisplayState.mainText}
-                            </span>
-                            {calculatorDisplayState.ghostText && (
-                                <span className="session-calculator-display-ghost" aria-hidden="true">
-                                    {calculatorDisplayState.ghostText}
-                                </span>
+                            {calculatorHistoryText && (
+                                <div className="session-calculator-display-history" aria-hidden="true">
+                                    {calculatorHistoryText}
+                                </div>
                             )}
+                            <div className="session-calculator-display-main">
+                                <span className="session-calculator-display-text">
+                                    {calculatorDisplayState.mainText}
+                                </span>
+                                {calculatorDisplayState.ghostText && (
+                                    <span className="session-calculator-display-ghost" aria-hidden="true">
+                                        {calculatorDisplayState.ghostText}
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         <div className="session-calculator-toolbar">
@@ -1473,20 +1499,6 @@ export const SessionToolsLauncher: React.FC = () => {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        className="session-calculator-resize-handle right"
-                        aria-label="電卓の幅を調整"
-                        title="左右にドラッグして幅を調整"
-                        onPointerDown={(event) => handleCalculatorResizePointerDown('right', event)}
-                    />
-                    <button
-                        type="button"
-                        className="session-calculator-resize-handle bottom"
-                        aria-label="電卓の高さを調整"
-                        title="上下にドラッグして高さを調整"
-                        onPointerDown={(event) => handleCalculatorResizePointerDown('bottom', event)}
-                    />
                     <button
                         type="button"
                         className="session-calculator-resize-handle corner"
