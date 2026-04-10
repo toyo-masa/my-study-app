@@ -313,6 +313,8 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
             resizeHandleRef.current.releasePointerCapture(pointerId);
         }
         resizePointerIdRef.current = null;
+        document.body.classList.remove('is-resizing-handwriting-pad');
+        document.documentElement.classList.remove('is-resizing-handwriting-pad');
     }, []);
 
     const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
@@ -327,26 +329,35 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
         resizeStartYRef.current = event.clientY;
         resizeStartHeightRef.current = surface.getBoundingClientRect().height;
         event.currentTarget.setPointerCapture(event.pointerId);
-    }, [clearTextSelection]);
+        document.body.classList.add('is-resizing-handwriting-pad');
+        document.documentElement.classList.add('is-resizing-handwriting-pad');
 
-    const handleResizePointerMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-        if (resizePointerIdRef.current !== event.pointerId) {
-            return;
-        }
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+            if (resizePointerIdRef.current !== moveEvent.pointerId) {
+                return;
+            }
 
-        event.preventDefault();
-        const deltaY = event.clientY - resizeStartYRef.current;
-        setPadHeight(clampPadHeight(resizeStartHeightRef.current + deltaY));
-    }, [clampPadHeight]);
+            moveEvent.preventDefault();
+            const deltaY = moveEvent.clientY - resizeStartYRef.current;
+            setPadHeight(clampPadHeight(resizeStartHeightRef.current + deltaY));
+        };
 
-    const handleResizePointerUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-        if (resizePointerIdRef.current !== event.pointerId) {
-            return;
-        }
+        const handlePointerUp = (upEvent: PointerEvent) => {
+            if (resizePointerIdRef.current !== upEvent.pointerId) {
+                return;
+            }
 
-        event.preventDefault();
-        finishResize(event.pointerId);
-    }, [finishResize]);
+            upEvent.preventDefault();
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
+            finishResize(upEvent.pointerId);
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
+    }, [clampPadHeight, clearTextSelection, finishResize]);
 
     useEffect(() => {
         redrawCanvas(strokes, currentStrokeRef.current);
@@ -371,6 +382,8 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
             window.cancelAnimationFrame(frameId);
             window.removeEventListener('resize', handleResize);
             observer?.disconnect();
+            document.body.classList.remove('is-resizing-handwriting-pad');
+            document.documentElement.classList.remove('is-resizing-handwriting-pad');
         };
     }, [syncCanvasSize]);
 
@@ -462,9 +475,6 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
                 aria-label="手書きメモの高さを調整"
                 title="上下にドラッグして高さを調整"
                 onPointerDown={handleResizePointerDown}
-                onPointerMove={handleResizePointerMove}
-                onPointerUp={handleResizePointerUp}
-                onPointerCancel={handleResizePointerUp}
             >
                 <span className="handwriting-pad-resize-bar" />
                 <span className="handwriting-pad-resize-text">下端をドラッグして広げる</span>

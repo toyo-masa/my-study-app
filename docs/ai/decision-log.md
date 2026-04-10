@@ -1,6 +1,22 @@
 # Decision Log
 
 ## 2026-04-10
+### 手書きメモ欄のリサイズ中は root 全体を一時ロックする
+- 手書きメモ欄の下端ドラッグ中だけ `html` / `body` に専用クラスを付け、`overflow` / `overscroll` / `touch-action` を止める
+- リサイズ追従はハンドル要素内の `onPointerMove` ではなく、window 監視へ寄せて pointer capture と併用する
+
+### 理由
+- iPad 系では、リサイズハンドルを下へ引く操作がページ全体のパンや bounce と競合しやすい
+- ドラッグ中だけブラウザ既定挙動を止める方が、通常スクロールを壊さずに症状へ直接効く
+
+### 学習画面の app shell 自体を viewport に固定する
+- `app-container.study-mode-active` を `position: fixed` + `inset: 0` にして、学習中の殻全体が viewport から外れないようにする
+- ヘッダーは flex shrink を止め、戻るボタンやツール導線が常に上端に残る前提を強める
+
+### 理由
+- root のスクロールロックだけでは、iPad 系ブラウザで app shell 全体がずれたような状態に入ることがある
+- 問題操作より優先して復帰導線を守る必要があり、ヘッダーを含む殻ごと固定した方が安全
+
 ### 学習画面では app shell だけでなく document root もスクロールロックする
 - `study` / `memorization` ルートでは `app-container` だけでなく `html` / `body` にも専用クラスを付け、root 側の `overflow` と `overscroll` を止める
 - 学習画面の通常スクロールは `content-area` に集約し、ブラウザ全体が空白方向へパンする余地を減らす

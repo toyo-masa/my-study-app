@@ -3616,6 +3616,13 @@ body.study-mode-active {
   overscroll-behavior: none;
 }
 
+html.is-resizing-handwriting-pad,
+body.is-resizing-handwriting-pad {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 .global-settings-btn {
   position: fixed !important;
   top: 10px;
@@ -4279,6 +4286,10 @@ button.appearance-option.active {
 }
 
 .app-container.study-mode-active {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   padding-bottom: 0;
   overflow: hidden;
   overflow-x: clip;
@@ -4295,6 +4306,7 @@ button.appearance-option.active {
   justify-content: space-between;
   box-shadow: var(--shadow-sm);
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .header-left {
