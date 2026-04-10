@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Calculator, Wrench, X } from 'lucide-react';
+import { BookOpen, Calculator, Wrench, X } from 'lucide-react';
+import { DistributionTables } from './DistributionTables';
 
 type CalculatorBinaryOperator = '+' | '-' | '×' | '÷' | '^';
 type CalculatorFunctionName = 'sin' | 'cos' | 'tan' | 'log' | 'ln' | 'sqrt';
@@ -33,6 +34,7 @@ type CalculatorButton = {
         | 'backspace'
         | 'equals'
         | 'prefixFunction'
+        | 'reciprocal'
         | 'postfixAppend'
         | 'toggleSign'
         | 'percent';
@@ -48,6 +50,7 @@ const CALCULATOR_SCIENTIFIC_KEYS: CalculatorButton[] = [
     { label: 'x²', action: 'postfixAppend', value: '^2', variant: 'function' },
     { label: 'x³', action: 'postfixAppend', value: '^3', variant: 'function' },
     { label: 'xʸ', action: 'operator', value: '^', variant: 'function' },
+    { label: '1/x', action: 'reciprocal', variant: 'function' },
     { label: '√', action: 'prefixFunction', functionName: 'sqrt', variant: 'function' },
     { label: 'ln', action: 'prefixFunction', functionName: 'ln', variant: 'function' },
     { label: 'log', action: 'prefixFunction', functionName: 'log', variant: 'function' },
@@ -94,6 +97,7 @@ const FUNCTION_NAMES: CalculatorFunctionName[] = ['sin', 'cos', 'tan', 'log', 'l
 const FUNCTION_OPENERS = FUNCTION_NAMES
     .map((name) => `${name}(`)
     .sort((left, right) => right.length - left.length);
+const CALCULATOR_SPECIAL_OPENERS = ['1÷('] as const;
 
 const isDigit = (value: string): boolean => value >= '0' && value <= '9';
 
@@ -229,6 +233,12 @@ const removeTrailingExpressionUnit = (expression: string): string => {
     }
 
     for (const opener of FUNCTION_OPENERS) {
+        if (expression.endsWith(opener)) {
+            return expression.slice(0, -opener.length);
+        }
+    }
+
+    for (const opener of CALCULATOR_SPECIAL_OPENERS) {
         if (expression.endsWith(opener)) {
             return expression.slice(0, -opener.length);
         }
@@ -642,6 +652,7 @@ export const SessionToolsLauncher: React.FC = () => {
     const menuRef = useRef<HTMLDivElement>(null);
     const toolButtonRef = useRef<HTMLButtonElement>(null);
     const calculatorMenuItemRef = useRef<HTMLButtonElement>(null);
+    const distributionTablesMenuItemRef = useRef<HTMLButtonElement>(null);
     const calculatorPanelRef = useRef<HTMLElement>(null);
     const dragPointerIdRef = useRef<number | null>(null);
     const dragOffsetRef = useRef({ x: 0, y: 0 });
@@ -652,6 +663,7 @@ export const SessionToolsLauncher: React.FC = () => {
     const displayRef = useRef<HTMLDivElement>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+    const [isDistributionTablesOpen, setIsDistributionTablesOpen] = useState(false);
     const [expression, setExpression] = useState('');
     const [lastResult, setLastResult] = useState<string | null>(null);
     const [lastEvaluatedExpression, setLastEvaluatedExpression] = useState<string | null>(null);
@@ -690,6 +702,13 @@ export const SessionToolsLauncher: React.FC = () => {
 
     const closeCalculator = useCallback((options?: { returnFocus?: boolean }) => {
         setIsCalculatorOpen(false);
+        if (options?.returnFocus) {
+            focusToolButton();
+        }
+    }, [focusToolButton]);
+
+    const closeDistributionTables = useCallback((options?: { returnFocus?: boolean }) => {
+        setIsDistributionTablesOpen(false);
         if (options?.returnFocus) {
             focusToolButton();
         }
@@ -918,6 +937,43 @@ export const SessionToolsLauncher: React.FC = () => {
         clearErrorState();
     }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
 
+    const insertReciprocal = useCallback(() => {
+        if (hasJustEvaluated && !errorMessage && lastResult) {
+            setExpression(`1÷(${lastResult})`);
+            clearErrorState();
+            return;
+        }
+
+        let baseExpression = errorMessage ? '' : expression;
+        if (baseExpression === '') {
+            setExpression('1÷(');
+            clearErrorState();
+            return;
+        }
+
+        if (canExpressionEndWithValue(baseExpression)) {
+            const range = findTrailingWrappedValueRange(baseExpression);
+            if (!range) {
+                return;
+            }
+
+            const operand = baseExpression.slice(range.start, range.end);
+            setExpression(`${baseExpression.slice(0, range.start)}1÷(${operand})`);
+            clearErrorState();
+            return;
+        }
+
+        const lastChar = getLastChar(baseExpression);
+        if (lastChar === '(' || (lastChar !== null && isBinaryOperator(lastChar))) {
+            baseExpression = `${baseExpression}1÷(`;
+        } else {
+            return;
+        }
+
+        setExpression(baseExpression);
+        clearErrorState();
+    }, [clearErrorState, errorMessage, expression, hasJustEvaluated, lastResult]);
+
     const handleBackspace = useCallback(() => {
         setExpression((prevExpression) => removeTrailingExpressionUnit(prevExpression));
         clearErrorState();
@@ -1011,9 +1067,22 @@ export const SessionToolsLauncher: React.FC = () => {
         }
     }, [focusToolButton, isCalculatorOpen]);
 
+    const handleDistributionTablesMenuClick = useCallback(() => {
+        setIsMenuOpen(false);
+        setIsDistributionTablesOpen((prev) => !prev);
+
+        if (isDistributionTablesOpen) {
+            focusToolButton();
+        }
+    }, [focusToolButton, isDistributionTablesOpen]);
+
     const handleCloseCalculator = useCallback(() => {
         closeCalculator({ returnFocus: true });
     }, [closeCalculator]);
+
+    const handleCloseDistributionTables = useCallback(() => {
+        closeDistributionTables({ returnFocus: true });
+    }, [closeDistributionTables]);
 
     const handleCalculatorHeaderPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target;
@@ -1178,6 +1247,9 @@ export const SessionToolsLauncher: React.FC = () => {
                     insertPrefixFunction(button.functionName);
                 }
                 break;
+            case 'reciprocal':
+                insertReciprocal();
+                break;
             case 'postfixAppend':
                 if (button.value) {
                     appendPostfixExpression(button.value);
@@ -1197,6 +1269,7 @@ export const SessionToolsLauncher: React.FC = () => {
         insertDigit,
         insertOpenParen,
         insertPrefixFunction,
+        insertReciprocal,
         resetCalculator,
         toggleSign,
         applyPercent,
@@ -1273,7 +1346,7 @@ export const SessionToolsLauncher: React.FC = () => {
     }, [isMenuOpen]);
 
     useEffect(() => {
-        if (!isMenuOpen && !isCalculatorOpen) {
+        if (!isMenuOpen && !isCalculatorOpen && !isDistributionTablesOpen) {
             return;
         }
 
@@ -1284,7 +1357,13 @@ export const SessionToolsLauncher: React.FC = () => {
 
             if (isMenuOpen) {
                 event.preventDefault();
-                closeMenu({ returnFocus: !isCalculatorOpen });
+                closeMenu({ returnFocus: !isCalculatorOpen && !isDistributionTablesOpen });
+                return;
+            }
+
+            if (isDistributionTablesOpen) {
+                event.preventDefault();
+                closeDistributionTables({ returnFocus: !isCalculatorOpen });
                 return;
             }
 
@@ -1296,7 +1375,7 @@ export const SessionToolsLauncher: React.FC = () => {
 
         document.addEventListener('keydown', handleDocumentKeyDown);
         return () => document.removeEventListener('keydown', handleDocumentKeyDown);
-    }, [closeCalculator, closeMenu, isCalculatorOpen, isMenuOpen]);
+    }, [closeCalculator, closeDistributionTables, closeMenu, isCalculatorOpen, isDistributionTablesOpen, isMenuOpen]);
 
     const clearButtonLabel = useMemo(() => (
         expression.length > 0 || errorMessage !== null || lastResult !== null || hasJustEvaluated
@@ -1420,6 +1499,16 @@ export const SessionToolsLauncher: React.FC = () => {
                         <Calculator size={16} />
                         {isCalculatorOpen ? '電卓を閉じる' : '電卓'}
                     </button>
+                    <button
+                        ref={distributionTablesMenuItemRef}
+                        type="button"
+                        className={`session-tools-menu-item ${isDistributionTablesOpen ? 'active' : ''}`}
+                        onClick={handleDistributionTablesMenuClick}
+                        role="menuitem"
+                    >
+                        <BookOpen size={16} />
+                        {isDistributionTablesOpen ? '統計分布表を閉じる' : '統計分布表'}
+                    </button>
                 </div>
             )}
 
@@ -1507,6 +1596,33 @@ export const SessionToolsLauncher: React.FC = () => {
                         title="斜めにドラッグして大きさを調整"
                         onPointerDown={(event) => handleCalculatorResizePointerDown('corner', event)}
                     />
+                </section>
+            )}
+
+            {isDistributionTablesOpen && (
+                <section
+                    className="session-distribution-panel"
+                    role="dialog"
+                    aria-label="統計分布表"
+                >
+                    <div className="session-distribution-panel-header">
+                        <div className="session-distribution-panel-title">
+                            <BookOpen size={16} />
+                            <span>統計分布表</span>
+                        </div>
+                        <button
+                            type="button"
+                            className="icon-btn session-distribution-panel-close-btn"
+                            onClick={handleCloseDistributionTables}
+                            aria-label="統計分布表を閉じる"
+                            title="閉じる"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                    <div className="session-distribution-panel-body">
+                        <DistributionTables embedded showHeader={false} showPreview={false} />
+                    </div>
                 </section>
             )}
         </div>

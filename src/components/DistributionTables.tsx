@@ -423,10 +423,18 @@ function buildDistributionPreview(
 }
 
 interface DistributionTablesProps {
-    onBack: () => void;
+    onBack?: () => void;
+    showHeader?: boolean;
+    showPreview?: boolean;
+    embedded?: boolean;
 }
 
-export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }) => {
+export const DistributionTables: React.FC<DistributionTablesProps> = ({
+    onBack,
+    showHeader = true,
+    showPreview = true,
+    embedded = false,
+}) => {
     const [activeTableKey, setActiveTableKey] = useState<DistributionTableKey>('normal');
     const [selectedCell, setSelectedCell] = useState<{ rowIndex: number; columnIndex: number } | null>(null);
     const tables = useMemo<Record<DistributionTableKey, DistributionTableConfig>>(() => ({
@@ -436,8 +444,15 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }
     }), []);
 
     const activeTable = tables[activeTableKey];
-    const preview = useMemo(() => buildDistributionPreview(activeTableKey, selectedCell), [activeTableKey, selectedCell]);
+    const preview = useMemo(
+        () => (showPreview ? buildDistributionPreview(activeTableKey, selectedCell) : null),
+        [activeTableKey, selectedCell, showPreview]
+    );
     const plotGeometry = useMemo(() => {
+        if (!preview) {
+            return null;
+        }
+
         const svgWidth = 760;
         const svgHeight = 260;
         const padding = { top: 16, right: 18, bottom: 28, left: 18 };
@@ -491,16 +506,18 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }
     }, [preview]);
 
     return (
-        <div className="distribution-tables-page">
-            <div className="distribution-tables-header">
-                <BackButton className="nav-btn" onClick={onBack} />
-                <div>
-                    <h1 className="distribution-tables-title">統計分布表</h1>
-                    <p className="distribution-tables-subtitle">
-                        正規分布・t分布・カイ二乗分布の代表的な統計表を確認できます。
-                    </p>
+        <div className={`distribution-tables-page${embedded ? ' is-embedded' : ''}`}>
+            {showHeader && (
+                <div className="distribution-tables-header">
+                    {onBack && <BackButton className="nav-btn" onClick={onBack} />}
+                    <div>
+                        <h1 className="distribution-tables-title">統計分布表</h1>
+                        <p className="distribution-tables-subtitle">
+                            正規分布・t分布・カイ二乗分布の代表的な統計表を確認できます。
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="distribution-tables-switch">
                 {(Object.values(tables)).map((table) => (
@@ -519,62 +536,64 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({ onBack }
                 ))}
             </div>
 
-            <section className="distribution-plot-card">
-                <div className="distribution-plot-card-head">
-                    <div>
-                        <h2>{preview.chartTitle}</h2>
-                        <p>{preview.chartSubtitle}</p>
+            {showPreview && preview && plotGeometry && (
+                <section className="distribution-plot-card">
+                    <div className="distribution-plot-card-head">
+                        <div>
+                            <h2>{preview.chartTitle}</h2>
+                            <p>{preview.chartSubtitle}</p>
+                        </div>
+                        <span className="distribution-table-badge">面積図</span>
                     </div>
-                    <span className="distribution-table-badge">面積図</span>
-                </div>
-                <p className="distribution-table-note">{preview.helperText}</p>
-                <div className="distribution-plot-figure">
-                    <svg
-                        className="distribution-plot-svg"
-                        viewBox={`0 0 ${plotGeometry.svgWidth} ${plotGeometry.svgHeight}`}
-                        aria-label={`${preview.chartTitle}の面積図`}
-                    >
-                        <line
-                            x1="18"
-                            y1={plotGeometry.baselineY}
-                            x2={plotGeometry.svgWidth - 18}
-                            y2={plotGeometry.baselineY}
-                            className="distribution-plot-axis"
-                        />
-                        {plotGeometry.regionPaths.map((path, index) => (
-                            <path key={`region-${index}`} d={path} className="distribution-plot-region" />
-                        ))}
-                        <path d={plotGeometry.curvePath} className="distribution-plot-curve" />
-                        {plotGeometry.cutoffs.map((cutoff) => (
-                            <g key={`cutoff-${cutoff.value}`}>
-                                <line
-                                    x1={cutoff.x}
-                                    y1="18"
-                                    x2={cutoff.x}
-                                    y2={plotGeometry.baselineY}
-                                    className="distribution-plot-cutoff"
-                                />
-                                <text
-                                    x={cutoff.x}
-                                    y="14"
-                                    textAnchor="middle"
-                                    className="distribution-plot-cutoff-label"
-                                >
-                                    {cutoff.value.toFixed(2)}
-                                </text>
-                            </g>
-                        ))}
-                    </svg>
-                </div>
-                <div className="distribution-plot-summary">
-                    <span className="distribution-plot-chip">
-                        {preview.selectedValueLabel ?? 'セルを選択すると、対応する面積を図示します。'}
-                    </span>
-                    {preview.areaLabel && (
-                        <span className="distribution-plot-chip is-accent">{preview.areaLabel}</span>
-                    )}
-                </div>
-            </section>
+                    <p className="distribution-table-note">{preview.helperText}</p>
+                    <div className="distribution-plot-figure">
+                        <svg
+                            className="distribution-plot-svg"
+                            viewBox={`0 0 ${plotGeometry.svgWidth} ${plotGeometry.svgHeight}`}
+                            aria-label={`${preview.chartTitle}の面積図`}
+                        >
+                            <line
+                                x1="18"
+                                y1={plotGeometry.baselineY}
+                                x2={plotGeometry.svgWidth - 18}
+                                y2={plotGeometry.baselineY}
+                                className="distribution-plot-axis"
+                            />
+                            {plotGeometry.regionPaths.map((path, index) => (
+                                <path key={`region-${index}`} d={path} className="distribution-plot-region" />
+                            ))}
+                            <path d={plotGeometry.curvePath} className="distribution-plot-curve" />
+                            {plotGeometry.cutoffs.map((cutoff) => (
+                                <g key={`cutoff-${cutoff.value}`}>
+                                    <line
+                                        x1={cutoff.x}
+                                        y1="18"
+                                        x2={cutoff.x}
+                                        y2={plotGeometry.baselineY}
+                                        className="distribution-plot-cutoff"
+                                    />
+                                    <text
+                                        x={cutoff.x}
+                                        y="14"
+                                        textAnchor="middle"
+                                        className="distribution-plot-cutoff-label"
+                                    >
+                                        {cutoff.value.toFixed(2)}
+                                    </text>
+                                </g>
+                            ))}
+                        </svg>
+                    </div>
+                    <div className="distribution-plot-summary">
+                        <span className="distribution-plot-chip">
+                            {preview.selectedValueLabel ?? 'セルを選択すると、対応する面積を図示します。'}
+                        </span>
+                        {preview.areaLabel && (
+                            <span className="distribution-plot-chip is-accent">{preview.areaLabel}</span>
+                        )}
+                    </div>
+                </section>
+            )}
 
             <section className="distribution-table-card">
                 <div className="distribution-table-card-head">

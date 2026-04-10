@@ -829,6 +829,16 @@ body.is-dragging-linear-algebra-vector {
   color: var(--text-color);
 }
 
+.distribution-tables-page.is-embedded {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .distribution-tables-header {
   display: flex;
   align-items: flex-start;
@@ -882,6 +892,13 @@ body.is-dragging-linear-algebra-vector {
   padding: 1rem 1rem 1.1rem;
 }
 
+.distribution-tables-page.is-embedded .distribution-table-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .distribution-table-card-head {
   display: flex;
   justify-content: space-between;
@@ -923,6 +940,12 @@ body.is-dragging-linear-algebra-vector {
   border: 1px solid var(--border-color);
   border-radius: 14px;
   max-height: min(70vh, 760px);
+}
+
+.distribution-tables-page.is-embedded .distribution-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 .distribution-data-table {
@@ -4925,6 +4948,55 @@ button.appearance-option.active {
 .session-calculator-close-btn {
   width: calc(36px * var(--session-calculator-scale));
   height: calc(36px * var(--session-calculator-scale));
+}
+
+.session-distribution-panel {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(980px, calc(100vw - 24px));
+  height: min(760px, calc(100vh - 84px));
+  border: 1px solid color-mix(in srgb, var(--primary-color) 24%, var(--border-color) 76%);
+  border-radius: 18px;
+  background: var(--surface-color);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary-color) 10%, transparent),
+    0 20px 45px rgba(15, 23, 42, 0.18);
+  z-index: 90;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.session-distribution-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.session-distribution-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.session-distribution-panel-close-btn {
+  width: 36px;
+  height: 36px;
+}
+
+.session-distribution-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1rem;
 }
 
 .is-dragging-session-calculator {
@@ -10692,6 +10764,19 @@ button.appearance-option.active {
     right: 12px;
     width: auto;
     max-width: none;
+  }
+
+  .session-distribution-panel {
+    top: 58px;
+    left: 12px;
+    right: 12px;
+    transform: none;
+    width: auto;
+    height: calc(100vh - 70px);
+  }
+
+  .session-distribution-panel-body {
+    padding: 0.75rem;
   }
 
   /* --- Sidebar --- */
