@@ -89,6 +89,11 @@ const DEFAULT_CALCULATOR_TOP = 72;
 const MIN_CALCULATOR_SCALE = 0.64;
 const MIN_CALCULATOR_PANEL_WIDTH = Math.round(BASE_CALCULATOR_PANEL_WIDTH * MIN_CALCULATOR_SCALE);
 const MIN_CALCULATOR_PANEL_HEIGHT = Math.round(BASE_CALCULATOR_PANEL_HEIGHT * MIN_CALCULATOR_SCALE);
+const BASE_DISTRIBUTION_PANEL_WIDTH = 980;
+const BASE_DISTRIBUTION_PANEL_HEIGHT = 760;
+const MIN_DISTRIBUTION_PANEL_WIDTH = 360;
+const MIN_DISTRIBUTION_PANEL_HEIGHT = 320;
+const DISTRIBUTION_PANEL_VIEWPORT_OFFSET = 84;
 const CALCULATOR_SCALE_STYLE_KEY = '--session-calculator-scale' as const;
 const MAX_DECIMAL_PLACES = 10;
 const DEGREE_TO_RADIAN = Math.PI / 180;
@@ -367,6 +372,22 @@ const clampCalculatorSize = (
     const availableHeight = Math.max(280, window.innerHeight - position.top - CALCULATOR_PANEL_MARGIN);
     const minWidth = Math.min(MIN_CALCULATOR_PANEL_WIDTH, availableWidth);
     const minHeight = Math.min(MIN_CALCULATOR_PANEL_HEIGHT, availableHeight);
+
+    return {
+        width: clampValue(size.width, minWidth, availableWidth),
+        height: clampValue(size.height, minHeight, availableHeight),
+    };
+};
+
+const clampDistributionPanelSize = (size: CalculatorSize): CalculatorSize => {
+    if (typeof window === 'undefined') {
+        return size;
+    }
+
+    const availableWidth = Math.max(280, window.innerWidth - CALCULATOR_PANEL_MARGIN * 2);
+    const availableHeight = Math.max(240, window.innerHeight - DISTRIBUTION_PANEL_VIEWPORT_OFFSET);
+    const minWidth = Math.min(MIN_DISTRIBUTION_PANEL_WIDTH, availableWidth);
+    const minHeight = Math.min(MIN_DISTRIBUTION_PANEL_HEIGHT, availableHeight);
 
     return {
         width: clampValue(size.width, minWidth, availableWidth),
@@ -654,12 +675,19 @@ export const SessionToolsLauncher: React.FC = () => {
     const calculatorMenuItemRef = useRef<HTMLButtonElement>(null);
     const distributionTablesMenuItemRef = useRef<HTMLButtonElement>(null);
     const calculatorPanelRef = useRef<HTMLElement>(null);
+    const distributionPanelRef = useRef<HTMLElement>(null);
     const dragPointerIdRef = useRef<number | null>(null);
     const dragOffsetRef = useRef({ x: 0, y: 0 });
     const resizePointerIdRef = useRef<number | null>(null);
     const resizeStartPointRef = useRef({ x: 0, y: 0 });
     const resizeStartSizeRef = useRef<CalculatorSize>({ width: BASE_CALCULATOR_PANEL_WIDTH, height: BASE_CALCULATOR_PANEL_HEIGHT });
     const resizeStartPositionRef = useRef<CalculatorPosition>({ left: CALCULATOR_PANEL_MARGIN, top: CALCULATOR_PANEL_MARGIN });
+    const distributionResizePointerIdRef = useRef<number | null>(null);
+    const distributionResizeStartPointRef = useRef({ x: 0, y: 0 });
+    const distributionResizeStartSizeRef = useRef<CalculatorSize>({
+        width: BASE_DISTRIBUTION_PANEL_WIDTH,
+        height: BASE_DISTRIBUTION_PANEL_HEIGHT,
+    });
     const displayRef = useRef<HTMLDivElement>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -673,6 +701,10 @@ export const SessionToolsLauncher: React.FC = () => {
     const [calculatorSize, setCalculatorSize] = useState<CalculatorSize>({
         width: BASE_CALCULATOR_PANEL_WIDTH,
         height: BASE_CALCULATOR_PANEL_HEIGHT,
+    });
+    const [distributionPanelSize, setDistributionPanelSize] = useState<CalculatorSize>({
+        width: BASE_DISTRIBUTION_PANEL_WIDTH,
+        height: BASE_DISTRIBUTION_PANEL_HEIGHT,
     });
 
     const focusToolButton = useCallback(() => {
@@ -1206,6 +1238,66 @@ export const SessionToolsLauncher: React.FC = () => {
         window.addEventListener('pointercancel', handlePointerUp);
     }, [calculatorPosition]);
 
+    const handleDistributionPanelResizePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+        if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const panelElement = distributionPanelRef.current;
+        if (!panelElement) {
+            return;
+        }
+
+        const panelRect = panelElement.getBoundingClientRect();
+        const startSize = { width: panelRect.width, height: panelRect.height };
+
+        distributionResizePointerIdRef.current = event.pointerId;
+        distributionResizeStartPointRef.current = { x: event.clientX, y: event.clientY };
+        distributionResizeStartSizeRef.current = startSize;
+        setDistributionPanelSize(startSize);
+
+        const handleElement = event.currentTarget;
+        handleElement.setPointerCapture(event.pointerId);
+        document.body.classList.add('is-resizing-session-distribution');
+
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+            if (distributionResizePointerIdRef.current !== moveEvent.pointerId) {
+                return;
+            }
+
+            const deltaX = moveEvent.clientX - distributionResizeStartPointRef.current.x;
+            const deltaY = moveEvent.clientY - distributionResizeStartPointRef.current.y;
+
+            setDistributionPanelSize(clampDistributionPanelSize({
+                width: distributionResizeStartSizeRef.current.width + deltaX,
+                height: distributionResizeStartSizeRef.current.height + deltaY,
+            }));
+        };
+
+        const handlePointerUp = (upEvent: PointerEvent) => {
+            if (distributionResizePointerIdRef.current !== upEvent.pointerId) {
+                return;
+            }
+
+            distributionResizePointerIdRef.current = null;
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
+            document.body.classList.remove('is-resizing-session-distribution');
+
+            if (handleElement.hasPointerCapture(event.pointerId)) {
+                handleElement.releasePointerCapture(event.pointerId);
+            }
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
+    }, []);
+
     const handleCalculatorButtonClick = useCallback((button: CalculatorButton) => {
         switch (button.action) {
             case 'digit':
@@ -1322,6 +1414,19 @@ export const SessionToolsLauncher: React.FC = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [calculatorPosition, calculatorSize, isCalculatorOpen]);
+
+    useEffect(() => {
+        if (!isDistributionTablesOpen) {
+            return;
+        }
+
+        const handleResize = () => {
+            setDistributionPanelSize((current) => clampDistributionPanelSize(current));
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [isDistributionTablesOpen]);
 
     useEffect(() => {
         if (!isMenuOpen) {
@@ -1452,6 +1557,21 @@ export const SessionToolsLauncher: React.FC = () => {
         height: `${renderedCalculatorSize.height}px`,
         [CALCULATOR_SCALE_STYLE_KEY]: calculatorScale.toString(),
     }), [calculatorScale, renderedCalculatorPosition.left, renderedCalculatorPosition.top, renderedCalculatorSize.height, renderedCalculatorSize.width]);
+    const isDistributionPanelResizable = typeof window === 'undefined' ? true : window.innerWidth > 768;
+    const renderedDistributionPanelSize = useMemo(
+        () => clampDistributionPanelSize(distributionPanelSize),
+        [distributionPanelSize]
+    );
+    const distributionPanelStyle = useMemo<React.CSSProperties | undefined>(() => {
+        if (!isDistributionPanelResizable) {
+            return undefined;
+        }
+
+        return {
+            width: `${renderedDistributionPanelSize.width}px`,
+            height: `${renderedDistributionPanelSize.height}px`,
+        };
+    }, [isDistributionPanelResizable, renderedDistributionPanelSize.height, renderedDistributionPanelSize.width]);
 
     const renderCalculatorButton = useCallback((button: CalculatorButton) => (
         <button
@@ -1601,9 +1721,11 @@ export const SessionToolsLauncher: React.FC = () => {
 
             {isDistributionTablesOpen && (
                 <section
+                    ref={distributionPanelRef}
                     className="session-distribution-panel"
                     role="dialog"
                     aria-label="統計分布表"
+                    style={distributionPanelStyle}
                 >
                     <div className="session-distribution-panel-header">
                         <div className="session-distribution-panel-title">
@@ -1623,6 +1745,15 @@ export const SessionToolsLauncher: React.FC = () => {
                     <div className="session-distribution-panel-body">
                         <DistributionTables embedded showHeader={false} showPreview={false} />
                     </div>
+                    {isDistributionPanelResizable && (
+                        <button
+                            type="button"
+                            className="session-calculator-resize-handle corner session-distribution-resize-handle"
+                            aria-label="統計分布表の大きさを調整"
+                            title="斜めにドラッグして大きさを調整"
+                            onPointerDown={handleDistributionPanelResizePointerDown}
+                        />
+                    )}
                 </section>
             )}
         </div>

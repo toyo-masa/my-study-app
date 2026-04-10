@@ -4967,6 +4967,8 @@ button.appearance-option.active {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 .session-distribution-panel-header {
@@ -4999,11 +5001,20 @@ button.appearance-option.active {
   padding: 1rem;
 }
 
+.session-distribution-resize-handle.corner::before {
+  border-right-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color) 65%);
+  border-bottom-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color) 65%);
+}
+
 .is-dragging-session-calculator {
   user-select: none;
 }
 
 .is-resizing-session-calculator {
+  user-select: none;
+}
+
+.is-resizing-session-distribution {
   user-select: none;
 }
 
@@ -10777,6 +10788,10 @@ button.appearance-option.active {
 
   .session-distribution-panel-body {
     padding: 0.75rem;
+  }
+
+  .session-distribution-resize-handle {
+    display: none;
   }
 
   /* --- Sidebar --- */
