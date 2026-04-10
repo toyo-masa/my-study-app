@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
@@ -77,6 +77,17 @@ function App() {
   };
 
   const isStudyOrMemRoute = location.pathname.includes('/study') || location.pathname.includes('/memorization');
+
+  useEffect(() => {
+    document.body.classList.toggle('study-mode-active', isStudyOrMemRoute);
+    document.documentElement.classList.toggle('study-mode-active', isStudyOrMemRoute);
+
+    return () => {
+      document.body.classList.remove('study-mode-active');
+      document.documentElement.classList.remove('study-mode-active');
+    };
+  }, [isStudyOrMemRoute]);
+
   const handleLocalLlmModeChange = useCallback((preferredMode: 'webllm' | 'openai-local') => {
     handleLocalLlmSettingsChange((previous) => (
       previous.preferredMode === preferredMode

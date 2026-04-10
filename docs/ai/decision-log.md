@@ -1,5 +1,14 @@
 # Decision Log
 
+## 2026-04-10
+### 学習画面では app shell だけでなく document root もスクロールロックする
+- `study` / `memorization` ルートでは `app-container` だけでなく `html` / `body` にも専用クラスを付け、root 側の `overflow` と `overscroll` を止める
+- 学習画面の通常スクロールは `content-area` に集約し、ブラウザ全体が空白方向へパンする余地を減らす
+
+### 理由
+- iPad 系ブラウザでは、内側コンテナを `overflow: hidden` にしていても document 側のパンが残ることがある
+- 学習中は問題文・選択肢・手書きメモの操作が中心で、root スクロールを許可する利点より誤操作防止の優先度が高い
+
 ## 2026-04-05
 ### 解答画面ヘッダーの右上操作は `headerActions` で拡張する
 - `QuizSessionLayout` の右上領域は AI チャットボタン専用にせず、`headerActions` と既存 AI チャットトグルを並べられる構成にする
