@@ -26,6 +26,8 @@ const DEFAULT_LINE_WIDTH = 1.875;
 const DEFAULT_ERASER_WIDTH = 12;
 const MIN_PAD_HEIGHT = 220;
 const MAX_PAD_HEIGHT = 560;
+const RESIZE_AUTO_SCROLL_EDGE_PX = 72;
+const RESIZE_AUTO_SCROLL_MAX_STEP = 16;
 
 interface HandwritingPadProps {
     value?: HandwritingPadState;
@@ -43,14 +45,18 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
     const resizeHandleRef = useRef<HTMLButtonElement>(null);
     const activePointerIdRef = useRef<number | null>(null);
     const resizePointerIdRef = useRef<number | null>(null);
-    const resizeStartYRef = useRef(0);
     const resizeStartHeightRef = useRef(0);
+    const resizeStartPageYRef = useRef(0);
+    const resizeLatestClientYRef = useRef(0);
+    const resizeAutoScrollFrameRef = useRef<number | null>(null);
+    const resizeScrollContainerRef = useRef<HTMLElement | Window | null>(null);
     const isDrawingRef = useRef(false);
     const canvasDprRef = useRef(1);
     const currentStrokeRef = useRef<HandwritingStroke | null>(null);
     const [hasPreviewStroke, setHasPreviewStroke] = useState(false);
     const [toolMode, setToolMode] = useState<'draw' | 'erase'>('draw');
     const [padHeight, setPadHeight] = useState<number | null>(null);
+    const [isResizing, setIsResizing] = useState(false);
     const strokes = value.strokes;
     const redoStrokes = value.redoStrokes;
 
@@ -127,11 +133,36 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
             return;
         }
 
+        if (stroke.points.length === 2) {
+            const secondPoint = stroke.points[1];
+            if (!secondPoint) {
+                return;
+            }
+            ctx.beginPath();
+            ctx.moveTo(firstPoint.x, firstPoint.y);
+            ctx.lineTo(secondPoint.x, secondPoint.y);
+            ctx.stroke();
+            ctx.closePath();
+            return;
+        }
+
         ctx.beginPath();
         ctx.moveTo(firstPoint.x, firstPoint.y);
-        stroke.points.slice(1).forEach((point) => {
-            ctx.lineTo(point.x, point.y);
-        });
+
+        for (let index = 1; index < stroke.points.length - 1; index += 1) {
+            const point = stroke.points[index];
+            const nextPoint = stroke.points[index + 1];
+            const controlX = (point.x + nextPoint.x) / 2;
+            const controlY = (point.y + nextPoint.y) / 2;
+            ctx.quadraticCurveTo(point.x, point.y, controlX, controlY);
+        }
+
+        const lastPoint = stroke.points[stroke.points.length - 1];
+        const penultimatePoint = stroke.points[stroke.points.length - 2];
+        if (lastPoint && penultimatePoint) {
+            ctx.quadraticCurveTo(penultimatePoint.x, penultimatePoint.y, lastPoint.x, lastPoint.y);
+        }
+
         ctx.stroke();
         ctx.closePath();
     }, [applyContextStyle]);
@@ -255,11 +286,15 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
 
         event.preventDefault();
         const lastPoint = currentStroke.points[currentStroke.points.length - 1];
-        currentStroke.points.push(point);
+        const midPoint = {
+            x: (lastPoint.x + point.x) / 2,
+            y: (lastPoint.y + point.y) / 2,
+        };
+        currentStroke.points.push(midPoint, point);
         applyContextStyle(ctx, currentStroke);
         ctx.beginPath();
         ctx.moveTo(lastPoint.x, lastPoint.y);
-        ctx.lineTo(point.x, point.y);
+        ctx.quadraticCurveTo(midPoint.x, midPoint.y, point.x, point.y);
         ctx.stroke();
         ctx.closePath();
     }, [applyContextStyle, getCanvasPoint]);
@@ -315,7 +350,40 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
         resizePointerIdRef.current = null;
         document.body.classList.remove('is-resizing-handwriting-pad');
         document.documentElement.classList.remove('is-resizing-handwriting-pad');
+        setIsResizing(false);
+        resizeScrollContainerRef.current = null;
     }, []);
+
+    const getResizeScrollTop = useCallback(() => {
+        const scrollContainer = resizeScrollContainerRef.current;
+        if (scrollContainer instanceof HTMLElement) {
+            return scrollContainer.scrollTop;
+        }
+
+        return typeof window !== 'undefined' ? window.scrollY : 0;
+    }, []);
+
+    const scrollResizeContainerBy = useCallback((delta: number) => {
+        if (delta === 0) {
+            return;
+        }
+
+        const scrollContainer = resizeScrollContainerRef.current;
+        if (scrollContainer instanceof HTMLElement) {
+            scrollContainer.scrollTop += delta;
+            return;
+        }
+
+        if (typeof window !== 'undefined') {
+            window.scrollBy({ top: delta, behavior: 'auto' });
+        }
+    }, []);
+
+    const updatePadHeightFromClientY = useCallback((clientY: number) => {
+        const currentPageY = getResizeScrollTop() + clientY;
+        const deltaY = currentPageY - resizeStartPageYRef.current;
+        setPadHeight(clampPadHeight(resizeStartHeightRef.current + deltaY));
+    }, [clampPadHeight, getResizeScrollTop]);
 
     const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
         const surface = surfaceRef.current;
@@ -326,11 +394,17 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
         event.preventDefault();
         clearTextSelection();
         resizePointerIdRef.current = event.pointerId;
-        resizeStartYRef.current = event.clientY;
+        resizeLatestClientYRef.current = event.clientY;
         resizeStartHeightRef.current = surface.getBoundingClientRect().height;
+        const scrollContainer = surface.closest('.content-area');
+        resizeScrollContainerRef.current = scrollContainer instanceof HTMLElement
+            ? scrollContainer
+            : (typeof window !== 'undefined' ? window : null);
+        resizeStartPageYRef.current = getResizeScrollTop() + event.clientY;
         event.currentTarget.setPointerCapture(event.pointerId);
         document.body.classList.add('is-resizing-handwriting-pad');
         document.documentElement.classList.add('is-resizing-handwriting-pad');
+        setIsResizing(true);
 
         const handlePointerMove = (moveEvent: PointerEvent) => {
             if (resizePointerIdRef.current !== moveEvent.pointerId) {
@@ -338,8 +412,8 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
             }
 
             moveEvent.preventDefault();
-            const deltaY = moveEvent.clientY - resizeStartYRef.current;
-            setPadHeight(clampPadHeight(resizeStartHeightRef.current + deltaY));
+            resizeLatestClientYRef.current = moveEvent.clientY;
+            updatePadHeightFromClientY(moveEvent.clientY);
         };
 
         const handlePointerUp = (upEvent: PointerEvent) => {
@@ -357,7 +431,43 @@ export const HandwritingPad: React.FC<HandwritingPadProps> = ({
         window.addEventListener('pointermove', handlePointerMove);
         window.addEventListener('pointerup', handlePointerUp);
         window.addEventListener('pointercancel', handlePointerUp);
-    }, [clampPadHeight, clearTextSelection, finishResize]);
+    }, [clearTextSelection, finishResize, getResizeScrollTop, updatePadHeightFromClientY]);
+
+    useEffect(() => {
+        if (!isResizing || typeof window === 'undefined') {
+            resizeAutoScrollFrameRef.current = null;
+            return;
+        }
+
+        const step = () => {
+            const clientY = resizeLatestClientYRef.current;
+            const viewportHeight = window.innerHeight;
+            let scrollDelta = 0;
+
+            if (clientY >= viewportHeight - RESIZE_AUTO_SCROLL_EDGE_PX) {
+                const ratio = Math.min(1, (clientY - (viewportHeight - RESIZE_AUTO_SCROLL_EDGE_PX)) / RESIZE_AUTO_SCROLL_EDGE_PX);
+                scrollDelta = RESIZE_AUTO_SCROLL_MAX_STEP * ratio;
+            } else if (clientY <= RESIZE_AUTO_SCROLL_EDGE_PX) {
+                const ratio = Math.min(1, (RESIZE_AUTO_SCROLL_EDGE_PX - clientY) / RESIZE_AUTO_SCROLL_EDGE_PX);
+                scrollDelta = -RESIZE_AUTO_SCROLL_MAX_STEP * ratio;
+            }
+
+            if (scrollDelta !== 0) {
+                scrollResizeContainerBy(scrollDelta);
+                updatePadHeightFromClientY(clientY);
+            }
+
+            resizeAutoScrollFrameRef.current = window.requestAnimationFrame(step);
+        };
+
+        resizeAutoScrollFrameRef.current = window.requestAnimationFrame(step);
+        return () => {
+            if (resizeAutoScrollFrameRef.current !== null) {
+                window.cancelAnimationFrame(resizeAutoScrollFrameRef.current);
+                resizeAutoScrollFrameRef.current = null;
+            }
+        };
+    }, [isResizing, scrollResizeContainerBy, updatePadHeightFromClientY]);
 
     useEffect(() => {
         redrawCanvas(strokes, currentStrokeRef.current);
