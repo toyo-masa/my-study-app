@@ -719,7 +719,7 @@ export const ReviewBoardRoute: React.FC<ReviewBoardRouteProps> = ({ masteryThres
                                                     <li>正解したとき: {reviewIntervalSettings.correctIntervalDays} 日 × 連続正解数 を次回日数にします。</li>
                                                     <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
                                                     <li>不正解になると連続正解数は 0 に戻り、次の正解時は 1 回目として数え直します。</li>
-                                                    <li>設定で有効にすると、正解時だけ基準日から最大で「復習間隔の半分、かつ7日以内」後ろへ分散し、一点集中を軽く緩和します。完全に均等化するものではありません。</li>
+                                                    <li>設定で有効にすると、正解時だけ基準日から「0〜復習間隔の半分（最大7日）」の範囲で後ろへ分散し、一点集中を軽く緩和します。完全に均等化するものではありません。</li>
                                                     <li>分散で後ろ倒しした日数は出題日の調整用で、次回の interval 計算には含めません。</li>
                                                     <li>この設定は今後更新される復習日にのみ適用され、すでに登録済みの復習予定は自動変更しません。</li>
                                                     <li>直近 {masteryThreshold} 回の結果が、問題集では「正解かつ復習に回さない」、暗記カードでは「完全に覚えた」だったものは習得済みとして復習ボードから外れます。</li>

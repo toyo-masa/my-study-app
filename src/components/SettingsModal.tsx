@@ -605,7 +605,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                 </label>
                                             </div>
                                             <p className="review-settings-note" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
-                                                有効にすると、正解時の復習日は基準日から最大で「復習間隔の半分、かつ7日以内」だけ後ろへ分散します。不正解・自信なしは従来どおり固定です。
+                                                有効にすると、正解時の復習日は基準日から「0〜復習間隔の半分（最大7日）」の範囲で後ろへ分散します。不正解・自信なしは従来どおり固定です。
                                             </p>
                                             <p className="review-settings-note" style={{ marginTop: '0.5rem' }}>
                                                 この設定は今後更新される復習日にだけ適用され、既存の復習予定は自動変更しません。
