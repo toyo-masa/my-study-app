@@ -151,12 +151,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     };
 
-    const handleReviewSettingChange = (field: keyof ReviewIntervalSettings, nextValue: number) => {
+    const handleReviewSettingChange = (field: 'retryIntervalDays' | 'correctIntervalDays', nextValue: number) => {
         const nextSettings = normalizeReviewIntervalSettings({
             ...reviewIntervalSettings,
             [field]: nextValue,
         });
         onReviewIntervalSettingsChange(nextSettings);
+    };
+
+    const handleReviewDateDistributionToggle = (checked: boolean) => {
+        onReviewIntervalSettingsChange(normalizeReviewIntervalSettings({
+            ...reviewIntervalSettings,
+            distributeCorrectReviewDates: checked,
+        }));
     };
 
     const handleReviewBoardBlockSizeChange = (nextValue: number) => {
@@ -586,6 +593,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     />
                                                 </label>
                                             </div>
+                                            <div className="setting-control">
+                                                <span>正解時の復習日を後ろへ分散する</span>
+                                                <label className="toggle-switch">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={reviewIntervalSettings.distributeCorrectReviewDates}
+                                                        onChange={(event) => handleReviewDateDistributionToggle(event.target.checked)}
+                                                    />
+                                                    <span className="slider"></span>
+                                                </label>
+                                            </div>
+                                            <p className="review-settings-note" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
+                                                有効にすると、正解時の復習日は基準日から最大で「復習間隔の半分、かつ7日以内」だけ後ろへ分散します。不正解・自信なしは従来どおり固定です。
+                                            </p>
+                                            <p className="review-settings-note" style={{ marginTop: '0.5rem' }}>
+                                                この設定は今後更新される復習日にだけ適用され、既存の復習予定は自動変更しません。
+                                            </p>
 
                                             <div className="review-settings-formula">
                                                 <p className="review-settings-formula-title">次回日数の決まり方</p>
@@ -594,6 +618,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     <li>正解したとき: {reviewIntervalSettings.correctIntervalDays} 日 × 連続正解数 を次回日数にします。</li>
                                                     <li>不正解・自信なしのとき: 常に {reviewIntervalSettings.retryIntervalDays} 日を採用します。</li>
                                                     <li>不正解になると連続正解数は 0 に戻り、次の正解時は 1 回目として数え直します。</li>
+                                                    <li>分散を有効にすると、正解時だけ基準日から後ろへランダムにずらして一点集中を緩和します。完全に均等化するものではありません。</li>
+                                                    <li>分散で後ろ倒しした日数は出題日の調整用で、次回の interval 計算には含めません。</li>
+                                                    <li>この設定は今後更新される復習日にのみ反映され、すでに登録済みの復習予定は自動では変更しません。</li>
                                                     <li>例: 連続正解数が {exampleCorrectCount} 回なら、正解時は {reviewIntervalSettings.correctIntervalDays} × {exampleCorrectCount} = {exampleCorrectDays} 日、不正解・自信なし時は {reviewIntervalSettings.retryIntervalDays} 日です。</li>
                                                 </ul>
                                             </div>

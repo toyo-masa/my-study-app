@@ -33,7 +33,13 @@ import {
     applyShuffleSettings,
     resolveReviewBoardFeedbackBlockSize,
 } from '../utils/quizSettings';
-import { calculateNextDue, calculateNextInterval, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
+import {
+    calculateNextDue,
+    calculateNextInterval,
+    loadReviewIntervalSettings,
+    resolveReviewDateOffsetDays,
+    updateConsecutiveCorrect,
+} from '../utils/spacedRepetition';
 import {
     buildMemorizationSuspendedSession,
     buildQuizSessionKey,
@@ -366,7 +372,11 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
 
             const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
             const intervalDays = calculateNextInterval(log.isMemorized, 'high', currentConsecutive, reviewIntervalSettings);
-            const nextDue = calculateNextDue(intervalDays, reviewedAtDate);
+            const offsetDays = resolveReviewDateOffsetDays(
+                intervalDays,
+                log.isMemorized && reviewIntervalSettings.distributeCorrectReviewDates
+            );
+            const nextDue = calculateNextDue(intervalDays, reviewedAtDate, offsetDays);
             const consecutiveCorrect = updateConsecutiveCorrect(log.isMemorized, currentConsecutive);
 
             schedules.push({

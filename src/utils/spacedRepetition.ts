@@ -8,21 +8,28 @@ import type { ConfidenceLevel } from '../types';
 export interface ReviewIntervalSettings {
     retryIntervalDays: number;
     correctIntervalDays: number;
+    distributeCorrectReviewDates: boolean;
 }
 
 export const DEFAULT_REVIEW_INTERVAL_SETTINGS: ReviewIntervalSettings = {
     retryIntervalDays: 1,
     correctIntervalDays: 2,
+    distributeCorrectReviewDates: false,
 };
 
 const REVIEW_INTERVAL_SETTINGS_STORAGE_KEY = 'reviewIntervalSettings';
 const DAY_MIN = 1;
 const DAY_MAX = 365;
+
 function toLocalDateString(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+function toLocalDateOnly(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -34,6 +41,19 @@ function parseNumber(value: unknown): number | null {
         return null;
     }
     return value;
+}
+
+function parseBoolean(value: unknown): boolean | null {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (value === 'true') {
+        return true;
+    }
+    if (value === 'false') {
+        return false;
+    }
+    return null;
 }
 
 export function normalizeReviewIntervalSettings(
@@ -62,6 +82,7 @@ export function normalizeReviewIntervalSettings(
             DAY_MIN,
             DAY_MAX
         ),
+        distributeCorrectReviewDates: parseBoolean(source?.distributeCorrectReviewDates) ?? defaults.distributeCorrectReviewDates,
     };
 }
 
@@ -115,11 +136,43 @@ export function calculateNextInterval(
 }
 
 /**
- * 今日から intervalDays 日後の日付を 'YYYY-MM-DD' 形式で返す
+ * 正解時の復習日分散で使う offset 日数を決定する
  */
-export function calculateNextDue(intervalDays: number, baseDate?: Date): string {
-    const date = baseDate ? new Date(baseDate) : new Date();
-    date.setDate(date.getDate() + intervalDays);
+export type ReviewDateRandomFn = () => number;
+
+export function resolveReviewDateOffsetDays(
+    intervalDays: number,
+    shouldDistribute: boolean,
+    randomFn: ReviewDateRandomFn = Math.random
+): number {
+    if (!shouldDistribute) {
+        return 0;
+    }
+
+    const normalizedIntervalDays = Number.isFinite(intervalDays)
+        ? Math.max(DAY_MIN, Math.round(intervalDays))
+        : DAY_MIN;
+    const maxOffsetDays = Math.min(7, Math.max(1, Math.ceil(normalizedIntervalDays / 2)));
+    const randomValue = randomFn();
+    const normalizedRandomValue = Number.isFinite(randomValue)
+        ? Math.min(0.9999999999999999, Math.max(0, randomValue))
+        : 0;
+
+    return Math.floor(normalizedRandomValue * (maxOffsetDays + 1));
+}
+
+/**
+ * 基準日から intervalDays + offsetDays 日後の日付を 'YYYY-MM-DD' 形式で返す
+ */
+export function calculateNextDue(intervalDays: number, baseDate?: Date, offsetDays: number = 0): string {
+    const normalizedIntervalDays = Number.isFinite(intervalDays)
+        ? Math.max(0, Math.round(intervalDays))
+        : 0;
+    const normalizedOffsetDays = Number.isFinite(offsetDays)
+        ? Math.max(0, Math.round(offsetDays))
+        : 0;
+    const date = toLocalDateOnly(baseDate ? new Date(baseDate) : new Date());
+    date.setDate(date.getDate() + normalizedIntervalDays + normalizedOffsetDays);
     return toLocalDateString(date);
 }
 

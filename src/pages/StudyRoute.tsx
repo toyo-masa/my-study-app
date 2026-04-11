@@ -14,7 +14,13 @@ import { useQuestionElapsedTimer } from '../hooks/useQuestionElapsedTimer';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
 import { getQuestionsForQuizSet, addHistory, addReviewLogs, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
-import { calculateNextInterval, calculateNextDue, loadReviewIntervalSettings, updateConsecutiveCorrect } from '../utils/spacedRepetition';
+import {
+    calculateNextInterval,
+    calculateNextDue,
+    loadReviewIntervalSettings,
+    resolveReviewDateOffsetDays,
+    updateConsecutiveCorrect,
+} from '../utils/spacedRepetition';
 import type {
     Question,
     ConfidenceLevel,
@@ -428,7 +434,11 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 : (userAnswers.length === question.correctAnswers.length && userAnswers.every(a => question.correctAnswers.includes(a)));
             const currentConsecutive = consecutiveByQuestionId.get(questionId) ?? 0;
             const intervalDays = calculateNextInterval(isCorrect, confidence, currentConsecutive, reviewIntervalSettings);
-            const nextDue = calculateNextDue(intervalDays, reviewedAtDate);
+            const offsetDays = resolveReviewDateOffsetDays(
+                intervalDays,
+                isCorrect && confidence !== 'low' && reviewIntervalSettings.distributeCorrectReviewDates
+            );
+            const nextDue = calculateNextDue(intervalDays, reviewedAtDate, offsetDays);
             const consecutiveCorrect = updateConsecutiveCorrect(isCorrect, currentConsecutive);
 
             schedules.push({
