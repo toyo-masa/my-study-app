@@ -1168,7 +1168,7 @@ export const SessionToolsLauncher: React.FC = () => {
 
     const handleCalculatorHeaderPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target;
-        if (target instanceof HTMLElement && target.closest('button')) {
+        if (target instanceof Element && target.closest('button')) {
             return;
         }
 
@@ -1225,7 +1225,7 @@ export const SessionToolsLauncher: React.FC = () => {
 
     const handleDistributionPanelHeaderPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target;
-        if (target instanceof HTMLElement && target.closest('button')) {
+        if (target instanceof Element && target.closest('button')) {
             return;
         }
 

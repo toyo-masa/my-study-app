@@ -606,7 +606,7 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({
                 <p className="distribution-table-note">{activeTable.note}</p>
 
                 <div className="distribution-table-wrapper">
-                    <table className="distribution-data-table">
+                    <table className={`distribution-data-table distribution-data-table--${activeTable.key}`}>
                         <thead>
                             <tr>
                                 <th>{activeTable.rowLabel}</th>
