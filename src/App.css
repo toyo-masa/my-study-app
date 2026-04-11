@@ -4953,8 +4953,7 @@ button.appearance-option.active {
 .session-distribution-panel {
   position: fixed;
   top: 72px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 12px;
   width: min(980px, calc(100vw - 24px));
   height: min(760px, calc(100vh - 84px));
   border: 1px solid color-mix(in srgb, var(--primary-color) 24%, var(--border-color) 76%);
@@ -4979,6 +4978,11 @@ button.appearance-option.active {
   padding: 0.9rem 1rem 0.75rem;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  cursor: grab;
+}
+
+.session-distribution-panel-header:active {
+  cursor: grabbing;
 }
 
 .session-distribution-panel-title {
@@ -5011,6 +5015,10 @@ button.appearance-option.active {
 }
 
 .is-resizing-session-calculator {
+  user-select: none;
+}
+
+.is-dragging-session-distribution {
   user-select: none;
 }
 
