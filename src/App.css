@@ -4580,6 +4580,75 @@ button.appearance-option.active {
   min-width: 0;
 }
 
+.home-filter-sort-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.home-tag-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 420px;
+}
+
+.home-tag-filter-icon {
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.home-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.home-sort-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.home-sort-select {
+  width: auto;
+  min-width: 8.5rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--surface-color);
+}
+
+.home-sort-direction-btn {
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+  white-space: nowrap;
+}
+
+.home-sort-direction-btn:hover {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--surface-color) 86%, var(--primary-color) 14%);
+  transform: translateY(-1px);
+}
+
 .quiz-sets-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
@@ -10740,6 +10809,26 @@ button.appearance-option.active {
     margin-bottom: 1.5rem;
   }
 
+  .home-filter-sort-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .home-tag-filter-container,
+  .home-sort-controls {
+    width: 100%;
+  }
+
+  .home-sort-controls {
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .home-sort-select {
+    flex: 1 1 10rem;
+  }
+
   .home-actions>* {
     margin-left: 0 !important;
   }
@@ -11319,6 +11408,23 @@ button.appearance-option.active {
   .home-actions {
     gap: 0.4rem;
     margin-bottom: 1rem;
+  }
+
+  .home-filter-sort-bar {
+    gap: 0.6rem;
+  }
+
+  .home-sort-controls {
+    gap: 0.45rem;
+  }
+
+  .home-sort-label {
+    width: 100%;
+  }
+
+  .home-sort-select,
+  .home-sort-direction-btn {
+    width: 100%;
   }
 
   .home-actions>div[style*="marginLeft"] {

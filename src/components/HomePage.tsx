@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive, RefreshCw } from 'lucide-react';
+import { Upload, BookOpen, FileText, Settings, Trash2, HelpCircle, Brain, RotateCcw, Filter, ChevronDown, Plus, Archive, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppLauncher } from './AppLauncher';
 import type { HomeOnboardingState, QuizSetWithMeta } from '../types';
@@ -32,6 +32,8 @@ interface HomePageProps {
 }
 
 type HomeOnboardingStep = 'addQuizMenu' | 'addEmptyQuiz' | 'openManage';
+type QuizSetSortKey = 'createdAt' | 'questionCount' | 'name';
+type SortDirection = 'asc' | 'desc';
 
 type HomeOnboardingStepMeta = {
     progress: string;
@@ -113,6 +115,8 @@ export const HomePage: React.FC<HomePageProps> = ({
     const tutorialManageCardRef = useRef<HTMLDivElement>(null);
 
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [sortKey, setSortKey] = useState<QuizSetSortKey>('createdAt');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [tutorialStep, setTutorialStep] = useState<HomeOnboardingStep>('addQuizMenu');
     const [isTutorialDismissedThisSession, setIsTutorialDismissedThisSession] = useState(false);
     const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
@@ -130,6 +134,37 @@ export const HomePage: React.FC<HomePageProps> = ({
             return selectedTags.every(t => qsTags.includes(t));
         });
     }, [quizSets, selectedTags]);
+
+    const sortedQuizSets = useMemo(() => {
+        const byName = (left: QuizSetWithMeta, right: QuizSetWithMeta) => left.name.localeCompare(right.name, 'ja');
+        return [...filteredQuizSets].sort((left, right) => {
+            let primaryComparison = 0;
+
+            if (sortKey === 'createdAt') {
+                primaryComparison = toCreatedAtMs(left.createdAt) - toCreatedAtMs(right.createdAt);
+            } else if (sortKey === 'questionCount') {
+                primaryComparison = left.questionCount - right.questionCount;
+            } else {
+                primaryComparison = byName(left, right);
+            }
+
+            if (primaryComparison !== 0) {
+                return sortDirection === 'asc' ? primaryComparison : -primaryComparison;
+            }
+
+            const nameComparison = byName(left, right);
+            if (nameComparison !== 0) {
+                return nameComparison;
+            }
+
+            const createdAtComparison = toCreatedAtMs(right.createdAt) - toCreatedAtMs(left.createdAt);
+            if (createdAtComparison !== 0) {
+                return createdAtComparison;
+            }
+
+            return (right.id ?? 0) - (left.id ?? 0);
+        });
+    }, [filteredQuizSets, sortDirection, sortKey]);
 
     const tutorialManageTargetQuizSetId = useMemo(() => {
         const candidates = quizSets.filter(
@@ -613,31 +648,59 @@ export const HomePage: React.FC<HomePageProps> = ({
 
                 {viewMode === 'active' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {quizSets.length > 0 && allTags.length > 0 && (
-                            <div className="tag-filter-container" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>
-                                    <Filter size={16} />
-                                </div>
-                                {allTags.map(tag => (
-                                    <button
-                                        key={tag}
-                                        onClick={() => handleToggleTagFilter(tag)}
-                                        className={`tag tag - filter - btn ${selectedTags.includes(tag) ? 'active' : ''} `}
-                                        style={{
-                                            cursor: 'pointer',
-                                            background: selectedTags.includes(tag) ? 'var(--primary-color)' : 'var(--bg-secondary)',
-                                            color: selectedTags.includes(tag) ? 'white' : 'var(--text-primary)',
-                                            border: `1px solid ${selectedTags.includes(tag) ? 'var(--primary-color)' : 'var(--border-color)'} `
-                                        }}
+                        {quizSets.length > 0 && (
+                            <div className="home-filter-sort-bar">
+                                {allTags.length > 0 && (
+                                    <div className="tag-filter-container home-tag-filter-container">
+                                        <div className="home-tag-filter-icon">
+                                            <Filter size={16} />
+                                        </div>
+                                        {allTags.map(tag => (
+                                            <button
+                                                key={tag}
+                                                onClick={() => handleToggleTagFilter(tag)}
+                                                className={`tag tag - filter - btn ${selectedTags.includes(tag) ? 'active' : ''} `}
+                                                style={{
+                                                    cursor: 'pointer',
+                                                    background: selectedTags.includes(tag) ? 'var(--primary-color)' : 'var(--bg-secondary)',
+                                                    color: selectedTags.includes(tag) ? 'white' : 'var(--text-primary)',
+                                                    border: `1px solid ${selectedTags.includes(tag) ? 'var(--primary-color)' : 'var(--border-color)'} `
+                                                }}
+                                            >
+                                                {tag}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="home-sort-controls">
+                                    <div className="home-sort-label">
+                                        <ArrowUpDown size={16} />
+                                        <span>並び替え</span>
+                                    </div>
+                                    <select
+                                        className="setting-select home-sort-select"
+                                        value={sortKey}
+                                        onChange={(event) => setSortKey(event.target.value as QuizSetSortKey)}
+                                        aria-label="問題集カードの並び替え項目"
                                     >
-                                        {tag}
+                                        <option value="createdAt">作成順</option>
+                                        <option value="questionCount">問題数順</option>
+                                        <option value="name">あいうえお順</option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        className="home-sort-direction-btn"
+                                        onClick={() => setSortDirection((previous) => previous === 'asc' ? 'desc' : 'asc')}
+                                        aria-label={`現在は${sortDirection === 'asc' ? '昇順' : '降順'}。クリックで切り替え`}
+                                    >
+                                        {sortDirection === 'asc' ? '昇順' : '降順'}
                                     </button>
-                                ))}
+                                </div>
                             </div>
                         )}
-                        {filteredQuizSets.length > 0 ? (
+                        {sortedQuizSets.length > 0 ? (
                             <div className="quiz-sets-grid">
-                                {filteredQuizSets.map((qs, index) => (
+                                {sortedQuizSets.map((qs, index) => (
                                     <motion.div
                                         layout
                                         key={qs.id}
