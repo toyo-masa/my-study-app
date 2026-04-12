@@ -23,6 +23,13 @@ export interface LoanSimSavedPreset {
     updatedAt: number;
 }
 
+export interface LoanSimSavedPropertyLink {
+    id: string;
+    title: string;
+    url: string;
+    updatedAt: number;
+}
+
 export interface LoanSimSanitizedInputs extends LoanSimInputs {
     autoCalculatedLoanAmount: number;
     effectiveLoanAmount: number;

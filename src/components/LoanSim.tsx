@@ -2,11 +2,20 @@ import { useMemo, useState } from 'react';
 import { BackButton } from './BackButton';
 import { LoanSimCharts } from './loanSim/LoanSimCharts';
 import { LoanSimForm } from './loanSim/LoanSimForm';
+import { LoanSimPropertyLinks } from './loanSim/LoanSimPropertyLinks';
 import { LoanSimScheduleTable } from './loanSim/LoanSimScheduleTable';
 import { LoanSimSummary } from './loanSim/LoanSimSummary';
 import { calculateLoanSimulation } from '../features/loanSim/calculator';
-import { deleteLoanSimSavedPreset, loadLoanSimSavedPresets, upsertLoanSimSavedPreset } from '../features/loanSim/storage';
-import type { LoanSimInputs, LoanSimSavedPreset } from '../features/loanSim/types';
+import {
+    deleteLoanSimSavedPreset,
+    deleteLoanSimSavedPropertyLink,
+    isLoanSimPropertyLinkUrlValid,
+    loadLoanSimSavedPresets,
+    loadLoanSimSavedPropertyLinks,
+    upsertLoanSimSavedPreset,
+    upsertLoanSimSavedPropertyLink,
+} from '../features/loanSim/storage';
+import type { LoanSimInputs, LoanSimSavedPreset, LoanSimSavedPropertyLink } from '../features/loanSim/types';
 
 type LoanSimProps = {
     onBack: () => void;
@@ -55,10 +64,14 @@ function detectEmbeddedMode(): boolean {
 export function LoanSim({ onBack }: LoanSimProps) {
     const [inputs, setInputs] = useState<LoanSimInputs>(() => createDefaultInputs());
     const [savedPresets, setSavedPresets] = useState<LoanSimSavedPreset[]>(() => loadLoanSimSavedPresets(createDefaultInputs()));
+    const [savedPropertyLinks, setSavedPropertyLinks] = useState<LoanSimSavedPropertyLink[]>(() => loadLoanSimSavedPropertyLinks());
     const [selectedPresetId, setSelectedPresetId] = useState('');
     const [isPresetManagementOpen, setIsPresetManagementOpen] = useState(false);
     const [presetName, setPresetName] = useState('');
     const [presetStatus, setPresetStatus] = useState<string | null>(null);
+    const [propertyLinkTitle, setPropertyLinkTitle] = useState('');
+    const [propertyLinkUrl, setPropertyLinkUrl] = useState('');
+    const [propertyLinkStatus, setPropertyLinkStatus] = useState<string | null>(null);
     const embedded = useMemo(() => detectEmbeddedMode(), []);
     const result = useMemo(() => calculateLoanSimulation(inputs), [inputs]);
 
@@ -145,6 +158,43 @@ export function LoanSim({ onBack }: LoanSimProps) {
         setPresetStatus(`「${targetPreset.name}」を削除しました。`);
     };
 
+    const handleSavePropertyLink = () => {
+        const trimmedTitle = propertyLinkTitle.trim();
+        const trimmedUrl = propertyLinkUrl.trim();
+
+        if (!trimmedTitle) {
+            setPropertyLinkStatus('物件名やメモを入力してください。');
+            return;
+        }
+        if (!trimmedUrl) {
+            setPropertyLinkStatus('URL を入力してください。');
+            return;
+        }
+        if (!isLoanSimPropertyLinkUrlValid(trimmedUrl)) {
+            setPropertyLinkStatus('URL は http または https で始まる形式で入力してください。');
+            return;
+        }
+
+        const existed = savedPropertyLinks.some((link) => link.url === trimmedUrl);
+        const nextLinks = upsertLoanSimSavedPropertyLink(savedPropertyLinks, trimmedTitle, trimmedUrl);
+        setSavedPropertyLinks(nextLinks);
+        setPropertyLinkTitle('');
+        setPropertyLinkUrl('');
+        setPropertyLinkStatus(existed ? `リンクを上書き保存しました。` : 'リンクを保存しました。');
+    };
+
+    const handleDeletePropertyLink = (id: string) => {
+        const targetLink = savedPropertyLinks.find((link) => link.id === id);
+        if (!targetLink) {
+            setPropertyLinkStatus('削除対象のリンクが見つかりませんでした。');
+            return;
+        }
+
+        const nextLinks = deleteLoanSimSavedPropertyLink(savedPropertyLinks, id);
+        setSavedPropertyLinks(nextLinks);
+        setPropertyLinkStatus(`「${targetLink.title}」を削除しました。`);
+    };
+
     return (
         <main className={`content-area loan-sim-page${embedded ? ' is-embedded' : ''}`}>
             <div className="detail-header loan-sim-header">
@@ -208,6 +258,17 @@ export function LoanSim({ onBack }: LoanSimProps) {
             />
 
             <LoanSimScheduleTable rows={result.schedule} />
+
+            <LoanSimPropertyLinks
+                linkTitle={propertyLinkTitle}
+                linkUrl={propertyLinkUrl}
+                linkStatus={propertyLinkStatus}
+                savedLinks={savedPropertyLinks}
+                onLinkTitleChange={setPropertyLinkTitle}
+                onLinkUrlChange={setPropertyLinkUrl}
+                onSaveLink={handleSavePropertyLink}
+                onDeleteLink={handleDeletePropertyLink}
+            />
         </main>
     );
 }

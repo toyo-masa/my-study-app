@@ -1531,6 +1531,65 @@ body.is-dragging-linear-algebra-vector {
   margin-bottom: 0.85rem;
 }
 
+.loan-sim-link-form {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.loan-sim-link-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+}
+
+.loan-sim-link-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface-color);
+}
+
+.loan-sim-link-meta {
+  display: grid;
+  gap: 0.24rem;
+  min-width: 0;
+}
+
+.loan-sim-link-meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.loan-sim-link-meta span {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.loan-sim-link-url {
+  min-width: 0;
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.loan-sim-link-url:hover {
+  text-decoration: underline;
+}
+
+.loan-sim-link-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .loan-sim-table-wrapper {
   overflow: auto;
   -webkit-overflow-scrolling: touch;
@@ -1581,6 +1640,7 @@ body.is-dragging-linear-algebra-vector {
 @media (max-width: 780px) {
   .loan-sim-preset-controls,
   .loan-sim-form-stack,
+  .loan-sim-link-form,
   .loan-sim-field-input-row {
     grid-template-columns: 1fr;
   }
@@ -1588,7 +1648,8 @@ body.is-dragging-linear-algebra-vector {
   .loan-sim-choice-grid,
   .loan-sim-summary-grid.is-primary,
   .loan-sim-summary-grid.is-secondary,
-  .loan-sim-preset-item {
+  .loan-sim-preset-item,
+  .loan-sim-link-item {
     grid-template-columns: 1fr;
   }
 }
@@ -1614,6 +1675,10 @@ body.is-dragging-linear-algebra-vector {
   }
 
   .loan-sim-preset-actions {
+    justify-content: flex-start;
+  }
+
+  .loan-sim-link-actions {
     justify-content: flex-start;
   }
 

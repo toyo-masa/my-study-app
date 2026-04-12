@@ -1,6 +1,7 @@
-import type { LoanRepaymentType, LoanSimInputs, LoanSimSavedPreset } from './types';
+import type { LoanRepaymentType, LoanSimInputs, LoanSimSavedPreset, LoanSimSavedPropertyLink } from './types';
 
-const STORAGE_KEY = 'loan-sim.saved-presets';
+const PRESET_STORAGE_KEY = 'loan-sim.saved-presets';
+const PROPERTY_LINK_STORAGE_KEY = 'loan-sim.saved-property-links';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -48,7 +49,7 @@ function persistPresets(presets: LoanSimSavedPreset[]) {
     if (typeof window === 'undefined') {
         return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+    window.localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(presets));
 }
 
 function buildPresetId(): string {
@@ -60,7 +61,7 @@ export function loadLoanSimSavedPresets(fallbackInputs: LoanSimInputs): LoanSimS
         return [];
     }
 
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(PRESET_STORAGE_KEY);
     if (!raw) {
         return [];
     }
@@ -130,4 +131,116 @@ export function deleteLoanSimSavedPreset(
     const nextPresets = presets.filter((preset) => preset.id !== id);
     persistPresets(nextPresets);
     return nextPresets;
+}
+
+function persistPropertyLinks(links: LoanSimSavedPropertyLink[]) {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    window.localStorage.setItem(PROPERTY_LINK_STORAGE_KEY, JSON.stringify(links));
+}
+
+function normalizePropertyLinkUrl(value: string): string | null {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+        return null;
+    }
+
+    try {
+        const parsed = new URL(trimmedValue);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            return null;
+        }
+        return parsed.toString();
+    } catch {
+        return null;
+    }
+}
+
+function restorePropertyLink(value: unknown): LoanSimSavedPropertyLink | null {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const id = readString(value.id, '');
+    const title = readString(value.title, '').trim();
+    const updatedAt = readNumber(value.updatedAt, 0);
+    const normalizedUrl = normalizePropertyLinkUrl(readString(value.url, ''));
+
+    if (!id || !title || updatedAt <= 0 || !normalizedUrl) {
+        return null;
+    }
+
+    return {
+        id,
+        title,
+        url: normalizedUrl,
+        updatedAt,
+    };
+}
+
+export function loadLoanSimSavedPropertyLinks(): LoanSimSavedPropertyLink[] {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+
+    const raw = window.localStorage.getItem(PROPERTY_LINK_STORAGE_KEY);
+    if (!raw) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .map((item) => restorePropertyLink(item))
+            .filter((link): link is LoanSimSavedPropertyLink => link !== null)
+            .sort((left, right) => right.updatedAt - left.updatedAt);
+    } catch {
+        return [];
+    }
+}
+
+export function upsertLoanSimSavedPropertyLink(
+    links: LoanSimSavedPropertyLink[],
+    title: string,
+    url: string,
+): LoanSimSavedPropertyLink[] {
+    const trimmedTitle = title.trim();
+    const normalizedUrl = normalizePropertyLinkUrl(url);
+    if (!trimmedTitle || !normalizedUrl) {
+        return links;
+    }
+
+    const existing = links.find((link) => link.url === normalizedUrl);
+    const nextLink: LoanSimSavedPropertyLink = {
+        id: existing?.id ?? buildPresetId(),
+        title: trimmedTitle,
+        url: normalizedUrl,
+        updatedAt: Date.now(),
+    };
+
+    const nextLinks = [
+        nextLink,
+        ...links.filter((link) => link.url !== normalizedUrl),
+    ].sort((left, right) => right.updatedAt - left.updatedAt);
+
+    persistPropertyLinks(nextLinks);
+    return nextLinks;
+}
+
+export function deleteLoanSimSavedPropertyLink(
+    links: LoanSimSavedPropertyLink[],
+    id: string,
+): LoanSimSavedPropertyLink[] {
+    const nextLinks = links.filter((link) => link.id !== id);
+    persistPropertyLinks(nextLinks);
+    return nextLinks;
+}
+
+export function isLoanSimPropertyLinkUrlValid(value: string): boolean {
+    return normalizePropertyLinkUrl(value) !== null;
 }
