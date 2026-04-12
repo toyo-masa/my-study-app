@@ -38,6 +38,32 @@ type DistributionPreview = {
     shadedRegions: PlotRegion[];
 };
 
+function getDistributionSwitchLabel(tableKey: DistributionTableKey, embedded: boolean): string {
+    if (!embedded) {
+        if (tableKey === 'chi-square') {
+            return 'カイ二乗分布表';
+        }
+        if (tableKey === 'f') {
+            return 'F分布表';
+        }
+        if (tableKey === 't') {
+            return 't分布表';
+        }
+        return '正規分布表';
+    }
+
+    if (tableKey === 'chi-square') {
+        return 'χ²';
+    }
+    if (tableKey === 'f') {
+        return 'F分布';
+    }
+    if (tableKey === 't') {
+        return 't分布';
+    }
+    return '正規';
+}
+
 const NORMAL_ROW_BASES = Array.from({ length: 40 }, (_, index) => index / 10);
 const NORMAL_COLUMN_OFFSETS = Array.from({ length: 10 }, (_, index) => index / 100);
 const T_TWO_SIDED_ALPHA_COLUMNS = [0.2, 0.1, 0.05, 0.02, 0.01];
@@ -613,8 +639,8 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({
                             setSelectedCell(null);
                         }}
                     >
-                        {table.icon}
-                        <span>{table.label}</span>
+                        {!embedded && table.icon}
+                        <span>{getDistributionSwitchLabel(table.key, embedded)}</span>
                     </button>
                 ))}
             </div>
@@ -682,11 +708,11 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({
                 <div className="distribution-table-card-head">
                     <div>
                         <h2>{activeTable.label}</h2>
-                        <p>{activeTable.description}</p>
+                        {!embedded && <p>{activeTable.description}</p>}
                     </div>
                     <span className="distribution-table-badge">{activeTable.rowLabel}</span>
                 </div>
-                <p className="distribution-table-note">{activeTable.note}</p>
+                {!embedded && <p className="distribution-table-note">{activeTable.note}</p>}
 
                 <div className="distribution-table-wrapper">
                     <table className={`distribution-data-table distribution-data-table--${activeTable.key}`}>

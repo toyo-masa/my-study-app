@@ -325,7 +325,6 @@ export function buildReviewDueResumeSession(
         normalizeCompletedQuestionIds(session.persistedCompletedQuestionIds)
             .filter((questionId) => availableQuestionById.has(questionId))
     );
-    const savedQuestionIds = savedQuestions.map((question) => question.id!);
     const resetQuestionIdSet = new Set(
         currentReviewQuestionIds.filter((questionId) => persistedCompletedQuestionIdSet.has(questionId))
     );
@@ -343,11 +342,6 @@ export function buildReviewDueResumeSession(
         mergedQuestionIdSet.add(questionId);
     };
 
-    // すでに schedule 更新済みの問題は、再開時に古い回答状態を持ち越さず、
-    // 現在の復習対象として fresh な状態で出し直す。
-    savedQuestionIds
-        .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId))
-        .forEach(appendQuestionId);
     currentReviewQuestionIds.forEach(appendQuestionId);
 
     const mergedQuestions = mergedQuestionIds
