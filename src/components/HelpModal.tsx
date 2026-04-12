@@ -5,124 +5,189 @@ import { useTemporaryCopiedState } from '../hooks/useTemporaryCopiedState';
 import { copyTextToClipboard } from '../utils/clipboard';
 import '../App.css';
 
-const QUIZ_HEADER = `category,text,options,correct_answers,explanation`;
-const QUIZ_EXAMPLE = `General,日本の首都は?,東京|大阪|京都,1,東京です`;
-const QUIZ_AI_INSTRUCTION = `以下の内容を、指定のCSVフォーマットに変換し、CSVファイルで出力してください。
+type HelpTabKey = 'quiz' | 'memorization' | 'mixed';
+type CopyTarget = 'header' | 'example' | 'instruction';
 
-【CSVフォーマット仕様】
-ヘッダー行: category,text,options,correct_answers,explanation
+type HelpColumn = {
+    name: string;
+    description: string;
+    tableDescription?: React.ReactNode;
+};
 
-各カラムの説明:
-- category: カテゴリ名（例: General, AWS）
-- text: 問題文
-- options: 選択肢を | 区切りで記述
-- correct_answers: 正解番号（1始まり）。複数正解はカンマ区切り
-- explanation: 解説文
+type HelpTabConfig = {
+    key: HelpTabKey;
+    label: string;
+    header: string;
+    example: string;
+    columns: HelpColumn[];
+    instruction: string;
+};
 
-記述例:
-category,text,options,correct_answers,explanation
-General,日本の首都は?,東京|大阪|京都,1,東京です
+const COMMON_OUTPUT_GUIDELINES = [
+    '今回の出力形式や問題形式についてユーザーが明示した指示がある場合は、その指示を最優先してください',
+    '1行目はヘッダー行にしてください',
+    'テキスト中にカンマが含まれる場合は、該当セル全体をダブルクォートで囲んでください',
+    '問題文に問題番号（1. や Q1. など）を含めないでください',
+    '問題文や解説文に改行を入れる場合は、CSVセル内で実際の改行文字を使い、そのセル全体をダブルクォートで囲んでください',
+    '文字列としての \\n は使わず、実際に改行してください',
+    '解説文を複数段落にする場合は、段落ごとに空行を1行入れてください',
+    '数式を表す場合は必ずKaTeX記法を使用し、インライン数式は $...$、ブロック数式は $$...$$ のように囲んでください',
+    '問題文は、何を回答してほしいかが明確に伝わる文章にしてください',
+    '省略語を使う場合は、省略なしの表現や意味が分かる形にしてください',
+    '全て作成し終わったら、問題の順番をランダムに入れ替えてください',
+];
 
-【注意事項】
-- 1行目はヘッダー行にしてください
-- 選択肢は | で区切ってください
-- 正解番号は1始まりです
-- テキスト中にカンマが含まれる場合はダブルクォートで囲んでください
-- 問題文に問題番号（1. や Q1. など）を含めないでください
-- 正解番号はランダムにしてください（全て1が正解のように固定しないでください）
-- 問題文および解説文に改行を入れる場合は、CSVセル内で実際の改行文字を使い、そのセル全体をダブルクォートで囲んでください
-- 解説文は段落ごとに空行を1行入れてください。特に「結論」「理由」「具体例・注意点」は別段落にしてください
-- 文字列としての \\n は使わず、実際に改行してください
-- 解説文は正解の理由だけでなく、誤りの理由も記述してください
-- 全て作成し終わったら、問題の順番をランダムに入れ替えてください
-- 誤りの理由は、正解ではないから。といった理由はやめてください。問題文を踏まえて、誤りの選択肢はなぜ正解ではないのかを、与えられている情報を確実に参照して論理的に説明してください
-- 複数選択（正解が複数ある）の問題も作成可能であれば、単一選択の問題と混ぜて作成してください
-- 数式を表す場合は必ずKaTeX記法を使用し、インライン数式は $...$、ブロック数式は $$...$$ のように囲んでください
-- 解説は記号だけで済ませず、何を意味するかを必ず日本語で説明してください
-- 式の意味と前提条件（例：$x\\ge0$, $t<\\lambda$ など）は明記してください
-- 解説文は、読みやすさを考慮して適切に改行を入れてください
-- 問題文は何を回答して欲しいかが明確な文章にしてください
-- 省略語を用いる場合は、省略なしのケースを問題文に含めてください
+const COMMON_EXPLANATION_GUIDELINES = [
+    '解説は結論だけで終わらせず、なぜそうなるかが追えるようにしてください',
+    '定義があるものは、その定義を書いてください',
+    '判断基準があるものは、その基準を書いてください',
+    '手順が本質のものは、その手順を書いてください',
+    '前提条件があるものは、その前提条件を書いてください',
+    '具体例が有効な場合は、具体例を書いてください',
+    '計算問題では、途中式や途中判断を省略しないでください',
+    '日本語の言い換えだけで終わらせず、結論や判断の根拠になる情報を含めてください',
+];
 
-【変換対象の内容】
-`;
+const QUIZ_HEADER = 'category,text,options,correct_answers,explanation';
+const QUIZ_EXAMPLE = 'General,日本の首都は?,東京|大阪|京都,1,東京です';
+const QUIZ_COLUMNS: HelpColumn[] = [
+    { name: 'category', description: 'カテゴリ名（例: General, AWS）', tableDescription: 'カテゴリ名' },
+    { name: 'text', description: '問題文', tableDescription: '問題文' },
+    { name: 'options', description: '選択肢を | 区切りで記述', tableDescription: <>選択肢 (<code>|</code> 区切り)</> },
+    { name: 'correct_answers', description: '正解番号（1始まり）。複数正解はカンマ区切り', tableDescription: '正解番号 (1始まり)' },
+    { name: 'explanation', description: '解説文', tableDescription: '解説文' },
+];
 
-const MEMO_HEADER = `question,answer,category,explanation`;
-const MEMO_EXAMPLE = `日本の四季は?,春|夏|秋|冬,一般常識,それぞれスプリング、サマー、オータム、ウィンターとも呼ばれます`;
-const MEMO_AI_INSTRUCTION = `以下の内容を、指定のCSVフォーマットに変換し、CSVファイルで出力してください。
+const MEMORIZATION_HEADER = 'question,answer,category,explanation';
+const MEMORIZATION_EXAMPLE = '日本の四季は?,春|夏|秋|冬,一般常識,それぞれ春夏秋冬を指します';
+const MEMORIZATION_COLUMNS: HelpColumn[] = [
+    { name: 'question', description: '問題文（例: 日本の四季は?）', tableDescription: '問題文' },
+    { name: 'answer', description: '正解を | 区切りで記述（複数回答可）', tableDescription: <>正解 (複数の場合は <code>|</code> 区切り)</> },
+    { name: 'category', description: 'カテゴリ名（例: 一般常識）', tableDescription: 'カテゴリ名' },
+    { name: 'explanation', description: '解説文（任意。正解の補足情報などを記入）', tableDescription: '解説文 (任意)' },
+];
 
-【CSVフォーマット仕様】
-ヘッダー行: question,answer,category,explanation
-
-各カラムの説明:
-- question: 問題文（例: 日本の四季は?）
-- answer: 正解を | 区切りで記述（例: 春|夏|秋|冬）
-- category: カテゴリ名（例: 一般常識）
-- explanation: 解説文（任意。正解の補足情報などを記入）
-
-記述例:
-question,answer,category,explanation
-日本の四季は?,春|夏|秋|冬,一般常識,"日本の気候は春・夏・秋・冬の4つの季節に区分されます。英語ではそれぞれ Spring / Summer / Autumn / Winter と表現します。会話では Autumn の代わりに Fall を使うこともあります。"
-ポアソン分布 $X\\sim\\mathrm{Poisson}(\\lambda)$ の平均と分散は?,$E[X]=\\lambda$|$Var(X)=\\lambda$,確率分布,"ポアソン分布は単位時間（または単位区間）あたり平均 $\\lambda$ 回起きる事象の回数を表します。平均と分散がどちらも $\\lambda$ になる点が重要な暗記ポイントです。$P(X=k)=\\dfrac{e^{-\\lambda}\\lambda^k}{k!}$ からモーメント母関数 $M_X(t)=\\exp(\\lambda(e^t-1))$ を使って導けますが、暗記カードでは結論（平均＝分散＝$\\lambda$）を即答できるようにします。"
-
-【注意事項】
-- 1行目はヘッダー行にしてください
-- 複数の正解は | で区切ってください
-- 出力はCSVテキストとCSVファイルの両方でお願いします
-- 問題文に問題番号（1. や Q1. など）を含めないでください
-- 全て作成し終わったら、問題の順番をランダムに入れ替えてください
-- 数式を表す場合は必ずKaTeX記法を使用し、インライン数式は $...$、ブロック数式は $$...$$ のように囲んでください
-- 解説文に改行を入れる場合は、CSVセル内で実際の改行文字を使い、そのセル全体をダブルクォートで囲んでください
-- 解説文は段落ごとに空行を1行入れてください。特に「結論」「理由」「具体例・注意点」は別段落にしてください
-- 文字列としての \\n は使わず、実際に改行してください
-- 解説は記号だけで済ませず、何を意味するかを必ず日本語で説明してください
-- 式の意味と前提条件（例：$x\\ge0$, $t<\\lambda$ など）は明記してください
-- 解説文は、読みやすさを考慮して適切に改行を入れてください
-- 問題文は何を回答して欲しいかが明確な文章にしてください
-- 省略語を用いる場合は、省略なしのケースを問題文に含めてください
-
-【変換対象の内容】
-`;
-
-const MIXED_HEADER = `category,text,options,correct_answers,explanation`;
+const MIXED_HEADER = 'category,text,options,correct_answers,explanation';
 const MIXED_EXAMPLE = `General,日本の首都は?,東京|大阪|京都,1,東京です
-一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します`;
-const MIXED_AI_INSTRUCTION = `以下の内容を、指定のCSVフォーマットに変換し、CSVファイルで出力してください。
+一般常識,日本の四季は?,春|夏|秋|冬,,それぞれ春夏秋冬を指します`;
+const MIXED_COLUMNS: HelpColumn[] = [
+    { name: 'category', description: 'カテゴリ名（例: General, 日常）', tableDescription: 'カテゴリ名' },
+    { name: 'text', description: '問題文', tableDescription: '問題文' },
+    { name: 'options', description: '選択問題では選択肢、暗記問題では正解を | 区切りで記述', tableDescription: <>選択肢 / 暗記の正解 (<code>|</code> 区切り)</> },
+    { name: 'correct_answers', description: '選択問題では正解番号（1始まり）を記述し、暗記問題では空欄にする', tableDescription: '正解番号 (quiz用)' },
+    { name: 'explanation', description: '解説文', tableDescription: '解説文' },
+];
 
-【CSVフォーマット仕様】
-ヘッダー行: category,text,options,correct_answers,explanation
+const buildInstruction = ({
+    header,
+    columns,
+    example,
+    outputGuidelines,
+    explanationGuidelines,
+}: {
+    header: string;
+    columns: HelpColumn[];
+    example: string;
+    outputGuidelines: string[];
+    explanationGuidelines: string[];
+}) => {
+    return [
+        '以下の内容を、指定のCSVフォーマットに変換し、CSVファイルで出力してください。',
+        '',
+        '【CSVフォーマット仕様】',
+        `ヘッダー行: ${header}`,
+        '',
+        '各カラムの説明:',
+        ...columns.map((column) => `- ${column.name}: ${column.description}`),
+        '',
+        '記述例:',
+        header,
+        example,
+        '',
+        '【注意事項】',
+        ...outputGuidelines.map((guideline) => `- ${guideline}`),
+        '',
+        '【解説品質の要件】',
+        ...explanationGuidelines.map((guideline) => `- ${guideline}`),
+        '',
+        '【変換対象の内容】',
+        '',
+    ].join('\n');
+};
 
-各カラムの説明:
-- category: カテゴリ名（例: General, 日常）
-- text: 問題文
-- options: 選択問題の場合は選択肢を | 区切りで記述。暗記問題の場合は正解を | 区切りで記述。
-- correct_answers: 選択問題の場合、正解番号（1始まり）をカンマ区切りで記述。暗記問題の場合は必ず空欄にしてください。（空欄によりシステムが自動で暗記問題として認識します）
-- explanation: 解説文
+const HELP_TABS: HelpTabConfig[] = [
+    {
+        key: 'quiz',
+        label: '通常問題集',
+        header: QUIZ_HEADER,
+        example: QUIZ_EXAMPLE,
+        columns: QUIZ_COLUMNS,
+        instruction: buildInstruction({
+            header: QUIZ_HEADER,
+            columns: QUIZ_COLUMNS,
+            example: QUIZ_EXAMPLE,
+            outputGuidelines: [
+                ...COMMON_OUTPUT_GUIDELINES,
+                '選択肢は | で区切ってください',
+                '正解番号は1始まりです',
+                '正解番号が偏りすぎないようにし、全て同じ番号を正解にしないでください',
+            ],
+            explanationGuidelines: [
+                ...COMMON_EXPLANATION_GUIDELINES,
+                '正解の理由だけでなく、誤りの選択肢がなぜ誤りかも簡潔に説明してください',
+                '誤りの選択肢については、「正解ではないから」で終わらせず、問題文や与えられた情報に基づいて説明してください',
+            ],
+        }),
+    },
+    {
+        key: 'memorization',
+        label: '暗記カード',
+        header: MEMORIZATION_HEADER,
+        example: MEMORIZATION_EXAMPLE,
+        columns: MEMORIZATION_COLUMNS,
+        instruction: buildInstruction({
+            header: MEMORIZATION_HEADER,
+            columns: MEMORIZATION_COLUMNS,
+            example: MEMORIZATION_EXAMPLE,
+            outputGuidelines: [
+                ...COMMON_OUTPUT_GUIDELINES,
+                '複数の正解は | で区切ってください',
+            ],
+            explanationGuidelines: [
+                ...COMMON_EXPLANATION_GUIDELINES,
+                '暗記問題でも、答えの意味、使い分け、関連知識など、覚える根拠が分かる補足を書いてください',
+            ],
+        }),
+    },
+    {
+        key: 'mixed',
+        label: '混合セット',
+        header: MIXED_HEADER,
+        example: MIXED_EXAMPLE,
+        columns: MIXED_COLUMNS,
+        instruction: buildInstruction({
+            header: MIXED_HEADER,
+            columns: MIXED_COLUMNS,
+            example: MIXED_EXAMPLE,
+            outputGuidelines: [
+                ...COMMON_OUTPUT_GUIDELINES,
+                '選択問題では options に選択肢を入れ、correct_answers に正解番号（1始まり）を書いてください',
+                '暗記問題では options に正解を入れ、correct_answers は必ず空欄にしてください',
+                '選択肢や暗記の正解は | で区切ってください',
+                'ユーザーから今回の形式指定がない場合は、選択問題と暗記問題を混ぜて作成してください',
+                '選択問題の正解番号が偏りすぎないようにし、全て同じ番号を正解にしないでください',
+            ],
+            explanationGuidelines: [
+                ...COMMON_EXPLANATION_GUIDELINES,
+                '選択問題の解説では、正解理由に加えて誤りの選択肢がなぜ誤りかも簡潔に説明してください',
+                '誤りの選択肢については、「正解ではないから」で終わらせず、問題文や与えられた情報に基づいて説明してください',
+                '暗記問題の解説では、答えの意味、使い分け、関連知識など、覚える根拠が分かる補足を書いてください',
+            ],
+        }),
+    },
+];
 
-記述例:
-category,text,options,correct_answers,explanation
-General,日本の首都は?,東京|大阪|京都,1,東京です
-一般常識,日本の四季は?,春|夏|秋|冬,,それぞれの季節を指します
-
-【注意事項】
-- 1行目はヘッダー行にしてください
-- 選択肢や暗記の正解は | で区切ってください
-- 正解番号は1始まりです
-- テキスト中にカンマが含まれる場合はダブルクォートで囲んでください
-- 選択問題（quiz）と暗記問題（memorization）をバランスよく混ぜて作成してください
-- 問題の順番は作成後にランダムに入れ替えてください
-- 数式を表す場合は必ずKaTeX記法を使用し、インライン数式は $...$、ブロック数式は $$...$$ のように囲んでください
-- 解説文に改行を入れる場合は、CSVセル内で実際の改行文字を使い、そのセル全体をダブルクォートで囲んでください
-- 文字列としての \\n は使わず、実際に改行してください
-- 可能なら「定義 → 直感（日本語） → 代表式（あれば） → 注意点（条件・定義域など）」の順で解説を書いてください
-- 解説は記号だけで済ませず、何を意味するかを必ず日本語で説明してください
-- 式の意味と前提条件（例：$x\\ge0$, $t<\\lambda$ など）は明記してください
-- 解説文は、読みやすさを考慮して適切に改行を入れてください
-- 問題文は何を回答して欲しいかが明確な文章にしてください
-- 省略語を用いる場合は、省略なしのケースを問題文に含めてください
-
-【変換対象の内容】
-`;
+const buildCopyKey = (tabKey: HelpTabKey, target: CopyTarget) => `${tabKey}:${target}`;
 
 interface HelpModalProps {
     isOpen: boolean;
@@ -131,8 +196,9 @@ interface HelpModalProps {
 }
 
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverStyle }) => {
-    const [activeTab, setActiveTab] = useState<'quiz' | 'memorization' | 'mixed'>('quiz');
+    const [activeTab, setActiveTab] = useState<HelpTabKey>('quiz');
     const { copiedKey, markCopied } = useTemporaryCopiedState();
+    const activeContent = HELP_TABS.find((tab) => tab.key === activeTab) ?? HELP_TABS[0];
 
     const handleCopy = useCallback(async (text: string, label: string) => {
         try {
@@ -157,9 +223,11 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                 >
                     <div className="help-popover-header" style={{ alignItems: 'center' }}>
                         <div className="help-tabs">
-                            <button className={activeTab === 'quiz' ? 'active' : ''} onClick={() => setActiveTab('quiz')}>通常問題集</button>
-                            <button className={activeTab === 'memorization' ? 'active' : ''} onClick={() => setActiveTab('memorization')}>暗記カード</button>
-                            <button className={activeTab === 'mixed' ? 'active' : ''} onClick={() => setActiveTab('mixed')}>混合セット</button>
+                            {HELP_TABS.map((tab) => (
+                                <button key={tab.key} className={activeTab === tab.key ? 'active' : ''} onClick={() => setActiveTab(tab.key)}>
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
                         <button className="help-close-btn" onClick={onClose}>
                             <X size={16} />
@@ -167,111 +235,47 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, popoverSt
                     </div>
 
                     <div className="help-popover-body">
-                        {activeTab === 'quiz' ? (
-                            <>
-                                <p className="help-section-title">ヘッダー行（必須）</p>
-                                <div className="help-code-block">
-                                    <code>{QUIZ_HEADER}</code>
-                                    <button className="help-copy-btn" onClick={() => handleCopy(QUIZ_HEADER, 'header')}>
-                                        {copiedKey === 'header' ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
+                        <p className="help-section-title">ヘッダー行（必須）</p>
+                        <div className="help-code-block">
+                            <code>{activeContent.header}</code>
+                            <button className="help-copy-btn" onClick={() => handleCopy(activeContent.header, buildCopyKey(activeContent.key, 'header'))}>
+                                {copiedKey === buildCopyKey(activeContent.key, 'header') ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
+                        </div>
 
-                                <p className="help-section-title">各カラムの説明</p>
-                                <table className="help-table">
-                                    <tbody>
-                                        <tr><td><code>category</code></td><td>カテゴリ名</td></tr>
-                                        <tr><td><code>text</code></td><td>問題文</td></tr>
-                                        <tr><td><code>options</code></td><td>選択肢 (<code>|</code> 区切り)</td></tr>
-                                        <tr><td><code>correct_answers</code></td><td>正解番号 (1始まり)</td></tr>
-                                        <tr><td><code>explanation</code></td><td>解説文</td></tr>
-                                    </tbody>
-                                </table>
+                        <p className="help-section-title">各カラムの説明</p>
+                        <table className="help-table">
+                            <tbody>
+                                {activeContent.columns.map((column) => (
+                                    <tr key={column.name}>
+                                        <td><code>{column.name}</code></td>
+                                        <td>{column.tableDescription ?? column.description}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
 
-                                <p className="help-section-title">記述例</p>
-                                <div className="help-code-block">
-                                    <code>{QUIZ_EXAMPLE}</code>
-                                    <button className="help-copy-btn" onClick={() => handleCopy(QUIZ_HEADER + '\n' + QUIZ_EXAMPLE, 'example')}>
-                                        {copiedKey === 'example' ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
+                        <p className="help-section-title">記述例</p>
+                        <div className="help-code-block">
+                            <code>{activeContent.example}</code>
+                            <button
+                                className="help-copy-btn"
+                                onClick={() => handleCopy(`${activeContent.header}\n${activeContent.example}`, buildCopyKey(activeContent.key, 'example'))}
+                            >
+                                {copiedKey === buildCopyKey(activeContent.key, 'example') ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
+                        </div>
 
-                                <div className="help-ai-instruction">
-                                    <button className="help-ai-copy-btn" onClick={() => handleCopy(QUIZ_AI_INSTRUCTION, 'ai')}>
-                                        {copiedKey === 'ai' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
-                                    </button>
-                                </div>
-                            </>
-                        ) : activeTab === 'memorization' ? (
-                            <>
-                                <p className="help-section-title">ヘッダー行（必須）</p>
-                                <div className="help-code-block">
-                                    <code>{MEMO_HEADER}</code>
-                                    <button className="help-copy-btn" onClick={() => handleCopy(MEMO_HEADER, 'header_memo')}>
-                                        {copiedKey === 'header_memo' ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
-
-                                <p className="help-section-title">各カラムの説明</p>
-                                <table className="help-table">
-                                    <tbody>
-                                        <tr><td><code>question</code></td><td>問題文</td></tr>
-                                        <tr><td><code>answer</code></td><td>正解 (複数の場合は <code>|</code> 区切り)</td></tr>
-                                        <tr><td><code>category</code></td><td>カテゴリ名</td></tr>
-                                        <tr><td><code>explanation</code></td><td>解説文 (任意)</td></tr>
-                                    </tbody>
-                                </table>
-
-                                <p className="help-section-title">記述例</p>
-                                <div className="help-code-block">
-                                    <code>{MEMO_EXAMPLE}</code>
-                                    <button className="help-copy-btn" onClick={() => handleCopy(MEMO_HEADER + '\n' + MEMO_EXAMPLE, 'example_memo')}>
-                                        {copiedKey === 'example_memo' ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
-
-                                <div className="help-ai-instruction">
-                                    <button className="help-ai-copy-btn" onClick={() => handleCopy(MEMO_AI_INSTRUCTION, 'ai_memo')}>
-                                        {copiedKey === 'ai_memo' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <p className="help-section-title">ヘッダー行（必須）</p>
-                                <div className="help-code-block">
-                                    <code>{MIXED_HEADER}</code>
-                                    <button className="help-copy-btn" onClick={() => handleCopy(MIXED_HEADER, 'header_mixed')}>
-                                        {copiedKey === 'header_mixed' ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
-
-                                <p className="help-section-title">各カラムの説明</p>
-                                <table className="help-table">
-                                    <tbody>
-                                        <tr><td><code>category</code></td><td>カテゴリ名</td></tr>
-                                        <tr><td><code>text</code></td><td>問題文</td></tr>
-                                        <tr><td><code>options</code></td><td>選択肢 / 暗記の正解 (<code>|</code> 区切り)</td></tr>
-                                        <tr><td><code>correct_answers</code></td><td>正解番号 (quiz用)</td></tr>
-                                        <tr><td><code>explanation</code></td><td>解説文</td></tr>
-                                    </tbody>
-                                </table>
-
-                                <p className="help-section-title">記述例</p>
-                                <div className="help-code-block">
-                                    <code>{MIXED_EXAMPLE}</code>
-                                    <button className="help-copy-btn" onClick={() => handleCopy(MIXED_HEADER + '\n' + MIXED_EXAMPLE, 'example_mixed')}>
-                                        {copiedKey === 'example_mixed' ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
-
-                                <div className="help-ai-instruction">
-                                    <button className="help-ai-copy-btn" onClick={() => handleCopy(MIXED_AI_INSTRUCTION, 'ai_mixed')}>
-                                        {copiedKey === 'ai_mixed' ? <><Check size={14} /> コピーしました！</> : <><Copy size={14} /> AI用変換指示をコピー</>}
-                                    </button>
-                                </div>
-                            </>
-                        )}
+                        <div className="help-ai-instruction">
+                            <button
+                                className="help-ai-copy-btn"
+                                onClick={() => handleCopy(activeContent.instruction, buildCopyKey(activeContent.key, 'instruction'))}
+                            >
+                                {copiedKey === buildCopyKey(activeContent.key, 'instruction')
+                                    ? <><Check size={14} /> コピーしました！</>
+                                    : <><Copy size={14} /> AI用変換指示をコピー</>}
+                            </button>
+                        </div>
                     </div>
                 </motion.div>
             )}
