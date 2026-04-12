@@ -1709,7 +1709,9 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                             </div>
                         )}
                         {sessionInlineNotice && (
-                            <div className={`session-inline-notice ${sessionInlineNotice.includes('一時回答') ? 'saved' : ''}`}>
+                            <div
+                                className={`session-inline-notice ${sessionInlineNotice.includes('一時回答') ? 'saved' : ''} ${sessionInlineNotice.includes('問題を更新しました') ? 'is-success' : ''}`.trim()}
+                            >
                                 {sessionInlineNotice}
                             </div>
                         )}

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { BookOpen, FileText, Sigma } from 'lucide-react';
 import { BackButton } from './BackButton';
 
-type DistributionTableKey = 'normal' | 't' | 'chi-square';
+type DistributionTableKey = 'normal' | 't' | 'chi-square' | 'f';
 
 type TableRow = {
     label: string;
@@ -44,6 +44,9 @@ const T_TWO_SIDED_ALPHA_COLUMNS = [0.2, 0.1, 0.05, 0.02, 0.01];
 const T_DF_ROWS = [...Array.from({ length: 30 }, (_, index) => index + 1), 40, 60, 120, Number.POSITIVE_INFINITY];
 const CHI_SQUARE_UPPER_TAIL_COLUMNS = [0.995, 0.99, 0.975, 0.95, 0.9, 0.1, 0.05, 0.025, 0.01, 0.005];
 const CHI_SQUARE_DF_ROWS = [...Array.from({ length: 30 }, (_, index) => index + 1), 40, 60, 120];
+const F_UPPER_TAIL_ALPHA = 0.05;
+const F_NUMERATOR_DF_COLUMNS = [...Array.from({ length: 10 }, (_, index) => index + 1), 12, 15, 20, 24, 30, 40, 60, 120];
+const F_DENOMINATOR_DF_ROWS = [...Array.from({ length: 10 }, (_, index) => index + 1), 12, 15, 20, 24, 30, 40, 60, 120];
 
 function lnGamma(z: number): number {
     if (z <= 0) return Number.POSITIVE_INFINITY;
@@ -238,6 +241,28 @@ function chiSquarePdf(value: number, degreesOfFreedom: number): number {
     );
 }
 
+function fDistributionCdf(value: number, numeratorDegreesOfFreedom: number, denominatorDegreesOfFreedom: number): number {
+    if (value <= 0) return 0;
+    const scaled = (numeratorDegreesOfFreedom * value) / (numeratorDegreesOfFreedom * value + denominatorDegreesOfFreedom);
+    return regularizedBeta(scaled, numeratorDegreesOfFreedom / 2, denominatorDegreesOfFreedom / 2);
+}
+
+function fDistributionPdf(value: number, numeratorDegreesOfFreedom: number, denominatorDegreesOfFreedom: number): number {
+    if (value <= 0) return 0;
+
+    const numeratorHalf = numeratorDegreesOfFreedom / 2;
+    const denominatorHalf = denominatorDegreesOfFreedom / 2;
+    const logDensity =
+        numeratorHalf * Math.log(numeratorDegreesOfFreedom / denominatorDegreesOfFreedom) +
+        (numeratorHalf - 1) * Math.log(value) -
+        (numeratorHalf + denominatorHalf) * Math.log(1 + (numeratorDegreesOfFreedom / denominatorDegreesOfFreedom) * value) -
+        lnGamma(numeratorHalf) -
+        lnGamma(denominatorHalf) +
+        lnGamma(numeratorHalf + denominatorHalf);
+
+    return Math.exp(logDensity);
+}
+
 function inverseMonotoneCdf(
     targetProbability: number,
     cdf: (value: number) => number,
@@ -289,6 +314,19 @@ function inverseChiSquareUpperTail(upperTailProbability: number, degreesOfFreedo
         (value) => chiSquareCdf(value, degreesOfFreedom),
         0,
         Math.max(1, degreesOfFreedom)
+    );
+}
+
+function inverseFUpperTail(
+    upperTailProbability: number,
+    numeratorDegreesOfFreedom: number,
+    denominatorDegreesOfFreedom: number
+): number {
+    return inverseMonotoneCdf(
+        1 - upperTailProbability,
+        (value) => fDistributionCdf(value, numeratorDegreesOfFreedom, denominatorDegreesOfFreedom),
+        0,
+        1
     );
 }
 
@@ -350,6 +388,25 @@ function buildChiSquareTable(): DistributionTableConfig {
     };
 }
 
+function buildFTable(): DistributionTableConfig {
+    return {
+        key: 'f',
+        label: 'F分布表',
+        icon: <BookOpen size={16} />,
+        description: '右側確率 α = 0.05 の F 分布臨界値表です。',
+        note: '列は分子自由度 ν1、行は分母自由度 ν2 です。表の値は P(F ≥ x) = 0.05 を満たす臨界値 F_(0.05, ν1, ν2) を表します。',
+        rowLabel: '分母自由度 ν2',
+        columns: F_NUMERATOR_DF_COLUMNS.map(String),
+        rows: F_DENOMINATOR_DF_ROWS.map((denominatorDegreesOfFreedom) => ({
+            label: String(denominatorDegreesOfFreedom),
+            values: F_NUMERATOR_DF_COLUMNS.map((numeratorDegreesOfFreedom) => formatFixed(
+                inverseFUpperTail(F_UPPER_TAIL_ALPHA, numeratorDegreesOfFreedom, denominatorDegreesOfFreedom),
+                3
+            )),
+        })),
+    };
+}
+
 function buildDistributionPreview(
     tableKey: DistributionTableKey,
     selectedCell: { rowIndex: number; columnIndex: number } | null
@@ -401,6 +458,31 @@ function buildDistributionPreview(
         };
     }
 
+    if (tableKey === 'f') {
+        const denominatorDegreesOfFreedom = selectedCell ? F_DENOMINATOR_DF_ROWS[selectedCell.rowIndex] : 10;
+        const numeratorDegreesOfFreedom = selectedCell ? F_NUMERATOR_DF_COLUMNS[selectedCell.columnIndex] : 5;
+        const criticalValue = inverseFUpperTail(F_UPPER_TAIL_ALPHA, numeratorDegreesOfFreedom, denominatorDegreesOfFreedom);
+        const modeCandidate = denominatorDegreesOfFreedom > 2
+            ? ((denominatorDegreesOfFreedom - 2) * numeratorDegreesOfFreedom) / (denominatorDegreesOfFreedom * (numeratorDegreesOfFreedom + 2))
+            : 0;
+        const maxX = Math.max(6, criticalValue * 1.35, modeCandidate + 4);
+
+        return {
+            chartTitle: 'F分布',
+            chartSubtitle: selectedCell
+                ? `分子自由度 ${numeratorDegreesOfFreedom} / 分母自由度 ${denominatorDegreesOfFreedom} / 右側確率 α = ${F_UPPER_TAIL_ALPHA}`
+                : 'セルを選択すると自由度に対応する右側棄却域を図示します。',
+            helperText: '塗りつぶし領域は右側棄却域 P(F ≥ x) = 0.05 を表します。',
+            selectedValueLabel: selectedCell ? `臨界値 = ${formatFixed(criticalValue, 3)}` : null,
+            areaLabel: selectedCell ? `右側確率 = ${F_UPPER_TAIL_ALPHA}` : null,
+            xMin: 0,
+            xMax: maxX,
+            pdf: (value) => fDistributionPdf(value, numeratorDegreesOfFreedom, denominatorDegreesOfFreedom),
+            cutoffs: selectedCell ? [criticalValue] : [],
+            shadedRegions: selectedCell ? [{ from: criticalValue, to: maxX }] : [],
+        };
+    }
+
     const degreesOfFreedom = selectedCell ? CHI_SQUARE_DF_ROWS[selectedCell.rowIndex] : 10;
     const alpha = selectedCell ? CHI_SQUARE_UPPER_TAIL_COLUMNS[selectedCell.columnIndex] : 0.05;
     const criticalValue = inverseChiSquareUpperTail(alpha, degreesOfFreedom);
@@ -441,6 +523,7 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({
         normal: buildNormalTable(),
         t: buildTTable(),
         'chi-square': buildChiSquareTable(),
+        f: buildFTable(),
     }), []);
 
     const activeTable = tables[activeTableKey];
@@ -513,7 +596,7 @@ export const DistributionTables: React.FC<DistributionTablesProps> = ({
                     <div>
                         <h1 className="distribution-tables-title">統計分布表</h1>
                         <p className="distribution-tables-subtitle">
-                            正規分布・t分布・カイ二乗分布の代表的な統計表を確認できます。
+                            正規分布・t分布・カイ二乗分布・F分布の代表的な統計表を確認できます。
                         </p>
                     </div>
                 </div>

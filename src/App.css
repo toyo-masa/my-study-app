@@ -8,6 +8,12 @@
   --border-color: #e2e8f0;
   --success-color: #22c55e;
   --error-color: #ef4444;
+  --notice-success-text: #dcfce7;
+  --notice-success-bg: rgba(20, 83, 45, 0.92);
+  --notice-success-border: rgba(74, 222, 128, 0.56);
+  --notice-error-text: #fecaca;
+  --notice-error-bg: rgba(127, 29, 29, 0.92);
+  --notice-error-border: rgba(252, 165, 165, 0.56);
   --glass-bg: rgba(255, 255, 255, 0.8);
   --glass-border: rgba(255, 255, 255, 0.5);
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -6630,9 +6636,9 @@ button.appearance-option.active {
   font-weight: 600;
   line-height: 1.4;
   text-align: center;
-  color: #fecaca;
-  background: rgba(127, 29, 29, 0.92);
-  border: 1px solid rgba(252, 165, 165, 0.56);
+  color: var(--notice-error-text);
+  background: var(--notice-error-bg);
+  border: 1px solid var(--notice-error-border);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
   pointer-events: none;
 }
@@ -6643,16 +6649,20 @@ button.appearance-option.active {
   border: 1px solid rgba(250, 204, 21, 0.56);
 }
 
-.review-board-toggle-notice.is-success {
-  color: #dcfce7;
-  background: rgba(20, 83, 45, 0.92);
-  border: 1px solid rgba(74, 222, 128, 0.56);
+.session-inline-notice.is-success,
+.review-board-toggle-notice.is-success,
+.home-inline-notice.is-success {
+  color: var(--notice-success-text);
+  background: var(--notice-success-bg);
+  border: 1px solid var(--notice-success-border);
 }
 
-.home-inline-notice.is-success {
-  color: #dcfce7;
-  background: rgba(20, 83, 45, 0.92);
-  border: 1px solid rgba(74, 222, 128, 0.56);
+.session-inline-notice.is-error,
+.review-board-toggle-notice.is-error,
+.home-inline-notice.is-error {
+  color: var(--notice-error-text);
+  background: var(--notice-error-bg);
+  border: 1px solid var(--notice-error-border);
 }
 
 .session-pointer-notice {
@@ -6664,9 +6674,9 @@ button.appearance-option.active {
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.35;
-  color: #fecaca;
-  background: rgba(127, 29, 29, 0.94);
-  border: 1px solid rgba(252, 165, 165, 0.62);
+  color: var(--notice-error-text);
+  background: var(--notice-error-bg);
+  border: 1px solid var(--notice-error-border);
   box-shadow: 0 10px 28px rgba(127, 29, 29, 0.38), 0 10px 28px rgba(0, 0, 0, 0.32);
   pointer-events: none;
 }
