@@ -8077,6 +8077,59 @@ button.appearance-option.active {
   border-color: var(--primary-color);
 }
 
+.markdown-editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.markdown-editor-tab-row {
+  display: inline-flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.markdown-editor-tab {
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.markdown-editor-tab:hover,
+.markdown-editor-tab.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.1);
+}
+
+.markdown-preview-panel {
+  min-height: 8.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  overflow-wrap: anywhere;
+}
+
+.markdown-preview-panel .markdown-body p:first-child {
+  margin-top: 0;
+}
+
+.markdown-preview-panel .markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
 /* Option edit row */
 .option-edit-row {
   display: flex;

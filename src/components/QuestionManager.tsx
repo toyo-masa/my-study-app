@@ -34,6 +34,8 @@ interface EditingQuestion {
     questionType?: 'quiz' | 'memorization';
 }
 
+type MarkdownPreviewTab = 'edit' | 'preview';
+
 type ManageOnboardingStep = 'addQuestionButton' | 'fillAndSave' | 'tutorialComplete';
 
 type ManageOnboardingStepMeta = {
@@ -129,6 +131,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isManageOnboardingDismissedThisSession, setIsManageOnboardingDismissedThisSession] = useState(false);
     const [manageOnboardingHighlightRect, setManageOnboardingHighlightRect] = useState<DOMRect | null>(null);
     const [isTagSuggestOpen, setIsTagSuggestOpen] = useState(false);
+    const [questionTextTab, setQuestionTextTab] = useState<MarkdownPreviewTab>('edit');
+    const [explanationTab, setExplanationTab] = useState<MarkdownPreviewTab>('edit');
 
     // 全問題集から既存のタグを抽出し、重複を除去してソート
     const allExistingTags = React.useMemo(() => {
@@ -231,6 +235,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             explanation: mergedExplanation,
             questionType: qType
         });
+        setQuestionTextTab('edit');
+        setExplanationTab('edit');
         setIsNew(false);
     };
 
@@ -242,6 +248,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 options: autoQuestion.questionType === 'memorization' ? [] : autoQuestion.options,
                 correctAnswers: autoQuestion.questionType === 'memorization' ? [] : autoQuestion.correctAnswers
             });
+            setQuestionTextTab('edit');
+            setExplanationTab('edit');
             setIsNew(true);
             setManageOnboardingStep('fillAndSave');
             showStatus('チュートリアル用のサンプルを自動入力しました。内容を確認して保存してください。', 'success');
@@ -254,6 +262,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             options: [],
             correctAnswers: []
         });
+        setQuestionTextTab('edit');
+        setExplanationTab('edit');
         setIsNew(true);
     };
 
@@ -551,6 +561,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const handleCloseEditingModal = () => {
         setEditing(null);
+        setQuestionTextTab('edit');
+        setExplanationTab('edit');
         if (isManageOnboardingActive && manageOnboardingStep === 'fillAndSave') {
             setManageOnboardingStep('addQuestionButton');
         }
@@ -1253,13 +1265,41 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             <label className="field-label">
                                 問題文
                             </label>
-                            <textarea
-                                className="field-textarea"
-                                value={editing.text}
-                                onChange={e => setEditing({ ...editing, text: e.target.value })}
-                                rows={4}
-                                placeholder="問題文を入力..."
-                            />
+                            <div className="markdown-editor-panel">
+                                <div className="markdown-editor-tab-row">
+                                    <button
+                                        type="button"
+                                        className={`markdown-editor-tab ${questionTextTab === 'edit' ? 'active' : ''}`}
+                                        onClick={() => setQuestionTextTab('edit')}
+                                    >
+                                        入力
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`markdown-editor-tab ${questionTextTab === 'preview' ? 'active' : ''}`}
+                                        onClick={() => setQuestionTextTab('preview')}
+                                    >
+                                        プレビュー
+                                    </button>
+                                </div>
+                                {questionTextTab === 'edit' ? (
+                                    <textarea
+                                        className="field-textarea"
+                                        value={editing.text}
+                                        onChange={e => setEditing({ ...editing, text: e.target.value })}
+                                        rows={4}
+                                        placeholder="問題文を入力..."
+                                    />
+                                ) : (
+                                    <div className="markdown-preview-panel">
+                                        {editing.text.trim() ? (
+                                            <MarkdownText content={editing.text} />
+                                        ) : (
+                                            <p className="markdown-preview-empty">問題文を入力すると、ここでレンダリング結果を確認できます。</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* 選択肢（暗記モードの時は完全に非表示） */}
                             {!(quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) && (
@@ -1296,13 +1336,41 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                             <label className="field-label">
                                 {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答・解説' : '解説'}
                             </label>
-                            <textarea
-                                className="field-textarea"
-                                value={editing.explanation}
-                                onChange={e => setEditing({ ...editing, explanation: e.target.value })}
-                                rows={3}
-                                placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答や解説を入力...' : '解説を入力...'}
-                            />
+                            <div className="markdown-editor-panel">
+                                <div className="markdown-editor-tab-row">
+                                    <button
+                                        type="button"
+                                        className={`markdown-editor-tab ${explanationTab === 'edit' ? 'active' : ''}`}
+                                        onClick={() => setExplanationTab('edit')}
+                                    >
+                                        入力
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`markdown-editor-tab ${explanationTab === 'preview' ? 'active' : ''}`}
+                                        onClick={() => setExplanationTab('preview')}
+                                    >
+                                        プレビュー
+                                    </button>
+                                </div>
+                                {explanationTab === 'edit' ? (
+                                    <textarea
+                                        className="field-textarea"
+                                        value={editing.explanation}
+                                        onChange={e => setEditing({ ...editing, explanation: e.target.value })}
+                                        rows={3}
+                                        placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答や解説を入力...' : '解説を入力...'}
+                                    />
+                                ) : (
+                                    <div className="markdown-preview-panel">
+                                        {editing.explanation.trim() ? (
+                                            <MarkdownText content={editing.explanation} />
+                                        ) : (
+                                            <p className="markdown-preview-empty">解説を入力すると、ここでレンダリング結果を確認できます。</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="modal-footer">

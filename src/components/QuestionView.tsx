@@ -6,6 +6,8 @@ import { MarkdownText } from './MarkdownText';
 import { HandwritingPad, type HandwritingPadState } from './HandwritingPad';
 import { formatElapsedSeconds } from '../utils/formatElapsedTime';
 
+const OPTION_SHORTCUT_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const;
+
 interface QuestionViewProps {
     question: Question;
     questionIndex: number;
@@ -73,6 +75,12 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     questionElapsedSeconds = null,
 }) => {
     const isMemoQuestion = question.questionType === 'memorization';
+    const optionShortcutIndexByKey = React.useMemo(() => {
+        return OPTION_SHORTCUT_KEYS.reduce<Record<string, number>>((acc, key, index) => {
+            acc[key] = index;
+            return acc;
+        }, {});
+    }, []);
     const shortcutIgnoredRootSelector = '.study-question-chat-panel, .local-llm-page, .right-panel-container, .session-tools-root';
     const isShortcutIgnoredTarget = useCallback((target: EventTarget | null) => {
         if (!(target instanceof HTMLElement)) {
@@ -101,12 +109,13 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             return;
         }
 
-        // 1-4: 選択肢トグル（クイズ問題・解答確認前のみ）
-        if (!isMemoQuestion && !showAnswer && e.key >= '1' && e.key <= '4') {
-            const idx = parseInt(e.key) - 1;
-            if (idx < question.options.length) {
+        const shortcutOptionIndex = optionShortcutIndexByKey[e.key];
+
+        // 数字キー: 選択肢トグル（クイズ問題・解答確認前のみ）
+        if (!isMemoQuestion && !showAnswer && shortcutOptionIndex !== undefined) {
+            if (shortcutOptionIndex < question.options.length) {
                 e.preventDefault();
-                onToggleOption(idx);
+                onToggleOption(shortcutOptionIndex);
             }
             return;
         }
@@ -142,7 +151,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
             e.preventDefault();
             onConfidenceChange(confidence === 'low' ? 'high' : 'low');
         }
-    }, [confidence, isAnswerLocked, isLast, isMemoQuestion, isShortcutIgnoredTarget, onCompleteTest, onConfidenceChange, onNext, onShowAnswer, onToggleOption, question.options.length, selectedOptions.length, showAnswer]);
+    }, [confidence, isAnswerLocked, isLast, isMemoQuestion, isShortcutIgnoredTarget, onCompleteTest, onConfidenceChange, onNext, onShowAnswer, onToggleOption, optionShortcutIndexByKey, question.options.length, selectedOptions.length, showAnswer]);
 
     useEffect(() => {
         document.addEventListener('keydown', handleKeyDown);
@@ -253,6 +262,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                 {!isMemoQuestion && (
                     <div className="options-list">
                         {question.options.map((option, idx) => {
+                            const shortcutLabel = OPTION_SHORTCUT_KEYS[idx];
                             const isSelected = selectedOptions.includes(idx);
                             const isCorrect = question.correctAnswers.includes(idx);
                             const isRevealHighlighted = isCorrectRevealActive && isCorrect;
@@ -290,7 +300,7 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                                             ✓
                                         </span>
                                     )}
-                                    {!showAnswer && idx < 4 && <kbd className="option-kbd">{idx + 1}</kbd>}
+                                    {!showAnswer && shortcutLabel && <kbd className="option-kbd">{shortcutLabel}</kbd>}
                                 </div>
                             );
                         })}
