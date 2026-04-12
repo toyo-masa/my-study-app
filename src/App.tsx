@@ -17,6 +17,7 @@ import { ManageRoute } from './pages/ManageRoute';
 import { DistributionRoute } from './pages/DistributionRoute';
 import { DistributionTablesRoute } from './pages/DistributionTablesRoute';
 import { LinearAlgebraLabRoute } from './pages/LinearAlgebraLabRoute';
+import { LoanSimRoute } from './pages/LoanSimRoute';
 import { LocalLlmChatRoute } from './pages/LocalLlmChatRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
@@ -40,7 +41,9 @@ function App() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const location = useLocation();
+  const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
   const isReleaseNotesRoute = location.pathname.startsWith('/release-notes');
+  const isLoanSimRoute = location.pathname.startsWith('/loan-sim');
   const {
     themeMode,
     setThemeMode,
@@ -77,6 +80,7 @@ function App() {
   };
 
   const isStudyOrMemRoute = location.pathname.includes('/study') || location.pathname.includes('/memorization');
+  const shouldShowGlobalSettingsButton = !isStudyOrMemRoute && !(isEmbedded && isLoanSimRoute);
 
   useEffect(() => {
     document.body.classList.toggle('study-mode-active', isStudyOrMemRoute);
@@ -124,7 +128,7 @@ function App() {
         </div>
       )}
 
-      {!isStudyOrMemRoute && (
+      {shouldShowGlobalSettingsButton && (
         <button className="global-settings-btn" onClick={() => setIsSettingsOpen(true)} data-tooltip="ページ設定">
           <Settings size={20} />
         </button>
@@ -175,6 +179,7 @@ function App() {
         <Route path="/distribution-sim" element={<DistributionRoute />} />
         <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
         <Route path="/linear-algebra-lab" element={<LinearAlgebraLabRoute />} />
+        <Route path="/loan-sim" element={<LoanSimRoute />} />
         <Route
           path="/local-llm-chat"
           element={(

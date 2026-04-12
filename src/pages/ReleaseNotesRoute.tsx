@@ -12,6 +12,17 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.69.0',
+        date: '2026年4月12日 10:51',
+        improvements: [
+            'トップページのアプリ一覧に、住宅ローン返済シミュレーターを追加しました。',
+            '借入条件・返済方式・積立・固定費をその場で変えながら、返済結果・グラフ・月別返済表をまとめて確認できるようにしました。',
+        ],
+        fixes: [
+            '変更なし',
+        ],
+    },
+    {
         version: '1.68.1',
         date: '2026年4月11日 14:40',
         improvements: [
