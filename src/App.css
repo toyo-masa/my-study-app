@@ -8077,15 +8077,29 @@ button.appearance-option.active {
   border-color: var(--primary-color);
 }
 
+.markdown-editor-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.markdown-editor-label-row .field-label {
+  margin: 0;
+}
+
 .markdown-editor-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .markdown-editor-tab-row {
   display: inline-flex;
-  gap: 0.4rem;
+  gap: 0.3rem;
   flex-wrap: wrap;
 }
 
@@ -8094,8 +8108,9 @@ button.appearance-option.active {
   background: var(--bg-color);
   color: var(--text-secondary);
   border-radius: 999px;
-  padding: 0.42rem 0.85rem;
-  font-size: 0.82rem;
+  padding: 0.26rem 0.62rem;
+  font-size: 0.74rem;
+  line-height: 1.2;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -8108,8 +8123,8 @@ button.appearance-option.active {
 }
 
 .markdown-preview-panel {
-  min-height: 8.75rem;
-  padding: 0.9rem 1rem;
+  min-height: 6.25rem;
+  padding: 0.7rem 0.85rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);

@@ -1262,10 +1262,10 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 </>
                             )}
 
-                            <label className="field-label">
-                                問題文
-                            </label>
-                            <div className="markdown-editor-panel">
+                            <div className="markdown-editor-label-row">
+                                <label className="field-label">
+                                    問題文
+                                </label>
                                 <div className="markdown-editor-tab-row">
                                     <button
                                         type="button"
@@ -1282,6 +1282,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                         プレビュー
                                     </button>
                                 </div>
+                            </div>
+                            <div className="markdown-editor-panel">
                                 {questionTextTab === 'edit' ? (
                                     <textarea
                                         className="field-textarea"
@@ -1333,10 +1335,10 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                 </>
                             )}
 
-                            <label className="field-label">
-                                {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答・解説' : '解説'}
-                            </label>
-                            <div className="markdown-editor-panel">
+                            <div className="markdown-editor-label-row">
+                                <label className="field-label">
+                                    {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答・解説' : '解説'}
+                                </label>
                                 <div className="markdown-editor-tab-row">
                                     <button
                                         type="button"
@@ -1353,6 +1355,8 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                                         プレビュー
                                     </button>
                                 </div>
+                            </div>
+                            <div className="markdown-editor-panel">
                                 {explanationTab === 'edit' ? (
                                     <textarea
                                         className="field-textarea"
