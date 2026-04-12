@@ -23,6 +23,13 @@ function formatMonths(monthCount: number): string {
     return `${years}年${months}か月`;
 }
 
+function formatPercent(value: number | null): string {
+    if (value === null || !Number.isFinite(value)) {
+        return '算出なし';
+    }
+    return `${(value * 100).toFixed(1).replace(/\.0$/, '')}%`;
+}
+
 type SummaryItem = {
     label: string;
     value: string;
@@ -34,6 +41,9 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
     const { sanitizedInputs, summary } = result;
     const monthlyPaymentLabel = sanitizedInputs.repaymentType === 'equal-principal'
         ? '初月の毎月返済額'
+        : '毎月返済額';
+    const ratioTargetLabel = sanitizedInputs.repaymentType === 'equal-principal'
+        ? '初月返済額'
         : '毎月返済額';
 
     const items: SummaryItem[] = [
@@ -57,6 +67,20 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
             value: formatCurrency(summary.firstMonthlyOutflow),
             note: `ローン返済 + 固定費 + 積立。ボーナス月は別途 ${formatCurrency(summary.bonusRepayment)} 加算します。`,
             emphasized: true,
+        },
+        {
+            label: '年収比の返済負担',
+            value: formatPercent(summary.paymentToGrossIncomeRatio),
+            note: summary.paymentToGrossIncomeRatio === null
+                ? '年収が 0 円のため算出していません。'
+                : `月換算の年収 ${formatCurrency(summary.grossMonthlyIncome)} に対する${ratioTargetLabel}の割合です。`,
+        },
+        {
+            label: '手取り比の返済負担',
+            value: formatPercent(summary.paymentToTakeHomeRatio),
+            note: summary.paymentToTakeHomeRatio === null
+                ? '概算手取りが 0 円のため算出していません。'
+                : `概算手取りは月 ${formatCurrency(summary.estimatedMonthlyTakeHome)}、年 ${formatCurrency(summary.estimatedAnnualTakeHome)} として見ています。`,
         },
         {
             label: '総返済額',

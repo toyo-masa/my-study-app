@@ -5,7 +5,8 @@ import { LoanSimForm } from './loanSim/LoanSimForm';
 import { LoanSimScheduleTable } from './loanSim/LoanSimScheduleTable';
 import { LoanSimSummary } from './loanSim/LoanSimSummary';
 import { calculateLoanSimulation } from '../features/loanSim/calculator';
-import type { LoanSimInputs } from '../features/loanSim/types';
+import { deleteLoanSimSavedPreset, loadLoanSimSavedPresets, upsertLoanSimSavedPreset } from '../features/loanSim/storage';
+import type { LoanSimInputs, LoanSimSavedPreset } from '../features/loanSim/types';
 
 type LoanSimProps = {
     onBack: () => void;
@@ -22,6 +23,7 @@ function createDefaultInputs(): LoanSimInputs {
         downPayment: 8_000_000,
         loanAmount: 40_000_000,
         isLoanAmountManual: false,
+        annualIncome: 8_500_000,
         annualRate: 1.2,
         repaymentYears: 35,
         repaymentType: 'equal-payment',
@@ -52,6 +54,9 @@ function detectEmbeddedMode(): boolean {
 
 export function LoanSim({ onBack }: LoanSimProps) {
     const [inputs, setInputs] = useState<LoanSimInputs>(() => createDefaultInputs());
+    const [savedPresets, setSavedPresets] = useState<LoanSimSavedPreset[]>(() => loadLoanSimSavedPresets(createDefaultInputs()));
+    const [presetName, setPresetName] = useState('');
+    const [presetStatus, setPresetStatus] = useState<string | null>(null);
     const embedded = useMemo(() => detectEmbeddedMode(), []);
     const result = useMemo(() => calculateLoanSimulation(inputs), [inputs]);
 
@@ -60,6 +65,53 @@ export function LoanSim({ onBack }: LoanSimProps) {
             ...current,
             [key]: value,
         }));
+    };
+
+    const handleReset = () => {
+        setInputs(createDefaultInputs());
+        setPresetName('');
+        setPresetStatus(null);
+    };
+
+    const handleSavePreset = () => {
+        const trimmedName = presetName.trim();
+        if (!trimmedName) {
+            setPresetStatus('保存名を入力してください。');
+            return;
+        }
+
+        const existed = savedPresets.some((preset) => preset.name === trimmedName);
+        const nextPresets = upsertLoanSimSavedPreset(savedPresets, trimmedName, inputs);
+        setSavedPresets(nextPresets);
+        setPresetName(trimmedName);
+        setPresetStatus(existed ? `「${trimmedName}」を上書き保存しました。` : `「${trimmedName}」を保存しました。`);
+    };
+
+    const handleApplyPreset = (presetId: string) => {
+        const targetPreset = savedPresets.find((preset) => preset.id === presetId);
+        if (!targetPreset) {
+            setPresetStatus('保存した条件が見つかりませんでした。');
+            return;
+        }
+
+        setInputs({ ...targetPreset.inputs });
+        setPresetName(targetPreset.name);
+        setPresetStatus(`「${targetPreset.name}」を読み込みました。`);
+    };
+
+    const handleDeletePreset = (presetId: string) => {
+        const targetPreset = savedPresets.find((preset) => preset.id === presetId);
+        if (!targetPreset) {
+            setPresetStatus('削除対象の条件が見つかりませんでした。');
+            return;
+        }
+
+        const nextPresets = deleteLoanSimSavedPreset(savedPresets, presetId);
+        setSavedPresets(nextPresets);
+        if (presetName === targetPreset.name) {
+            setPresetName('');
+        }
+        setPresetStatus(`「${targetPreset.name}」を削除しました。`);
     };
 
     return (
@@ -89,8 +141,15 @@ export function LoanSim({ onBack }: LoanSimProps) {
                 <LoanSimForm
                     inputs={inputs}
                     calculatedLoanAmount={result.sanitizedInputs.autoCalculatedLoanAmount}
+                    presetName={presetName}
+                    presetStatus={presetStatus}
+                    savedPresets={savedPresets}
                     onChange={handleChange}
-                    onReset={() => setInputs(createDefaultInputs())}
+                    onPresetNameChange={setPresetName}
+                    onSavePreset={handleSavePreset}
+                    onApplyPreset={handleApplyPreset}
+                    onDeletePreset={handleDeletePreset}
+                    onReset={handleReset}
                 />
                 <LoanSimSummary result={result} />
             </div>

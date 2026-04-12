@@ -5,6 +5,7 @@ export interface LoanSimInputs {
     downPayment: number;
     loanAmount: number;
     isLoanAmountManual: boolean;
+    annualIncome: number;
     annualRate: number;
     repaymentYears: number;
     repaymentType: LoanRepaymentType;
@@ -13,6 +14,13 @@ export interface LoanSimInputs {
     bonusRepayment: number;
     monthlyFixedCost: number;
     startYearMonth: string;
+}
+
+export interface LoanSimSavedPreset {
+    id: string;
+    name: string;
+    inputs: LoanSimInputs;
+    updatedAt: number;
 }
 
 export interface LoanSimSanitizedInputs extends LoanSimInputs {
@@ -66,6 +74,11 @@ export interface LoanSimSummary {
     regularMonthlyPayment: number;
     firstMonthlyPayment: number;
     lastMonthlyPayment: number;
+    grossMonthlyIncome: number;
+    estimatedAnnualTakeHome: number;
+    estimatedMonthlyTakeHome: number;
+    paymentToGrossIncomeRatio: number | null;
+    paymentToTakeHomeRatio: number | null;
     bonusRepayment: number;
     firstMonthlyOutflow: number;
     firstMonthNetHousingCost: number;

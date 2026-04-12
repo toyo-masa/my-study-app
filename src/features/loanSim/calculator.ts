@@ -12,10 +12,34 @@ const MAX_RATE = 20;
 const MIN_REPAYMENT_YEARS = 1;
 const MAX_REPAYMENT_YEARS = 50;
 const BONUS_INTERVAL_MONTHS = 6;
+const TOKYO_HEALTH_INSURANCE_RATE_EMPLOYEE = 0.0985 / 2;
+const EMPLOYEES_PENSION_RATE_EMPLOYEE = 0.183 / 2;
+const EMPLOYMENT_INSURANCE_RATE_EMPLOYEE = 0.005;
+const RESIDENT_TAX_RATE = 0.1;
+const RESIDENT_TAX_BASIC_DEDUCTION = 430_000;
+const RECONSTRUCTION_SURTAX_RATE = 0.021;
+
+const INCOME_TAX_BRACKETS = [
+    { upTo: 1_949_000, rate: 0.05, deduction: 0 },
+    { upTo: 3_299_000, rate: 0.1, deduction: 97_500 },
+    { upTo: 6_949_000, rate: 0.2, deduction: 427_500 },
+    { upTo: 8_999_000, rate: 0.23, deduction: 636_000 },
+    { upTo: 17_999_000, rate: 0.33, deduction: 1_536_000 },
+    { upTo: 39_999_000, rate: 0.4, deduction: 2_796_000 },
+    { upTo: Number.POSITIVE_INFINITY, rate: 0.45, deduction: 4_796_000 },
+] as const;
 
 type YearMonthParts = {
     year: number;
     month: number;
+};
+
+type EstimatedTakeHome = {
+    grossMonthlyIncome: number;
+    estimatedAnnualTakeHome: number;
+    estimatedMonthlyTakeHome: number;
+    paymentToGrossIncomeRatio: number | null;
+    paymentToTakeHomeRatio: number | null;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -31,6 +55,13 @@ function normalizeMoney(value: number): number {
         return 0;
     }
     return roundCurrency(clamp(value, 0, MAX_MONEY));
+}
+
+function floorToThousand(value: number): number {
+    if (!Number.isFinite(value) || value <= 0) {
+        return 0;
+    }
+    return Math.floor(value / 1000) * 1000;
 }
 
 function normalizeRate(value: number): number {
@@ -106,6 +137,109 @@ function calculateEqualPayment(principal: number, monthlyRate: number, months: n
     return roundCurrency(principal * ((monthlyRate * growth) / (growth - 1)));
 }
 
+function calculateSalaryIncomeDeduction(annualIncome: number): number {
+    if (annualIncome <= 0) {
+        return 0;
+    }
+    if (annualIncome <= 1_900_000) {
+        return 650_000;
+    }
+    if (annualIncome <= 3_600_000) {
+        return roundCurrency((annualIncome * 0.3) + 80_000);
+    }
+    if (annualIncome <= 6_600_000) {
+        return roundCurrency((annualIncome * 0.2) + 440_000);
+    }
+    if (annualIncome <= 8_500_000) {
+        return roundCurrency((annualIncome * 0.1) + 1_100_000);
+    }
+    return 1_950_000;
+}
+
+function calculateIncomeTaxBasicDeduction(totalIncome: number): number {
+    if (totalIncome <= 0) {
+        return 950_000;
+    }
+    if (totalIncome <= 1_320_000) {
+        return 950_000;
+    }
+    if (totalIncome <= 3_360_000) {
+        return 880_000;
+    }
+    if (totalIncome <= 4_890_000) {
+        return 680_000;
+    }
+    if (totalIncome <= 6_550_000) {
+        return 630_000;
+    }
+    if (totalIncome <= 23_500_000) {
+        return 580_000;
+    }
+    if (totalIncome <= 24_000_000) {
+        return 480_000;
+    }
+    if (totalIncome <= 24_500_000) {
+        return 320_000;
+    }
+    if (totalIncome <= 25_000_000) {
+        return 160_000;
+    }
+    return 0;
+}
+
+function calculateIncomeTax(taxableIncome: number): number {
+    if (taxableIncome <= 0) {
+        return 0;
+    }
+
+    const bracket = INCOME_TAX_BRACKETS.find((item) => taxableIncome <= item.upTo) ?? INCOME_TAX_BRACKETS[INCOME_TAX_BRACKETS.length - 1];
+    const baseTax = Math.max(0, Math.floor((taxableIncome * bracket.rate) - bracket.deduction));
+    const reconstructionSurtax = Math.floor(baseTax * RECONSTRUCTION_SURTAX_RATE);
+    return baseTax + reconstructionSurtax;
+}
+
+// 手取りは「独身会社員・40歳未満・東京都の協会けんぽ・一般事業・扶養や他控除なし」の概算として扱う。
+function estimateAnnualTakeHome(annualIncome: number, monthlyPaymentBase: number): EstimatedTakeHome {
+    const grossAnnualIncome = normalizeMoney(annualIncome);
+    const grossMonthlyIncome = grossAnnualIncome > 0 ? roundCurrency(grossAnnualIncome / 12) : 0;
+
+    if (grossAnnualIncome <= 0) {
+        return {
+            grossMonthlyIncome,
+            estimatedAnnualTakeHome: 0,
+            estimatedMonthlyTakeHome: 0,
+            paymentToGrossIncomeRatio: null,
+            paymentToTakeHomeRatio: null,
+        };
+    }
+
+    const salaryIncomeDeduction = calculateSalaryIncomeDeduction(grossAnnualIncome);
+    const salaryIncome = Math.max(0, grossAnnualIncome - salaryIncomeDeduction);
+    const socialInsurance = roundCurrency(
+        grossAnnualIncome *
+        (
+            TOKYO_HEALTH_INSURANCE_RATE_EMPLOYEE +
+            EMPLOYEES_PENSION_RATE_EMPLOYEE +
+            EMPLOYMENT_INSURANCE_RATE_EMPLOYEE
+        ),
+    );
+    const incomeTaxBasicDeduction = calculateIncomeTaxBasicDeduction(salaryIncome);
+    const incomeTaxableIncome = floorToThousand(salaryIncome - socialInsurance - incomeTaxBasicDeduction);
+    const incomeTax = calculateIncomeTax(incomeTaxableIncome);
+    const residentTaxableIncome = floorToThousand(salaryIncome - socialInsurance - RESIDENT_TAX_BASIC_DEDUCTION);
+    const residentTax = Math.max(0, Math.floor(residentTaxableIncome * RESIDENT_TAX_RATE));
+    const estimatedAnnualTakeHome = Math.max(0, grossAnnualIncome - socialInsurance - incomeTax - residentTax);
+    const estimatedMonthlyTakeHome = roundCurrency(estimatedAnnualTakeHome / 12);
+
+    return {
+        grossMonthlyIncome,
+        estimatedAnnualTakeHome,
+        estimatedMonthlyTakeHome,
+        paymentToGrossIncomeRatio: grossMonthlyIncome > 0 ? monthlyPaymentBase / grossMonthlyIncome : null,
+        paymentToTakeHomeRatio: estimatedMonthlyTakeHome > 0 ? monthlyPaymentBase / estimatedMonthlyTakeHome : null,
+    };
+}
+
 function sanitizeInputs(inputs: LoanSimInputs): {
     sanitized: LoanSimSanitizedInputs;
     validationIssues: LoanSimValidationIssue[];
@@ -120,6 +254,9 @@ function sanitizeInputs(inputs: LoanSimInputs): {
     }
     if (inputs.annualRate < 0 || inputs.annualRate > MAX_RATE) {
         validationIssues.push({ field: 'annualRate', message: `年利は 0〜${MAX_RATE}% の範囲で計算しています。` });
+    }
+    if (inputs.annualIncome < 0) {
+        validationIssues.push({ field: 'annualIncome', message: '年収が 0 円未満だったため、0 円で計算しています。' });
     }
     if (inputs.savingsAnnualRate < 0 || inputs.savingsAnnualRate > MAX_RATE) {
         validationIssues.push({ field: 'savingsAnnualRate', message: `積立年利は 0〜${MAX_RATE}% の範囲で計算しています。` });
@@ -153,6 +290,7 @@ function sanitizeInputs(inputs: LoanSimInputs): {
     const autoCalculatedLoanAmount = Math.max(propertyPrice - downPayment, 0);
     const loanAmount = normalizeMoney(inputs.loanAmount);
     const effectiveLoanAmount = inputs.isLoanAmountManual ? loanAmount : autoCalculatedLoanAmount;
+    const annualIncome = normalizeMoney(inputs.annualIncome);
     const annualRate = normalizeRate(inputs.annualRate);
     const savingsAnnualRate = normalizeRate(inputs.savingsAnnualRate);
     const repaymentYears = normalizeYears(inputs.repaymentYears);
@@ -175,6 +313,7 @@ function sanitizeInputs(inputs: LoanSimInputs): {
             downPayment,
             loanAmount,
             isLoanAmountManual: inputs.isLoanAmountManual,
+            annualIncome,
             annualRate,
             repaymentYears,
             repaymentType: inputs.repaymentType,
@@ -302,6 +441,8 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
     const averageMonthlyNetHousingCost = sanitizedInputs.repaymentMonths > 0
         ? roundCurrency((totalHousingOutflow - totalMonthlySavings) / sanitizedInputs.repaymentMonths)
         : 0;
+    const paymentBase = firstRow?.monthlyPayment ?? 0;
+    const estimatedTakeHome = estimateAnnualTakeHome(sanitizedInputs.annualIncome, paymentBase);
 
     const chartPoints: LoanChartPoint[] = [
         {
@@ -340,8 +481,9 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
     if (sanitizedInputs.isLoanAmountManual) {
         infoMessages.push('借入額を直接入力しているため、物件価格と頭金の差額とは独立して計算しています。');
     } else {
-        infoMessages.push('借入額は「物件価格 - 頭金」で自動計算しています。');
+    infoMessages.push('借入額は「物件価格 - 頭金」で自動計算しています。');
     }
+    infoMessages.push('年収に対する手取りは、独身会社員・40歳未満・東京都の協会けんぽ・一般事業・扶養や賞与なし前提の概算です。住民税の均等割や介護保険は含めていません。');
 
     return {
         sanitizedInputs,
@@ -349,6 +491,11 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
             regularMonthlyPayment,
             firstMonthlyPayment: firstRow?.monthlyPayment ?? 0,
             lastMonthlyPayment: lastLoanRow?.monthlyPayment ?? 0,
+            grossMonthlyIncome: estimatedTakeHome.grossMonthlyIncome,
+            estimatedAnnualTakeHome: estimatedTakeHome.estimatedAnnualTakeHome,
+            estimatedMonthlyTakeHome: estimatedTakeHome.estimatedMonthlyTakeHome,
+            paymentToGrossIncomeRatio: estimatedTakeHome.paymentToGrossIncomeRatio,
+            paymentToTakeHomeRatio: estimatedTakeHome.paymentToTakeHomeRatio,
             bonusRepayment: sanitizedInputs.bonusRepayment,
             firstMonthlyOutflow: firstRow?.monthlyTotalOutflow ?? 0,
             firstMonthNetHousingCost: Math.max(0, (firstRow?.monthlyTotalOutflow ?? 0) - sanitizedInputs.monthlySavings),
