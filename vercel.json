@@ -1,53 +1,25 @@
 {
-    "functions": {
-        "api/*.py": {
-            "excludeFiles": "{src/**,dist/**,node_modules/**,__pycache__/**,**/*.ts,**/*.tsx,**/*.md}"
-        }
+  "functions": {
+    "api/*.py": {
+      "excludeFiles": "{src/**,dist/**,node_modules/**,__pycache__/**,**/*.ts,**/*.tsx,**/*.md}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/me",
+      "destination": "/api/session?action=me"
     },
-    "rewrites": [
-        {
-            "source": "/api/me",
-            "destination": "/api/session?action=me"
-        },
-        {
-            "source": "/api/logout",
-            "destination": "/api/session?action=logout"
-        },
-        {
-            "source": "/api/(.*)",
-            "destination": "/api/$1"
-        },
-        {
-            "source": "/distribution-sim",
-            "destination": "/index.html"
-        },
-        {
-            "source": "/distribution-tables",
-            "destination": "/index.html"
-        },
-        {
-            "source": "/local-llm-chat",
-            "destination": "/index.html"
-        },
-        {
-            "source": "/release-notes",
-            "destination": "/index.html"
-        },
-        {
-            "source": "/admin",
-            "destination": "/index.html"
-        },
-        {
-            "source": "/review-board",
-            "destination": "/index.html"
-        },
-        {
-            "source": "/tutorial",
-            "destination": "/index.html"
-        },
-        {
-            "source": "/quiz/(.*)",
-            "destination": "/index.html"
-        }
-    ]
+    {
+      "source": "/api/logout",
+      "destination": "/api/session?action=logout"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/|assets/|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
 }
