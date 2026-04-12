@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { LoanChartPoint } from '../../features/loanSim/types';
 
 type LoanSimChartsProps = {
@@ -10,6 +11,7 @@ type ChartCardProps = {
     description: string;
     points: LoanChartPoint[];
     valueKey: keyof Pick<LoanChartPoint, 'loanBalance' | 'savingsBalance' | 'cumulativeInterest' | 'regularPayment'>;
+    valueLabel: string;
     strokeColor: string;
     fillColor: string;
     payoffMonthCount: number;
@@ -33,15 +35,21 @@ function buildTickIndices(length: number): number[] {
     return [...indices].sort((left, right) => left - right);
 }
 
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
 function ChartCard({
     title,
     description,
     points,
     valueKey,
+    valueLabel,
     strokeColor,
     fillColor,
     payoffMonthCount,
 }: ChartCardProps) {
+    const [activeIndex, setActiveIndex] = useState<number | null>(null);
     const svgWidth = 760;
     const svgHeight = 260;
     const padding = { top: 18, right: 18, bottom: 34, left: 18 };
@@ -67,6 +75,22 @@ function ChartCard({
     const payoffX = payoffMonthCount > 0 ? xForIndex(Math.min(payoffMonthCount, points.length - 1)) : null;
     const lastValue = values.length > 0 ? values[values.length - 1] : 0;
     const peakValue = maxValue;
+    const activePoint = activeIndex !== null ? points[activeIndex] ?? null : null;
+    const activeValue = activePoint ? (activePoint[valueKey] as number) : null;
+    const activePointX = activeIndex !== null ? xForIndex(activeIndex) : null;
+    const activePointY = activeValue !== null ? yForValue(activeValue) : null;
+    const tooltipX = activePointX !== null ? clamp(activePointX, 112, svgWidth - 112) : null;
+
+    const updateActiveIndexFromClientX = (clientX: number, left: number, width: number) => {
+        if (points.length === 0 || width <= 0) {
+            setActiveIndex(null);
+            return;
+        }
+
+        const ratio = clamp((clientX - left) / width, 0, 1);
+        const nextIndex = Math.round(ratio * Math.max(points.length - 1, 1));
+        setActiveIndex((current) => (current === nextIndex ? current : nextIndex));
+    };
 
     return (
         <article className="loan-sim-chart-card">
@@ -82,11 +106,35 @@ function ChartCard({
             </div>
 
             <div className="loan-sim-chart-shell">
+                {activePoint && activeValue !== null && tooltipX !== null ? (
+                    <div
+                        className="loan-sim-chart-tooltip"
+                        style={{ left: `${(tooltipX / svgWidth) * 100}%` }}
+                    >
+                        <span className="loan-sim-chart-tooltip-date">{activePoint.monthLabel}</span>
+                        <strong className="loan-sim-chart-tooltip-value">
+                            {valueLabel}: {formatCurrency(activeValue)}
+                        </strong>
+                    </div>
+                ) : null}
                 <svg
                     className="loan-sim-chart-svg"
                     viewBox={`0 0 ${svgWidth} ${svgHeight}`}
                     aria-label={title}
                     role="img"
+                    onMouseMove={(event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        updateActiveIndexFromClientX(event.clientX, rect.left, rect.width);
+                    }}
+                    onMouseLeave={() => setActiveIndex(null)}
+                    onTouchStart={(event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        updateActiveIndexFromClientX(event.touches[0].clientX, rect.left, rect.width);
+                    }}
+                    onTouchMove={(event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        updateActiveIndexFromClientX(event.touches[0].clientX, rect.left, rect.width);
+                    }}
                 >
                     {tickIndices.map((tickIndex) => (
                         <line
@@ -105,8 +153,26 @@ function ChartCard({
                         y2={baselineY}
                         className="loan-sim-chart-axis"
                     />
+                    {activePointX !== null ? (
+                        <line
+                            x1={activePointX}
+                            y1={padding.top}
+                            x2={activePointX}
+                            y2={baselineY}
+                            className="loan-sim-chart-hover-line"
+                        />
+                    ) : null}
                     <path d={areaPath} fill={fillColor} className="loan-sim-chart-area" />
                     <path d={linePath} stroke={strokeColor} className="loan-sim-chart-line" />
+                    {activePointX !== null && activePointY !== null ? (
+                        <circle
+                            cx={activePointX}
+                            cy={activePointY}
+                            r={4.5}
+                            fill={strokeColor}
+                            className="loan-sim-chart-hover-point"
+                        />
+                    ) : null}
                     {payoffX !== null && (
                         <g>
                             <line
@@ -149,7 +215,7 @@ export function LoanSimCharts({ chartPoints, payoffMonthCount }: LoanSimChartsPr
             <div className="loan-sim-card-head">
                 <div>
                     <h2>推移グラフ</h2>
-                    <p>完済ラインを基準に、残高・積立・利息の積み上がりを追えます。</p>
+                    <p>完済ラインを基準に、残高・積立・利息の積み上がりを追えます。グラフ上にマウスを合わせると年月と金額を確認できます。</p>
                 </div>
             </div>
 
@@ -159,6 +225,7 @@ export function LoanSimCharts({ chartPoints, payoffMonthCount }: LoanSimChartsPr
                     description="各月の返済後残高です。ボーナス返済は該当月の末に反映しています。"
                     points={chartPoints}
                     valueKey="loanBalance"
+                    valueLabel="残高"
                     strokeColor="#2563eb"
                     fillColor="rgba(37, 99, 235, 0.12)"
                     payoffMonthCount={payoffMonthCount}
@@ -168,6 +235,7 @@ export function LoanSimCharts({ chartPoints, payoffMonthCount }: LoanSimChartsPr
                     description="前月残高へ利息を反映したあと、月末積立を加えた残高です。"
                     points={chartPoints}
                     valueKey="savingsBalance"
+                    valueLabel="積立残高"
                     strokeColor="#0f766e"
                     fillColor="rgba(15, 118, 110, 0.12)"
                     payoffMonthCount={payoffMonthCount}
@@ -177,6 +245,7 @@ export function LoanSimCharts({ chartPoints, payoffMonthCount }: LoanSimChartsPr
                     description="返済期間中に積み上がる利息総額の変化です。"
                     points={chartPoints}
                     valueKey="cumulativeInterest"
+                    valueLabel="累計利息"
                     strokeColor="#d97706"
                     fillColor="rgba(217, 119, 6, 0.12)"
                     payoffMonthCount={payoffMonthCount}
@@ -186,6 +255,7 @@ export function LoanSimCharts({ chartPoints, payoffMonthCount }: LoanSimChartsPr
                     description="通常月の返済額です。ボーナス返済は別列で表に表示しています。"
                     points={chartPoints}
                     valueKey="regularPayment"
+                    valueLabel="月次返済額"
                     strokeColor="#7c3aed"
                     fillColor="rgba(124, 58, 237, 0.12)"
                     payoffMonthCount={payoffMonthCount}

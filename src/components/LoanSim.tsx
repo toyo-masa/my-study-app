@@ -55,6 +55,8 @@ function detectEmbeddedMode(): boolean {
 export function LoanSim({ onBack }: LoanSimProps) {
     const [inputs, setInputs] = useState<LoanSimInputs>(() => createDefaultInputs());
     const [savedPresets, setSavedPresets] = useState<LoanSimSavedPreset[]>(() => loadLoanSimSavedPresets(createDefaultInputs()));
+    const [selectedPresetId, setSelectedPresetId] = useState('');
+    const [isPresetManagementOpen, setIsPresetManagementOpen] = useState(false);
     const [presetName, setPresetName] = useState('');
     const [presetStatus, setPresetStatus] = useState<string | null>(null);
     const embedded = useMemo(() => detectEmbeddedMode(), []);
@@ -69,8 +71,22 @@ export function LoanSim({ onBack }: LoanSimProps) {
 
     const handleReset = () => {
         setInputs(createDefaultInputs());
+        setSelectedPresetId('');
         setPresetName('');
         setPresetStatus(null);
+    };
+
+    const handlePresetNameChange = (value: string) => {
+        setPresetName(value);
+
+        if (!selectedPresetId) {
+            return;
+        }
+
+        const selectedPreset = savedPresets.find((preset) => preset.id === selectedPresetId);
+        if (!selectedPreset || selectedPreset.name !== value) {
+            setSelectedPresetId('');
+        }
     };
 
     const handleSavePreset = () => {
@@ -82,12 +98,20 @@ export function LoanSim({ onBack }: LoanSimProps) {
 
         const existed = savedPresets.some((preset) => preset.name === trimmedName);
         const nextPresets = upsertLoanSimSavedPreset(savedPresets, trimmedName, inputs);
+        const selectedPreset = nextPresets.find((preset) => preset.name === trimmedName) ?? null;
         setSavedPresets(nextPresets);
+        setSelectedPresetId(selectedPreset?.id ?? '');
         setPresetName(trimmedName);
         setPresetStatus(existed ? `「${trimmedName}」を上書き保存しました。` : `「${trimmedName}」を保存しました。`);
     };
 
-    const handleApplyPreset = (presetId: string) => {
+    const handleSelectPreset = (presetId: string) => {
+        if (!presetId) {
+            setSelectedPresetId('');
+            setPresetStatus(null);
+            return;
+        }
+
         const targetPreset = savedPresets.find((preset) => preset.id === presetId);
         if (!targetPreset) {
             setPresetStatus('保存した条件が見つかりませんでした。');
@@ -95,6 +119,7 @@ export function LoanSim({ onBack }: LoanSimProps) {
         }
 
         setInputs({ ...targetPreset.inputs });
+        setSelectedPresetId(targetPreset.id);
         setPresetName(targetPreset.name);
         setPresetStatus(`「${targetPreset.name}」を読み込みました。`);
     };
@@ -108,8 +133,14 @@ export function LoanSim({ onBack }: LoanSimProps) {
 
         const nextPresets = deleteLoanSimSavedPreset(savedPresets, presetId);
         setSavedPresets(nextPresets);
+        if (selectedPresetId === targetPreset.id) {
+            setSelectedPresetId('');
+        }
         if (presetName === targetPreset.name) {
             setPresetName('');
+        }
+        if (nextPresets.length === 0) {
+            setIsPresetManagementOpen(false);
         }
         setPresetStatus(`「${targetPreset.name}」を削除しました。`);
     };
@@ -138,20 +169,23 @@ export function LoanSim({ onBack }: LoanSimProps) {
             )}
 
             <div className="loan-sim-top-grid">
+                <LoanSimSummary result={result} />
                 <LoanSimForm
                     inputs={inputs}
                     calculatedLoanAmount={result.sanitizedInputs.autoCalculatedLoanAmount}
+                    selectedPresetId={selectedPresetId}
+                    isPresetManagementOpen={isPresetManagementOpen}
                     presetName={presetName}
                     presetStatus={presetStatus}
                     savedPresets={savedPresets}
                     onChange={handleChange}
-                    onPresetNameChange={setPresetName}
+                    onPresetNameChange={handlePresetNameChange}
                     onSavePreset={handleSavePreset}
-                    onApplyPreset={handleApplyPreset}
+                    onSelectPreset={handleSelectPreset}
                     onDeletePreset={handleDeletePreset}
+                    onPresetManagementToggle={setIsPresetManagementOpen}
                     onReset={handleReset}
                 />
-                <LoanSimSummary result={result} />
             </div>
 
             <section className="loan-sim-card">

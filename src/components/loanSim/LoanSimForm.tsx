@@ -5,14 +5,17 @@ import type { LoanRepaymentType, LoanSimInputs, LoanSimSavedPreset } from '../..
 type LoanSimFormProps = {
     inputs: LoanSimInputs;
     calculatedLoanAmount: number;
+    selectedPresetId: string;
+    isPresetManagementOpen: boolean;
     presetName: string;
     presetStatus: string | null;
     savedPresets: LoanSimSavedPreset[];
     onChange: <K extends keyof LoanSimInputs>(key: K, value: LoanSimInputs[K]) => void;
     onPresetNameChange: (value: string) => void;
     onSavePreset: () => void;
-    onApplyPreset: (presetId: string) => void;
+    onSelectPreset: (presetId: string) => void;
     onDeletePreset: (presetId: string) => void;
+    onPresetManagementToggle: (isOpen: boolean) => void;
     onReset: () => void;
 };
 
@@ -247,14 +250,17 @@ function NumberField({
 export function LoanSimForm({
     inputs,
     calculatedLoanAmount,
+    selectedPresetId,
+    isPresetManagementOpen,
     presetName,
     presetStatus,
     savedPresets,
     onChange,
     onPresetNameChange,
     onSavePreset,
-    onApplyPreset,
+    onSelectPreset,
     onDeletePreset,
+    onPresetManagementToggle,
     onReset,
 }: LoanSimFormProps) {
     return (
@@ -277,7 +283,7 @@ export function LoanSimForm({
                     </div>
                     <span className="loan-sim-badge">{savedPresets.length}件</span>
                 </div>
-                <div className="loan-sim-preset-save-row">
+                <div className="loan-sim-preset-controls">
                     <input
                         className="loan-sim-text-input"
                         type="text"
@@ -289,37 +295,62 @@ export function LoanSimForm({
                     <button type="button" className="nav-btn" onClick={onSavePreset}>
                         名前を付けて保存
                     </button>
+                    <select
+                        className="setting-select loan-sim-preset-select"
+                        value={selectedPresetId}
+                        aria-label="保存した条件を選択"
+                        onChange={(event) => onSelectPreset(event.target.value)}
+                    >
+                        <option value="">保存した条件を選択</option>
+                        {savedPresets.map((preset) => (
+                            <option key={preset.id} value={preset.id}>
+                                {preset.name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
                 <p className="loan-sim-inline-note">
-                    {presetStatus ?? '同じ名前で保存すると、その条件を上書きします。'}
+                    {presetStatus ?? 'プルダウンで選ぶとすぐ反映します。同じ名前で保存すると、その条件を上書きします。'}
                 </p>
                 {savedPresets.length > 0 ? (
-                    <div className="loan-sim-preset-list">
-                        {savedPresets.map((preset) => (
-                            <div key={preset.id} className="loan-sim-preset-item">
-                                <div className="loan-sim-preset-meta">
-                                    <strong>{preset.name}</strong>
-                                    <span>{formatPresetUpdatedAt(preset.updatedAt)} 更新</span>
-                                </div>
-                                <div className="loan-sim-preset-actions">
-                                    <button
-                                        type="button"
-                                        className="nav-btn"
-                                        onClick={() => onApplyPreset(preset.id)}
+                    <details
+                        className="loan-sim-preset-manage"
+                        open={isPresetManagementOpen}
+                        onToggle={(event) => onPresetManagementToggle((event.currentTarget as HTMLDetailsElement).open)}
+                    >
+                        <summary className="loan-sim-preset-manage-summary">
+                            <span>保存した条件を管理</span>
+                            <span className="loan-sim-preset-manage-current">
+                                {selectedPresetId
+                                    ? `${savedPresets.find((preset) => preset.id === selectedPresetId)?.name ?? '選択中'} を選択中`
+                                    : '未選択'}
+                            </span>
+                        </summary>
+                        <div className="loan-sim-preset-manage-body">
+                            <div className="loan-sim-preset-list">
+                                {savedPresets.map((preset) => (
+                                    <div
+                                        key={preset.id}
+                                        className={`loan-sim-preset-item ${selectedPresetId === preset.id ? 'is-selected' : ''}`}
                                     >
-                                        読み込む
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="nav-btn loan-sim-preset-delete-btn"
-                                        onClick={() => onDeletePreset(preset.id)}
-                                    >
-                                        削除
-                                    </button>
-                                </div>
+                                        <div className="loan-sim-preset-meta">
+                                            <strong>{preset.name}</strong>
+                                            <span>{formatPresetUpdatedAt(preset.updatedAt)} 更新</span>
+                                        </div>
+                                        <div className="loan-sim-preset-actions">
+                                            <button
+                                                type="button"
+                                                className="nav-btn loan-sim-preset-delete-btn"
+                                                onClick={() => onDeletePreset(preset.id)}
+                                            >
+                                                削除
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    </details>
                 ) : (
                     <p className="loan-sim-inline-note">まだ保存した条件はありません。</p>
                 )}
