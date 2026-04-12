@@ -11,30 +11,33 @@ import {
     completeHomeOnboarding
 } from '../db';
 import { parseQuestions, parseMemorizationQuestions, parseQuestionsFromText, parseMemorizationQuestionsFromText } from '../utils/csvParser';
-import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter, Pencil, Search } from 'lucide-react';
+import { Plus, Trash2, Save, X, Upload, ClipboardPaste, Loader2, Tag, Filter, Pencil, Search, Sparkles } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 import { BackButton } from './BackButton';
 import { useAppContext } from '../contexts/AppContext';
+import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
+import type { QuestionDraftFormValue } from '../features/questionGeneration/types';
+import { QuestionDraftAiModal } from './QuestionDraftAiModal';
+import { buildQuestionSearchText, normalizeQuestionSearchValue } from '../utils/questionSearch';
+import { QuestionEditorModal } from './QuestionEditorModal';
+import {
+    buildQuestionEditorDraft,
+    buildQuestionSavePayload,
+    isQuestionDraftDirty,
+    validateQuestionDraft,
+    type EditableQuestionDraft,
+} from '../utils/questionEditor';
 
 interface QuestionManagerProps {
     quizSet: QuizSet & { questionCount: number; categories: string[] };
     onBack: () => void;
     onCloudError: (err: unknown, fallbackMessage: string) => void;
     onQuizSetUpdated?: () => void;
+    localLlmSettings: LocalLlmSettings;
+    onLocalLlmSettingsChange: (settings: LocalLlmSettingsUpdater) => void;
+    onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+    onWebLlmModelChange: (modelId: string) => void;
 }
-
-
-interface EditingQuestion {
-    id?: number;
-    category: string;
-    text: string;
-    options: string[];
-    correctAnswers: number[];
-    explanation: string;
-    questionType?: 'quiz' | 'memorization';
-}
-
-type MarkdownPreviewTab = 'edit' | 'preview';
 
 type ManageOnboardingStep = 'addQuestionButton' | 'fillAndSave' | 'tutorialComplete';
 
@@ -62,27 +65,16 @@ const MANAGE_ONBOARDING_STEP_META: Record<ManageOnboardingStep, ManageOnboarding
     }
 };
 
-const emptyQuestion: EditingQuestion = {
+const emptyQuestion: EditableQuestionDraft = {
     category: '',
     text: '',
     options: ['', '', '', ''],
     correctAnswers: [],
     explanation: '',
+    questionType: 'quiz',
 };
 
-function normalizeQuestionSearchValue(value: string): string {
-    return value.toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-function buildQuestionSearchText(question: Question): string {
-    return normalizeQuestionSearchValue([
-        question.text,
-        ...(question.options || []),
-        question.explanation,
-    ].join(' '));
-}
-
-function buildManageOnboardingAutoQuestion(type?: QuizSet['type']): EditingQuestion {
+function buildManageOnboardingAutoQuestion(type?: QuizSet['type']): EditableQuestionDraft {
     if (type === 'memorization') {
         return {
             category: 'チュートリアル',
@@ -90,6 +82,7 @@ function buildManageOnboardingAutoQuestion(type?: QuizSet['type']): EditingQuest
             options: ['サンプル解答'],
             correctAnswers: [0],
             explanation: 'この問題はチュートリアルの確認用に自動作成されました。',
+            questionType: 'memorization',
         };
     }
 
@@ -99,13 +92,24 @@ function buildManageOnboardingAutoQuestion(type?: QuizSet['type']): EditingQuest
         options: ['選択肢A', '選択肢B', '選択肢C', '選択肢D'],
         correctAnswers: [0],
         explanation: 'この問題はチュートリアルの確認用に自動作成されました。',
+        questionType: 'quiz',
     };
 }
 
-export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBack, onCloudError, onQuizSetUpdated }) => {
+export const QuestionManager: React.FC<QuestionManagerProps> = ({
+    quizSet,
+    onBack,
+    onCloudError,
+    onQuizSetUpdated,
+    localLlmSettings,
+    onLocalLlmSettingsChange,
+    onLocalLlmModeChange,
+    onWebLlmModelChange,
+}) => {
     const [questions, setQuestions] = useState<Question[]>([]);
-    const [editing, setEditing] = useState<EditingQuestion | null>(null);
+    const [editing, setEditing] = useState<EditableQuestionDraft | null>(null);
     const [isNew, setIsNew] = useState(false);
+    const [isAiDraftModalOpen, setIsAiDraftModalOpen] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
     const [newName, setNewName] = useState(quizSet.name);
     const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
@@ -131,8 +135,6 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const [isManageOnboardingDismissedThisSession, setIsManageOnboardingDismissedThisSession] = useState(false);
     const [manageOnboardingHighlightRect, setManageOnboardingHighlightRect] = useState<DOMRect | null>(null);
     const [isTagSuggestOpen, setIsTagSuggestOpen] = useState(false);
-    const [questionTextTab, setQuestionTextTab] = useState<MarkdownPreviewTab>('edit');
-    const [explanationTab, setExplanationTab] = useState<MarkdownPreviewTab>('edit');
 
     // 全問題集から既存のタグを抽出し、重複を除去してソート
     const allExistingTags = React.useMemo(() => {
@@ -207,36 +209,7 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     };
 
     const handleEdit = (question: Question) => {
-        let mergedExplanation = question.explanation || '';
-        const qType = question.questionType || (quizSet.type === 'memorization' ? 'memorization' : 'quiz');
-
-        if (qType === 'memorization') {
-            const ansTexts: string[] = [];
-            if (question.options?.length > 0) {
-                ansTexts.push(...question.options);
-            } else if (question.correctAnswers?.length > 0) {
-                const strAnswers = question.correctAnswers.filter(a => typeof a === 'string');
-                ansTexts.push(...(strAnswers as unknown as string[]));
-            }
-            if (ansTexts.length > 0) {
-                const combinedAns = ansTexts.join('\n');
-                if (!mergedExplanation.includes(combinedAns)) {
-                    mergedExplanation = mergedExplanation ? `${combinedAns}\n\n${mergedExplanation}` : combinedAns;
-                }
-            }
-        }
-
-        setEditing({
-            id: question.id,
-            category: question.category || '',
-            text: question.text,
-            options: qType === 'memorization' ? [] : [...question.options],
-            correctAnswers: qType === 'memorization' ? [] : [...question.correctAnswers] as number[],
-            explanation: mergedExplanation,
-            questionType: qType
-        });
-        setQuestionTextTab('edit');
-        setExplanationTab('edit');
+        setEditing(buildQuestionEditorDraft(question, quizSet.type));
         setIsNew(false);
     };
 
@@ -248,8 +221,6 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                 options: autoQuestion.questionType === 'memorization' ? [] : autoQuestion.options,
                 correctAnswers: autoQuestion.questionType === 'memorization' ? [] : autoQuestion.correctAnswers
             });
-            setQuestionTextTab('edit');
-            setExplanationTab('edit');
             setIsNew(true);
             setManageOnboardingStep('fillAndSave');
             showStatus('チュートリアル用のサンプルを自動入力しました。内容を確認して保存してください。', 'success');
@@ -262,9 +233,26 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             options: [],
             correctAnswers: []
         });
-        setQuestionTextTab('edit');
-        setExplanationTab('edit');
         setIsNew(true);
+    };
+
+    const handleOpenAiDraftModal = () => {
+        setIsAiDraftModalOpen(true);
+    };
+
+    const handleApplyAiDraft = (draftQuestion: QuestionDraftFormValue) => {
+        setIsAiDraftModalOpen(false);
+        setEditing({
+            ...draftQuestion,
+            options: draftQuestion.questionType === 'memorization'
+                ? []
+                : [...draftQuestion.options],
+            correctAnswers: draftQuestion.questionType === 'memorization'
+                ? []
+                : [...draftQuestion.correctAnswers],
+        });
+        setIsNew(true);
+        showStatus('AIの下書きをフォームへ反映しました。内容を確認して保存してください。', 'success');
     };
 
     const handleAddTag = async () => {
@@ -458,36 +446,14 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
     const handleSave = async () => {
         if (!editing || isSaving) return;
 
-        if (!editing.text.trim()) {
-            showStatus('問題文を入力してください', 'error');
+        const validationError = validateQuestionDraft(editing, quizSet.type);
+        if (validationError) {
+            showStatus(validationError, 'error');
             return;
         }
 
-        const cleanOptions = editing.options.filter(o => o.trim() !== '');
-
-        const isMemo = quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization');
-
-        if (!isMemo) {
-            if (cleanOptions.length < 2) {
-                showStatus('選択肢は2つ以上必要です', 'error');
-                return;
-            }
-        } else {
-            if (!editing.explanation.trim()) {
-                showStatus('暗記問題の解答（解説）を入力してください', 'error');
-                return;
-            }
-        }
-
         setIsSaving(true);
-        const updatedData = {
-            category: editing.category,
-            text: editing.text,
-            options: isMemo ? [] : cleanOptions,
-            correctAnswers: isMemo ? [] : editing.correctAnswers,
-            explanation: editing.explanation,
-            questionType: editing.questionType,
-        };
+        const updatedData = buildQuestionSavePayload(editing, quizSet.type);
 
         const isAddingNew = isNew;
         const targetId = editing.id;
@@ -561,42 +527,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     const handleCloseEditingModal = () => {
         setEditing(null);
-        setQuestionTextTab('edit');
-        setExplanationTab('edit');
         if (isManageOnboardingActive && manageOnboardingStep === 'fillAndSave') {
             setManageOnboardingStep('addQuestionButton');
         }
-    };
-
-    const toggleCorrectAnswer = (idx: number) => {
-        if (!editing) return;
-        const current = editing.correctAnswers;
-        if (current.includes(idx)) {
-            setEditing({ ...editing, correctAnswers: current.filter(i => i !== idx) });
-        } else {
-            setEditing({ ...editing, correctAnswers: [...current, idx].sort() });
-        }
-    };
-
-    const updateOption = (idx: number, value: string) => {
-        if (!editing) return;
-        const newOptions = [...editing.options];
-        newOptions[idx] = value;
-        setEditing({ ...editing, options: newOptions });
-    };
-
-    const addOptionField = () => {
-        if (!editing) return;
-        setEditing({ ...editing, options: [...editing.options, ''] });
-    };
-
-    const removeOptionField = (idx: number) => {
-        if (!editing) return;
-        const newOptions = editing.options.filter((_, i) => i !== idx);
-        const newCorrect = editing.correctAnswers
-            .filter(i => i !== idx)
-            .map(i => (i > idx ? i - 1 : i));
-        setEditing({ ...editing, options: newOptions, correctAnswers: newCorrect });
     };
 
     const handleNameSave = async () => {
@@ -626,20 +559,13 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
 
     // Calculate if the editing question has changes compared to the original
     const isDirty = React.useMemo(() => {
-        if (!editing) return false;
-        if (isNew) return true; // Always dirty if it's new
-
-        const original = questions.find(q => q.id === editing.id);
-        if (!original) return true;
-
-        const cleanOptions = editing.options.filter(o => o.trim() !== '');
-        return original.category !== editing.category ||
-            original.text !== editing.text ||
-            original.explanation !== editing.explanation ||
-            original.questionType !== editing.questionType ||
-            JSON.stringify(original.options) !== JSON.stringify(cleanOptions) ||
-            JSON.stringify(original.correctAnswers) !== JSON.stringify(editing.correctAnswers);
-    }, [editing, isNew, questions]);
+        return isQuestionDraftDirty({
+            draft: editing,
+            originalQuestion: questions.find((question) => question.id === editing?.id),
+            quizSetType: quizSet.type,
+            isNew,
+        });
+    }, [editing, isNew, questions, quizSet.type]);
 
     // Dynamic category extraction and filtering
     const categoriesWithCounts = React.useMemo(() => {
@@ -833,6 +759,9 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
                     </div>
                 )}
                 <div className="manager-actions">
+                    <button className="nav-btn" onClick={handleOpenAiDraftModal} disabled={isImporting}>
+                        <Sparkles size={16} /> AIで作成
+                    </button>
                     <button className="nav-btn" onClick={() => setIsPasteModalOpen(true)} disabled={isImporting}>
                         {isImporting ? <Loader2 className="animate-spin" size={16} /> : <ClipboardPaste size={16} />} テキストで追加
                     </button>
@@ -1217,184 +1146,33 @@ export const QuestionManager: React.FC<QuestionManagerProps> = ({ quizSet, onBac
             )}
 
             {/* Edit Modal */}
-            {editing && (
-                <div className="modal-overlay" onClick={() => !isSaving && handleCloseEditingModal()}>
-                    <div ref={manageModalContentRef} className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>{isNew ? '問題を追加' : '問題を編集'}</h3>
-                            <button className="icon-btn" onClick={handleCloseEditingModal} disabled={isSaving}><X size={20} /></button>
-                        </div>
+            <QuestionDraftAiModal
+                isOpen={isAiDraftModalOpen}
+                quizSetName={quizSet.name}
+                quizSetType={quizSet.type}
+                questions={questions}
+                localLlmSettings={localLlmSettings}
+                onLocalLlmSettingsChange={onLocalLlmSettingsChange}
+                onLocalLlmModeChange={onLocalLlmModeChange}
+                onWebLlmModelChange={onWebLlmModelChange}
+                onApplyDraft={handleApplyAiDraft}
+                onClose={() => setIsAiDraftModalOpen(false)}
+            />
 
-                        <div className="modal-body">
-                            <label className="field-label">カテゴリ</label>
-                            <input
-                                className="field-input"
-                                value={editing.category}
-                                onChange={e => setEditing({ ...editing, category: e.target.value })}
-                                placeholder="例: AWS"
-                            />
-
-                            {quizSet.type === 'mixed' && (
-                                <>
-                                    <label className="field-label">問題タイプ</label>
-                                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-                                            <input
-                                                type="radio"
-                                                name="questionType"
-                                                value="quiz"
-                                                checked={editing.questionType !== 'memorization'}
-                                                onChange={() => setEditing({ ...editing, questionType: 'quiz', correctAnswers: [] })}
-                                            />
-                                            選択式問題
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-                                            <input
-                                                type="radio"
-                                                name="questionType"
-                                                value="memorization"
-                                                checked={editing.questionType === 'memorization'}
-                                                onChange={() => setEditing({ ...editing, questionType: 'memorization', correctAnswers: [0] })}
-                                            />
-                                            暗記カード
-                                        </label>
-                                    </div>
-                                </>
-                            )}
-
-                            <div className="markdown-editor-label-row">
-                                <label className="field-label">
-                                    問題文
-                                </label>
-                                <div className="markdown-editor-tab-row">
-                                    <button
-                                        type="button"
-                                        className={`markdown-editor-tab ${questionTextTab === 'edit' ? 'active' : ''}`}
-                                        onClick={() => setQuestionTextTab('edit')}
-                                    >
-                                        入力
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`markdown-editor-tab ${questionTextTab === 'preview' ? 'active' : ''}`}
-                                        onClick={() => setQuestionTextTab('preview')}
-                                    >
-                                        プレビュー
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="markdown-editor-panel">
-                                {questionTextTab === 'edit' ? (
-                                    <textarea
-                                        className="field-textarea"
-                                        value={editing.text}
-                                        onChange={e => setEditing({ ...editing, text: e.target.value })}
-                                        rows={4}
-                                        placeholder="問題文を入力..."
-                                    />
-                                ) : (
-                                    <div className="markdown-preview-panel">
-                                        {editing.text.trim() ? (
-                                            <MarkdownText content={editing.text} />
-                                        ) : (
-                                            <p className="markdown-preview-empty">問題文を入力すると、ここでレンダリング結果を確認できます。</p>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* 選択肢（暗記モードの時は完全に非表示） */}
-                            {!(quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization')) && (
-                                <>
-                                    <label className="field-label">選択肢（✓で正解をマーク）</label>
-                                    {editing.options.map((opt, idx) => (
-                                        <div key={idx} className="option-edit-row">
-                                            <button
-                                                className={`correct-toggle ${editing.correctAnswers.includes(idx) ? 'active' : ''}`}
-                                                onClick={() => toggleCorrectAnswer(idx)}
-                                                title="正解にする"
-                                            >
-                                                ✓
-                                            </button>
-                                            <input
-                                                className="field-input option-input"
-                                                value={opt}
-                                                onChange={e => updateOption(idx, e.target.value)}
-                                                placeholder={`選択肢 ${idx + 1}`}
-                                            />
-                                            {editing.options.length > 2 && (
-                                                <button className="icon-btn danger" onClick={() => removeOptionField(idx)}>
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    <button className="add-option-btn" onClick={addOptionField}>
-                                        <Plus size={14} /> 選択肢を追加
-                                    </button>
-                                </>
-                            )}
-
-                            <div className="markdown-editor-label-row">
-                                <label className="field-label">
-                                    {quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答・解説' : '解説'}
-                                </label>
-                                <div className="markdown-editor-tab-row">
-                                    <button
-                                        type="button"
-                                        className={`markdown-editor-tab ${explanationTab === 'edit' ? 'active' : ''}`}
-                                        onClick={() => setExplanationTab('edit')}
-                                    >
-                                        入力
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`markdown-editor-tab ${explanationTab === 'preview' ? 'active' : ''}`}
-                                        onClick={() => setExplanationTab('preview')}
-                                    >
-                                        プレビュー
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="markdown-editor-panel">
-                                {explanationTab === 'edit' ? (
-                                    <textarea
-                                        className="field-textarea"
-                                        value={editing.explanation}
-                                        onChange={e => setEditing({ ...editing, explanation: e.target.value })}
-                                        rows={3}
-                                        placeholder={quizSet.type === 'memorization' || (quizSet.type === 'mixed' && editing.questionType === 'memorization') ? '解答や解説を入力...' : '解説を入力...'}
-                                    />
-                                ) : (
-                                    <div className="markdown-preview-panel">
-                                        {editing.explanation.trim() ? (
-                                            <MarkdownText content={editing.explanation} />
-                                        ) : (
-                                            <p className="markdown-preview-empty">解説を入力すると、ここでレンダリング結果を確認できます。</p>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="modal-footer">
-                            <button className="nav-btn" onClick={handleCloseEditingModal} disabled={isSaving}>キャンセル</button>
-                            <button
-                                className="nav-btn action-btn primary"
-                                onClick={handleSave}
-                                disabled={isSaving || !isDirty}
-                                ref={saveButtonRef}
-                            >
-                                {isSaving ? (
-                                    <>保存中...</>
-                                ) : (
-                                    <><Save size={16} /> 保存</>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <QuestionEditorModal
+                key={editing ? `${editing.id ?? 'new'}-${editing.questionType}` : 'question-editor-closed'}
+                draft={editing}
+                isOpen={editing !== null}
+                isNew={isNew}
+                isSaving={isSaving}
+                isDirty={isDirty}
+                quizSetType={quizSet.type}
+                onChange={setEditing}
+                onClose={handleCloseEditingModal}
+                onSave={handleSave}
+                contentRef={manageModalContentRef}
+                saveButtonRef={saveButtonRef}
+            />
 
             {/* Paste CSV Modal */}
             {isPasteModalOpen && (

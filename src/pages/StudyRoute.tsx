@@ -7,13 +7,15 @@ import type { HandwritingPadState } from '../components/HandwritingPad';
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { QuestionEditorModal } from '../components/QuestionEditorModal';
 import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
 import { SessionToolsLauncher } from '../components/SessionToolsLauncher';
+import { useAppContext } from '../contexts/AppContext';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useQuestionElapsedTimer } from '../hooks/useQuestionElapsedTimer';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
-import { getQuestionsForQuizSet, addHistory, addReviewLogs, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet } from '../db';
+import { getQuestionsForQuizSet, addHistory, addReviewLogs, upsertReviewSchedulesBulk, getReviewSchedulesForQuizSet, updateQuestion } from '../db';
 import {
     calculateNextInterval,
     calculateNextDue,
@@ -61,6 +63,14 @@ import {
     type DailyStudyRecord,
     normalizeDailyStudyStats,
 } from '../utils/dailyStudyStats';
+import {
+    buildQuestionEditorDraft,
+    buildQuestionSavePayload,
+    isQuestionDraftDirty,
+    validateQuestionDraft,
+    type EditableQuestionDraft,
+} from '../utils/questionEditor';
+import { applyQuestionEditToStudySession } from '../utils/sessionQuestionEdit';
 import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater, StudyEffectSettings } from '../utils/settings';
 
 interface StudyRouteProps {
@@ -171,9 +181,12 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         : DEFAULT_SUSPENDED_SESSION_SLOT_KEY;
 
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
+    const { handleCloudError } = useAppContext();
 
     const [isLoading, setIsLoading] = useState(true);
     const [questions, setQuestions] = useState<Question[]>([]);
+    const [editingQuestion, setEditingQuestion] = useState<EditableQuestionDraft | null>(null);
+    const [isSavingQuestionEdit, setIsSavingQuestionEdit] = useState(false);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, number[]>>({});
     const [answeredMap, setAnsweredMap] = useState<Record<string, boolean>>({});
@@ -298,6 +311,8 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
         questionByIdRef.current = {};
         setIsLoading(true);
         setQuestions([]);
+        setEditingQuestion(null);
+        setIsSavingQuestionEdit(false);
         setCurrentQuestionIndex(0);
         setAnswers({});
         setAnsweredMap({});
@@ -589,7 +604,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
     });
 
     // Debounced save on each answer (1s for cloud, immediate for local)
-    const scheduleSaveSession = () => {
+    const scheduleSaveSession = useCallback(() => {
         if (saveDebounceRef.current !== null) {
             window.clearTimeout(saveDebounceRef.current);
         }
@@ -597,7 +612,7 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             saveDebounceRef.current = null;
             doAutoSaveRef.current();
         }, 1000);
-    };
+    }, []);
 
     useSessionAutoSaveOnPageHide(doAutoSaveRef);
 
@@ -622,6 +637,125 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             isTestCompleted,
             activeHistory,
         };
+    });
+
+    const handleOpenCurrentQuestionEditor = useCallback(() => {
+        if (!currentQuestion) {
+            return;
+        }
+
+        setEditingQuestion(buildQuestionEditorDraft(currentQuestion, activeQuizSet?.type));
+    }, [activeQuizSet?.type, currentQuestion]);
+
+    const handleCloseCurrentQuestionEditor = useCallback(() => {
+        if (isSavingQuestionEdit) {
+            return;
+        }
+
+        setEditingQuestion(null);
+    }, [isSavingQuestionEdit]);
+
+    const handleSaveCurrentQuestionEdit = useCallback(async () => {
+        if (!editingQuestion || editingQuestion.id === undefined || !activeQuizSet) {
+            return;
+        }
+
+        const validationError = validateQuestionDraft(editingQuestion, activeQuizSet.type);
+        if (validationError) {
+            flashSessionInlineNotice(validationError);
+            return;
+        }
+
+        const previousQuestion = questions.find((question) => question.id === editingQuestion.id);
+        if (!previousQuestion) {
+            flashSessionInlineNotice('現在の問題を取得できませんでした');
+            return;
+        }
+
+        const updatedData = buildQuestionSavePayload(editingQuestion, activeQuizSet.type);
+        const updatedQuestion: Question = {
+            ...previousQuestion,
+            ...updatedData,
+        };
+
+        setIsSavingQuestionEdit(true);
+        try {
+            await updateQuestion(editingQuestion.id, updatedData);
+
+            const { nextState } = applyQuestionEditToStudySession({
+                previousQuestion,
+                updatedQuestion,
+                state: {
+                    questions,
+                    answers,
+                    answeredMap,
+                    showAnswerMap,
+                    confidences,
+                    memorizationAnswers,
+                    pendingRevealQuestionIds,
+                    questionElapsedMsById: getQuestionElapsedMsSnapshot(),
+                    feedbackPhase,
+                    overflowRevealAfterCurrentQuestionId,
+                },
+            });
+
+            setQuestions(nextState.questions);
+            setAnswers(nextState.answers);
+            setAnsweredMap(nextState.answeredMap);
+            setShowAnswerMap(nextState.showAnswerMap);
+            setConfidences(nextState.confidences);
+            setMemorizationAnswers(nextState.memorizationAnswers);
+            setPendingRevealQuestionIds(nextState.pendingRevealQuestionIds);
+            setFeedbackPhase(nextState.feedbackPhase);
+            setOverflowRevealAfterCurrentQuestionId(nextState.overflowRevealAfterCurrentQuestionId);
+            replaceQuestionElapsedMsById(nextState.questionElapsedMsById);
+            questionByIdRef.current = {
+                ...questionByIdRef.current,
+                [editingQuestion.id]: updatedQuestion,
+            };
+            syncAutoSaveState({
+                questions: nextState.questions,
+                answers: nextState.answers,
+                answeredMap: nextState.answeredMap,
+                showAnswerMap: nextState.showAnswerMap,
+                confidences: nextState.confidences,
+                memorizationAnswers: nextState.memorizationAnswers,
+                pendingRevealQuestionIds: nextState.pendingRevealQuestionIds,
+                feedbackPhase: nextState.feedbackPhase,
+            });
+            scheduleSaveSession();
+            setEditingQuestion(null);
+            flashSessionInlineNotice('問題を更新しました');
+        } catch (err) {
+            handleCloudError(err, '問題の更新に失敗しました');
+        } finally {
+            setIsSavingQuestionEdit(false);
+        }
+    }, [
+        activeQuizSet,
+        answers,
+        answeredMap,
+        confidences,
+        editingQuestion,
+        feedbackPhase,
+        flashSessionInlineNotice,
+        getQuestionElapsedMsSnapshot,
+        handleCloudError,
+        memorizationAnswers,
+        overflowRevealAfterCurrentQuestionId,
+        pendingRevealQuestionIds,
+        questions,
+        replaceQuestionElapsedMsById,
+        scheduleSaveSession,
+        showAnswerMap,
+        syncAutoSaveState,
+    ]);
+
+    const isCurrentQuestionEditorDirty = isQuestionDraftDirty({
+        draft: editingQuestion,
+        originalQuestion: questions.find((question) => question.id === editingQuestion?.id),
+        quizSetType: activeQuizSet?.type,
+        isNew: false,
     });
 
     useEffect(() => {
@@ -1915,7 +2049,12 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
             showRightPanelToggle={showStudyQuestionChat}
             onToggleRightPanel={handleToggleRightPanel}
             onCloseRightPanel={() => setRightPanelOpen(false)}
-            headerActions={showStudyQuestionChat ? <SessionToolsLauncher /> : undefined}
+            headerActions={showStudyQuestionChat ? (
+                <SessionToolsLauncher
+                    onEditCurrentQuestion={handleOpenCurrentQuestionEditor}
+                    canEditCurrentQuestion={currentQuestion?.id !== undefined}
+                />
+            ) : undefined}
             rightPanelContent={showStudyQuestionChat && currentQuestion && activeQuizSet?.id !== undefined ? (
                 <StudyQuestionChatPanel
                     quizSetId={activeQuizSet.id}
@@ -1930,6 +2069,17 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
                 />
             ) : null}
         >
+            <QuestionEditorModal
+                key={editingQuestion ? `${editingQuestion.id ?? 'current'}-${editingQuestion.questionType}` : 'study-question-editor-closed'}
+                draft={editingQuestion}
+                isOpen={editingQuestion !== null}
+                isSaving={isSavingQuestionEdit}
+                isDirty={isCurrentQuestionEditorDirty}
+                quizSetType={activeQuizSet?.type}
+                onChange={setEditingQuestion}
+                onClose={handleCloseCurrentQuestionEditor}
+                onSave={handleSaveCurrentQuestionEdit}
+            />
             {isTestCompleted ? (
                 <TestResult
                     questions={questions}

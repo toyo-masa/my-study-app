@@ -198,7 +198,17 @@ function App() {
         <Route path="/study-insights" element={<StudyInsightsRoute />} />
         <Route path="/tutorial" element={<TutorialHubRoute />} />
         {currentUser?.isAdmin && <Route path="/admin" element={<AdminRoute />} />}
-        <Route path="/quiz/:id/manage" element={<ManageRoute />} />
+        <Route
+          path="/quiz/:id/manage"
+          element={(
+            <ManageRoute
+              localLlmSettings={localLlmSettings}
+              onLocalLlmSettingsChange={handleLocalLlmSettingsChange}
+              onLocalLlmModeChange={handleLocalLlmModeChange}
+              onWebLlmModelChange={handleWebLlmModelChange}
+            />
+          )}
+        />
         <Route
           path="/quiz/:id/study"
           element={(

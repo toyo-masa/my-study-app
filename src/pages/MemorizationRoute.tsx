@@ -6,13 +6,15 @@ import { MemorizationResultView, MemorizationQuestionView } from '../components/
 import { QuizSessionLayout } from '../components/QuizSessionLayout';
 import { NotFoundView } from '../components/NotFoundView';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { QuestionEditorModal } from '../components/QuestionEditorModal';
 import { StudyQuestionChatPanel } from '../components/StudyQuestionChatPanel';
 import { SessionToolsLauncher } from '../components/SessionToolsLauncher';
+import { useAppContext } from '../contexts/AppContext';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { useQuestionElapsedTimer } from '../hooks/useQuestionElapsedTimer';
 import { useSessionAutoSaveOnPageHide } from '../hooks/useSessionAutoSaveOnPageHide';
 import { useSessionNotices } from '../hooks/useSessionNotices';
-import { getQuestionsForQuizSet, addHistory, addReviewLogs, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk } from '../db';
+import { getQuestionsForQuizSet, addHistory, addReviewLogs, getReviewSchedulesForQuizSet, upsertReviewSchedulesBulk, updateQuestion } from '../db';
 import type {
     DailyStudyStats,
     Question,
@@ -60,6 +62,14 @@ import {
     type DailyStudyRecord,
     normalizeDailyStudyStats,
 } from '../utils/dailyStudyStats';
+import {
+    buildQuestionEditorDraft,
+    buildQuestionSavePayload,
+    isQuestionDraftDirty,
+    validateQuestionDraft,
+    type EditableQuestionDraft,
+} from '../utils/questionEditor';
+import { applyQuestionEditToMemorizationSession } from '../utils/sessionQuestionEdit';
 import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 
 interface MemorizationRouteProps {
@@ -140,9 +150,12 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         : DEFAULT_SUSPENDED_SESSION_SLOT_KEY;
 
     const { quizSetId, activeQuizSet } = useActiveQuizSetFromRoute();
+    const { handleCloudError } = useAppContext();
 
     const [isLoading, setIsLoading] = useState(true);
     const [questions, setQuestions] = useState<Question[]>([]);
+    const [editingQuestion, setEditingQuestion] = useState<EditableQuestionDraft | null>(null);
+    const [isSavingQuestionEdit, setIsSavingQuestionEdit] = useState(false);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [memorizationLogs, setMemorizationLogs] = useState<MemorizationLog[]>([]);
     const [memorizationInputsMap, setMemorizationInputsMap] = useState<Record<string, string[]>>({});
@@ -239,6 +252,8 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             resetQuestionElapsedMsById();
             setIsLoading(true);
             setQuestions([]);
+            setEditingQuestion(null);
+            setIsSavingQuestionEdit(false);
             setMemorizationLogs([]);
             setMemorizationInputsMap({});
             setAnsweredMap({});
@@ -511,13 +526,13 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
         };
     });
 
-    const scheduleSaveSession = () => {
+    const scheduleSaveSession = useCallback(() => {
         clearWindowTimeout(saveDebounceRef);
         saveDebounceRef.current = window.setTimeout(() => {
             saveDebounceRef.current = null;
             doAutoSaveRef.current();
         }, 1000);
-    };
+    }, []);
 
     useSessionAutoSaveOnPageHide(doAutoSaveRef);
 
@@ -540,6 +555,114 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             isTestCompleted,
             activeHistory,
         };
+    });
+
+    const handleOpenCurrentQuestionEditor = useCallback(() => {
+        if (!currentQuestion) {
+            return;
+        }
+
+        setEditingQuestion(buildQuestionEditorDraft(currentQuestion, activeQuizSet?.type));
+    }, [activeQuizSet?.type, currentQuestion]);
+
+    const handleCloseCurrentQuestionEditor = useCallback(() => {
+        if (isSavingQuestionEdit) {
+            return;
+        }
+
+        setEditingQuestion(null);
+    }, [isSavingQuestionEdit]);
+
+    const handleSaveCurrentQuestionEdit = useCallback(async () => {
+        if (!editingQuestion || editingQuestion.id === undefined || !activeQuizSet) {
+            return;
+        }
+
+        const validationError = validateQuestionDraft(editingQuestion, activeQuizSet.type);
+        if (validationError) {
+            flashSessionInlineNotice(validationError);
+            return;
+        }
+
+        const previousQuestion = questions.find((question) => question.id === editingQuestion.id);
+        if (!previousQuestion) {
+            flashSessionInlineNotice('現在の問題を取得できませんでした');
+            return;
+        }
+
+        const updatedData = buildQuestionSavePayload(editingQuestion, activeQuizSet.type);
+        const updatedQuestion: Question = {
+            ...previousQuestion,
+            ...updatedData,
+        };
+
+        setIsSavingQuestionEdit(true);
+        try {
+            await updateQuestion(editingQuestion.id, updatedData);
+
+            const { nextState } = applyQuestionEditToMemorizationSession({
+                previousQuestion,
+                updatedQuestion,
+                state: {
+                    questions,
+                    answeredMap,
+                    showAnswerMap,
+                    memorizationInputsMap,
+                    memorizationLogs,
+                    pendingRevealQuestionIds,
+                    questionElapsedMsById: getQuestionElapsedMsSnapshot(),
+                    feedbackPhase,
+                },
+            });
+
+            setQuestions(nextState.questions);
+            setAnsweredMap(nextState.answeredMap);
+            setShowAnswerMap(nextState.showAnswerMap);
+            setMemorizationInputsMap(nextState.memorizationInputsMap);
+            setMemorizationLogs(nextState.memorizationLogs);
+            setPendingRevealQuestionIds(nextState.pendingRevealQuestionIds);
+            setFeedbackPhase(nextState.feedbackPhase);
+            replaceQuestionElapsedMsById(nextState.questionElapsedMsById);
+            syncAutoSaveState({
+                questions: nextState.questions,
+                answeredMap: nextState.answeredMap,
+                showAnswerMap: nextState.showAnswerMap,
+                memorizationInputsMap: nextState.memorizationInputsMap,
+                memorizationLogs: nextState.memorizationLogs,
+                pendingRevealQuestionIds: nextState.pendingRevealQuestionIds,
+                feedbackPhase: nextState.feedbackPhase,
+            });
+            scheduleSaveSession();
+            setEditingQuestion(null);
+            flashSessionInlineNotice('問題を更新しました');
+        } catch (err) {
+            handleCloudError(err, '問題の更新に失敗しました');
+        } finally {
+            setIsSavingQuestionEdit(false);
+        }
+    }, [
+        activeQuizSet,
+        answeredMap,
+        editingQuestion,
+        feedbackPhase,
+        flashSessionInlineNotice,
+        getQuestionElapsedMsSnapshot,
+        handleCloudError,
+        memorizationInputsMap,
+        memorizationLogs,
+        pendingRevealQuestionIds,
+        questions,
+        replaceQuestionElapsedMsById,
+        scheduleSaveSession,
+        showAnswerMap,
+        syncAutoSaveState,
+    ]);
+
+    const isCurrentQuestionEditorDirty = isQuestionDraftDirty({
+        draft: editingQuestion,
+        originalQuestion: questions.find((question) => question.id === editingQuestion?.id),
+        quizSetType: activeQuizSet?.type,
+        isNew: false,
     });
 
     const startNew = useCallback((qs: Question[], targetQuestionIds?: number[], mode: HistoryMode = 'normal') => {
@@ -1528,7 +1651,12 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             showRightPanelToggle={showStudyQuestionChat}
             onToggleRightPanel={handleToggleRightPanel}
             onCloseRightPanel={() => setRightPanelOpen(false)}
-            headerActions={showStudyQuestionChat ? <SessionToolsLauncher /> : undefined}
+            headerActions={showStudyQuestionChat ? (
+                <SessionToolsLauncher
+                    onEditCurrentQuestion={handleOpenCurrentQuestionEditor}
+                    canEditCurrentQuestion={currentQuestion?.id !== undefined}
+                />
+            ) : undefined}
             rightPanelContent={showStudyQuestionChat && currentQuestion && activeQuizSet?.id !== undefined ? (
                 <StudyQuestionChatPanel
                     quizSetId={activeQuizSet.id}
@@ -1543,6 +1671,17 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
                 />
             ) : null}
         >
+            <QuestionEditorModal
+                key={editingQuestion ? `${editingQuestion.id ?? 'current'}-${editingQuestion.questionType}` : 'memorization-question-editor-closed'}
+                draft={editingQuestion}
+                isOpen={editingQuestion !== null}
+                isSaving={isSavingQuestionEdit}
+                isDirty={isCurrentQuestionEditorDirty}
+                quizSetType={activeQuizSet?.type}
+                onChange={setEditingQuestion}
+                onClose={handleCloseCurrentQuestionEditor}
+                onSave={handleSaveCurrentQuestionEdit}
+            />
             {isTestCompleted ? (
                 <MemorizationResultView
                     logs={memorizationLogs}

@@ -6,8 +6,21 @@ import { LoadingView } from '../components/LoadingView';
 import { NotFoundView } from '../components/NotFoundView';
 import { useActiveQuizSetFromRoute } from '../hooks/useActiveQuizSetFromRoute';
 import { AnimatePresence } from 'framer-motion';
+import type { LocalLlmMode, LocalLlmSettings, LocalLlmSettingsUpdater } from '../utils/settings';
 
-export const ManageRoute: React.FC = () => {
+interface ManageRouteProps {
+    localLlmSettings: LocalLlmSettings;
+    onLocalLlmSettingsChange: (settings: LocalLlmSettingsUpdater) => void;
+    onLocalLlmModeChange: (preferredMode: LocalLlmMode) => void;
+    onWebLlmModelChange: (modelId: string) => void;
+}
+
+export const ManageRoute: React.FC<ManageRouteProps> = ({
+    localLlmSettings,
+    onLocalLlmSettingsChange,
+    onLocalLlmModeChange,
+    onWebLlmModelChange,
+}) => {
     const navigate = useNavigate();
     const { loadQuizSets, handleCloudError } = useAppContext();
     const { activeQuizSet, quizSetsCount } = useActiveQuizSetFromRoute();
@@ -32,6 +45,10 @@ export const ManageRoute: React.FC = () => {
                         onBack={() => navigate('/')}
                         onCloudError={handleCloudError}
                         onQuizSetUpdated={loadQuizSets}
+                        localLlmSettings={localLlmSettings}
+                        onLocalLlmSettingsChange={onLocalLlmSettingsChange}
+                        onLocalLlmModeChange={onLocalLlmModeChange}
+                        onWebLlmModelChange={onWebLlmModelChange}
                     />
                 </main>
             )}

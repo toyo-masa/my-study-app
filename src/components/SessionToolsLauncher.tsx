@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { BookOpen, Calculator, Wrench, X } from 'lucide-react';
+import { BookOpen, Calculator, Pencil, Wrench, X } from 'lucide-react';
 import { DistributionTables } from './DistributionTables';
+
+type SessionToolsLauncherProps = {
+    onEditCurrentQuestion?: () => void;
+    canEditCurrentQuestion?: boolean;
+};
 
 type CalculatorBinaryOperator = '+' | '-' | '×' | '÷' | '^';
 type CalculatorFunctionName = 'sin' | 'cos' | 'tan' | 'log' | 'ln' | 'sqrt';
@@ -710,11 +715,15 @@ const evaluateExpression = (expression: string): { result: number | null; error:
     }
 };
 
-export const SessionToolsLauncher: React.FC = () => {
+export const SessionToolsLauncher: React.FC<SessionToolsLauncherProps> = ({
+    onEditCurrentQuestion,
+    canEditCurrentQuestion = false,
+}) => {
     const menuId = useId();
     const rootRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const toolButtonRef = useRef<HTMLButtonElement>(null);
+    const editQuestionMenuItemRef = useRef<HTMLButtonElement>(null);
     const calculatorMenuItemRef = useRef<HTMLButtonElement>(null);
     const distributionTablesMenuItemRef = useRef<HTMLButtonElement>(null);
     const calculatorPanelRef = useRef<HTMLElement>(null);
@@ -1140,6 +1149,11 @@ export const SessionToolsLauncher: React.FC = () => {
         setIsMenuOpen((prev) => !prev);
     }, []);
 
+    const handleEditCurrentQuestionMenuClick = useCallback(() => {
+        setIsMenuOpen(false);
+        onEditCurrentQuestion?.();
+    }, [onEditCurrentQuestion]);
+
     const handleCalculatorMenuClick = useCallback(() => {
         setIsMenuOpen(false);
         setIsCalculatorOpen((prev) => !prev);
@@ -1483,9 +1497,14 @@ export const SessionToolsLauncher: React.FC = () => {
         }
 
         window.requestAnimationFrame(() => {
+            if (canEditCurrentQuestion && onEditCurrentQuestion) {
+                editQuestionMenuItemRef.current?.focus();
+                return;
+            }
+
             calculatorMenuItemRef.current?.focus();
         });
-    }, [isMenuOpen]);
+    }, [canEditCurrentQuestion, isMenuOpen, onEditCurrentQuestion]);
 
     useEffect(() => {
         if (!isCalculatorOpen) {
@@ -1740,6 +1759,17 @@ export const SessionToolsLauncher: React.FC = () => {
                     role="menu"
                     aria-label="ツール一覧"
                 >
+                    <button
+                        ref={editQuestionMenuItemRef}
+                        type="button"
+                        className="session-tools-menu-item"
+                        onClick={handleEditCurrentQuestionMenuClick}
+                        role="menuitem"
+                        disabled={!canEditCurrentQuestion || !onEditCurrentQuestion}
+                    >
+                        <Pencil size={16} />
+                        問題編集
+                    </button>
                     <button
                         ref={calculatorMenuItemRef}
                         type="button"
