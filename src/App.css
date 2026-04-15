@@ -12042,7 +12042,8 @@ button.appearance-option.active {
 
   /* --- Home Actions (nav buttons) --- */
   .home-actions {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
     align-items: stretch;
     gap: 0.5rem;
     margin-bottom: 1.5rem;
@@ -12083,12 +12084,22 @@ button.appearance-option.active {
     justify-content: center;
   }
 
-  .home-actions>div:last-child {
+  .home-utility-actions {
+    grid-column: 1 / -1;
     width: 100%;
   }
 
-  .home-actions>div:last-child .nav-btn {
+  .home-utility-actions .nav-btn {
     flex: 1;
+  }
+
+  .home-help-action {
+    min-width: 0;
+  }
+
+  .home-help-action .help-icon-btn {
+    margin-left: 0;
+    height: 100%;
   }
 
   .nav-btn {
@@ -12687,7 +12698,7 @@ button.appearance-option.active {
     flex: 0 0 auto;
   }
 
-  .home-actions>div[style*="marginLeft"] {
+  .home-utility-actions {
     margin-left: 0 !important;
     gap: 0.4rem !important;
   }

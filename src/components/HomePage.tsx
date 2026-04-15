@@ -559,7 +559,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             <div className="home-content">
                 <div className="home-actions">
-                    <div className="dropdown-container" ref={quizMenuRef} style={{ position: 'relative', zIndex: isTutorialActive && quizMenuOpen ? 2500 : undefined }}>
+                    <div className="dropdown-container home-primary-action" ref={quizMenuRef} style={{ position: 'relative', zIndex: isTutorialActive && quizMenuOpen ? 2500 : undefined }}>
                         <button
                             ref={addQuizMenuButtonRef}
                             className={`nav-btn ${quizMenuOpen ? 'active' : ''}`}
@@ -587,7 +587,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                         )}
                     </div>
 
-                    <div className="dropdown-container" ref={memoMenuRef} style={{ position: 'relative', zIndex: isTutorialActive && memoMenuOpen ? 2500 : undefined }}>
+                    <div className="dropdown-container home-primary-action" ref={memoMenuRef} style={{ position: 'relative', zIndex: isTutorialActive && memoMenuOpen ? 2500 : undefined }}>
                         <button
                             className={`nav-btn ${memoMenuOpen ? 'active' : ''}`}
                             onClick={() => { setMemoMenuOpen(!memoMenuOpen); setQuizMenuOpen(false); }}
@@ -606,7 +606,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                             </div>
                         )}
                     </div>
-                    <div className="help-popover-wrapper" ref={helpRef}>
+                    <div className="help-popover-wrapper home-help-action" ref={helpRef}>
                         <button
                             ref={helpButtonRef}
                             className="help-icon-btn"
@@ -622,7 +622,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                         />
                     </div>
 
-                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+                    <div className="home-utility-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
                         <button className="nav-btn" onClick={onRefresh} title="更新">
                             <RefreshCw size={16} /> 更新
                         </button>

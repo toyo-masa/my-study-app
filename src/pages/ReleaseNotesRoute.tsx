@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.78.8',
+        date: '2026年4月15日 23:45',
+        improvements: [
+            'ホーム画面の上部操作をスマホ向けに整理し、問題集追加・暗記カード追加・ヘルプを1行で扱いやすくしました。',
+        ],
+        fixes: [
+            'スマホ表示でホーム上部の追加系ボタンが縦に積まれて場所を取りやすかったため、操作導線をコンパクトに見直しました。',
+        ],
+    },
+    {
         version: '1.78.7',
         date: '2026年4月15日 23:40',
         improvements: [
