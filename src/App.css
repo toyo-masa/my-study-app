@@ -12059,6 +12059,11 @@ button.appearance-option.active {
     width: 100%;
   }
 
+  .home-tag-filter-container,
+  .home-sort-controls {
+    flex: none;
+  }
+
   .home-sort-controls {
     margin-left: 0;
     justify-content: space-between;
@@ -12655,6 +12660,10 @@ button.appearance-option.active {
 
   .home-sort-controls {
     gap: 0.45rem;
+  }
+
+  .home-tag-filter-container {
+    align-content: flex-start;
   }
 
   .home-sort-label {

@@ -1437,11 +1437,13 @@ export const MemorizationRoute: React.FC<MemorizationRouteProps> = ({
             await addHistory(history);
 
             if (activeQuizSet?.id !== undefined && finalLogs.length > 0) {
+                const reviewArtifactQuestionIds = mergeCompletedQuestionIds(
+                    finalLogs.map((log) => log.questionId),
+                    completedQuestionIdsRef.current
+                ).filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId));
                 const reviewedAt = endTime.toISOString();
                 const { schedules: schedulesToUpdate, logs: reviewLogsToAdd } = await buildMemorizationReviewArtifacts(
-                    finalLogs
-                        .map((log) => log.questionId)
-                        .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId)),
+                    reviewArtifactQuestionIds,
                     finalLogs,
                     reviewedAt
                 );

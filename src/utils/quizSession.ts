@@ -325,6 +325,9 @@ export function buildReviewDueResumeSession(
         normalizeCompletedQuestionIds(session.persistedCompletedQuestionIds)
             .filter((questionId) => availableQuestionById.has(questionId))
     );
+    const pendingPersistQuestionIdSet = new Set(
+        [...completedQuestionIdSet].filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId))
+    );
     const resetQuestionIdSet = new Set(
         currentReviewQuestionIds.filter((questionId) => persistedCompletedQuestionIdSet.has(questionId))
     );
@@ -356,14 +359,30 @@ export function buildReviewDueResumeSession(
         ? savedCurrentQuestionId
         : firstIncompleteQuestionId ?? mergedQuestionIds[0];
 
-    const filteredSession = filterSuspendedSessionByQuestionIds(session, mergedQuestions, currentQuestionId);
+    const retainedSessionQuestionIdSet = new Set([
+        ...mergedQuestionIds,
+        ...pendingPersistQuestionIdSet,
+    ]);
+    const filteredSessionBase = filterSuspendedSessionByQuestionIds(session, mergedQuestions, currentQuestionId);
+    const filteredSession: SuspendedSession = {
+        ...filteredSessionBase,
+        answers: filterObjectByQuestionIds(session.answers, retainedSessionQuestionIdSet),
+        memos: filterObjectByQuestionIds(session.memos, retainedSessionQuestionIdSet),
+        confidences: filterObjectByQuestionIds(session.confidences, retainedSessionQuestionIdSet),
+        memorizationAnswers: filterObjectByQuestionIds(session.memorizationAnswers, retainedSessionQuestionIdSet),
+        answeredMap: filterObjectByQuestionIds(session.answeredMap, retainedSessionQuestionIdSet),
+        showAnswerMap: filterObjectByQuestionIds(session.showAnswerMap, retainedSessionQuestionIdSet),
+        questionElapsedMsById: filterObjectByQuestionIds(session.questionElapsedMsById, retainedSessionQuestionIdSet),
+        memorizationLogs: filterMemorizationLogsByQuestionIds(session.memorizationLogs, retainedSessionQuestionIdSet),
+        memorizationInputsMap: filterObjectByQuestionIds(session.memorizationInputsMap, retainedSessionQuestionIdSet),
+        completedQuestionIds: normalizeCompletedQuestionIds(session.completedQuestionIds)
+            .filter((questionId) => retainedSessionQuestionIdSet.has(questionId)),
+        persistedCompletedQuestionIds: normalizeCompletedQuestionIds(session.persistedCompletedQuestionIds)
+            .filter((questionId) => retainedSessionQuestionIdSet.has(questionId)),
+    };
 
     if (resetQuestionIdSet.size === 0) {
-        return {
-            ...filteredSession,
-            completedQuestionIds: normalizeCompletedQuestionIds(filteredSession.completedQuestionIds),
-            persistedCompletedQuestionIds: normalizeCompletedQuestionIds(filteredSession.persistedCompletedQuestionIds),
-        };
+        return filteredSession;
     }
 
     return {

@@ -1288,11 +1288,15 @@ export const StudyRoute: React.FC<StudyRouteProps> = ({
 
             await addHistory(historyData);
 
+            const reviewArtifactQuestionIds = mergeCompletedQuestionIds(
+                questions
+                    .map((question) => question.id)
+                    .filter((questionId): questionId is number => typeof questionId === 'number'),
+                completedQuestionIdsRef.current
+            ).filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId));
             const reviewedAt = end.toISOString();
             const { schedules: schedulesToUpdate, logs: reviewLogsToAdd } = await buildStudyReviewArtifacts(
-                questions
-                    .map((question) => question.id!)
-                    .filter((questionId) => !persistedCompletedQuestionIdSet.has(questionId)),
+                reviewArtifactQuestionIds,
                 answers,
                 effectiveConfidences,
                 reviewedAt
