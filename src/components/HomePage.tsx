@@ -702,7 +702,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                             <div className="quiz-sets-grid">
                                 {sortedQuizSets.map((qs, index) => (
                                     <motion.div
-                                        layout
                                         key={qs.id}
                                         ref={qs.id === tutorialManageTargetQuizSetId ? tutorialManageCardRef : undefined}
                                         initial={{ opacity: 0, y: 20 }}

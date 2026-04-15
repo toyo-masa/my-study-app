@@ -12659,6 +12659,8 @@ button.appearance-option.active {
   }
 
   .home-sort-controls {
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 0.45rem;
   }
 
@@ -12667,12 +12669,22 @@ button.appearance-option.active {
   }
 
   .home-sort-label {
-    width: 100%;
+    width: auto;
+    flex: 0 0 auto;
   }
 
   .home-sort-select,
   .home-sort-direction-btn {
-    width: 100%;
+    width: auto;
+  }
+
+  .home-sort-select {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .home-sort-direction-btn {
+    flex: 0 0 auto;
   }
 
   .home-actions>div[style*="marginLeft"] {
