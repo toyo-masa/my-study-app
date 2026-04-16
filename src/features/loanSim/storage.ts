@@ -34,6 +34,8 @@ function restoreInputs(value: unknown, fallback: LoanSimInputs): LoanSimInputs |
         loanAmount: readNumber(value.loanAmount, fallback.loanAmount),
         isLoanAmountManual: readBoolean(value.isLoanAmountManual, fallback.isLoanAmountManual),
         annualIncome: readNumber(value.annualIncome, fallback.annualIncome),
+        currentAge: readNumber(value.currentAge, fallback.currentAge),
+        retirementAge: readNumber(value.retirementAge, fallback.retirementAge),
         annualRate: readNumber(value.annualRate, fallback.annualRate),
         repaymentYears: readNumber(value.repaymentYears, fallback.repaymentYears),
         repaymentType: readRepaymentType(value.repaymentType, fallback.repaymentType),

@@ -6,6 +6,8 @@ export interface LoanSimInputs {
     loanAmount: number;
     isLoanAmountManual: boolean;
     annualIncome: number;
+    currentAge: number;
+    retirementAge: number;
     annualRate: number;
     repaymentYears: number;
     repaymentType: LoanRepaymentType;
@@ -86,6 +88,9 @@ export interface LoanSimSummary {
     estimatedMonthlyTakeHome: number;
     paymentToGrossIncomeRatio: number | null;
     paymentToTakeHomeRatio: number | null;
+    retirementMonthLabel: string;
+    remainingBalanceAtRetirement: number;
+    isRetirementAfterPayoff: boolean;
     bonusRepayment: number;
     firstMonthlyOutflow: number;
     firstMonthNetHousingCost: number;

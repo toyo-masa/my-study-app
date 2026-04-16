@@ -33,6 +33,8 @@ function createDefaultInputs(): LoanSimInputs {
         loanAmount: 40_000_000,
         isLoanAmountManual: false,
         annualIncome: 8_500_000,
+        currentAge: 35,
+        retirementAge: 65,
         annualRate: 1.2,
         repaymentYears: 35,
         repaymentType: 'equal-payment',

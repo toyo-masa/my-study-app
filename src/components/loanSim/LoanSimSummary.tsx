@@ -89,6 +89,14 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
             tier: 'primary',
         },
         {
+            label: '定年時の残り残高',
+            value: formatCurrency(summary.remainingBalanceAtRetirement),
+            note: summary.isRetirementAfterPayoff
+                ? `${summary.retirementMonthLabel} 時点では完済後のため、残高は 0 円です。`
+                : `${summary.retirementMonthLabel} 時点のローン残高です。`,
+            tier: 'primary',
+        },
+        {
             label: '積立最終額',
             value: formatCurrency(summary.finalSavingsBalance),
             note: `ローン完済時点の積立残高は ${formatCurrency(summary.savingsBalanceAtPayoff)} です。`,

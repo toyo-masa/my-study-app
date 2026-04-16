@@ -78,6 +78,13 @@ function normalizeYears(value: number): number {
     return clamp(Math.round(value), MIN_REPAYMENT_YEARS, MAX_REPAYMENT_YEARS);
 }
 
+function normalizeAge(value: number): number {
+    if (!Number.isFinite(value)) {
+        return 0;
+    }
+    return Math.max(0, Math.round(value));
+}
+
 function formatMonthKey(parts: YearMonthParts): string {
     return `${parts.year}-${String(parts.month).padStart(2, '0')}`;
 }
@@ -258,6 +265,12 @@ function sanitizeInputs(inputs: LoanSimInputs): {
     if (inputs.annualIncome < 0) {
         validationIssues.push({ field: 'annualIncome', message: '年収が 0 円未満だったため、0 円で計算しています。' });
     }
+    if (inputs.currentAge < 0) {
+        validationIssues.push({ field: 'currentAge', message: '開始時点の年齢が 0 歳未満だったため、0 歳で計算しています。' });
+    }
+    if (inputs.retirementAge < 0) {
+        validationIssues.push({ field: 'retirementAge', message: '定年年齢が 0 歳未満だったため、0 歳で計算しています。' });
+    }
     if (inputs.savingsAnnualRate < 0 || inputs.savingsAnnualRate > MAX_RATE) {
         validationIssues.push({ field: 'savingsAnnualRate', message: `積立年利は 0〜${MAX_RATE}% の範囲で計算しています。` });
     }
@@ -291,6 +304,15 @@ function sanitizeInputs(inputs: LoanSimInputs): {
     const loanAmount = normalizeMoney(inputs.loanAmount);
     const effectiveLoanAmount = inputs.isLoanAmountManual ? loanAmount : autoCalculatedLoanAmount;
     const annualIncome = normalizeMoney(inputs.annualIncome);
+    const currentAge = normalizeAge(inputs.currentAge);
+    const rawRetirementAge = normalizeAge(inputs.retirementAge);
+    const retirementAge = Math.max(rawRetirementAge, currentAge);
+    if (rawRetirementAge < currentAge) {
+        validationIssues.push({
+            field: 'retirementAge',
+            message: '定年年齢が開始時点の年齢を下回ったため、開始時点と同じ年齢として計算しています。',
+        });
+    }
     const annualRate = normalizeRate(inputs.annualRate);
     const savingsAnnualRate = normalizeRate(inputs.savingsAnnualRate);
     const repaymentYears = normalizeYears(inputs.repaymentYears);
@@ -314,6 +336,8 @@ function sanitizeInputs(inputs: LoanSimInputs): {
             loanAmount,
             isLoanAmountManual: inputs.isLoanAmountManual,
             annualIncome,
+            currentAge,
+            retirementAge,
             annualRate,
             repaymentYears,
             repaymentType: inputs.repaymentType,
@@ -336,6 +360,10 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
     const { sanitized: sanitizedInputs, validationIssues } = sanitizeInputs(inputs);
     const startParts = parseYearMonth(sanitizedInputs.startYearMonth) ?? parseYearMonth(getCurrentYearMonth())!;
     const plannedFinishParts = addMonths(startParts, sanitizedInputs.repaymentMonths - 1);
+    const retirementMonthCount = Math.max(0, (sanitizedInputs.retirementAge - sanitizedInputs.currentAge) * 12);
+    const retirementParts = retirementMonthCount > 0
+        ? addMonths(startParts, retirementMonthCount - 1)
+        : startParts;
 
     const schedule: LoanScheduleRow[] = [];
     let remainingBalance = sanitizedInputs.effectiveLoanAmount;
@@ -437,6 +465,12 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
 
     const firstRow = schedule[0];
     const lastLoanRow = [...schedule].reverse().find((row) => row.monthlyPayment > 0 || row.bonusPayment > 0) ?? null;
+    const remainingBalanceAtRetirement = retirementMonthCount === 0
+        ? sanitizedInputs.effectiveLoanAmount
+        : retirementMonthCount <= schedule.length
+            ? (schedule[retirementMonthCount - 1]?.periodEndBalance ?? 0)
+            : 0;
+    const isRetirementAfterPayoff = retirementMonthCount > payoffMonthCount;
     const totalMonthlySavings = sanitizedInputs.monthlySavings * sanitizedInputs.repaymentMonths;
     const averageMonthlyNetHousingCost = sanitizedInputs.repaymentMonths > 0
         ? roundCurrency((totalHousingOutflow - totalMonthlySavings) / sanitizedInputs.repaymentMonths)
@@ -484,6 +518,7 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
     infoMessages.push('借入額は「物件価格 - 頭金」で自動計算しています。');
     }
     infoMessages.push('年収に対する手取りは、独身会社員・40歳未満・東京都の協会けんぽ・一般事業・扶養や賞与なし前提の概算です。住民税の均等割や介護保険は含めていません。');
+    infoMessages.push('定年時の残り残高は、開始年月時点の年齢から定年年齢までの月数を進めた時点のローン残高で見ています。');
 
     return {
         sanitizedInputs,
@@ -496,6 +531,9 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
             estimatedMonthlyTakeHome: estimatedTakeHome.estimatedMonthlyTakeHome,
             paymentToGrossIncomeRatio: estimatedTakeHome.paymentToGrossIncomeRatio,
             paymentToTakeHomeRatio: estimatedTakeHome.paymentToTakeHomeRatio,
+            retirementMonthLabel: formatMonthLabel(retirementParts),
+            remainingBalanceAtRetirement,
+            isRetirementAfterPayoff,
             bonusRepayment: sanitizedInputs.bonusRepayment,
             firstMonthlyOutflow: firstRow?.monthlyTotalOutflow ?? 0,
             firstMonthNetHousingCost: Math.max(0, (firstRow?.monthlyTotalOutflow ?? 0) - sanitizedInputs.monthlySavings),

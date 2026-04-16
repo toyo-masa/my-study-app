@@ -94,6 +94,14 @@ const FIELD_HELP = {
             </>
         ),
     },
+    currentAge: {
+        title: '開始時点の年齢とは？',
+        body: <p>返済開始年月の時点での年齢です。定年時の残り残高は、この年齢から定年年齢まで進めた時点の残高として計算します。</p>,
+    },
+    retirementAge: {
+        title: '定年年齢とは？',
+        body: <p>何歳で定年を迎える前提かを入れる項目です。開始時点の年齢からの差をもとに、定年時点のローン残高を表示します。</p>,
+    },
     repaymentYears: {
         title: '返済年数とは？',
         body: <p>完済までの年数です。年数が長いほど月額は抑えやすくなりますが、総利息は増えやすくなります。</p>,
@@ -159,6 +167,10 @@ function formatPercent(value: number): string {
 
 function formatYears(value: number): string {
     return `${Math.round(value)}年`;
+}
+
+function formatAge(value: number): string {
+    return `${Math.round(value)}歳`;
 }
 
 function formatPresetUpdatedAt(value: number): string {
@@ -433,6 +445,46 @@ export function LoanSimForm({
                         displayFormatter={formatCurrency}
                         help={FIELD_HELP.annualIncome}
                     />
+                    <div className="loan-sim-field">
+                        <div className="loan-sim-field-head">
+                            <FieldLabel label="開始時点の年齢" help={FIELD_HELP.currentAge} />
+                            <strong>{formatAge(inputs.currentAge)}</strong>
+                        </div>
+                        <div className="loan-sim-field-input-row is-number-only">
+                            <div className="loan-sim-number-input-wrap">
+                                <input
+                                    className="loan-sim-number-input"
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={Number.isFinite(inputs.currentAge) ? inputs.currentAge : 0}
+                                    aria-label="開始時点の年齢"
+                                    onChange={(event) => onChange('currentAge', readInputNumber(event.target.value))}
+                                />
+                                <span className="loan-sim-input-unit">歳</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="loan-sim-field">
+                        <div className="loan-sim-field-head">
+                            <FieldLabel label="定年年齢" help={FIELD_HELP.retirementAge} />
+                            <strong>{formatAge(inputs.retirementAge)}</strong>
+                        </div>
+                        <div className="loan-sim-field-input-row is-number-only">
+                            <div className="loan-sim-number-input-wrap">
+                                <input
+                                    className="loan-sim-number-input"
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={Number.isFinite(inputs.retirementAge) ? inputs.retirementAge : 0}
+                                    aria-label="定年年齢"
+                                    onChange={(event) => onChange('retirementAge', readInputNumber(event.target.value))}
+                                />
+                                <span className="loan-sim-input-unit">歳</span>
+                            </div>
+                        </div>
+                    </div>
                     <NumberField
                         label="返済年数"
                         value={inputs.repaymentYears}
