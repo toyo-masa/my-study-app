@@ -888,6 +888,10 @@ body.is-dragging-linear-algebra-vector {
   margin-bottom: 1rem;
 }
 
+.loan-sim-top-grid > .loan-sim-card {
+  margin-bottom: 0;
+}
+
 .loan-sim-card {
   padding: 1rem;
   margin-bottom: 1rem;
@@ -935,9 +939,9 @@ body.is-dragging-linear-algebra-vector {
 
 .loan-sim-preset-panel {
   display: grid;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  padding: 0.9rem;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+  padding: 0.55rem 0.7rem;
   border: 1px solid rgba(var(--primary-color-rgb, 99, 102, 241), 0.14);
   border-radius: 14px;
   background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.05);
@@ -945,27 +949,28 @@ body.is-dragging-linear-algebra-vector {
 
 .loan-sim-preset-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.6rem;
+}
+
+.loan-sim-preset-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .loan-sim-preset-head h3 {
   margin: 0;
-  font-size: 0.92rem;
-}
-
-.loan-sim-preset-head p {
-  margin: 0.25rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  line-height: 1.5;
+  font-size: 0.9rem;
 }
 
 .loan-sim-preset-controls {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) auto minmax(220px, 0.95fr);
-  gap: 0.65rem;
+  gap: 0.5rem;
   align-items: center;
 }
 
@@ -977,7 +982,7 @@ body.is-dragging-linear-algebra-vector {
   border-radius: 10px;
   font: inherit;
   box-sizing: border-box;
-  padding: 0.58rem 0.7rem;
+  padding: 0.48rem 0.65rem;
 }
 
 .loan-sim-text-input:focus {
@@ -991,6 +996,16 @@ body.is-dragging-linear-algebra-vector {
   height: 100%;
   border-radius: 10px;
   font: inherit;
+}
+
+.loan-sim-preset-panel .loan-sim-badge {
+  padding: 0.3rem 0.58rem;
+  font-size: 0.74rem;
+}
+
+.loan-sim-reset-btn {
+  padding: 0.42rem 0.75rem;
+  font-size: 0.8rem;
 }
 
 .loan-sim-inline-note {
@@ -1105,6 +1120,12 @@ body.is-dragging-linear-algebra-vector {
 .loan-sim-field {
   display: grid;
   gap: 0.42rem;
+}
+
+.loan-sim-inline-half-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
 .loan-sim-field.is-disabled {
@@ -1325,12 +1346,12 @@ body.is-dragging-linear-algebra-vector {
 }
 
 .loan-sim-summary-grid.is-primary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   margin-bottom: 0.8rem;
 }
 
 .loan-sim-summary-grid.is-secondary {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .loan-sim-summary-item {
@@ -1349,21 +1370,32 @@ body.is-dragging-linear-algebra-vector {
   padding: 0.8rem;
 }
 
+.loan-sim-summary-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
 .loan-sim-summary-label {
   display: block;
   color: var(--text-secondary);
   font-size: 0.78rem;
   font-weight: 600;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .loan-sim-summary-value {
   display: block;
-  margin-top: 0.35rem;
   color: var(--text-color);
   font-size: 1.3rem;
   font-weight: 800;
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .loan-sim-summary-item.is-secondary .loan-sim-summary-value {
@@ -1404,6 +1436,10 @@ body.is-dragging-linear-algebra-vector {
   padding: 0.9rem;
 }
 
+.loan-sim-chart-card.is-featured {
+  grid-column: span 2;
+}
+
 .loan-sim-chart-head {
   display: flex;
   align-items: flex-start;
@@ -1432,6 +1468,51 @@ body.is-dragging-linear-algebra-vector {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.loan-sim-chart-meta-controls {
+  justify-items: end;
+  gap: 0.45rem;
+  white-space: normal;
+}
+
+.loan-sim-chart-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loan-sim-chart-checkbox input {
+  margin: 0;
+  accent-color: #059669;
+}
+
+.loan-sim-chart-checkbox.is-property-price span::before,
+.loan-sim-chart-checkbox.is-savings-balance span::before {
+  content: "";
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  margin-right: 0.4rem;
+  vertical-align: -0.02rem;
+}
+
+.loan-sim-chart-checkbox.is-property-price span::before {
+  background: #2563eb;
+}
+
+.loan-sim-chart-checkbox.is-savings-balance span::before {
+  background: #0f766e;
+}
+
+.loan-sim-chart-checkbox.is-loan-balance span::before {
+  background: #dc2626;
 }
 
 .loan-sim-chart-shell {
@@ -1473,6 +1554,34 @@ body.is-dragging-linear-algebra-vector {
   font-weight: 700;
   line-height: 1.45;
   font-variant-numeric: tabular-nums;
+}
+
+.loan-sim-chart-tooltip-breakdown {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.loan-sim-chart-tooltip-breakdown.is-property-price {
+  color: #2563eb;
+}
+
+.loan-sim-chart-tooltip-breakdown.is-savings-balance {
+  color: #0f766e;
+}
+
+.loan-sim-chart-tooltip-breakdown.is-loan-balance {
+  color: #dc2626;
+}
+
+.loan-sim-chart-tooltip-breakdown.is-secondary-default {
+  color: #d97706;
+}
+
+.loan-sim-chart-line.is-secondary-line {
+  fill: none;
 }
 
 .loan-sim-chart-svg {
@@ -1630,15 +1739,13 @@ body.is-dragging-linear-algebra-vector {
     grid-template-columns: 1fr;
   }
 
-  .loan-sim-summary-grid.is-secondary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .loan-sim-chart-card.is-featured {
+    grid-column: auto;
   }
 }
 
 @media (max-width: 980px) {
-  .loan-sim-form-stack,
-  .loan-sim-summary-grid.is-primary,
-  .loan-sim-summary-grid.is-secondary {
+  .loan-sim-form-stack {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -1646,17 +1753,34 @@ body.is-dragging-linear-algebra-vector {
 @media (max-width: 780px) {
   .loan-sim-preset-controls,
   .loan-sim-form-stack,
+  .loan-sim-inline-half-grid,
   .loan-sim-link-form,
   .loan-sim-field-input-row {
     grid-template-columns: 1fr;
   }
 
   .loan-sim-choice-grid,
-  .loan-sim-summary-grid.is-primary,
-  .loan-sim-summary-grid.is-secondary,
   .loan-sim-preset-item,
   .loan-sim-link-item {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 981px) {
+  .loan-sim-top-grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 420px);
+    align-items: start;
+  }
+
+  .loan-sim-top-grid > .loan-sim-form-card {
+    order: 1;
+  }
+
+  .loan-sim-top-grid > .loan-sim-summary-card {
+    order: 2;
+    width: 100%;
+    max-width: 420px;
+    justify-self: end;
   }
 }
 

@@ -8,21 +8,6 @@ function formatCurrency(value: number): string {
     return `${new Intl.NumberFormat('ja-JP').format(Math.round(value))}円`;
 }
 
-function formatMonths(monthCount: number): string {
-    if (monthCount <= 0) {
-        return '開始時点で完済';
-    }
-    const years = Math.floor(monthCount / 12);
-    const months = monthCount % 12;
-    if (years === 0) {
-        return `${months}か月`;
-    }
-    if (months === 0) {
-        return `${years}年`;
-    }
-    return `${years}年${months}か月`;
-}
-
 function formatPercent(value: number | null): string {
     if (value === null || !Number.isFinite(value)) {
         return '算出なし';
@@ -33,7 +18,7 @@ function formatPercent(value: number | null): string {
 type SummaryItem = {
     label: string;
     value: string;
-    note: string;
+    note?: string;
     tier: 'primary' | 'secondary';
     emphasized?: boolean;
 };
@@ -53,7 +38,7 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
             value: formatCurrency(summary.firstMonthlyPayment),
             note: sanitizedInputs.repaymentType === 'equal-principal'
                 ? `最終月は ${formatCurrency(summary.lastMonthlyPayment)} まで下がります。`
-                : `通常月の目安は ${formatCurrency(summary.regularMonthlyPayment)} です。`,
+                : undefined,
             tier: 'primary',
             emphasized: true,
         },
@@ -81,22 +66,6 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
             tier: 'primary',
         },
         {
-            label: '完済年月',
-            value: summary.payoffMonthLabel,
-            note: summary.isEarlyPayoff
-                ? `当初想定の ${summary.plannedFinishMonthLabel} より早く、${formatMonths(summary.payoffMonthCount)} で完済します。`
-                : `返済期間の目安は ${formatMonths(summary.payoffMonthCount)} です。`,
-            tier: 'primary',
-        },
-        {
-            label: '定年時の残り残高',
-            value: formatCurrency(summary.remainingBalanceAtRetirement),
-            note: summary.isRetirementAfterPayoff
-                ? `${summary.retirementMonthLabel} 時点では完済後のため、残高は 0 円です。`
-                : `${summary.retirementMonthLabel} 時点のローン残高です。`,
-            tier: 'primary',
-        },
-        {
             label: '積立最終額',
             value: formatCurrency(summary.finalSavingsBalance),
             note: `ローン完済時点の積立残高は ${formatCurrency(summary.savingsBalanceAtPayoff)} です。`,
@@ -112,14 +81,6 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
             label: '総利息',
             value: formatCurrency(summary.totalInterest),
             note: '返済期間中に支払う利息の合計です。',
-            tier: 'secondary',
-        },
-        {
-            label: 'ボーナス月加算額',
-            value: formatCurrency(summary.bonusRepayment),
-            note: summary.bonusRepayment > 0
-                ? '開始から 6 か月ごとの月末に追加返済します。'
-                : 'ボーナス返済なしで計算しています。',
             tier: 'secondary',
         },
         {
@@ -140,25 +101,17 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
 
     return (
         <section className="loan-sim-card loan-sim-summary-card">
-            <div className="loan-sim-card-head">
-                <div>
-                    <h2>サマリー</h2>
-                    <p>返済と積立を並べて、月次負担と完済時点の見え方を確認できます。</p>
-                </div>
-                <span className="loan-sim-badge">
-                    {sanitizedInputs.repaymentType === 'equal-payment' ? '元利均等' : '元金均等'}
-                </span>
-            </div>
-
             <div className="loan-sim-summary-grid is-primary">
                 {primaryItems.map((item) => (
                     <article
                         key={item.label}
                         className={`loan-sim-summary-item ${item.emphasized ? 'is-emphasized' : ''}`}
                     >
-                        <span className="loan-sim-summary-label">{item.label}</span>
-                        <strong className="loan-sim-summary-value">{item.value}</strong>
-                        <p className="loan-sim-summary-note">{item.note}</p>
+                        <div className="loan-sim-summary-main">
+                            <span className="loan-sim-summary-label">{item.label}</span>
+                            <strong className="loan-sim-summary-value">{item.value}</strong>
+                        </div>
+                        {item.note ? <p className="loan-sim-summary-note">{item.note}</p> : null}
                     </article>
                 ))}
             </div>
@@ -169,9 +122,11 @@ export function LoanSimSummary({ result }: LoanSimSummaryProps) {
                         key={item.label}
                         className={`loan-sim-summary-item is-secondary ${item.emphasized ? 'is-emphasized' : ''}`}
                     >
-                        <span className="loan-sim-summary-label">{item.label}</span>
-                        <strong className="loan-sim-summary-value">{item.value}</strong>
-                        <p className="loan-sim-summary-note">{item.note}</p>
+                        <div className="loan-sim-summary-main">
+                            <span className="loan-sim-summary-label">{item.label}</span>
+                            <strong className="loan-sim-summary-value">{item.value}</strong>
+                        </div>
+                        {item.note ? <p className="loan-sim-summary-note">{item.note}</p> : null}
                     </article>
                 ))}
             </div>

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { LoanSimFieldHelp } from './LoanSimFieldHelp';
 import type { LoanRepaymentType, LoanSimInputs, LoanSimSavedPreset } from '../../features/loanSim/types';
 
@@ -63,21 +63,12 @@ const FIELD_HELP = {
         title: '頭金とは？',
         body: <p>購入時に自己資金で先に支払う額です。増やすほど借入額が小さくなり、利息負担も抑えやすくなります。</p>,
     },
-    isLoanAmountManual: {
-        title: '借入額を直接入力するとは？',
-        body: (
-            <>
-                <p>オフのときは「物件価格 - 頭金」で自動計算します。</p>
-                <p>オンにすると、この画面で入力した借入額を優先し、物件価格と頭金とは独立して扱います。</p>
-            </>
-        ),
-    },
     loanAmount: {
         title: '借入額とは？',
         body: (
             <>
                 <p>住宅ローンとして実際に借りる元本です。</p>
-                <p>自動計算時は「物件価格 - 頭金」、直接入力時はここで指定した値を返済計算に使います。</p>
+                <p>この画面では「物件価格 - 頭金」で自動計算した値を表示します。</p>
             </>
         ),
     },
@@ -129,6 +120,10 @@ const FIELD_HELP = {
     savingsAnnualRate: {
         title: '積立の年利とは？',
         body: <p>積立残高に対して見込む年間の運用利率です。内部では月利に換算し、前月残高へ反映したうえで当月積立額を加えます。</p>,
+    },
+    initialSavingsBalance: {
+        title: '運用の元手とは？',
+        body: <p>すでに運用に回している残高です。積立残高の開始値として扱い、その残高に対して毎月の運用利息を計算します。</p>,
     },
     bonusRepayment: {
         title: 'ボーナス返済額とは？',
@@ -219,6 +214,9 @@ function NumberField({
 }: NumberFieldProps) {
     const displayedValue = displayFormatter ? displayFormatter(value) : `${value}${unit}`;
     const sliderValue = clamp(value, min, max);
+    const [draftValue, setDraftValue] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
+    const inputValue = isEditing ? draftValue : (Number.isFinite(value) ? String(value) : '0');
 
     return (
         <div className={`loan-sim-field ${disabled ? 'is-disabled' : ''}`}>
@@ -234,10 +232,27 @@ function NumberField({
                         min={min}
                         max={max}
                         step={step}
-                        value={Number.isFinite(value) ? value : 0}
+                        value={inputValue}
                         disabled={disabled}
                         aria-label={label}
-                        onChange={(event) => onChange(readInputNumber(event.target.value))}
+                        onFocus={() => {
+                            setIsEditing(true);
+                            setDraftValue(Number.isFinite(value) ? String(value) : '0');
+                        }}
+                        onBlur={() => {
+                            setIsEditing(false);
+                            if (draftValue.trim() === '') {
+                                onChange(0);
+                            }
+                        }}
+                        onChange={(event) => {
+                            const nextValue = event.target.value;
+                            setDraftValue(nextValue);
+                            if (nextValue.trim() === '') {
+                                return;
+                            }
+                            onChange(readInputNumber(nextValue));
+                        }}
                     />
                     <span className="loan-sim-input-unit">{unit}</span>
                 </div>
@@ -277,23 +292,15 @@ export function LoanSimForm({
 }: LoanSimFormProps) {
     return (
         <section className="loan-sim-card loan-sim-form-card">
-            <div className="loan-sim-card-head">
-                <div>
-                    <h2>入力条件</h2>
-                    <p>借入条件・積立・固定費を入れると、その場で返済結果を更新します。</p>
-                </div>
-                <button type="button" className="nav-btn" onClick={onReset}>
-                    条件をリセット
-                </button>
-            </div>
-
             <div className="loan-sim-preset-panel">
                 <div className="loan-sim-preset-head">
-                    <div>
-                        <h3>保存した条件</h3>
-                        <p>よく使う条件を名前付きで保存して、あとで読み込めます。</p>
+                    <h3>保存した条件</h3>
+                    <div className="loan-sim-preset-head-actions">
+                        <span className="loan-sim-badge">{savedPresets.length}件</span>
+                        <button type="button" className="nav-btn loan-sim-reset-btn" onClick={onReset}>
+                            条件をリセット
+                        </button>
                     </div>
-                    <span className="loan-sim-badge">{savedPresets.length}件</span>
                 </div>
                 <div className="loan-sim-preset-controls">
                     <input
@@ -321,9 +328,7 @@ export function LoanSimForm({
                         ))}
                     </select>
                 </div>
-                <p className="loan-sim-inline-note">
-                    {presetStatus ?? 'プルダウンで選ぶとすぐ反映します。同じ名前で保存すると、その条件を上書きします。'}
-                </p>
+                {presetStatus ? <p className="loan-sim-inline-note">{presetStatus}</p> : null}
                 {savedPresets.length > 0 ? (
                     <details
                         className="loan-sim-preset-manage"
@@ -363,9 +368,7 @@ export function LoanSimForm({
                             </div>
                         </div>
                     </details>
-                ) : (
-                    <p className="loan-sim-inline-note">まだ保存した条件はありません。</p>
-                )}
+                ) : null}
             </div>
 
             <div className="loan-sim-form-stack">
@@ -394,24 +397,9 @@ export function LoanSimForm({
                         help={FIELD_HELP.downPayment}
                     />
 
-                    <div className="loan-sim-manual-toggle">
-                        <div className="loan-sim-field-head">
-                            <FieldLabel label="借入額を直接入力する" help={FIELD_HELP.isLoanAmountManual} />
-                            <strong>{inputs.isLoanAmountManual ? 'ON' : 'OFF'}</strong>
-                        </div>
-                        <label className="loan-sim-check-label">
-                            <input
-                                type="checkbox"
-                                checked={inputs.isLoanAmountManual}
-                                onChange={(event) => onChange('isLoanAmountManual', event.target.checked)}
-                            />
-                            直接入力モードを使う
-                        </label>
-                    </div>
-
                     <NumberField
                         label="借入額"
-                        value={inputs.isLoanAmountManual ? inputs.loanAmount : calculatedLoanAmount}
+                        value={calculatedLoanAmount}
                         onChange={(value) => onChange('loanAmount', value)}
                         unit="円"
                         min={0}
@@ -419,7 +407,7 @@ export function LoanSimForm({
                         step={100_000}
                         displayFormatter={formatCurrency}
                         showSlider={false}
-                        disabled={!inputs.isLoanAmountManual}
+                        disabled
                         help={FIELD_HELP.loanAmount}
                     />
 
@@ -445,45 +433,31 @@ export function LoanSimForm({
                         displayFormatter={formatCurrency}
                         help={FIELD_HELP.annualIncome}
                     />
-                    <div className="loan-sim-field">
-                        <div className="loan-sim-field-head">
-                            <FieldLabel label="開始時点の年齢" help={FIELD_HELP.currentAge} />
-                            <strong>{formatAge(inputs.currentAge)}</strong>
-                        </div>
-                        <div className="loan-sim-field-input-row is-number-only">
-                            <div className="loan-sim-number-input-wrap">
-                                <input
-                                    className="loan-sim-number-input"
-                                    type="number"
-                                    min={0}
-                                    step={1}
-                                    value={Number.isFinite(inputs.currentAge) ? inputs.currentAge : 0}
-                                    aria-label="開始時点の年齢"
-                                    onChange={(event) => onChange('currentAge', readInputNumber(event.target.value))}
-                                />
-                                <span className="loan-sim-input-unit">歳</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="loan-sim-field">
-                        <div className="loan-sim-field-head">
-                            <FieldLabel label="定年年齢" help={FIELD_HELP.retirementAge} />
-                            <strong>{formatAge(inputs.retirementAge)}</strong>
-                        </div>
-                        <div className="loan-sim-field-input-row is-number-only">
-                            <div className="loan-sim-number-input-wrap">
-                                <input
-                                    className="loan-sim-number-input"
-                                    type="number"
-                                    min={0}
-                                    step={1}
-                                    value={Number.isFinite(inputs.retirementAge) ? inputs.retirementAge : 0}
-                                    aria-label="定年年齢"
-                                    onChange={(event) => onChange('retirementAge', readInputNumber(event.target.value))}
-                                />
-                                <span className="loan-sim-input-unit">歳</span>
-                            </div>
-                        </div>
+                    <div className="loan-sim-inline-half-grid">
+                        <NumberField
+                            label="開始時点の年齢"
+                            value={inputs.currentAge}
+                            onChange={(value) => onChange('currentAge', value)}
+                            unit="歳"
+                            min={0}
+                            max={100}
+                            step={1}
+                            displayFormatter={formatAge}
+                            showSlider={false}
+                            help={FIELD_HELP.currentAge}
+                        />
+                        <NumberField
+                            label="定年年齢"
+                            value={inputs.retirementAge}
+                            onChange={(value) => onChange('retirementAge', value)}
+                            unit="歳"
+                            min={0}
+                            max={100}
+                            step={1}
+                            displayFormatter={formatAge}
+                            showSlider={false}
+                            help={FIELD_HELP.retirementAge}
+                        />
                     </div>
                     <NumberField
                         label="返済年数"
@@ -534,6 +508,17 @@ export function LoanSimForm({
 
                 <div className="loan-sim-form-section">
                     <h3>積立・固定費</h3>
+                    <NumberField
+                        label="運用の元手"
+                        value={inputs.initialSavingsBalance}
+                        onChange={(value) => onChange('initialSavingsBalance', value)}
+                        unit="円"
+                        min={0}
+                        max={100_000_000}
+                        step={100_000}
+                        displayFormatter={formatCurrency}
+                        help={FIELD_HELP.initialSavingsBalance}
+                    />
                     <NumberField
                         label="毎月積立額"
                         value={inputs.monthlySavings}

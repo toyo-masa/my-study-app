@@ -280,6 +280,9 @@ function sanitizeInputs(inputs: LoanSimInputs): {
             message: `返済年数は ${MIN_REPAYMENT_YEARS}〜${MAX_REPAYMENT_YEARS} 年の範囲で計算しています。`,
         });
     }
+    if (inputs.initialSavingsBalance < 0) {
+        validationIssues.push({ field: 'initialSavingsBalance', message: '運用の元手が 0 円未満だったため、0 円で計算しています。' });
+    }
     if (inputs.monthlySavings < 0) {
         validationIssues.push({ field: 'monthlySavings', message: '毎月積立額が 0 円未満だったため、0 円で計算しています。' });
     }
@@ -316,6 +319,7 @@ function sanitizeInputs(inputs: LoanSimInputs): {
     const annualRate = normalizeRate(inputs.annualRate);
     const savingsAnnualRate = normalizeRate(inputs.savingsAnnualRate);
     const repaymentYears = normalizeYears(inputs.repaymentYears);
+    const initialSavingsBalance = normalizeMoney(inputs.initialSavingsBalance);
     const monthlySavings = normalizeMoney(inputs.monthlySavings);
     const bonusRepayment = normalizeMoney(inputs.bonusRepayment);
     const monthlyFixedCost = normalizeMoney(inputs.monthlyFixedCost);
@@ -341,6 +345,7 @@ function sanitizeInputs(inputs: LoanSimInputs): {
             annualRate,
             repaymentYears,
             repaymentType: inputs.repaymentType,
+            initialSavingsBalance,
             monthlySavings,
             savingsAnnualRate,
             bonusRepayment,
@@ -367,7 +372,7 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
 
     const schedule: LoanScheduleRow[] = [];
     let remainingBalance = sanitizedInputs.effectiveLoanAmount;
-    let savingsBalance = 0;
+    let savingsBalance = sanitizedInputs.initialSavingsBalance;
     let cumulativeInterest = 0;
     let totalRepayment = 0;
     let totalHousingOutflow = 0;
@@ -478,45 +483,49 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
     const paymentBase = firstRow?.monthlyPayment ?? 0;
     const estimatedTakeHome = estimateAnnualTakeHome(sanitizedInputs.annualIncome, paymentBase);
 
+    let chartCumulativeSavingsInterest = 0;
     const chartPoints: LoanChartPoint[] = [
         {
             key: 'start',
             monthOffset: 0,
             shortLabel: '開始',
             monthLabel: formatMonthLabel(startParts),
+            totalAssets: sanitizedInputs.propertyPrice + sanitizedInputs.initialSavingsBalance,
             loanBalance: sanitizedInputs.effectiveLoanAmount,
-            savingsBalance: 0,
+            savingsBalance: sanitizedInputs.initialSavingsBalance,
+            cumulativeSavingsInterest: 0,
             cumulativeInterest: 0,
             regularPayment: 0,
             principalPayment: 0,
             interestPayment: 0,
             totalOutflow: 0,
         },
-        ...schedule.map((row) => ({
+        ...schedule.map((row) => {
+            chartCumulativeSavingsInterest += row.savingsInterest;
+            return {
             key: row.monthKey,
             monthOffset: row.monthIndex,
             shortLabel: formatShortMonthLabel(parseYearMonth(row.monthKey) ?? startParts),
             monthLabel: row.monthLabel,
+            totalAssets: sanitizedInputs.propertyPrice + row.savingsBalance,
             loanBalance: row.periodEndBalance,
             savingsBalance: row.savingsBalance,
+            cumulativeSavingsInterest: chartCumulativeSavingsInterest,
             cumulativeInterest: row.cumulativeInterest,
             regularPayment: row.monthlyPayment,
             principalPayment: row.principalPayment,
             interestPayment: row.interestPayment,
             totalOutflow: row.monthlyTotalOutflow,
-        })),
+            };
+        }),
     ];
 
     const infoMessages = [
         'ボーナス返済は開始から6か月ごとの月末に、元本へ追加返済として反映しています。',
-        '積立は前月残高に月利を反映したあと、月末に当月積立額を加えています。',
+        '積立は開始時点の残高に月利を反映したあと、月末に当月積立額を加えています。',
     ];
 
-    if (sanitizedInputs.isLoanAmountManual) {
-        infoMessages.push('借入額を直接入力しているため、物件価格と頭金の差額とは独立して計算しています。');
-    } else {
     infoMessages.push('借入額は「物件価格 - 頭金」で自動計算しています。');
-    }
     infoMessages.push('年収に対する手取りは、独身会社員・40歳未満・東京都の協会けんぽ・一般事業・扶養や賞与なし前提の概算です。住民税の均等割や介護保険は含めていません。');
     infoMessages.push('定年時の残り残高は、開始年月時点の年齢から定年年齢までの月数を進めた時点のローン残高で見ています。');
 

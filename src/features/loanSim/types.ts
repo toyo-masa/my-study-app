@@ -11,6 +11,7 @@ export interface LoanSimInputs {
     annualRate: number;
     repaymentYears: number;
     repaymentType: LoanRepaymentType;
+    initialSavingsBalance: number;
     monthlySavings: number;
     savingsAnnualRate: number;
     bonusRepayment: number;
@@ -70,8 +71,10 @@ export interface LoanChartPoint {
     monthOffset: number;
     shortLabel: string;
     monthLabel: string;
+    totalAssets: number;
     loanBalance: number;
     savingsBalance: number;
+    cumulativeSavingsInterest: number;
     cumulativeInterest: number;
     regularPayment: number;
     principalPayment: number;

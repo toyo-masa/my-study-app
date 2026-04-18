@@ -38,6 +38,7 @@ function createDefaultInputs(): LoanSimInputs {
         annualRate: 1.2,
         repaymentYears: 35,
         repaymentType: 'equal-payment',
+        initialSavingsBalance: 4_000_000,
         monthlySavings: 50_000,
         savingsAnnualRate: 2,
         bonusRepayment: 100_000,
@@ -240,6 +241,11 @@ export function LoanSim({ onBack }: LoanSimProps) {
                 />
             </div>
 
+            <LoanSimCharts
+                chartPoints={result.chartPoints}
+                payoffMonthCount={result.summary.payoffMonthCount}
+            />
+
             <section className="loan-sim-card">
                 <div className="loan-sim-card-head">
                     <div>
@@ -253,11 +259,6 @@ export function LoanSim({ onBack }: LoanSimProps) {
                     ))}
                 </ul>
             </section>
-
-            <LoanSimCharts
-                chartPoints={result.chartPoints}
-                payoffMonthCount={result.summary.payoffMonthCount}
-            />
 
             <LoanSimScheduleTable rows={result.schedule} />
 

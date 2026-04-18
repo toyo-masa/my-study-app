@@ -39,6 +39,7 @@ function restoreInputs(value: unknown, fallback: LoanSimInputs): LoanSimInputs |
         annualRate: readNumber(value.annualRate, fallback.annualRate),
         repaymentYears: readNumber(value.repaymentYears, fallback.repaymentYears),
         repaymentType: readRepaymentType(value.repaymentType, fallback.repaymentType),
+        initialSavingsBalance: readNumber(value.initialSavingsBalance, fallback.initialSavingsBalance),
         monthlySavings: readNumber(value.monthlySavings, fallback.monthlySavings),
         savingsAnnualRate: readNumber(value.savingsAnnualRate, fallback.savingsAnnualRate),
         bonusRepayment: readNumber(value.bonusRepayment, fallback.bonusRepayment),
