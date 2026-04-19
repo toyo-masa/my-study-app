@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BackButton } from './BackButton';
 import { LoanSimCharts } from './loanSim/LoanSimCharts';
+import { LoanSimComparison } from './loanSim/LoanSimComparison';
 import { LoanSimForm } from './loanSim/LoanSimForm';
 import { LoanSimPropertyLinks } from './loanSim/LoanSimPropertyLinks';
 import { LoanSimScheduleTable } from './loanSim/LoanSimScheduleTable';
@@ -65,6 +66,7 @@ function detectEmbeddedMode(): boolean {
 }
 
 export function LoanSim({ onBack }: LoanSimProps) {
+    const [mode, setMode] = useState<'single' | 'compare'>('single');
     const [inputs, setInputs] = useState<LoanSimInputs>(() => createDefaultInputs());
     const [savedPresets, setSavedPresets] = useState<LoanSimSavedPreset[]>(() => loadLoanSimSavedPresets(createDefaultInputs()));
     const [savedPropertyLinks, setSavedPropertyLinks] = useState<LoanSimSavedPropertyLink[]>(() => loadLoanSimSavedPropertyLinks());
@@ -205,62 +207,85 @@ export function LoanSim({ onBack }: LoanSimProps) {
                 <div>
                     <h1>住宅ローン返済シミュレーター</h1>
                     <p className="loan-sim-header-note">
-                        借入条件・積立・固定費をまとめて試し、返済負担と将来の積立残高を同じ画面で確認できます。
+                        単一試算だけでなく、シナリオ比較で返済戦略ごとの純資産差も追えるようにしています。
                     </p>
                 </div>
             </div>
 
-            {result.validationIssues.length > 0 && (
-                <section className="loan-sim-alert">
-                    <h2>入力値の補正</h2>
-                    <ul className="loan-sim-alert-list">
-                        {result.validationIssues.map((issue, index) => (
-                            <li key={`${issue.field}-${index}`}>{issue.message}</li>
-                        ))}
-                    </ul>
-                </section>
-            )}
-
-            <div className="loan-sim-top-grid">
-                <LoanSimSummary result={result} />
-                <LoanSimForm
-                    inputs={inputs}
-                    calculatedLoanAmount={result.sanitizedInputs.autoCalculatedLoanAmount}
-                    selectedPresetId={selectedPresetId}
-                    isPresetManagementOpen={isPresetManagementOpen}
-                    presetName={presetName}
-                    presetStatus={presetStatus}
-                    savedPresets={savedPresets}
-                    onChange={handleChange}
-                    onPresetNameChange={handlePresetNameChange}
-                    onSavePreset={handleSavePreset}
-                    onSelectPreset={handleSelectPreset}
-                    onDeletePreset={handleDeletePreset}
-                    onPresetManagementToggle={setIsPresetManagementOpen}
-                    onReset={handleReset}
-                />
+            <div className="loan-sim-mode-tabs" role="tablist" aria-label="住宅ローンシミュレーターの表示モード">
+                <button
+                    type="button"
+                    className={`loan-sim-mode-tab ${mode === 'single' ? 'is-active' : ''}`}
+                    onClick={() => setMode('single')}
+                >
+                    単一試算
+                </button>
+                <button
+                    type="button"
+                    className={`loan-sim-mode-tab ${mode === 'compare' ? 'is-active' : ''}`}
+                    onClick={() => setMode('compare')}
+                >
+                    シナリオ比較
+                </button>
             </div>
 
-            <LoanSimCharts
-                chartPoints={result.chartPoints}
-                payoffMonthCount={result.summary.payoffMonthCount}
-            />
+            {mode === 'single' ? (
+                <>
+                    {result.validationIssues.length > 0 && (
+                        <section className="loan-sim-alert">
+                            <h2>入力値の補正</h2>
+                            <ul className="loan-sim-alert-list">
+                                {result.validationIssues.map((issue, index) => (
+                                    <li key={`${issue.field}-${index}`}>{issue.message}</li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
 
-            <section className="loan-sim-card">
-                <div className="loan-sim-card-head">
-                    <div>
-                        <h2>計算ルール</h2>
-                        <p>条件の解釈を固定して、比較しやすい形で月次シミュレーションしています。</p>
+                    <div className="loan-sim-top-grid">
+                        <LoanSimSummary result={result} />
+                        <LoanSimForm
+                            inputs={inputs}
+                            calculatedLoanAmount={result.sanitizedInputs.autoCalculatedLoanAmount}
+                            selectedPresetId={selectedPresetId}
+                            isPresetManagementOpen={isPresetManagementOpen}
+                            presetName={presetName}
+                            presetStatus={presetStatus}
+                            savedPresets={savedPresets}
+                            onChange={handleChange}
+                            onPresetNameChange={handlePresetNameChange}
+                            onSavePreset={handleSavePreset}
+                            onSelectPreset={handleSelectPreset}
+                            onDeletePreset={handleDeletePreset}
+                            onPresetManagementToggle={setIsPresetManagementOpen}
+                            onReset={handleReset}
+                        />
                     </div>
-                </div>
-                <ul className="loan-sim-info-list">
-                    {result.infoMessages.map((message) => (
-                        <li key={message}>{message}</li>
-                    ))}
-                </ul>
-            </section>
 
-            <LoanSimScheduleTable rows={result.schedule} />
+                    <LoanSimCharts
+                        chartPoints={result.chartPoints}
+                        payoffMonthCount={result.summary.payoffMonthCount}
+                    />
+
+                    <section className="loan-sim-card">
+                        <div className="loan-sim-card-head">
+                            <div>
+                                <h2>計算ルール</h2>
+                                <p>条件の解釈を固定して、比較しやすい形で月次シミュレーションしています。</p>
+                            </div>
+                        </div>
+                        <ul className="loan-sim-info-list">
+                            {result.infoMessages.map((message) => (
+                                <li key={message}>{message}</li>
+                            ))}
+                        </ul>
+                    </section>
+
+                    <LoanSimScheduleTable rows={result.schedule} />
+                </>
+            ) : (
+                <LoanSimComparison />
+            )}
 
             <LoanSimPropertyLinks
                 linkTitle={propertyLinkTitle}

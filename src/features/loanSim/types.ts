@@ -1,4 +1,8 @@
 export type LoanRepaymentType = 'equal-payment' | 'equal-principal';
+export type LoanInterestType = 'fixed' | 'variable';
+export type LoanInvestmentAccountType = 'nisa' | 'taxable';
+export type LoanAfterPayoffMode = 'none' | 'invest-equivalent-payment';
+export type LoanVariableRateMode = 'constant' | 'step-up';
 
 export interface LoanSimInputs {
     propertyPrice: number;
@@ -115,5 +119,98 @@ export interface LoanSimulationResult {
     schedule: LoanScheduleRow[];
     chartPoints: LoanChartPoint[];
     validationIssues: LoanSimValidationIssue[];
+    infoMessages: string[];
+}
+
+export interface LoanCompareCommonInputs {
+    propertyPrice: number;
+    purchaseFees: number;
+    initialFinancialAssets: number;
+    annualInvestmentRate: number;
+    investmentAccountType: LoanInvestmentAccountType;
+    comparisonYears: number;
+    housingAnnualGrowthRate: number;
+    startYearMonth: string;
+}
+
+export interface LoanCompareScenarioInputs {
+    downPayment: number;
+    cashReserve: number;
+    repaymentType: LoanRepaymentType;
+    repaymentYears: number;
+    interestType: LoanInterestType;
+    annualRate: number;
+    variableRateMode: LoanVariableRateMode;
+    variableRateStepYears: number;
+    variableRateStepAmount: number;
+    monthlyInvestment: number;
+    bonusRepayment: number;
+    monthlyPrepayment: number;
+    autoInvestPaymentDifference: boolean;
+    afterPayoffMode: LoanAfterPayoffMode;
+}
+
+export interface LoanCompareInputs {
+    common: LoanCompareCommonInputs;
+    scenarioA: LoanCompareScenarioInputs;
+    scenarioB: LoanCompareScenarioInputs;
+}
+
+export interface LoanCompareValidationIssue {
+    field: string;
+    message: string;
+}
+
+export interface LoanComparePoint {
+    key: string;
+    monthOffset: number;
+    shortLabel: string;
+    monthLabel: string;
+    houseValue: number;
+    investmentBalanceA: number;
+    investmentBalanceB: number;
+    loanBalanceA: number;
+    loanBalanceB: number;
+    netWorthA: number;
+    netWorthB: number;
+    netWorthDiff: number;
+    cumulativeInvestmentGainA: number;
+    cumulativeInvestmentGainB: number;
+    cumulativeInterestA: number;
+    cumulativeInterestB: number;
+}
+
+export interface LoanCompareScenarioSummary {
+    label: 'A' | 'B';
+    downPayment: number;
+    cashReserve: number;
+    loanAmount: number;
+    initialInvestmentBalance: number;
+    firstMonthlyPayment: number;
+    lastActiveMonthlyPayment: number;
+    totalInterest: number;
+    finalInvestmentBalance: number;
+    finalNetWorth: number;
+    payoffMonthLabel: string;
+    payoffMonthCount: number;
+    isPaidOffWithinComparison: boolean;
+}
+
+export interface LoanCompareSummary {
+    finalNetWorthA: number;
+    finalNetWorthB: number;
+    finalDiff: number;
+    crossoverMonthLabel: string | null;
+    effectiveComparisonMonths: number;
+    effectiveComparisonYears: number;
+    scenarioA: LoanCompareScenarioSummary;
+    scenarioB: LoanCompareScenarioSummary;
+}
+
+export interface LoanComparisonResult {
+    inputs: LoanCompareInputs;
+    chartPoints: LoanComparePoint[];
+    summary: LoanCompareSummary;
+    validationIssues: LoanCompareValidationIssue[];
     infoMessages: string[];
 }

@@ -852,6 +852,32 @@ body.is-dragging-linear-algebra-vector {
   line-height: 1.6;
 }
 
+.loan-sim-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+}
+
+.loan-sim-mode-tab {
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.loan-sim-mode-tab:hover,
+.loan-sim-mode-tab.is-active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.12);
+}
+
 .loan-sim-alert,
 .loan-sim-card {
   border: 1px solid var(--border-color);
@@ -886,6 +912,25 @@ body.is-dragging-linear-algebra-vector {
   display: grid;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.loan-sim-compare-top-grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.loan-sim-compare-form-column {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.loan-sim-compare-scenarios {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .loan-sim-top-grid > .loan-sim-card {
@@ -1354,6 +1399,10 @@ body.is-dragging-linear-algebra-vector {
   grid-template-columns: 1fr;
 }
 
+.loan-sim-compare-summary-card .loan-sim-summary-grid.is-primary {
+  margin-bottom: 0;
+}
+
 .loan-sim-summary-item {
   border: 1px solid var(--border-color);
   border-radius: 14px;
@@ -1476,6 +1525,12 @@ body.is-dragging-linear-algebra-vector {
   white-space: normal;
 }
 
+.loan-sim-compare-chart-legend {
+  justify-items: end;
+  gap: 0.35rem;
+  white-space: normal;
+}
+
 .loan-sim-chart-checkbox {
   display: inline-flex;
   align-items: center;
@@ -1594,6 +1649,12 @@ body.is-dragging-linear-algebra-vector {
 .loan-sim-chart-grid-line {
   stroke: rgba(148, 163, 184, 0.18);
   stroke-width: 1;
+}
+
+.loan-sim-compare-zero-line {
+  stroke: rgba(100, 116, 139, 0.55);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
 }
 
 .loan-sim-chart-axis {
@@ -1748,12 +1809,17 @@ body.is-dragging-linear-algebra-vector {
   .loan-sim-form-stack {
     grid-template-columns: 1fr 1fr;
   }
+
+  .loan-sim-compare-scenarios {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 780px) {
   .loan-sim-preset-controls,
   .loan-sim-form-stack,
   .loan-sim-inline-half-grid,
+  .loan-sim-compare-scenarios,
   .loan-sim-link-form,
   .loan-sim-field-input-row {
     grid-template-columns: 1fr;
@@ -1772,11 +1838,27 @@ body.is-dragging-linear-algebra-vector {
     align-items: start;
   }
 
+  .loan-sim-compare-top-grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 420px);
+    align-items: start;
+  }
+
   .loan-sim-top-grid > .loan-sim-form-card {
     order: 1;
   }
 
   .loan-sim-top-grid > .loan-sim-summary-card {
+    order: 2;
+    width: 100%;
+    max-width: 420px;
+    justify-self: end;
+  }
+
+  .loan-sim-compare-top-grid > .loan-sim-compare-form-column {
+    order: 1;
+  }
+
+  .loan-sim-compare-top-grid > .loan-sim-compare-summary-card {
     order: 2;
     width: 100%;
     max-width: 420px;
