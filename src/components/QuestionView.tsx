@@ -1,7 +1,7 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import type { Question, ConfidenceLevel, FeedbackTimingMode } from '../types';
 import { motion } from 'framer-motion';
-import { Bookmark, Check, X } from 'lucide-react';
+import { Bookmark, Check, ChevronDown, X } from 'lucide-react';
 import { MarkdownText } from './MarkdownText';
 import { HandwritingPad, type HandwritingPadState } from './HandwritingPad';
 import { formatElapsedSeconds } from '../utils/formatElapsedTime';
@@ -74,6 +74,9 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
     correctRevealEffectKey = null,
     questionElapsedSeconds = null,
 }) => {
+    const [expandedMemoQuestionKey, setExpandedMemoQuestionKey] = useState<string | null>(null);
+    const memoQuestionKey = String(question.id ?? `${questionIndex}-${question.text}`);
+    const isMemoExpanded = expandedMemoQuestionKey === memoQuestionKey;
     const isMemoQuestion = question.questionType === 'memorization';
     const optionShortcutIndexByKey = React.useMemo(() => {
         return OPTION_SHORTCUT_KEYS.reduce<Record<string, number>>((acc, key, index) => {
@@ -447,21 +450,35 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                 <div className="memo-section">
                     <div className="memo-header">
                         <span className="memo-title">学習メモ (後で調べたいことなど)</span>
+                        <button
+                            type="button"
+                            className={`memo-toggle-btn ${isMemoExpanded ? 'expanded' : ''}`}
+                            onClick={() => setExpandedMemoQuestionKey((prev) => (prev === memoQuestionKey ? null : memoQuestionKey))}
+                            aria-expanded={isMemoExpanded}
+                            aria-label={isMemoExpanded ? '学習メモを折りたたむ' : '学習メモを開く'}
+                        >
+                            {isMemoExpanded ? '閉じる' : '開く'}
+                            <ChevronDown size={16} />
+                        </button>
                     </div>
-                    <textarea
-                        className="memo-input"
-                        placeholder="調べたいキーワードやメモを入力..."
-                        value={memo}
-                        onChange={(e) => onMemoChange(e.target.value)}
-                        rows={2}
-                    />
-                    {showHandwritingPad && (
-                        <HandwritingPad
-                            key={question.id ?? `${questionIndex}-${question.text}`}
-                            value={handwritingState}
-                            onChange={onHandwritingStateChange}
-                            allowTouchDrawing={allowTouchDrawing}
-                        />
+                    {isMemoExpanded && (
+                        <>
+                            <textarea
+                                className="memo-input"
+                                placeholder="調べたいキーワードやメモを入力..."
+                                value={memo}
+                                onChange={(e) => onMemoChange(e.target.value)}
+                                rows={2}
+                            />
+                            {showHandwritingPad && (
+                                <HandwritingPad
+                                    key={question.id ?? `${questionIndex}-${question.text}`}
+                                    value={handwritingState}
+                                    onChange={onHandwritingStateChange}
+                                    allowTouchDrawing={allowTouchDrawing}
+                                />
+                            )}
+                        </>
                     )}
                 </div>
             </motion.div>

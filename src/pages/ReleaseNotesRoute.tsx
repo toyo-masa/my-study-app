@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.79.3',
+        date: '2026年4月20日 00:40',
+        improvements: [
+            '回答画面の「学習メモ」を折りたためるようにし、必要なときだけメモ欄を開いて使えるようにしました。',
+        ],
+        fixes: [
+            '回答画面を開いた直後は学習メモを折りたたんだ状態にし、問題文と選択肢の表示領域を先に確保できるようにしました。',
+        ],
+    },
+    {
         version: '1.79.2',
         date: '2026年4月19日 10:12',
         improvements: [
