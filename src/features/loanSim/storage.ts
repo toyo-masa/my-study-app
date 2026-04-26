@@ -1,7 +1,18 @@
-import type { LoanRepaymentType, LoanSimInputs, LoanSimSavedPreset, LoanSimSavedPropertyLink } from './types';
+import type {
+    LoanAfterPayoffMode,
+    LoanCompareSavedScenario,
+    LoanCompareScenarioInputs,
+    LoanInterestType,
+    LoanRepaymentType,
+    LoanSimInputs,
+    LoanSimSavedPreset,
+    LoanSimSavedPropertyLink,
+    LoanVariableRateMode,
+} from './types';
 
 const PRESET_STORAGE_KEY = 'loan-sim.saved-presets';
 const PROPERTY_LINK_STORAGE_KEY = 'loan-sim.saved-property-links';
+const COMPARE_SCENARIO_STORAGE_KEY = 'loan-sim.compare-saved-scenarios';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -23,6 +34,18 @@ function readRepaymentType(value: unknown, fallback: LoanRepaymentType): LoanRep
     return value === 'equal-payment' || value === 'equal-principal' ? value : fallback;
 }
 
+function readInterestType(value: unknown, fallback: LoanInterestType): LoanInterestType {
+    return value === 'fixed' || value === 'variable' ? value : fallback;
+}
+
+function readVariableRateMode(value: unknown, fallback: LoanVariableRateMode): LoanVariableRateMode {
+    return value === 'step-up' || value === 'constant' ? value : fallback;
+}
+
+function readAfterPayoffMode(value: unknown, fallback: LoanAfterPayoffMode): LoanAfterPayoffMode {
+    return value === 'none' || value === 'invest-equivalent-payment' ? value : fallback;
+}
+
 function restoreInputs(value: unknown, fallback: LoanSimInputs): LoanSimInputs | null {
     if (!isRecord(value)) {
         return null;
@@ -37,14 +60,45 @@ function restoreInputs(value: unknown, fallback: LoanSimInputs): LoanSimInputs |
         currentAge: readNumber(value.currentAge, fallback.currentAge),
         retirementAge: readNumber(value.retirementAge, fallback.retirementAge),
         annualRate: readNumber(value.annualRate, fallback.annualRate),
+        interestType: readInterestType(value.interestType, fallback.interestType),
+        variableRateMode: readVariableRateMode(value.variableRateMode, fallback.variableRateMode),
+        variableRateStepYears: readNumber(value.variableRateStepYears, fallback.variableRateStepYears),
+        variableRateStepAmount: readNumber(value.variableRateStepAmount, fallback.variableRateStepAmount),
         repaymentYears: readNumber(value.repaymentYears, fallback.repaymentYears),
         repaymentType: readRepaymentType(value.repaymentType, fallback.repaymentType),
+        afterPayoffMode: readAfterPayoffMode(value.afterPayoffMode, fallback.afterPayoffMode),
         initialSavingsBalance: readNumber(value.initialSavingsBalance, fallback.initialSavingsBalance),
         monthlySavings: readNumber(value.monthlySavings, fallback.monthlySavings),
         savingsAnnualRate: readNumber(value.savingsAnnualRate, fallback.savingsAnnualRate),
         bonusRepayment: readNumber(value.bonusRepayment, fallback.bonusRepayment),
         monthlyFixedCost: readNumber(value.monthlyFixedCost, fallback.monthlyFixedCost),
         startYearMonth: readString(value.startYearMonth, fallback.startYearMonth),
+    };
+}
+
+function restoreCompareScenarioInputs(
+    value: unknown,
+    fallback: LoanCompareScenarioInputs,
+): LoanCompareScenarioInputs | null {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    return {
+        downPayment: readNumber(value.downPayment, fallback.downPayment),
+        cashReserve: readNumber(value.cashReserve, fallback.cashReserve),
+        repaymentType: readRepaymentType(value.repaymentType, fallback.repaymentType),
+        repaymentYears: readNumber(value.repaymentYears, fallback.repaymentYears),
+        interestType: readInterestType(value.interestType, fallback.interestType),
+        annualRate: readNumber(value.annualRate, fallback.annualRate),
+        variableRateMode: readVariableRateMode(value.variableRateMode, fallback.variableRateMode),
+        variableRateStepYears: readNumber(value.variableRateStepYears, fallback.variableRateStepYears),
+        variableRateStepAmount: readNumber(value.variableRateStepAmount, fallback.variableRateStepAmount),
+        monthlyInvestment: readNumber(value.monthlyInvestment, fallback.monthlyInvestment),
+        bonusRepayment: readNumber(value.bonusRepayment, fallback.bonusRepayment),
+        monthlyPrepayment: readNumber(value.monthlyPrepayment, fallback.monthlyPrepayment),
+        autoInvestPaymentDifference: readBoolean(value.autoInvestPaymentDifference, fallback.autoInvestPaymentDifference),
+        afterPayoffMode: readAfterPayoffMode(value.afterPayoffMode, fallback.afterPayoffMode),
     };
 }
 
@@ -125,6 +179,92 @@ export function upsertLoanSimSavedPreset(
 
     persistPresets(nextPresets);
     return nextPresets;
+}
+
+function persistCompareScenarios(scenarios: LoanCompareSavedScenario[]) {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    window.localStorage.setItem(COMPARE_SCENARIO_STORAGE_KEY, JSON.stringify(scenarios));
+}
+
+export function loadLoanCompareSavedScenarios(
+    fallbackInputs: LoanCompareScenarioInputs,
+): LoanCompareSavedScenario[] {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+
+    const raw = window.localStorage.getItem(COMPARE_SCENARIO_STORAGE_KEY);
+    if (!raw) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .map((item) => {
+                if (!isRecord(item)) {
+                    return null;
+                }
+
+                const id = readString(item.id, '');
+                const name = readString(item.name, '').trim();
+                const inputs = restoreCompareScenarioInputs(item.inputs, fallbackInputs);
+                const updatedAt = readNumber(item.updatedAt, 0);
+
+                if (!id || !name || !inputs || updatedAt <= 0) {
+                    return null;
+                }
+
+                return {
+                    id,
+                    name,
+                    inputs,
+                    updatedAt,
+                } satisfies LoanCompareSavedScenario;
+            })
+            .filter((scenario): scenario is LoanCompareSavedScenario => scenario !== null)
+            .sort((left, right) => right.updatedAt - left.updatedAt);
+    } catch {
+        return [];
+    }
+}
+
+export function upsertLoanCompareSavedScenario(
+    scenarios: LoanCompareSavedScenario[],
+    name: string,
+    inputs: LoanCompareScenarioInputs,
+): LoanCompareSavedScenario[] {
+    const trimmedName = name.trim();
+    const existing = scenarios.find((scenario) => scenario.name === trimmedName);
+    const nextScenario: LoanCompareSavedScenario = {
+        id: existing?.id ?? buildPresetId(),
+        name: trimmedName,
+        inputs: { ...inputs },
+        updatedAt: Date.now(),
+    };
+
+    const nextScenarios = [
+        nextScenario,
+        ...scenarios.filter((scenario) => scenario.name !== trimmedName),
+    ].sort((left, right) => right.updatedAt - left.updatedAt);
+
+    persistCompareScenarios(nextScenarios);
+    return nextScenarios;
+}
+
+export function deleteLoanCompareSavedScenario(
+    scenarios: LoanCompareSavedScenario[],
+    id: string,
+): LoanCompareSavedScenario[] {
+    const nextScenarios = scenarios.filter((scenario) => scenario.id !== id);
+    persistCompareScenarios(nextScenarios);
+    return nextScenarios;
 }
 
 export function deleteLoanSimSavedPreset(

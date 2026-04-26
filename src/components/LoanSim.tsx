@@ -37,8 +37,13 @@ function createDefaultInputs(): LoanSimInputs {
         currentAge: 35,
         retirementAge: 65,
         annualRate: 1.2,
+        interestType: 'fixed',
+        variableRateMode: 'constant',
+        variableRateStepYears: 5,
+        variableRateStepAmount: 0.25,
         repaymentYears: 35,
         repaymentType: 'equal-payment',
+        afterPayoffMode: 'invest-equivalent-payment',
         initialSavingsBalance: 4_000_000,
         monthlySavings: 50_000,
         savingsAnnualRate: 2,
@@ -284,7 +289,7 @@ export function LoanSim({ onBack }: LoanSimProps) {
                     <LoanSimScheduleTable rows={result.schedule} />
                 </>
             ) : (
-                <LoanSimComparison />
+                <LoanSimComparison savedPresets={savedPresets} />
             )}
 
             <LoanSimPropertyLinks

@@ -144,6 +144,28 @@ function calculateEqualPayment(principal: number, monthlyRate: number, months: n
     return roundCurrency(principal * ((monthlyRate * growth) / (growth - 1)));
 }
 
+function sanitizeInterestType(value: LoanSimInputs['interestType']): LoanSimInputs['interestType'] {
+    return value === 'fixed' || value === 'variable' ? value : 'fixed';
+}
+
+function sanitizeVariableRateMode(value: LoanSimInputs['variableRateMode']): LoanSimInputs['variableRateMode'] {
+    return value === 'step-up' ? 'step-up' : 'constant';
+}
+
+function sanitizeAfterPayoffMode(value: LoanSimInputs['afterPayoffMode']): LoanSimInputs['afterPayoffMode'] {
+    return value === 'invest-equivalent-payment' ? 'invest-equivalent-payment' : 'none';
+}
+
+function resolveLoanAnnualRate(inputs: LoanSimSanitizedInputs, monthIndex: number): number {
+    if (inputs.interestType !== 'variable' || inputs.variableRateMode === 'constant') {
+        return inputs.annualRate;
+    }
+
+    const stepMonths = Math.max(inputs.variableRateStepYears * 12, 1);
+    const stepCount = Math.floor(monthIndex / stepMonths);
+    return clamp(inputs.annualRate + (inputs.variableRateStepAmount * stepCount), 0, MAX_RATE);
+}
+
 function calculateSalaryIncomeDeduction(annualIncome: number): number {
     if (annualIncome <= 0) {
         return 0;
@@ -262,6 +284,19 @@ function sanitizeInputs(inputs: LoanSimInputs): {
     if (inputs.annualRate < 0 || inputs.annualRate > MAX_RATE) {
         validationIssues.push({ field: 'annualRate', message: `年利は 0〜${MAX_RATE}% の範囲で計算しています。` });
     }
+    const usesVariableRateStep = inputs.interestType === 'variable' && inputs.variableRateMode === 'step-up';
+    if (usesVariableRateStep && (inputs.variableRateStepYears < MIN_REPAYMENT_YEARS || inputs.variableRateStepYears > MAX_REPAYMENT_YEARS)) {
+        validationIssues.push({
+            field: 'variableRateStepYears',
+            message: `変動金利の見直し間隔は ${MIN_REPAYMENT_YEARS}〜${MAX_REPAYMENT_YEARS} 年の範囲で計算しています。`,
+        });
+    }
+    if (usesVariableRateStep && (inputs.variableRateStepAmount < 0 || inputs.variableRateStepAmount > MAX_RATE)) {
+        validationIssues.push({
+            field: 'variableRateStepAmount',
+            message: `変動金利の上昇幅は 0〜${MAX_RATE}% の範囲で計算しています。`,
+        });
+    }
     if (inputs.annualIncome < 0) {
         validationIssues.push({ field: 'annualIncome', message: '年収が 0 円未満だったため、0 円で計算しています。' });
     }
@@ -343,8 +378,13 @@ function sanitizeInputs(inputs: LoanSimInputs): {
             currentAge,
             retirementAge,
             annualRate,
+            interestType: sanitizeInterestType(inputs.interestType),
+            variableRateMode: sanitizeVariableRateMode(inputs.variableRateMode),
+            variableRateStepYears: normalizeYears(inputs.variableRateStepYears),
+            variableRateStepAmount: normalizeRate(inputs.variableRateStepAmount),
             repaymentYears,
             repaymentType: inputs.repaymentType,
+            afterPayoffMode: sanitizeAfterPayoffMode(inputs.afterPayoffMode),
             initialSavingsBalance,
             monthlySavings,
             savingsAnnualRate,
@@ -382,12 +422,15 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
     let savingsBalanceAtPayoff = 0;
     let hasCapturedPayoffSavings = remainingBalance <= 0;
 
+    const initialMonthlyRate = resolveLoanAnnualRate(sanitizedInputs, 0) / 100 / 12;
     const regularMonthlyPayment = sanitizedInputs.repaymentType === 'equal-payment'
-        ? calculateEqualPayment(sanitizedInputs.effectiveLoanAmount, sanitizedInputs.monthlyRate, sanitizedInputs.repaymentMonths)
+        ? calculateEqualPayment(sanitizedInputs.effectiveLoanAmount, initialMonthlyRate, sanitizedInputs.repaymentMonths)
         : 0;
     const equalPrincipalBase = sanitizedInputs.repaymentType === 'equal-principal'
         ? roundCurrency(sanitizedInputs.effectiveLoanAmount / sanitizedInputs.repaymentMonths)
         : 0;
+    let currentEqualPayment = regularMonthlyPayment;
+    let currentAnnualRate = resolveLoanAnnualRate(sanitizedInputs, 0);
 
     for (let monthIndex = 0; monthIndex < sanitizedInputs.repaymentMonths; monthIndex += 1) {
         const monthParts = addMonths(startParts, monthIndex);
@@ -398,12 +441,21 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
         let principalPayment = 0;
         let monthlyPayment = 0;
         let bonusPayment = 0;
+        const annualRate = resolveLoanAnnualRate(sanitizedInputs, monthIndex);
+        const monthlyRate = annualRate / 100 / 12;
 
         if (periodStartBalance > 0) {
-            interestPayment = roundCurrency(periodStartBalance * sanitizedInputs.monthlyRate);
+            interestPayment = roundCurrency(periodStartBalance * monthlyRate);
 
             if (sanitizedInputs.repaymentType === 'equal-payment') {
-                monthlyPayment = regularMonthlyPayment;
+                if (monthIndex === 0 || annualRate !== currentAnnualRate) {
+                    currentEqualPayment = calculateEqualPayment(
+                        periodStartBalance,
+                        monthlyRate,
+                        Math.max(sanitizedInputs.repaymentMonths - monthIndex, 1),
+                    );
+                }
+                monthlyPayment = currentEqualPayment;
                 principalPayment = Math.max(0, monthlyPayment - interestPayment);
                 if (principalPayment >= periodStartBalance || isFinalPlannedMonth) {
                     principalPayment = periodStartBalance;
@@ -413,6 +465,7 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
                 principalPayment = Math.min(isFinalPlannedMonth ? periodStartBalance : equalPrincipalBase, periodStartBalance);
                 monthlyPayment = principalPayment + interestPayment;
             }
+            currentAnnualRate = annualRate;
 
             remainingBalance = Math.max(0, periodStartBalance - principalPayment);
 
@@ -525,6 +578,12 @@ export function calculateLoanSimulation(inputs: LoanSimInputs): LoanSimulationRe
         '積立は開始時点の残高に月利を反映したあと、月末に当月積立額を加えています。',
     ];
 
+    if (sanitizedInputs.interestType === 'variable' && sanitizedInputs.variableRateMode === 'constant') {
+        infoMessages.push(`変動金利は、開始時の ${sanitizedInputs.annualRate}% を全期間一定金利で近似して計算しています。`);
+    }
+    if (sanitizedInputs.interestType === 'variable' && sanitizedInputs.variableRateMode === 'step-up') {
+        infoMessages.push(`変動金利は、開始時 ${sanitizedInputs.annualRate}% から ${sanitizedInputs.variableRateStepYears} 年ごとに +${sanitizedInputs.variableRateStepAmount}% で上昇する前提で、見直し月ごとに返済額・利息・残高を再計算しています。`);
+    }
     infoMessages.push('借入額は「物件価格 - 頭金」で自動計算しています。');
     infoMessages.push('年収に対する手取りは、独身会社員・40歳未満・東京都の協会けんぽ・一般事業・扶養や賞与なし前提の概算です。住民税の均等割や介護保険は含めていません。');
     infoMessages.push('定年時の残り残高は、開始年月時点の年齢から定年年齢までの月数を進めた時点のローン残高で見ています。');

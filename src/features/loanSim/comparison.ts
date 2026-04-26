@@ -231,7 +231,7 @@ function sanitizeCommonInputs(
         validationIssues.push({ field: 'common.purchaseFees', message: '諸費用が 0 円未満だったため、0 円で計算しています。' });
     }
     if (common.initialFinancialAssets < 0) {
-        validationIssues.push({ field: 'common.initialFinancialAssets', message: '初期金融資産が 0 円未満だったため、0 円で計算しています。' });
+        validationIssues.push({ field: 'common.initialFinancialAssets', message: '投資の初期元本が 0 円未満だったため、0 円で計算しています。' });
     }
     if (common.annualInvestmentRate < -MAX_RATE || common.annualInvestmentRate > MAX_RATE) {
         validationIssues.push({ field: 'common.annualInvestmentRate', message: `想定運用利回りは -${MAX_RATE}〜${MAX_RATE}% の範囲で計算しています。` });
@@ -316,9 +316,6 @@ function sanitizeScenarioInputs(
     if (inputs.downPayment < 0) {
         validationIssues.push({ field: `scenario${label}.downPayment`, message: `シナリオ${label}の頭金が 0 円未満だったため、0 円で計算しています。` });
     }
-    if (inputs.cashReserve < 0) {
-        validationIssues.push({ field: `scenario${label}.cashReserve`, message: `シナリオ${label}の手元現金確保額が 0 円未満だったため、0 円で計算しています。` });
-    }
     if (inputs.variableRateStepYears < MIN_REPAYMENT_YEARS || inputs.variableRateStepYears > MAX_REPAYMENT_YEARS) {
         validationIssues.push({
             field: `scenario${label}.variableRateStepYears`,
@@ -349,13 +346,7 @@ function sanitizeScenarioInputs(
         });
     }
     const cashReserve = normalizeMoney(inputs.cashReserve);
-    const initialInvestmentBalance = Math.max(0, common.initialFinancialAssets - downPayment - cashReserve);
-    if (common.initialFinancialAssets < downPayment + cashReserve) {
-        validationIssues.push({
-            field: `scenario${label}.cashReserve`,
-            message: `シナリオ${label}では初期保有金融資産が頭金と手元現金確保額を下回るため、初期投資元本は 0 円として扱います。`,
-        });
-    }
+    const initialInvestmentBalance = common.initialFinancialAssets;
 
     return {
         sanitized: {
@@ -659,7 +650,7 @@ export function calculateLoanComparison(inputs: LoanCompareInputs): LoanComparis
 
     const infoMessages = [
         '各シナリオの借入額は「物件価格 + 諸費用 - 頭金」で計算しています。諸費用は住宅価値には含めず、ローン残高側にだけ反映します。',
-        '各シナリオの初期投資元本は「初期保有金融資産 - 頭金 - 手元現金確保額」を下限 0 円で計算しています。',
+        '投資残高は、共通条件の「投資の初期元本」から開始します。生活費や予備資金は含めず、頭金とも切り離して扱います。',
         '投資残高は、開始時点の投資原資へ月利を反映したあと、毎月積立額と自動差額積立を加えています。',
         '差額自動積立は「他方シナリオの毎月返済相当額 - 自シナリオの毎月返済相当額」を毎月積立へ上乗せし、負の値は 0 円で止めています。',
         '完済後の自動積立は、そのシナリオの最後の毎月返済相当額を比較期間終了まで積み立てる前提です。',

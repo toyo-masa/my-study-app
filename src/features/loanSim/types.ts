@@ -13,8 +13,13 @@ export interface LoanSimInputs {
     currentAge: number;
     retirementAge: number;
     annualRate: number;
+    interestType: LoanInterestType;
+    variableRateMode: LoanVariableRateMode;
+    variableRateStepYears: number;
+    variableRateStepAmount: number;
     repaymentYears: number;
     repaymentType: LoanRepaymentType;
+    afterPayoffMode: LoanAfterPayoffMode;
     initialSavingsBalance: number;
     monthlySavings: number;
     savingsAnnualRate: number;
@@ -34,6 +39,13 @@ export interface LoanSimSavedPropertyLink {
     id: string;
     title: string;
     url: string;
+    updatedAt: number;
+}
+
+export interface LoanCompareSavedScenario {
+    id: string;
+    name: string;
+    inputs: LoanCompareScenarioInputs;
     updatedAt: number;
 }
 

@@ -1019,6 +1019,14 @@ body.is-dragging-linear-algebra-vector {
   align-items: center;
 }
 
+.loan-sim-scenario-preset-panel .loan-sim-preset-controls {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.loan-sim-scenario-preset-panel .loan-sim-preset-select {
+  grid-column: 1 / -1;
+}
+
 .loan-sim-text-input {
   width: 100%;
   border: 1px solid var(--border-color);
@@ -1150,6 +1158,36 @@ body.is-dragging-linear-algebra-vector {
 .loan-sim-preset-delete-btn:hover {
   border-color: #ef4444;
   color: #b91c1c;
+}
+
+.loan-sim-scenario-readonly-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.loan-sim-scenario-readonly-item {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-color);
+  min-width: 0;
+}
+
+.loan-sim-scenario-readonly-item span {
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.loan-sim-scenario-readonly-item strong {
+  color: var(--text-color);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .loan-sim-form-section {
@@ -1827,6 +1865,7 @@ body.is-dragging-linear-algebra-vector {
 
   .loan-sim-choice-grid,
   .loan-sim-preset-item,
+  .loan-sim-scenario-readonly-grid,
   .loan-sim-link-item {
     grid-template-columns: 1fr;
   }

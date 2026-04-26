@@ -1,6 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { LoanSimFieldHelp } from './LoanSimFieldHelp';
-import type { LoanRepaymentType, LoanSimInputs, LoanSimSavedPreset } from '../../features/loanSim/types';
+import type {
+    LoanAfterPayoffMode,
+    LoanInterestType,
+    LoanRepaymentType,
+    LoanSimInputs,
+    LoanSimSavedPreset,
+    LoanVariableRateMode,
+} from '../../features/loanSim/types';
 
 type LoanSimFormProps = {
     inputs: LoanSimInputs;
@@ -54,6 +61,30 @@ const REPAYMENT_OPTIONS: Array<{
     },
 ];
 
+const INTEREST_TYPE_OPTIONS: Array<{
+    value: LoanInterestType;
+    label: string;
+}> = [
+    { value: 'fixed', label: '固定' },
+    { value: 'variable', label: '変動' },
+];
+
+const VARIABLE_RATE_MODE_OPTIONS: Array<{
+    value: LoanVariableRateMode;
+    label: string;
+}> = [
+    { value: 'constant', label: '一定金利で近似' },
+    { value: 'step-up', label: '一定間隔で上昇' },
+];
+
+const AFTER_PAYOFF_OPTIONS: Array<{
+    value: LoanAfterPayoffMode;
+    label: string;
+}> = [
+    { value: 'none', label: '何もしない' },
+    { value: 'invest-equivalent-payment', label: '完済後は返済相当額を積立' },
+];
+
 const FIELD_HELP = {
     propertyPrice: {
         title: '物件価格とは？',
@@ -75,6 +106,22 @@ const FIELD_HELP = {
     annualRate: {
         title: '年利とは？',
         body: <p>ローンにかかる年間の金利です。内部では 12 で割って月利にし、毎月の利息計算へ反映します。</p>,
+    },
+    interestType: {
+        title: '固定・変動とは？',
+        body: <p>固定は全期間同じ金利、変動は設定した将来金利ルールに沿って返済額と利息を再計算します。</p>,
+    },
+    variableRateMode: {
+        title: '変動金利の見通しとは？',
+        body: <p>簡易モードでは全期間を一定金利で近似し、上昇モードでは指定した年数ごとに金利を上げて毎月返済額と利息を再計算します。</p>,
+    },
+    variableRateStepYears: {
+        title: '見直し間隔とは？',
+        body: <p>変動金利を何年ごとに見直す想定かです。例: 5 年ごとに上昇。</p>,
+    },
+    variableRateStepAmount: {
+        title: '1回ごとの上昇幅とは？',
+        body: <p>見直しのたびに何 % ずつ上がる前提かです。例: 0.25% ずつ上昇。</p>,
     },
     annualIncome: {
         title: '年収とは？',
@@ -108,6 +155,10 @@ const FIELD_HELP = {
                 </ul>
             </>
         ),
+    },
+    afterPayoffMode: {
+        title: '比較時の完済後の扱いとは？',
+        body: <p>この保存条件をシナリオ比較で使うとき、完済後に毎月返済相当額を積立へ回すかを指定します。単一試算の返済表には影響しません。</p>,
     },
     startYearMonth: {
         title: '開始年月とは？',
@@ -274,6 +325,41 @@ function NumberField({
     );
 }
 
+function SelectField({
+    label,
+    value,
+    onChange,
+    options,
+    help,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: Array<{ value: string; label: string }>;
+    help?: NumberFieldProps['help'];
+}) {
+    return (
+        <div className="loan-sim-field">
+            <div className="loan-sim-field-head">
+                <FieldLabel label={label} help={help} />
+                <strong>{options.find((option) => option.value === value)?.label ?? value}</strong>
+            </div>
+            <select
+                className="loan-sim-month-input"
+                value={value}
+                aria-label={label}
+                onChange={(event) => onChange(event.target.value)}
+            >
+                {options.map((option) => (
+                    <option key={option.value} value={option.value}>
+                        {option.label}
+                    </option>
+                ))}
+            </select>
+        </div>
+    );
+}
+
 export function LoanSimForm({
     inputs,
     calculatedLoanAmount,
@@ -411,8 +497,15 @@ export function LoanSimForm({
                         help={FIELD_HELP.loanAmount}
                     />
 
+                    <SelectField
+                        label="金利タイプ"
+                        value={inputs.interestType}
+                        onChange={(value) => onChange('interestType', value as LoanInterestType)}
+                        options={INTEREST_TYPE_OPTIONS}
+                        help={FIELD_HELP.interestType}
+                    />
                     <NumberField
-                        label="年利"
+                        label={inputs.interestType === 'variable' ? '開始時の年利' : '年利'}
                         value={inputs.annualRate}
                         onChange={(value) => onChange('annualRate', value)}
                         unit="%"
@@ -422,6 +515,41 @@ export function LoanSimForm({
                         displayFormatter={formatPercent}
                         help={FIELD_HELP.annualRate}
                     />
+                    {inputs.interestType === 'variable' ? (
+                        <SelectField
+                            label="変動金利の見通し"
+                            value={inputs.variableRateMode}
+                            onChange={(value) => onChange('variableRateMode', value as LoanVariableRateMode)}
+                            options={VARIABLE_RATE_MODE_OPTIONS}
+                            help={FIELD_HELP.variableRateMode}
+                        />
+                    ) : null}
+                    {inputs.interestType === 'variable' && inputs.variableRateMode === 'step-up' ? (
+                        <>
+                            <NumberField
+                                label="何年ごとに見直すか"
+                                value={inputs.variableRateStepYears}
+                                onChange={(value) => onChange('variableRateStepYears', value)}
+                                unit="年"
+                                min={1}
+                                max={50}
+                                step={1}
+                                displayFormatter={formatYears}
+                                help={FIELD_HELP.variableRateStepYears}
+                            />
+                            <NumberField
+                                label="1回ごとの上昇幅"
+                                value={inputs.variableRateStepAmount}
+                                onChange={(value) => onChange('variableRateStepAmount', value)}
+                                unit="%"
+                                min={0}
+                                max={5}
+                                step={0.01}
+                                displayFormatter={formatPercent}
+                                help={FIELD_HELP.variableRateStepAmount}
+                            />
+                        </>
+                    ) : null}
                     <NumberField
                         label="年収"
                         value={inputs.annualIncome}
@@ -504,6 +632,13 @@ export function LoanSimForm({
                             onChange={(event) => onChange('startYearMonth', event.target.value)}
                         />
                     </div>
+                    <SelectField
+                        label="比較時の完済後の扱い"
+                        value={inputs.afterPayoffMode}
+                        onChange={(value) => onChange('afterPayoffMode', value as LoanAfterPayoffMode)}
+                        options={AFTER_PAYOFF_OPTIONS}
+                        help={FIELD_HELP.afterPayoffMode}
+                    />
                 </div>
 
                 <div className="loan-sim-form-section">

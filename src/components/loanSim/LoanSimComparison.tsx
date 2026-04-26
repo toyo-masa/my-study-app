@@ -9,11 +9,11 @@ import type {
     LoanCompareInputs,
     LoanCompareScenarioSummary,
     LoanCompareScenarioInputs,
-    LoanInterestType,
     LoanInvestmentAccountType,
-    LoanRepaymentType,
-    LoanVariableRateMode,
+    LoanSimSavedPreset,
 } from '../../features/loanSim/types';
+
+type ScenarioLabel = 'A' | 'B';
 
 type FieldHelp = {
     title: string;
@@ -34,31 +34,6 @@ type NumberFieldProps = {
     disabled?: boolean;
     displayFormatter?: (value: number) => string;
 };
-
-const REPAYMENT_OPTIONS: Array<{
-    value: LoanRepaymentType;
-    label: string;
-    description: string;
-}> = [
-    { value: 'equal-payment', label: '元利均等', description: '毎月返済額をそろえて比較したいとき向けです。' },
-    { value: 'equal-principal', label: '元金均等', description: '初月を重くして残高の減りを早めたいとき向けです。' },
-];
-
-const INTEREST_TYPE_OPTIONS: Array<{
-    value: LoanInterestType;
-    label: string;
-}> = [
-    { value: 'fixed', label: '固定' },
-    { value: 'variable', label: '変動' },
-];
-
-const VARIABLE_RATE_MODE_OPTIONS: Array<{
-    value: LoanVariableRateMode;
-    label: string;
-}> = [
-    { value: 'constant', label: '一定金利で近似' },
-    { value: 'step-up', label: '一定間隔で上昇' },
-];
 
 const INVESTMENT_ACCOUNT_OPTIONS: Array<{
     value: LoanInvestmentAccountType;
@@ -82,8 +57,8 @@ const FIELD_HELP = {
         body: <p>登記費用や仲介手数料などの初期費用です。比較モードでは住宅価値には含めず、各シナリオの借入額へ含めて比較します。</p>,
     },
     initialFinancialAssets: {
-        title: '初期保有金融資産とは？',
-        body: <p>購入前に持っている金融資産の総額です。各シナリオでは、ここから頭金と手元現金確保額を引いた残りを初期投資元本として扱います。</p>,
+        title: '投資の初期元本とは？',
+        body: <p>比較開始時点で投資に回している残高です。生活費や予備資金は含めず、頭金とも切り離して扱います。</p>,
     },
     annualInvestmentRate: {
         title: '想定運用利回りとは？',
@@ -115,11 +90,7 @@ const FIELD_HELP = {
     },
     downPayment: {
         title: '頭金とは？',
-        body: <p>各シナリオで購入時に入れる自己資金です。比較モードでは、頭金が増えると借入額が減り、同時に初期投資に回せる額も減ります。</p>,
-    },
-    cashReserve: {
-        title: '手元現金として残す額とは？',
-        body: <p>購入後も投資に回さず手元へ残す現金です。比較モードでは、初期保有金融資産から頭金とこの金額を引いた残りを初期投資元本として扱います。</p>,
+        body: <p>各シナリオで購入時に入れる自己資金です。比較モードでは、頭金が増えると借入額が減り、総支払利息も変わります。</p>,
     },
     afterPayoffMode: {
         title: '完済後の扱いとは？',
@@ -135,9 +106,9 @@ function buildCurrentYearMonth(): string {
 function createDefaultComparisonInputs(): LoanCompareInputs {
     return {
         common: {
-            propertyPrice: 48_000_000,
+            propertyPrice: 55_000_000,
             purchaseFees: 0,
-            initialFinancialAssets: 10_000_000,
+            initialFinancialAssets: 4_000_000,
             annualInvestmentRate: 2,
             investmentAccountType: 'nisa',
             comparisonYears: 40,
@@ -150,7 +121,7 @@ function createDefaultComparisonInputs(): LoanCompareInputs {
             repaymentType: 'equal-payment',
             repaymentYears: 35,
             interestType: 'fixed',
-            annualRate: 1.2,
+            annualRate: 2.5,
             variableRateMode: 'constant',
             variableRateStepYears: 5,
             variableRateStepAmount: 0.25,
@@ -161,12 +132,12 @@ function createDefaultComparisonInputs(): LoanCompareInputs {
             afterPayoffMode: 'invest-equivalent-payment',
         },
         scenarioB: {
-            downPayment: 0,
+            downPayment: 5_000_000,
             cashReserve: 0,
             repaymentType: 'equal-payment',
-            repaymentYears: 40,
-            interestType: 'fixed',
-            annualRate: 1.2,
+            repaymentYears: 35,
+            interestType: 'variable',
+            annualRate: 1.5,
             variableRateMode: 'constant',
             variableRateStepYears: 5,
             variableRateStepAmount: 0.25,
@@ -201,6 +172,42 @@ function formatPercent(value: number): string {
 
 function formatYears(value: number): string {
     return `${Math.round(value)}年`;
+}
+
+function formatRateRule(inputs: LoanCompareScenarioInputs): string {
+    if (inputs.interestType === 'fixed') {
+        return `固定 ${formatPercent(inputs.annualRate)}`;
+    }
+    if (inputs.variableRateMode === 'step-up') {
+        return `変動 ${formatPercent(inputs.annualRate)} / ${formatYears(inputs.variableRateStepYears)}ごとに +${formatPercent(inputs.variableRateStepAmount)}`;
+    }
+    return `変動 ${formatPercent(inputs.annualRate)} / 一定近似`;
+}
+
+function getScenarioKey(label: ScenarioLabel): 'scenarioA' | 'scenarioB' {
+    return label === 'A' ? 'scenarioA' : 'scenarioB';
+}
+
+function convertPresetToScenarioInputs(
+    preset: LoanSimSavedPreset,
+    currentScenario: LoanCompareScenarioInputs,
+): LoanCompareScenarioInputs {
+    return {
+        downPayment: preset.inputs.downPayment,
+        cashReserve: 0,
+        repaymentType: preset.inputs.repaymentType,
+        repaymentYears: preset.inputs.repaymentYears,
+        interestType: preset.inputs.interestType,
+        annualRate: preset.inputs.annualRate,
+        variableRateMode: preset.inputs.variableRateMode,
+        variableRateStepYears: preset.inputs.variableRateStepYears,
+        variableRateStepAmount: preset.inputs.variableRateStepAmount,
+        monthlyInvestment: preset.inputs.monthlySavings,
+        bonusRepayment: preset.inputs.bonusRepayment,
+        monthlyPrepayment: 0,
+        autoInvestPaymentDifference: currentScenario.autoInvestPaymentDifference,
+        afterPayoffMode: preset.inputs.afterPayoffMode,
+    };
 }
 
 function FieldLabel({
@@ -333,26 +340,48 @@ function ScenarioSelectField({
 }
 
 type ScenarioCardProps = {
-    label: 'A' | 'B';
+    label: ScenarioLabel;
     inputs: LoanCompareScenarioInputs;
     summary: LoanCompareScenarioSummary;
-    onChange: <K extends keyof LoanCompareScenarioInputs>(key: K, value: LoanCompareScenarioInputs[K]) => void;
+    savedPresets: LoanSimSavedPreset[];
+    selectedSavedScenarioId: string;
+    savedScenarioStatus: string | null;
     onCopyFromA?: () => void;
+    onSelectSavedScenario: (scenarioId: string) => void;
+    onAutoInvestPaymentDifferenceChange: (enabled: boolean) => void;
 };
 
 function ScenarioCard({
     label,
     inputs,
     summary,
-    onChange,
+    savedPresets,
+    selectedSavedScenarioId,
+    savedScenarioStatus,
     onCopyFromA,
+    onSelectSavedScenario,
+    onAutoInvestPaymentDifferenceChange,
 }: ScenarioCardProps) {
+    const selectedPreset = savedPresets.find((preset) => preset.id === selectedSavedScenarioId) ?? null;
+    const repaymentTypeLabel = inputs.repaymentType === 'equal-payment' ? '元利均等' : '元金均等';
+    const afterPayoffLabel = AFTER_PAYOFF_OPTIONS.find((option) => option.value === inputs.afterPayoffMode)?.label ?? inputs.afterPayoffMode;
+    const rows = [
+        { label: '保存条件', value: selectedPreset?.name ?? '未選択（初期値）' },
+        { label: '頭金', value: formatCurrency(summary.downPayment) },
+        { label: '借入額', value: formatCurrency(summary.loanAmount) },
+        { label: '返済年数', value: formatYears(inputs.repaymentYears) },
+        { label: '金利', value: formatRateRule(inputs) },
+        { label: '返済方式', value: repaymentTypeLabel },
+        { label: '毎月積立額', value: formatCurrency(inputs.monthlyInvestment) },
+        { label: 'ボーナス返済', value: formatCurrency(inputs.bonusRepayment) },
+        { label: '完済後の扱い', value: afterPayoffLabel },
+    ];
+
     return (
         <section className="loan-sim-card loan-sim-compare-scenario-card">
             <div className="loan-sim-card-head">
                 <div>
                     <h2>{`シナリオ${label}`}</h2>
-                    <p>{label === 'A' ? '基準となる戦略です。' : '比較対象の戦略です。差額自動積立もここで設定できます。'}</p>
                 </div>
                 {label === 'B' && onCopyFromA ? (
                     <button type="button" className="nav-btn" onClick={onCopyFromA}>
@@ -361,163 +390,44 @@ function ScenarioCard({
                 ) : null}
             </div>
 
-            <div className="loan-sim-form-section">
-                <NumberField
-                    label="頭金"
-                    value={inputs.downPayment}
-                    onChange={(value) => onChange('downPayment', value)}
-                    unit="円"
-                    min={0}
-                    max={130_000_000}
-                    step={100_000}
-                    displayFormatter={formatCurrency}
-                    help={FIELD_HELP.downPayment}
-                />
-                <NumberField
-                    label="手元現金として残す額"
-                    value={inputs.cashReserve}
-                    onChange={(value) => onChange('cashReserve', value)}
-                    unit="円"
-                    min={0}
-                    max={100_000_000}
-                    step={100_000}
-                    displayFormatter={formatCurrency}
-                    help={FIELD_HELP.cashReserve}
-                />
-                <div className="loan-sim-field">
-                    <div className="loan-sim-field-head">
-                        <FieldLabel label="返済方式" />
-                        <strong>{inputs.repaymentType === 'equal-payment' ? '元利均等' : '元金均等'}</strong>
-                    </div>
-                    <div className="loan-sim-choice-grid">
-                        {REPAYMENT_OPTIONS.map((option) => (
-                            <button
-                                key={`${label}-${option.value}`}
-                                type="button"
-                                className={`loan-sim-choice-btn ${inputs.repaymentType === option.value ? 'is-active' : ''}`}
-                                onClick={() => onChange('repaymentType', option.value)}
-                            >
-                                <span className="loan-sim-choice-title">{option.label}</span>
-                                <span className="loan-sim-choice-description">{option.description}</span>
-                            </button>
-                        ))}
+            <div className="loan-sim-preset-panel loan-sim-scenario-preset-panel">
+                <div className="loan-sim-preset-head">
+                    <h3>単一試算の保存条件</h3>
+                    <div className="loan-sim-preset-head-actions">
+                        <span className="loan-sim-badge">{savedPresets.length}件</span>
                     </div>
                 </div>
+                <div className="loan-sim-preset-controls">
+                    <select
+                        className="setting-select loan-sim-preset-select"
+                        value={selectedSavedScenarioId}
+                        aria-label={`シナリオ${label}へ読み込む単一試算の保存条件`}
+                        onChange={(event) => onSelectSavedScenario(event.target.value)}
+                    >
+                        <option value="">保存条件を選択</option>
+                        {savedPresets.map((preset) => (
+                            <option key={preset.id} value={preset.id}>
+                                {preset.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                {savedScenarioStatus ? <p className="loan-sim-inline-note">{savedScenarioStatus}</p> : null}
+                {savedPresets.length === 0 ? (
+                    <p className="loan-sim-inline-note">単一試算で条件を保存すると、ここでシナリオA/Bへ読み込めます。</p>
+                ) : null}
+            </div>
 
-                <NumberField
-                    label="返済年数"
-                    value={inputs.repaymentYears}
-                    onChange={(value) => onChange('repaymentYears', value)}
-                    unit="年"
-                    min={1}
-                    max={50}
-                    step={1}
-                    displayFormatter={formatYears}
-                />
-                <ScenarioSelectField
-                    label="金利タイプ"
-                    value={inputs.interestType}
-                    onChange={(value) => onChange('interestType', value as LoanInterestType)}
-                    options={INTEREST_TYPE_OPTIONS}
-                    help={FIELD_HELP.interestType}
-                />
-                <NumberField
-                    label={inputs.interestType === 'variable' ? '開始時の想定金利' : '想定金利'}
-                    value={inputs.annualRate}
-                    onChange={(value) => onChange('annualRate', value)}
-                    unit="%"
-                    min={0}
-                    max={5}
-                    step={0.01}
-                    displayFormatter={formatPercent}
-                />
-                {inputs.interestType === 'variable' ? (
-                    <ScenarioSelectField
-                        label="変動金利の見通し"
-                        value={inputs.variableRateMode}
-                        onChange={(value) => onChange('variableRateMode', value as LoanVariableRateMode)}
-                        options={VARIABLE_RATE_MODE_OPTIONS}
-                        help={FIELD_HELP.variableRateMode}
-                    />
-                ) : null}
-                {inputs.interestType === 'variable' && inputs.variableRateMode === 'step-up' ? (
-                    <>
-                        <NumberField
-                            label="何年ごとに見直すか"
-                            value={inputs.variableRateStepYears}
-                            onChange={(value) => onChange('variableRateStepYears', value)}
-                            unit="年"
-                            min={1}
-                            max={50}
-                            step={1}
-                            displayFormatter={formatYears}
-                            help={FIELD_HELP.variableRateStepYears}
-                        />
-                        <NumberField
-                            label="1回ごとの上昇幅"
-                            value={inputs.variableRateStepAmount}
-                            onChange={(value) => onChange('variableRateStepAmount', value)}
-                            unit="%"
-                            min={0}
-                            max={5}
-                            step={0.01}
-                            displayFormatter={formatPercent}
-                            help={FIELD_HELP.variableRateStepAmount}
-                        />
-                    </>
-                ) : null}
-                <NumberField
-                    label="借入額（自動計算）"
-                    value={summary.loanAmount}
-                    onChange={() => undefined}
-                    unit="円"
-                    min={0}
-                    max={300_000_000}
-                    step={100_000}
-                    displayFormatter={formatCurrency}
-                    disabled
-                />
-                <NumberField
-                    label="初期投資元本（自動計算）"
-                    value={summary.initialInvestmentBalance}
-                    onChange={() => undefined}
-                    unit="円"
-                    min={0}
-                    max={300_000_000}
-                    step={100_000}
-                    displayFormatter={formatCurrency}
-                    disabled
-                />
-                <NumberField
-                    label="毎月積立額"
-                    value={inputs.monthlyInvestment}
-                    onChange={(value) => onChange('monthlyInvestment', value)}
-                    unit="円"
-                    min={0}
-                    max={500_000}
-                    step={1_000}
-                    displayFormatter={formatCurrency}
-                />
-                <NumberField
-                    label="ボーナス返済"
-                    value={inputs.bonusRepayment}
-                    onChange={(value) => onChange('bonusRepayment', value)}
-                    unit="円"
-                    min={0}
-                    max={2_000_000}
-                    step={10_000}
-                    displayFormatter={formatCurrency}
-                />
-                <NumberField
-                    label="毎月の繰上返済"
-                    value={inputs.monthlyPrepayment}
-                    onChange={(value) => onChange('monthlyPrepayment', value)}
-                    unit="円"
-                    min={0}
-                    max={500_000}
-                    step={1_000}
-                    displayFormatter={formatCurrency}
-                />
+            <div className="loan-sim-scenario-readonly-grid">
+                {rows.map((row) => (
+                    <article key={row.label} className="loan-sim-scenario-readonly-item">
+                        <span>{row.label}</span>
+                        <strong>{row.value}</strong>
+                    </article>
+                ))}
+            </div>
+
+            <div className="loan-sim-form-section">
                 <div className="loan-sim-field">
                     <div className="loan-sim-field-head">
                         <FieldLabel label="差額自動積立" help={FIELD_HELP.autoInvestPaymentDifference} />
@@ -527,25 +437,24 @@ function ScenarioCard({
                         <input
                             type="checkbox"
                             checked={inputs.autoInvestPaymentDifference}
-                            onChange={(event) => onChange('autoInvestPaymentDifference', event.target.checked)}
+                            onChange={(event) => onAutoInvestPaymentDifferenceChange(event.target.checked)}
                         />
                         <span>{label === 'A' ? 'B との差額を A に回す' : 'A との差額を B に回す'}</span>
                     </label>
                 </div>
-                <ScenarioSelectField
-                    label="完済後の扱い"
-                    value={inputs.afterPayoffMode}
-                    onChange={(value) => onChange('afterPayoffMode', value as LoanAfterPayoffMode)}
-                    options={AFTER_PAYOFF_OPTIONS}
-                    help={FIELD_HELP.afterPayoffMode}
-                />
             </div>
         </section>
     );
 }
 
-export function LoanSimComparison() {
+type LoanSimComparisonProps = {
+    savedPresets: LoanSimSavedPreset[];
+};
+
+export function LoanSimComparison({ savedPresets }: LoanSimComparisonProps) {
     const [inputs, setInputs] = useState<LoanCompareInputs>(() => createDefaultComparisonInputs());
+    const [selectedSavedScenarioIds, setSelectedSavedScenarioIds] = useState<Record<ScenarioLabel, string>>({ A: '', B: '' });
+    const [savedScenarioStatuses, setSavedScenarioStatuses] = useState<Record<ScenarioLabel, string | null>>({ A: null, B: null });
     const result = useMemo(() => calculateLoanComparison(inputs), [inputs]);
 
     const handleCommonChange = <K extends keyof LoanCompareCommonInputs>(key: K, value: LoanCompareCommonInputs[K]) => {
@@ -558,10 +467,9 @@ export function LoanSimComparison() {
         }));
     };
 
-    const handleScenarioChange = (
+    const handleAutoInvestPaymentDifferenceChange = (
         scenarioKey: 'scenarioA' | 'scenarioB',
-        key: keyof LoanCompareScenarioInputs,
-        value: LoanCompareScenarioInputs[keyof LoanCompareScenarioInputs],
+        enabled: boolean,
     ) => {
         setInputs((current) => {
             const next = {
@@ -570,9 +478,9 @@ export function LoanSimComparison() {
                 scenarioB: { ...current.scenarioB },
             };
             const target = next[scenarioKey];
-            Object.assign(target, { [key]: value });
+            target.autoInvestPaymentDifference = enabled;
 
-            if (key === 'autoInvestPaymentDifference' && value === true) {
+            if (enabled) {
                 const otherKey = scenarioKey === 'scenarioA' ? 'scenarioB' : 'scenarioA';
                 next[otherKey] = {
                     ...next[otherKey],
@@ -592,10 +500,51 @@ export function LoanSimComparison() {
                 autoInvestPaymentDifference: false,
             },
         }));
+        setSelectedSavedScenarioIds((current) => ({ ...current, B: current.A }));
+        setSavedScenarioStatuses((current) => ({ ...current, B: 'シナリオAをBへコピーしました。' }));
     };
 
     const handleReset = () => {
         setInputs(createDefaultComparisonInputs());
+        setSelectedSavedScenarioIds({ A: '', B: '' });
+        setSavedScenarioStatuses({ A: null, B: null });
+    };
+
+    const handleSelectSavedScenario = (label: ScenarioLabel, scenarioId: string) => {
+        if (!scenarioId) {
+            setSelectedSavedScenarioIds((current) => ({
+                ...current,
+                [label]: '',
+            }));
+            setSavedScenarioStatuses((current) => ({
+                ...current,
+                [label]: null,
+            }));
+            return;
+        }
+
+        const targetPreset = savedPresets.find((preset) => preset.id === scenarioId);
+        if (!targetPreset) {
+            setSavedScenarioStatuses((current) => ({
+                ...current,
+                [label]: '単一試算の保存条件が見つかりませんでした。',
+            }));
+            return;
+        }
+
+        const scenarioKey = getScenarioKey(label);
+        setInputs((current) => ({
+            ...current,
+            [scenarioKey]: convertPresetToScenarioInputs(targetPreset, current[scenarioKey]),
+        }));
+        setSelectedSavedScenarioIds((current) => ({
+            ...current,
+            [label]: targetPreset.id,
+        }));
+        setSavedScenarioStatuses((current) => ({
+            ...current,
+            [label]: `「${targetPreset.name}」をシナリオ${label}へ読み込みました。`,
+        }));
     };
 
     return (
@@ -649,7 +598,7 @@ export function LoanSimComparison() {
                                 help={FIELD_HELP.purchaseFees}
                             />
                             <NumberField
-                                label="初期保有金融資産"
+                                label="投資の初期元本"
                                 value={inputs.common.initialFinancialAssets}
                                 onChange={(value) => handleCommonChange('initialFinancialAssets', value)}
                                 unit="円"
@@ -718,14 +667,22 @@ export function LoanSimComparison() {
                             label="A"
                             inputs={inputs.scenarioA}
                             summary={result.summary.scenarioA}
-                            onChange={(key, value) => handleScenarioChange('scenarioA', key, value)}
+                            savedPresets={savedPresets}
+                            selectedSavedScenarioId={selectedSavedScenarioIds.A}
+                            savedScenarioStatus={savedScenarioStatuses.A}
+                            onSelectSavedScenario={(scenarioId) => handleSelectSavedScenario('A', scenarioId)}
+                            onAutoInvestPaymentDifferenceChange={(enabled) => handleAutoInvestPaymentDifferenceChange('scenarioA', enabled)}
                         />
                         <ScenarioCard
                             label="B"
                             inputs={inputs.scenarioB}
                             summary={result.summary.scenarioB}
-                            onChange={(key, value) => handleScenarioChange('scenarioB', key, value)}
+                            savedPresets={savedPresets}
+                            selectedSavedScenarioId={selectedSavedScenarioIds.B}
+                            savedScenarioStatus={savedScenarioStatuses.B}
                             onCopyFromA={handleCopyAToB}
+                            onSelectSavedScenario={(scenarioId) => handleSelectSavedScenario('B', scenarioId)}
+                            onAutoInvestPaymentDifferenceChange={(enabled) => handleAutoInvestPaymentDifferenceChange('scenarioB', enabled)}
                         />
                     </div>
                 </div>
