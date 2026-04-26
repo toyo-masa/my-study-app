@@ -824,6 +824,484 @@ body.is-dragging-linear-algebra-vector {
   }
 }
 
+/* ===== Room Simulator ===== */
+.room-sim-page {
+  width: 100%;
+  max-width: none;
+  padding: 1rem;
+  color: var(--text-color);
+}
+
+.room-sim-page,
+.room-sim-page * {
+  box-sizing: border-box;
+}
+
+.room-sim-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.room-sim-title-block {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.room-sim-title-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.room-sim-title-block h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.25;
+}
+
+.room-sim-title-block p {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.room-sim-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 0.9rem;
+  align-items: stretch;
+  min-height: min(760px, calc(100dvh - 7.5rem));
+}
+
+.room-sim-viewer-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #d9edf7;
+  box-shadow: var(--shadow-sm);
+}
+
+.room-sim-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 560px;
+  display: block;
+  touch-action: none;
+}
+
+.room-sim-overlay-note {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  padding: 0.58rem 0.72rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.76);
+  color: #f8fafc;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+.room-sim-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  max-height: min(760px, calc(100dvh - 7.5rem));
+  overflow-y: auto;
+  padding-right: 0.1rem;
+}
+
+.room-sim-panel-section {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-sm);
+  padding: 0.88rem;
+}
+
+.room-sim-panel-heading,
+.room-sim-subheading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-color);
+  font-weight: 700;
+}
+
+.room-sim-panel-heading {
+  margin-bottom: 0.7rem;
+}
+
+.room-sim-panel-heading h2 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.room-sim-subheading {
+  margin-bottom: 0.45rem;
+  font-size: 0.86rem;
+}
+
+.room-sim-control-group {
+  display: grid;
+  gap: 0.42rem;
+  margin-top: 0.72rem;
+}
+
+.room-sim-field-label {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.room-sim-select,
+.room-sim-inline-fields input {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font: inherit;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.58rem;
+}
+
+.room-sim-select:focus,
+.room-sim-inline-fields input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 99, 102, 241), 0.12);
+}
+
+.room-sim-segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.room-sim-segmented button,
+.room-sim-style-grid button,
+.room-sim-catalog-grid button,
+.room-sim-furniture-list button,
+.room-sim-secondary-btn,
+.room-sim-danger-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.25;
+  min-height: 2.25rem;
+  padding: 0.48rem 0.58rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+
+.room-sim-segmented button:hover,
+.room-sim-style-grid button:hover,
+.room-sim-catalog-grid button:hover,
+.room-sim-furniture-list button:hover,
+.room-sim-secondary-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.room-sim-segmented button.is-active,
+.room-sim-style-grid button.is-active,
+.room-sim-furniture-list button.is-visible {
+  border-color: rgba(var(--primary-color-rgb, 99, 102, 241), 0.38);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.11);
+  color: var(--primary-color);
+}
+
+.room-sim-toggle-grid,
+.room-sim-action-grid,
+.room-sim-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+  margin-top: 0.72rem;
+}
+
+.room-sim-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.room-sim-check-label input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary-color);
+}
+
+.room-sim-control-group input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary-color);
+}
+
+.room-sim-selected-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-color) 88%, var(--bg-color) 12%);
+}
+
+.room-sim-selected-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.room-sim-selected-head strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.room-sim-selected-head span {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.room-sim-data-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.room-sim-data-grid div {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.45rem;
+  background: var(--surface-color);
+}
+
+.room-sim-data-grid dt {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.room-sim-data-grid dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.room-sim-inline-fields label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.room-sim-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.room-sim-furniture-list {
+  display: grid;
+  gap: 0.36rem;
+  max-height: 9.8rem;
+  overflow-y: auto;
+  padding-right: 0.1rem;
+}
+
+.room-sim-furniture-list button {
+  justify-content: flex-start;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.room-sim-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.room-sim-color-field {
+  display: grid;
+  grid-template-columns: auto 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.room-sim-color-field input {
+  width: 42px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+}
+
+.room-sim-color-field span {
+  min-width: 0;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.room-sim-danger-btn {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--error-color);
+}
+
+.room-sim-danger-btn:hover {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.44);
+}
+
+.room-sim-full-width-btn {
+  width: 100%;
+  margin-top: 0.72rem;
+}
+
+.room-sim-muted-text,
+.room-sim-notice,
+.room-sim-save-status {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.room-sim-save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  font-weight: 700;
+}
+
+.room-sim-notice {
+  border: 1px solid rgba(217, 119, 6, 0.24);
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.1);
+  color: #92400e;
+  padding: 0.7rem;
+}
+
+.room-sim-room-label,
+.room-sim-equipment-label {
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  color: #1f2937;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+}
+
+.room-sim-room-label {
+  padding: 0.18rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.room-sim-equipment-label {
+  padding: 0.14rem 0.36rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+@media (max-width: 1160px) {
+  .room-sim-workspace {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .room-sim-viewer-shell,
+  .room-sim-canvas {
+    min-height: 520px;
+  }
+
+  .room-sim-control-panel {
+    max-height: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .room-sim-notice {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .room-sim-page {
+    padding: 0.75rem;
+  }
+
+  .room-sim-header-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .room-sim-title-block h1 {
+    font-size: 1.25rem;
+  }
+
+  .room-sim-viewer-shell,
+  .room-sim-canvas {
+    min-height: 430px;
+  }
+
+  .room-sim-control-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .room-sim-toggle-grid,
+  .room-sim-action-grid,
+  .room-sim-catalog-grid,
+  .room-sim-style-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ===== Loan Simulator ===== */
 .loan-sim-page {
   width: 100%;

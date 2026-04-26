@@ -6,6 +6,7 @@ import type { HomeOnboardingState, QuizSetWithMeta } from '../types';
 
 type UseAppBootstrapParams = {
     useCloudSync: boolean;
+    skipBootstrap: boolean;
     loadQuizSets: () => Promise<QuizSetWithMeta[]>;
     setCurrentUser: (user: AuthUser | null) => void;
     setIsLoginModalOpen: (open: boolean) => void;
@@ -31,6 +32,7 @@ async function seedSampleQuizSet(loadQuizSets: () => Promise<QuizSetWithMeta[]>)
 
 export function useAppBootstrap({
     useCloudSync,
+    skipBootstrap,
     loadQuizSets,
     setCurrentUser,
     setIsLoginModalOpen,
@@ -38,7 +40,13 @@ export function useAppBootstrap({
     setIsInitialized,
 }: UseAppBootstrapParams): void {
     useEffect(() => {
+        if (skipBootstrap) {
+            setIsInitialized(true);
+            return;
+        }
+
         const init = async () => {
+            setIsInitialized(false);
             try {
                 if (useCloudSync) {
                     const user = await cloudApi.getCurrentUser();
@@ -89,6 +97,7 @@ export function useAppBootstrap({
         setHomeOnboardingState,
         setIsInitialized,
         setIsLoginModalOpen,
+        skipBootstrap,
         useCloudSync,
     ]);
 }

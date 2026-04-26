@@ -18,6 +18,7 @@ import { DistributionRoute } from './pages/DistributionRoute';
 import { DistributionTablesRoute } from './pages/DistributionTablesRoute';
 import { LinearAlgebraLabRoute } from './pages/LinearAlgebraLabRoute';
 import { LoanSimRoute } from './pages/LoanSimRoute';
+import { RoomSimRoute } from './pages/RoomSimRoute';
 import { LocalLlmChatRoute } from './pages/LocalLlmChatRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
@@ -44,6 +45,7 @@ function App() {
   const isEmbedded = typeof window !== 'undefined' && window.self !== window.top;
   const isReleaseNotesRoute = location.pathname.startsWith('/release-notes');
   const isLoanSimRoute = location.pathname.startsWith('/loan-sim');
+  const isRoomSimRoute = location.pathname.startsWith('/room-sim');
   const {
     themeMode,
     setThemeMode,
@@ -80,7 +82,7 @@ function App() {
   };
 
   const isStudyOrMemRoute = location.pathname.includes('/study') || location.pathname.includes('/memorization');
-  const shouldShowGlobalSettingsButton = !isStudyOrMemRoute && !(isEmbedded && isLoanSimRoute);
+  const shouldShowGlobalSettingsButton = !isStudyOrMemRoute && !isRoomSimRoute && !(isEmbedded && isLoanSimRoute);
 
   useEffect(() => {
     document.body.classList.toggle('study-mode-active', isStudyOrMemRoute);
@@ -114,7 +116,7 @@ function App() {
     ));
   }, [handleLocalLlmSettingsChange]);
 
-  if (!isInitialized && !isReleaseNotesRoute) {
+  if (!isInitialized && !isReleaseNotesRoute && !isRoomSimRoute) {
     return <LoadingView fullPage message="データを読み込み中..." />;
   }
 
@@ -163,16 +165,18 @@ function App() {
         onLoginRequest={() => { setIsSettingsOpen(false); setIsLoginModalOpen(true); }}
       />
 
-      <AppAuthModals
-        currentUser={currentUser}
-        isLoginModalOpen={isLoginModalOpen}
-        setIsLoginModalOpen={setIsLoginModalOpen}
-        isRegisterModalOpen={isRegisterModalOpen}
-        setIsRegisterModalOpen={setIsRegisterModalOpen}
-        setCurrentUser={setCurrentUser}
-        setUseCloudSync={setUseCloudSync}
-        loadQuizSets={loadQuizSets}
-      />
+      {!isRoomSimRoute && (
+        <AppAuthModals
+          currentUser={currentUser}
+          isLoginModalOpen={isLoginModalOpen}
+          setIsLoginModalOpen={setIsLoginModalOpen}
+          isRegisterModalOpen={isRegisterModalOpen}
+          setIsRegisterModalOpen={setIsRegisterModalOpen}
+          setCurrentUser={setCurrentUser}
+          setUseCloudSync={setUseCloudSync}
+          loadQuizSets={loadQuizSets}
+        />
+      )}
 
       <Routes location={location}>
         <Route path="/" element={<HomeRoute />} />
@@ -180,6 +184,7 @@ function App() {
         <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
         <Route path="/linear-algebra-lab" element={<LinearAlgebraLabRoute />} />
         <Route path="/loan-sim" element={<LoanSimRoute />} />
+        <Route path="/room-sim" element={<RoomSimRoute />} />
         <Route
           path="/local-llm-chat"
           element={(

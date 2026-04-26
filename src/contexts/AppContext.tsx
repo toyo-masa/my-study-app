@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ApiError, type AuthUser } from '../cloudApi';
 import { getAllQuizSets } from '../db';
 import type { HomeOnboardingState, QuizSetWithMeta } from '../types';
@@ -43,6 +44,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const location = useLocation();
+    const skipBootstrap = location.pathname.startsWith('/room-sim');
     const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
     const [quizSets, setQuizSets] = useState<QuizSetWithMeta[]>([]);
     const [deletedQuizSets, setDeletedQuizSets] = useState<QuizSetWithMeta[]>([]);
@@ -100,6 +103,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     useAppBootstrap({
         useCloudSync,
+        skipBootstrap,
         loadQuizSets,
         setCurrentUser,
         setIsLoginModalOpen,

@@ -10,6 +10,7 @@ import {
     FileText,
     Bot,
     VectorSquare,
+    Building2,
 } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 
@@ -27,6 +28,7 @@ const apps: AppItem[] = [
     { id: 'distribution-tables', name: '統計分布表', icon: <FileText size={24} />, color: '#8b5cf6' },
     { id: 'linear-algebra-lab', name: 'ベクトル・行列ラボ', icon: <VectorSquare size={24} />, color: '#0284c7' },
     { id: 'loan-sim', name: '住宅ローン返済シミュレーター', icon: <House size={24} />, color: '#0f766e' },
+    { id: 'room-sim', name: '3D内覧シミュレーター', icon: <Building2 size={24} />, color: '#2563eb' },
     { id: 'local-llm-chat', name: 'ローカルLLMチャット（試作）', icon: <Bot size={24} />, color: '#f59e0b' },
     { id: 'review-board', name: '復習ボード（試作）', icon: <CalendarCheck2 size={24} />, color: '#0d9488' },
     { id: 'tutorial', name: 'チュートリアル', icon: <GraduationCap size={24} />, color: '#2563eb' },
