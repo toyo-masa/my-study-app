@@ -206,6 +206,14 @@ export const walkableAreas: AreaDefinition[] = [
     { id: 'washroom', name: '洗面室', position: { x: -2.4, z: -0.55 }, size: { width: 1.12, depth: 1.18 } },
     { id: 'toilet', name: 'トイレ', position: { x: -0.95, z: -1.55 }, size: { width: 0.52, depth: 1.02 } },
     { id: 'balcony', name: 'バルコニー', position: { x: 0, z: 7.1 }, size: { width: 5.75, depth: 1.65 } },
+    { id: 'corridor-living-connector', name: '廊下LD通行部', position: { x: 0, z: 3.08 }, size: { width: 1.35, depth: 0.86 } },
+    { id: 'bedroom1-connector', name: '洋室(1)通行部', position: { x: -0.55, z: -4.75 }, size: { width: 1.45, depth: 0.95 } },
+    { id: 'service-room-connector', name: 'サービスルーム通行部', position: { x: 0.55, z: -4.65 }, size: { width: 1.45, depth: 0.95 } },
+    { id: 'bedroom2-connector', name: '洋室(2)通行部', position: { x: 0.55, z: -0.05 }, size: { width: 1.45, depth: 1.0 } },
+    { id: 'kitchen-connector', name: 'キッチン通行部', position: { x: -0.88, z: 2.2 }, size: { width: 1.8, depth: 1.5 } },
+    { id: 'washroom-connector', name: '洗面室通行部', position: { x: -1.15, z: -0.55 }, size: { width: 2.2, depth: 1.0 } },
+    { id: 'toilet-connector', name: 'トイレ通行部', position: { x: -0.55, z: -1.55 }, size: { width: 1.2, depth: 1.0 } },
+    { id: 'bathroom-connector', name: '浴室通行部', position: { x: -2.4, z: -1.3 }, size: { width: 1.2, depth: 1.1 } },
 ];
 
 export const placementAreas: AreaDefinition[] = [

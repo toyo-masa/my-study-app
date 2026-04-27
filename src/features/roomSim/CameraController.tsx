@@ -166,7 +166,7 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
         const speed = 2.1 * delta;
         const movementEnabled = movementEnabledRef.current;
         const forward = movementEnabled ? Number(keys.has('w') || keys.has('arrowup')) - Number(keys.has('s') || keys.has('arrowdown')) : 0;
-        const side = movementEnabled ? Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft')) : 0;
+        const side = movementEnabled ? Number(keys.has('a') || keys.has('arrowleft')) - Number(keys.has('d') || keys.has('arrowright')) : 0;
         const sin = Math.sin(yawRef.current);
         const cos = Math.cos(yawRef.current);
 
