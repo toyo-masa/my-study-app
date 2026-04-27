@@ -14,6 +14,13 @@ export type RoomSize = {
     depth: number;
 };
 
+export type AreaDefinition = {
+    id: string;
+    name: string;
+    position: Vector2Meters;
+    size: RoomSize;
+};
+
 export type Size3D = {
     width: number;
     depth: number;
@@ -47,6 +54,12 @@ export type FurnitureCategory =
     | 'desk'
     | 'shelf'
     | 'rug';
+
+export type FurniturePlacementRule = {
+    category: FurnitureCategory;
+    preferredAreaId: string;
+    areaIds: string[];
+};
 
 export type FurnitureStyle = 'natural' | 'modern' | 'hotelLike' | 'scandinavian';
 
@@ -192,6 +205,7 @@ export type RoomSimSettings = {
     viewMode: CameraMode;
     furnitureVisible: boolean;
     transparentWalls: boolean;
+    showRoomLabels: boolean;
     lightingMode: LightingMode;
     eyeHeight: number;
     globalStyle: FurnitureStyle;

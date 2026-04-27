@@ -110,7 +110,7 @@ export function RoomScene({
             }}
         >
             <SceneLighting mode={settings.lightingMode} />
-            <RoomShell transparentWalls={settings.transparentWalls} />
+            <RoomShell transparentWalls={settings.transparentWalls} showRoomLabels={settings.showRoomLabels} />
             {settings.furnitureVisible && furniture.map((item) => (
                 <Furniture
                     key={item.id}

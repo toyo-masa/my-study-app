@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { clampFurniturePositionToAreas, normalizeDegrees } from './areaUtils';
 import { createFurnitureFromCatalog, findCatalogItem } from './furnitureCatalog';
 import { furnitureStylePresets } from './furnitureMaterials';
-import { initialFurniture, roomBounds } from './roomData';
+import { furniturePlacementRules, initialFurniture, placementAreas } from './roomData';
 import { loadStoredFurnitureLayout, saveStoredFurnitureLayout } from './storage';
 import type {
+    AreaDefinition,
     FurnitureCategory,
     FurnitureDefinition,
     FurnitureRenderMode,
@@ -13,6 +15,10 @@ import type {
 } from './types';
 
 type FurnitureUpdate = Partial<Omit<FurnitureDefinition, 'id'>>;
+type FurnitureLayoutState = {
+    furniture: FurnitureDefinition[];
+    layoutSaveStatus: string;
+};
 
 function cloneFurniture(furniture: FurnitureDefinition[]): FurnitureDefinition[] {
     return furniture.map((item) => ({
@@ -22,31 +28,26 @@ function cloneFurniture(furniture: FurnitureDefinition[]): FurnitureDefinition[]
     }));
 }
 
-function normalizeDegrees(degrees: number): number {
-    return ((degrees % 360) + 360) % 360;
-}
-
-function getRotatedFootprint(item: FurnitureDefinition): { width: number; depth: number } {
-    const radians = (normalizeDegrees(item.rotation) * Math.PI) / 180;
-    const cos = Math.abs(Math.cos(radians));
-    const sin = Math.abs(Math.sin(radians));
-
-    return {
-        width: item.size.width * cos + item.size.depth * sin,
-        depth: item.size.width * sin + item.size.depth * cos,
-    };
-}
-
 function clampFurniturePosition(item: FurnitureDefinition, position: Vector3Meters): Vector3Meters {
-    const footprint = getRotatedFootprint(item);
-    const halfWidth = footprint.width / 2;
-    const halfDepth = footprint.depth / 2;
-    const margin = 0.04;
+    return clampFurniturePositionToAreas(item, position, getPlacementAreasForCategory(item.category));
+}
+
+function getPlacementAreasForCategory(category: FurnitureCategory): AreaDefinition[] {
+    const rule = furniturePlacementRules[category];
+    const areaIds = new Set(rule.areaIds);
+    const areas = placementAreas.filter((area) => areaIds.has(area.id));
+
+    return areas.length > 0 ? areas : placementAreas;
+}
+
+function getPreferredPosition(category: FurnitureCategory): Vector3Meters {
+    const rule = furniturePlacementRules[category];
+    const preferredArea = placementAreas.find((area) => area.id === rule.preferredAreaId) ?? placementAreas[0];
 
     return {
-        x: Math.min(roomBounds.maxX - halfWidth - margin, Math.max(roomBounds.minX + halfWidth + margin, position.x)),
-        y: item.position.y,
-        z: Math.min(roomBounds.maxZ - halfDepth - margin, Math.max(roomBounds.minZ + halfDepth + margin, position.z)),
+        x: preferredArea.position.x,
+        y: 0,
+        z: preferredArea.position.z,
     };
 }
 
@@ -62,12 +63,29 @@ function pickDesignForStyle(category: FurnitureCategory, style: FurnitureStyle) 
 }
 
 export function useFurnitureLayout() {
-    const [furniture, setFurniture] = useState<FurnitureDefinition[]>(() => loadStoredFurnitureLayout(initialFurniture));
-    const layoutSaveStatus = '家具配置を保存済み';
+    const [layoutState, setLayoutState] = useState<FurnitureLayoutState>(() => {
+        const furniture = loadStoredFurnitureLayout(initialFurniture);
+        const saved = saveStoredFurnitureLayout(furniture);
 
-    useEffect(() => {
-        saveStoredFurnitureLayout(furniture);
-    }, [furniture]);
+        return {
+            furniture,
+            layoutSaveStatus: saved ? '家具配置を保存済み' : '家具配置の保存に失敗しました',
+        };
+    });
+    const furniture = layoutState.furniture;
+    const layoutSaveStatus = layoutState.layoutSaveStatus;
+
+    const commitFurniture = (updater: (current: FurnitureDefinition[]) => FurnitureDefinition[]) => {
+        setLayoutState((current) => {
+            const nextFurniture = updater(current.furniture);
+            const saved = saveStoredFurnitureLayout(nextFurniture);
+
+            return {
+                furniture: nextFurniture,
+                layoutSaveStatus: saved ? '家具配置を保存済み' : '家具配置の保存に失敗しました',
+            };
+        });
+    };
 
     const visibleFurniture = useMemo(
         () => furniture.filter((item) => item.visible),
@@ -75,7 +93,7 @@ export function useFurnitureLayout() {
     );
 
     const updateFurniture = (id: string, update: FurnitureUpdate) => {
-        setFurniture((current) => current.map((item) => (
+        commitFurniture((current) => current.map((item) => (
             item.id === id
                 ? {
                     ...item,
@@ -88,7 +106,7 @@ export function useFurnitureLayout() {
     };
 
     const moveFurniture = (id: string, nextPosition: Vector3Meters) => {
-        setFurniture((current) => current.map((item) => (
+        commitFurniture((current) => current.map((item) => (
             item.id === id
                 ? { ...item, position: clampFurniturePosition(item, nextPosition) }
                 : item
@@ -96,7 +114,7 @@ export function useFurnitureLayout() {
     };
 
     const rotateFurniture = (id: string, deltaDegrees = 90) => {
-        setFurniture((current) => current.map((item) => {
+        commitFurniture((current) => current.map((item) => {
             if (item.id !== id) {
                 return item;
             }
@@ -114,7 +132,7 @@ export function useFurnitureLayout() {
     };
 
     const setFurnitureRotation = (id: string, rotation: number) => {
-        setFurniture((current) => current.map((item) => {
+        commitFurniture((current) => current.map((item) => {
             if (item.id !== id) {
                 return item;
             }
@@ -133,7 +151,7 @@ export function useFurnitureLayout() {
 
     const addFurniture = (category: FurnitureCategory, style: FurnitureStyle): string => {
         const id = `${category}-${Date.now()}`;
-        const created = createFurnitureFromCatalog(category, id, { x: 0, y: 0, z: 3.8 }, 0, style);
+        const created = createFurnitureFromCatalog(category, id, getPreferredPosition(category), 0, style);
         const design = pickDesignForStyle(category, style);
         const styledFurniture: FurnitureDefinition = {
             ...created,
@@ -143,20 +161,23 @@ export function useFurnitureLayout() {
             style,
         };
 
-        setFurniture((current) => [...current, styledFurniture]);
+        commitFurniture((current) => [...current, {
+            ...styledFurniture,
+            position: clampFurniturePosition(styledFurniture, styledFurniture.position),
+        }]);
         return id;
     };
 
     const deleteFurniture = (id: string) => {
-        setFurniture((current) => current.filter((item) => item.id !== id));
+        commitFurniture((current) => current.filter((item) => item.id !== id));
     };
 
     const resetFurniture = () => {
-        setFurniture(cloneFurniture(initialFurniture));
+        commitFurniture(() => cloneFurniture(initialFurniture));
     };
 
     const applyGlobalStyle = (style: FurnitureStyle) => {
-        setFurniture((current) => current.map((item) => {
+        commitFurniture((current) => current.map((item) => {
             const design = pickDesignForStyle(item.category, style);
             return {
                 ...item,
@@ -177,7 +198,7 @@ export function useFurnitureLayout() {
     };
 
     const toggleFurnitureVisibility = (id: string) => {
-        setFurniture((current) => current.map((item) => (
+        commitFurniture((current) => current.map((item) => (
             item.id === id ? { ...item, visible: !item.visible } : item
         )));
     };

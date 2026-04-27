@@ -4,9 +4,10 @@ import type { RoomDefinition } from './types';
 
 type FloorProps = {
     room: RoomDefinition;
+    showLabel: boolean;
 };
 
-export function Floor({ room }: FloorProps) {
+export function Floor({ room, showLabel }: FloorProps) {
     const lineCount = room.floorMaterial === 'floorOak' ? Math.max(1, Math.floor(room.size.depth / 0.32)) : 0;
 
     return (
@@ -24,9 +25,11 @@ export function Floor({ room }: FloorProps) {
                     </mesh>
                 );
             })}
-            <Html center position={[0, 0.04, 0]} className="room-sim-room-label" transform={false}>
-                {room.name}
-            </Html>
+            {showLabel && (
+                <Html center position={[0, 0.04, 0]} className="room-sim-room-label" transform={false}>
+                    {room.name}
+                </Html>
+            )}
         </group>
     );
 }

@@ -21,6 +21,7 @@ export function RoomSimControls({
 }: RoomSimControlsProps) {
     const handleViewModeChange = (viewMode: CameraMode) => {
         onSettingChange('viewMode', viewMode);
+        onSettingChange('showRoomLabels', viewMode === 'overview');
         onSettingChange('activeCameraPresetId', viewMode === 'overview' ? 'overview' : 'entrance-to-ldk');
     };
 
@@ -67,6 +68,7 @@ export function RoomSimControls({
                         }
                         onSettingChange('activeCameraPresetId', preset.id);
                         onSettingChange('viewMode', preset.mode);
+                        onSettingChange('showRoomLabels', preset.mode === 'overview');
                     }}
                 >
                     {cameraPresets.map((preset) => (
@@ -93,6 +95,14 @@ export function RoomSimControls({
                         onChange={(event) => onSettingChange('transparentWalls', event.target.checked)}
                     />
                     壁を透過
+                </label>
+                <label className="room-sim-check-label">
+                    <input
+                        type="checkbox"
+                        checked={settings.showRoomLabels}
+                        onChange={(event) => onSettingChange('showRoomLabels', event.target.checked)}
+                    />
+                    部屋名表示
                 </label>
             </div>
 

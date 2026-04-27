@@ -4,7 +4,8 @@ import { OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { roomBounds } from './roomData';
+import { clampPointToAreas } from './areaUtils';
+import { walkableAreas } from './roomData';
 import type { CameraPreset, RoomSimSettings } from './types';
 
 type CameraControllerProps = {
@@ -28,6 +29,18 @@ function syncAnglesFromTarget(
     pitchRef.current = Math.asin(clamp(direction.y, -0.9, 0.9));
 }
 
+function isEditableElement(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+
+    return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
+}
+
+function isMovementKey(key: string): boolean {
+    return ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
+}
+
 export function CameraController({ settings, activePreset, furnitureDragging }: CameraControllerProps) {
     const { camera, gl } = useThree();
     const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -37,10 +50,18 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
     const yawRef = useRef(0);
     const pitchRef = useRef(-0.3);
     const furnitureDraggingRef = useRef(furnitureDragging);
+    const movementEnabledRef = useRef(false);
 
     useEffect(() => {
         furnitureDraggingRef.current = furnitureDragging;
     }, [furnitureDragging]);
+
+    useEffect(() => {
+        if (settings.viewMode !== 'walkthrough') {
+            movementEnabledRef.current = false;
+            keysRef.current.clear();
+        }
+    }, [settings.viewMode]);
 
     useEffect(() => {
         const positionY = activePreset.mode === 'walkthrough' ? settings.eyeHeight : activePreset.position.y;
@@ -59,7 +80,19 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            keysRef.current.add(event.key.toLowerCase());
+            const key = event.key.toLowerCase();
+
+            if (!isMovementKey(key)) {
+                return;
+            }
+
+            if (isEditableElement(event.target) || settings.viewMode !== 'walkthrough' || !movementEnabledRef.current) {
+                keysRef.current.delete(key);
+                return;
+            }
+
+            event.preventDefault();
+            keysRef.current.add(key);
         };
         const handleKeyUp = (event: KeyboardEvent) => {
             keysRef.current.delete(event.key.toLowerCase());
@@ -72,7 +105,7 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, []);
+    }, [settings.viewMode]);
 
     useEffect(() => {
         const canvas = gl.domElement;
@@ -82,8 +115,16 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
                 return;
             }
 
+            movementEnabledRef.current = true;
             isLookingRef.current = true;
             lastPointerRef.current = { x: event.clientX, y: event.clientY };
+        };
+
+        const handleWindowPointerDown = (event: PointerEvent) => {
+            if (event.target instanceof Node && !canvas.contains(event.target)) {
+                movementEnabledRef.current = false;
+                keysRef.current.clear();
+            }
         };
 
         const handlePointerMove = (event: PointerEvent) => {
@@ -104,11 +145,13 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
         };
 
         canvas.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointerdown', handleWindowPointerDown);
         window.addEventListener('pointermove', handlePointerMove);
         window.addEventListener('pointerup', handlePointerUp);
 
         return () => {
             canvas.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('pointerdown', handleWindowPointerDown);
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
         };
@@ -121,18 +164,21 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
 
         const keys = keysRef.current;
         const speed = 2.1 * delta;
-        const forward = Number(keys.has('w') || keys.has('arrowup')) - Number(keys.has('s') || keys.has('arrowdown'));
-        const side = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
+        const movementEnabled = movementEnabledRef.current;
+        const forward = movementEnabled ? Number(keys.has('w') || keys.has('arrowup')) - Number(keys.has('s') || keys.has('arrowdown')) : 0;
+        const side = movementEnabled ? Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft')) : 0;
         const sin = Math.sin(yawRef.current);
         const cos = Math.cos(yawRef.current);
 
         if (forward !== 0 || side !== 0) {
             const nextX = camera.position.x + (sin * forward + cos * side) * speed;
             const nextZ = camera.position.z + (cos * forward - sin * side) * speed;
+            const clampedPoint = clampPointToAreas(walkableAreas, { x: nextX, z: nextZ }, { width: 0.36, depth: 0.36 }, 0.02);
+
             camera.position.set(
-                clamp(nextX, roomBounds.minX + 0.18, roomBounds.maxX - 0.18),
+                clampedPoint.x,
                 settings.eyeHeight,
-                clamp(nextZ, roomBounds.minZ + 0.18, roomBounds.maxZ - 0.18),
+                clampedPoint.z,
             );
         } else {
             camera.position.set(camera.position.x, settings.eyeHeight, camera.position.z);

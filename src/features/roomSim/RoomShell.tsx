@@ -9,6 +9,7 @@ import type { OpeningDefinition } from './types';
 
 type RoomShellProps = {
     transparentWalls: boolean;
+    showRoomLabels: boolean;
 };
 
 function OpeningMarker({ opening }: { opening: OpeningDefinition }) {
@@ -22,11 +23,11 @@ function OpeningMarker({ opening }: { opening: OpeningDefinition }) {
     );
 }
 
-export function RoomShell({ transparentWalls }: RoomShellProps) {
+export function RoomShell({ transparentWalls, showRoomLabels }: RoomShellProps) {
     return (
         <group>
             {rooms.map((room) => (
-                <Floor key={room.id} room={room} />
+                <Floor key={room.id} room={room} showLabel={showRoomLabels} />
             ))}
             {walls.map((wall) => (
                 <Wall key={wall.id} wall={wall} transparent={transparentWalls} />

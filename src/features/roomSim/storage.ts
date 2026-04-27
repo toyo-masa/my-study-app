@@ -1,4 +1,5 @@
 import { defaultCameraPresetId } from './cameraPresets';
+import { floorPlanVersion } from './roomData';
 import type {
     FurnitureDefinition,
     FurnitureRenderMode,
@@ -8,8 +9,13 @@ import type {
     RoomSimSettings,
 } from './types';
 
-const FURNITURE_STORAGE_KEY = 'room-sim.furniture-layout.v1';
+const FURNITURE_STORAGE_KEY = `room-sim.furniture-layout.v1.${floorPlanVersion}`;
 const SETTINGS_STORAGE_KEY = 'room-sim.settings.v1';
+
+type StoredFurnitureLayout = {
+    floorPlanVersion: string;
+    furniture: FurnitureDefinition[];
+};
 
 const materialKeys: MaterialKey[] = [
     'floorOak',
@@ -37,6 +43,7 @@ export const defaultRoomSimSettings: RoomSimSettings = {
     viewMode: 'overview',
     furnitureVisible: true,
     transparentWalls: false,
+    showRoomLabels: true,
     lightingMode: 'day',
     eyeHeight: 1.6,
     globalStyle: 'natural',
@@ -147,30 +154,52 @@ function parseFurniture(value: unknown): FurnitureDefinition | null {
     };
 }
 
+function cloneFurniture(furniture: FurnitureDefinition[]): FurnitureDefinition[] {
+    return furniture.map((item) => ({
+        ...item,
+        size: { ...item.size },
+        position: { ...item.position },
+    }));
+}
+
+function parseStoredFurnitureLayout(value: unknown): StoredFurnitureLayout | null {
+    if (Array.isArray(value)) {
+        const furniture = value
+            .map((item) => parseFurniture(item))
+            .filter((item): item is FurnitureDefinition => item !== null);
+
+        return furniture.length > 0 ? { floorPlanVersion, furniture } : null;
+    }
+
+    if (!isRecord(value) || value.floorPlanVersion !== floorPlanVersion || !Array.isArray(value.furniture)) {
+        return null;
+    }
+
+    const furniture = value.furniture
+        .map((item) => parseFurniture(item))
+        .filter((item): item is FurnitureDefinition => item !== null);
+
+    return furniture.length > 0 ? { floorPlanVersion, furniture } : null;
+}
+
 export function loadStoredFurnitureLayout(fallback: FurnitureDefinition[]): FurnitureDefinition[] {
     const raw = readLocalStorage(FURNITURE_STORAGE_KEY);
     if (!raw) {
-        return fallback.map((item) => ({ ...item, size: { ...item.size }, position: { ...item.position } }));
+        return cloneFurniture(fallback);
     }
 
     try {
         const parsed: unknown = JSON.parse(raw);
-        if (!Array.isArray(parsed)) {
-            return fallback;
-        }
+        const storedLayout = parseStoredFurnitureLayout(parsed);
 
-        const furniture = parsed
-            .map((item) => parseFurniture(item))
-            .filter((item): item is FurnitureDefinition => item !== null);
-
-        return furniture.length > 0 ? furniture : fallback;
+        return storedLayout ? cloneFurniture(storedLayout.furniture) : cloneFurniture(fallback);
     } catch {
-        return fallback;
+        return cloneFurniture(fallback);
     }
 }
 
 export function saveStoredFurnitureLayout(furniture: FurnitureDefinition[]): boolean {
-    return writeLocalStorage(FURNITURE_STORAGE_KEY, JSON.stringify(furniture));
+    return writeLocalStorage(FURNITURE_STORAGE_KEY, JSON.stringify({ floorPlanVersion, furniture }));
 }
 
 export function loadRoomSimSettings(): RoomSimSettings {
@@ -185,10 +214,13 @@ export function loadRoomSimSettings(): RoomSimSettings {
             return { ...defaultRoomSimSettings };
         }
 
+        const viewMode = parsed.viewMode === 'walkthrough' ? 'walkthrough' : 'overview';
+
         return {
-            viewMode: parsed.viewMode === 'walkthrough' ? 'walkthrough' : 'overview',
+            viewMode,
             furnitureVisible: typeof parsed.furnitureVisible === 'boolean' ? parsed.furnitureVisible : defaultRoomSimSettings.furnitureVisible,
             transparentWalls: typeof parsed.transparentWalls === 'boolean' ? parsed.transparentWalls : defaultRoomSimSettings.transparentWalls,
+            showRoomLabels: typeof parsed.showRoomLabels === 'boolean' ? parsed.showRoomLabels : viewMode === 'overview',
             lightingMode: typeof parsed.lightingMode === 'string' && lightingModes.includes(parsed.lightingMode as LightingMode) ? parsed.lightingMode as LightingMode : defaultRoomSimSettings.lightingMode,
             eyeHeight: isFiniteNumber(parsed.eyeHeight) ? Math.min(1.8, Math.max(1.2, parsed.eyeHeight)) : defaultRoomSimSettings.eyeHeight,
             globalStyle: isFurnitureStyle(parsed.globalStyle) ? parsed.globalStyle : defaultRoomSimSettings.globalStyle,

@@ -1,13 +1,18 @@
 import type {
+    AreaDefinition,
     DoorDefinition,
     FixedEquipmentDefinition,
+    FurnitureCategory,
     FurnitureDefinition,
+    FurniturePlacementRule,
     OpeningDefinition,
     RoomDefinition,
     RoomSize,
     WallDefinition,
     WindowDefinition,
 } from './types';
+
+export const floorPlanVersion = 'floorplan-20260427';
 
 export const roomSize: RoomSize = {
     width: 6.2,
@@ -188,11 +193,47 @@ export const rooms: RoomDefinition[] = [
     },
 ];
 
+export const walkableAreas: AreaDefinition[] = [
+    { id: 'entrance', name: '玄関', position: { x: 0, z: -5.55 }, size: { width: 0.88, depth: 0.92 } },
+    { id: 'corridor', name: '廊下', position: { x: 0, z: -1.2 }, size: { width: 1.2, depth: 8.65 } },
+    { id: 'livingDining', name: 'リビング・ダイニング', position: { x: 0, z: 4.55 }, size: { width: 5.85, depth: 3.0 } },
+    { id: 'kitchen', name: 'キッチン', position: { x: -2.0, z: 2.0 }, size: { width: 1.85, depth: 2.55 } },
+    { id: 'bedroom1', name: '洋室(1)', position: { x: -1.85, z: -4.65 }, size: { width: 2.5, depth: 2.52 } },
+    { id: 'serviceRoom', name: 'サービスルーム', position: { x: 1.82, z: -4.3 }, size: { width: 2.44, depth: 3.2 } },
+    { id: 'walkThroughCloset', name: 'ウォーククロゼット／可動収納', position: { x: 1.82, z: -1.95 }, size: { width: 2.15, depth: 0.62 } },
+    { id: 'bedroom2', name: '洋室(2)', position: { x: 1.82, z: 0.25 }, size: { width: 2.45, depth: 2.62 } },
+    { id: 'bathroom', name: '浴室', position: { x: -2.4, z: -2.2 }, size: { width: 1.12, depth: 1.5 } },
+    { id: 'washroom', name: '洗面室', position: { x: -2.4, z: -0.55 }, size: { width: 1.12, depth: 1.18 } },
+    { id: 'toilet', name: 'トイレ', position: { x: -0.95, z: -1.55 }, size: { width: 0.52, depth: 1.02 } },
+    { id: 'balcony', name: 'バルコニー', position: { x: 0, z: 7.1 }, size: { width: 5.75, depth: 1.65 } },
+];
+
+export const placementAreas: AreaDefinition[] = [
+    { id: 'livingDining', name: 'リビング・ダイニング', position: { x: 0, z: 4.45 }, size: { width: 5.72, depth: 3.1 } },
+    { id: 'bedroom1', name: '洋室(1)', position: { x: -1.85, z: -4.65 }, size: { width: 2.12, depth: 2.42 } },
+    { id: 'serviceRoom', name: 'サービスルーム', position: { x: 1.82, z: -4.3 }, size: { width: 2.15, depth: 3.05 } },
+    { id: 'bedroom2', name: '洋室(2)', position: { x: 1.82, z: 0.25 }, size: { width: 2.15, depth: 2.5 } },
+];
+
+export const furniturePlacementRules: Record<FurnitureCategory, FurniturePlacementRule> = {
+    sofa: { category: 'sofa', preferredAreaId: 'livingDining', areaIds: ['livingDining'] },
+    tvBoard: { category: 'tvBoard', preferredAreaId: 'livingDining', areaIds: ['livingDining'] },
+    tv: { category: 'tv', preferredAreaId: 'livingDining', areaIds: ['livingDining'] },
+    diningTable: { category: 'diningTable', preferredAreaId: 'livingDining', areaIds: ['livingDining'] },
+    chair: { category: 'chair', preferredAreaId: 'livingDining', areaIds: ['livingDining', 'bedroom1', 'bedroom2', 'serviceRoom'] },
+    rug: { category: 'rug', preferredAreaId: 'livingDining', areaIds: ['livingDining'] },
+    desk: { category: 'desk', preferredAreaId: 'bedroom2', areaIds: ['bedroom1', 'bedroom2', 'serviceRoom', 'livingDining'] },
+    bed: { category: 'bed', preferredAreaId: 'bedroom1', areaIds: ['bedroom1', 'bedroom2', 'serviceRoom'] },
+    shelf: { category: 'shelf', preferredAreaId: 'serviceRoom', areaIds: ['bedroom1', 'bedroom2', 'serviceRoom', 'livingDining'] },
+};
+
 export const walls: WallDefinition[] = [
     { id: 'outer-top-left', name: '外壁 北西', start: { x: -3.1, z: -6.1 }, end: { x: -0.62, z: -6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
     { id: 'outer-top-right', name: '外壁 北東', start: { x: 0.62, z: -6.1 }, end: { x: 3.1, z: -6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
-    { id: 'outer-left', name: '外壁 西', start: { x: -3.1, z: -6.1 }, end: { x: -3.1, z: 6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
-    { id: 'outer-right', name: '外壁 東', start: { x: 3.1, z: -6.1 }, end: { x: 3.1, z: 6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
+    { id: 'outer-left-north', name: '外壁 西 北側', start: { x: -3.1, z: -6.1 }, end: { x: -3.1, z: -5.43 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
+    { id: 'outer-left-south', name: '外壁 西 南側', start: { x: -3.1, z: -4.17 }, end: { x: -3.1, z: 6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
+    { id: 'outer-right-north', name: '外壁 東 北側', start: { x: 3.1, z: -6.1 }, end: { x: 3.1, z: -5.33 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
+    { id: 'outer-right-south', name: '外壁 東 南側', start: { x: 3.1, z: -3.97 }, end: { x: 3.1, z: 6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
     { id: 'living-south-left', name: 'バルコニー側袖壁 左', start: { x: -3.1, z: 6.1 }, end: { x: -2.35, z: 6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
     { id: 'living-south-right', name: 'バルコニー側袖壁 右', start: { x: 2.35, z: 6.1 }, end: { x: 3.1, z: 6.1 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
     { id: 'bedroom1-south', name: '洋室(1)南壁', start: { x: -3.1, z: -3.2 }, end: { x: -0.55, z: -3.2 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
@@ -204,7 +245,8 @@ export const walls: WallDefinition[] = [
     { id: 'closet-south', name: '可動収納南壁', start: { x: 0.55, z: -1.45 }, end: { x: 3.1, z: -1.45 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
     { id: 'bedroom2-west-a', name: '洋室(2)廊下壁 上', start: { x: 0.55, z: -1.45 }, end: { x: 0.55, z: -0.45 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
     { id: 'bedroom2-west-b', name: '洋室(2)廊下壁 下', start: { x: 0.55, z: 0.3 }, end: { x: 0.55, z: 1.75 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
-    { id: 'bedroom2-south', name: '洋室(2)ウォールドア', start: { x: 0.55, z: 1.75 }, end: { x: 3.1, z: 1.75 }, height: ceilingHeight, thickness: 0.08, material: 'wallWarmWhite' },
+    { id: 'bedroom2-south-left', name: '洋室(2)ウォールドア 袖壁左', start: { x: 0.55, z: 1.75 }, end: { x: 0.92, z: 1.75 }, height: ceilingHeight, thickness: 0.08, material: 'wallWarmWhite' },
+    { id: 'bedroom2-south-right', name: '洋室(2)ウォールドア 袖壁右', start: { x: 2.72, z: 1.75 }, end: { x: 3.1, z: 1.75 }, height: ceilingHeight, thickness: 0.08, material: 'wallWarmWhite' },
     { id: 'living-north-right', name: 'LD北側壁 右', start: { x: 0.55, z: 3.2 }, end: { x: 3.1, z: 3.2 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },
     { id: 'kitchen-east', name: 'キッチン腰壁側', start: { x: -0.85, z: 0.65 }, end: { x: -0.85, z: 3.2 }, height: 1.05, thickness: 0.12, material: 'whiteMatte' },
     { id: 'kitchen-north', name: 'キッチン北壁', start: { x: -3.1, z: 0.65 }, end: { x: -0.85, z: 0.65 }, height: ceilingHeight, thickness: wallThickness, material: 'wallWarmWhite' },

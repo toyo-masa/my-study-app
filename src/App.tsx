@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 import { SettingsModal } from './components/SettingsModal';
@@ -18,7 +18,6 @@ import { DistributionRoute } from './pages/DistributionRoute';
 import { DistributionTablesRoute } from './pages/DistributionTablesRoute';
 import { LinearAlgebraLabRoute } from './pages/LinearAlgebraLabRoute';
 import { LoanSimRoute } from './pages/LoanSimRoute';
-import { RoomSimRoute } from './pages/RoomSimRoute';
 import { LocalLlmChatRoute } from './pages/LocalLlmChatRoute';
 import { ReleaseNotesRoute } from './pages/ReleaseNotesRoute';
 import { ReviewBoardRoute } from './pages/ReviewBoardRoute';
@@ -27,6 +26,8 @@ import { NotFoundRoute } from './pages/NotFoundRoute';
 import { HistoryTableRoute } from './pages/HistoryTableRoute';
 import { TutorialHubRoute } from './pages/TutorialHubRoute';
 import { StudyInsightsRoute } from './pages/StudyInsightsRoute';
+
+const RoomSimRoute = lazy(() => import('./pages/RoomSimRoute').then((module) => ({ default: module.RoomSimRoute })));
 
 function App() {
   const {
@@ -184,7 +185,14 @@ function App() {
         <Route path="/distribution-tables" element={<DistributionTablesRoute />} />
         <Route path="/linear-algebra-lab" element={<LinearAlgebraLabRoute />} />
         <Route path="/loan-sim" element={<LoanSimRoute />} />
-        <Route path="/room-sim" element={<RoomSimRoute />} />
+        <Route
+          path="/room-sim"
+          element={(
+            <Suspense fallback={<LoadingView fullPage message="3D内覧を読み込み中..." />}>
+              <RoomSimRoute />
+            </Suspense>
+          )}
+        />
         <Route
           path="/local-llm-chat"
           element={(
