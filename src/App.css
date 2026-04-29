@@ -2690,12 +2690,12 @@ body.is-dragging-linear-algebra-vector {
 }
 
 .distribution-data-table thead th.is-selected-column {
-  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.16);
+  background: color-mix(in srgb, var(--surface-color) 84%, var(--primary-color) 16%);
   color: var(--primary-color);
 }
 
 .distribution-data-table tbody th.is-selected-row {
-  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.16);
+  background: color-mix(in srgb, var(--surface-color) 84%, var(--primary-color) 16%);
   color: var(--primary-color);
 }
 
@@ -8330,9 +8330,14 @@ button.appearance-option.active {
 
 /* Ensure math displays properly and doesn't break out of containers */
 .katex-display {
+  text-align: center;
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.5rem 0;
+}
+
+.markdown-body p:has(> .katex:first-child:last-child) {
+  text-align: center;
 }
 
 .result-categories h2 {
