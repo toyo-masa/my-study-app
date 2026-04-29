@@ -462,23 +462,21 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         </button>
                     </div>
                     {isMemoExpanded && (
-                        <>
-                            <textarea
-                                className="memo-input"
-                                placeholder="調べたいキーワードやメモを入力..."
-                                value={memo}
-                                onChange={(e) => onMemoChange(e.target.value)}
-                                rows={2}
-                            />
-                            {showHandwritingPad && (
-                                <HandwritingPad
-                                    key={question.id ?? `${questionIndex}-${question.text}`}
-                                    value={handwritingState}
-                                    onChange={onHandwritingStateChange}
-                                    allowTouchDrawing={allowTouchDrawing}
-                                />
-                            )}
-                        </>
+                        <textarea
+                            className="memo-input"
+                            placeholder="調べたいキーワードやメモを入力..."
+                            value={memo}
+                            onChange={(e) => onMemoChange(e.target.value)}
+                            rows={2}
+                        />
+                    )}
+                    {showHandwritingPad && (
+                        <HandwritingPad
+                            key={question.id ?? `${questionIndex}-${question.text}`}
+                            value={handwritingState}
+                            onChange={onHandwritingStateChange}
+                            allowTouchDrawing={allowTouchDrawing}
+                        />
                     )}
                 </div>
             </motion.div>
