@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.81.9',
+        date: '2026年4月29日 21:25',
+        improvements: [
+            '選択肢内の数式は本文と同じ左寄せで表示し、選択肢を読みやすくしました。',
+        ],
+        fixes: [
+            '数式だけの選択肢まで中央寄せになり、選択肢の位置が読み取りにくくなる問題を修正しました。',
+        ],
+    },
+    {
         version: '1.81.8',
         date: '2026年4月29日 13:05',
         improvements: [

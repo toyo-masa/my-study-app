@@ -8340,6 +8340,17 @@ button.appearance-option.active {
   text-align: center;
 }
 
+.option-text .markdown-body p:has(> .katex:first-child:last-child),
+.option-text .katex-display,
+.review-option-text-block .markdown-body p:has(> .katex:first-child:last-child),
+.review-option-text-block .katex-display,
+.history-modal-option-text .markdown-body p:has(> .katex:first-child:last-child),
+.history-modal-option-text .katex-display,
+.review-option-text .markdown-body p:has(> .katex:first-child:last-child),
+.review-option-text .katex-display {
+  text-align: left;
+}
+
 .result-categories h2 {
   font-size: 1.25rem;
   margin-bottom: 1.5rem;
