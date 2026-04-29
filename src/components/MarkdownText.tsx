@@ -13,7 +13,27 @@ interface MarkdownTextProps {
 
 const remarkPlugins = [remarkGfm, remarkMath];
 const rehypePlugins = [rehypeKatex];
+const isKatexElement = (node: React.ReactNode): boolean => {
+    if (!React.isValidElement<{ className?: string }>(node)) {
+        return false;
+    }
+
+    const className = node.props.className ?? '';
+    return className.split(/\s+/).some((name) => name === 'katex' || name === 'katex-display');
+};
+
+const isMathOnlyParagraph = (children: React.ReactNode): boolean => {
+    const nodes = React.Children.toArray(children);
+    const meaningfulNodes = nodes.filter((node) => typeof node !== 'string' || node.trim().length > 0);
+    return meaningfulNodes.length === 1 && isKatexElement(meaningfulNodes[0]);
+};
+
 const markdownComponents: Components = {
+    p: ({ children, ...props }) => (
+        <p {...props} className={isMathOnlyParagraph(children) ? 'markdown-math-only' : undefined}>
+            {children}
+        </p>
+    ),
     table: ({ children, ...props }) => (
         <div className="markdown-table-wrapper">
             <table {...props}>{children}</table>

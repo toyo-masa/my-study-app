@@ -8336,17 +8336,17 @@ button.appearance-option.active {
   padding: 0.5rem 0;
 }
 
-.markdown-body p:has(> .katex:first-child:last-child) {
+.markdown-body p.markdown-math-only {
   text-align: center;
 }
 
-.option-text .markdown-body p:has(> .katex:first-child:last-child),
+.option-text .markdown-body p.markdown-math-only,
 .option-text .katex-display,
-.review-option-text-block .markdown-body p:has(> .katex:first-child:last-child),
+.review-option-text-block .markdown-body p.markdown-math-only,
 .review-option-text-block .katex-display,
-.history-modal-option-text .markdown-body p:has(> .katex:first-child:last-child),
+.history-modal-option-text .markdown-body p.markdown-math-only,
 .history-modal-option-text .katex-display,
-.review-option-text .markdown-body p:has(> .katex:first-child:last-child),
+.review-option-text .markdown-body p.markdown-math-only,
 .review-option-text .katex-display {
   text-align: left;
 }

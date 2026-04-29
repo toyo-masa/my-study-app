@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.81.10',
+        date: '2026年4月29日 21:45',
+        improvements: [
+            '解説内の中央寄せ対象を、本当に数式だけの段落に限定しました。',
+        ],
+        fixes: [
+            '「結論：」などの文章と数式が同じ行にある段落まで中央寄せになってしまう問題を修正しました。',
+        ],
+    },
+    {
         version: '1.81.9',
         date: '2026年4月29日 21:25',
         improvements: [
