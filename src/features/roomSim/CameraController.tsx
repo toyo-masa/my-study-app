@@ -173,7 +173,7 @@ export function CameraController({ settings, activePreset, furnitureDragging }: 
         if (forward !== 0 || side !== 0) {
             const nextX = camera.position.x + (sin * forward + cos * side) * speed;
             const nextZ = camera.position.z + (cos * forward - sin * side) * speed;
-            const clampedPoint = clampPointToAreas(walkableAreas, { x: nextX, z: nextZ }, { width: 0.36, depth: 0.36 }, 0.02);
+            const clampedPoint = clampPointToAreas(walkableAreas, { x: nextX, z: nextZ }, { width: 0.22, depth: 0.22 }, 0.01);
 
             camera.position.set(
                 clampedPoint.x,

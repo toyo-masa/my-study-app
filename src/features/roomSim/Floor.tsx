@@ -25,7 +25,7 @@ export function Floor({ room, showLabel }: FloorProps) {
                     </mesh>
                 );
             })}
-            {showLabel && (
+            {showLabel && room.showLabel !== false && (
                 <Html center position={[0, 0.04, 0]} className="room-sim-room-label" transform={false}>
                     {room.name}
                 </Html>

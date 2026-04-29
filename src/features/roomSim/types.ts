@@ -124,6 +124,7 @@ export type RoomDefinition = {
     height: number;
     floorMaterial: MaterialKey;
     wallMaterial: MaterialKey;
+    showLabel?: boolean;
     openings: string[];
     doors: string[];
     windows: string[];
