@@ -12,6 +12,16 @@ type ReleaseNote = {
 
 const releaseNotes: ReleaseNote[] = [
     {
+        version: '1.81.11',
+        date: '2026年4月30日 11:35',
+        improvements: [
+            't分布表の両側有意水準列を、利用頻度の高い 0.025 で確認できるようにしました。',
+        ],
+        fixes: [
+            't分布表で 0.02 列を表示していた箇所を 0.025 列に置き換えました。',
+        ],
+    },
+    {
         version: '1.81.10',
         date: '2026年4月29日 21:45',
         improvements: [

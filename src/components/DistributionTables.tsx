@@ -66,7 +66,7 @@ function getDistributionSwitchLabel(tableKey: DistributionTableKey, embedded: bo
 
 const NORMAL_ROW_BASES = Array.from({ length: 40 }, (_, index) => index / 10);
 const NORMAL_COLUMN_OFFSETS = Array.from({ length: 10 }, (_, index) => index / 100);
-const T_TWO_SIDED_ALPHA_COLUMNS = [0.2, 0.1, 0.05, 0.02, 0.01];
+const T_TWO_SIDED_ALPHA_COLUMNS = [0.2, 0.1, 0.05, 0.025, 0.01];
 const T_DF_ROWS = [...Array.from({ length: 30 }, (_, index) => index + 1), 40, 60, 120, Number.POSITIVE_INFINITY];
 const CHI_SQUARE_UPPER_TAIL_COLUMNS = [0.995, 0.99, 0.975, 0.95, 0.9, 0.1, 0.05, 0.025, 0.01, 0.005];
 const CHI_SQUARE_DF_ROWS = [...Array.from({ length: 30 }, (_, index) => index + 1), 40, 60, 120];
@@ -360,6 +360,10 @@ function formatFixed(value: number, digits: number): string {
     return value.toFixed(digits);
 }
 
+function formatProbability(value: number): string {
+    return value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}
+
 function buildNormalTable(): DistributionTableConfig {
     return {
         key: 'normal',
@@ -384,7 +388,7 @@ function buildTTable(): DistributionTableConfig {
         description: '両側検定で使う t 分布の臨界値表です。',
         note: '列の α は両側有意水準です。表の値は t_(1-α/2, ν) を表します。',
         rowLabel: '自由度 ν',
-        columns: T_TWO_SIDED_ALPHA_COLUMNS.map((alpha) => alpha.toFixed(2)),
+        columns: T_TWO_SIDED_ALPHA_COLUMNS.map(formatProbability),
         rows: T_DF_ROWS.map((degreesOfFreedom) => ({
             label: Number.isFinite(degreesOfFreedom) ? String(degreesOfFreedom) : '∞',
             values: T_TWO_SIDED_ALPHA_COLUMNS.map((alpha) => formatFixed(
@@ -403,7 +407,7 @@ function buildChiSquareTable(): DistributionTableConfig {
         description: '右側確率で引くカイ二乗分布の臨界値表です。',
         note: '列の α は右側確率 P(X ≥ x) = α を表します。表の値は χ²_(α, ν) です。',
         rowLabel: '自由度 ν',
-        columns: CHI_SQUARE_UPPER_TAIL_COLUMNS.map((alpha) => alpha.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')),
+        columns: CHI_SQUARE_UPPER_TAIL_COLUMNS.map(formatProbability),
         rows: CHI_SQUARE_DF_ROWS.map((degreesOfFreedom) => ({
             label: String(degreesOfFreedom),
             values: CHI_SQUARE_UPPER_TAIL_COLUMNS.map((alpha) => formatFixed(
@@ -466,11 +470,11 @@ function buildDistributionPreview(
         return {
             chartTitle: 't分布',
             chartSubtitle: selectedCell
-                ? `自由度 ${dfLabel} / 両側有意水準 α = ${alpha.toFixed(2)}`
+                ? `自由度 ${dfLabel} / 両側有意水準 α = ${formatProbability(alpha)}`
                 : 'セルを選択すると自由度と有意水準に対応する棄却域を図示します。',
             helperText: '塗りつぶし領域は両側検定の棄却域です。左右の合計面積が α になります。',
             selectedValueLabel: selectedCell ? `臨界値 = ±${formatFixed(criticalValue, 3)}` : null,
-            areaLabel: selectedCell ? `両側棄却域の合計 = ${alpha.toFixed(2)}` : null,
+            areaLabel: selectedCell ? `両側棄却域の合計 = ${formatProbability(alpha)}` : null,
             xMin: -extent,
             xMax: extent,
             pdf: (value) => studentTPdf(value, degreesOfFreedom),
